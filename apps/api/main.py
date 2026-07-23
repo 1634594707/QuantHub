@@ -23,9 +23,11 @@ import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pa_agent.view_models import (
@@ -40,6 +42,9 @@ from core.data_feed.factory import get_data_source
 from core.signals import Signal, get_bus
 from strategies import discover_and_register, get_strategy, list_strategies
 from strategies.ai_analysis.pa_agent.two_stage import run_two_stage
+
+# 加载 apps/api/.env（含 DEEPSEEK_API_KEY 等密钥）；文件缺失时静默跳过
+load_dotenv(Path(__file__).resolve().parent / ".env")
 
 logger = logging.getLogger(__name__)
 
