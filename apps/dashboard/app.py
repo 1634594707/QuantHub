@@ -15,6 +15,7 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 import streamlit as st
+from pa_workbench import render_pa_workbench
 
 from core.config import get_config
 from core.signals import get_bus
@@ -45,7 +46,7 @@ def main() -> None:
     # ===== 侧边栏 =====
     with st.sidebar:
         st.header("导航")
-        page = st.radio("选择页面", ["概览", "信号", "回测", "策略模块", "配置"])
+        page = st.radio("选择页面", ["概览", "信号", "回测", "PA 分析工作台", "策略模块", "配置"])
         st.divider()
         st.header("市场")
         market = st.selectbox("市场", ["a_shares", "crypto", "mt5"])
@@ -94,6 +95,10 @@ def main() -> None:
             name = st.selectbox("策略", list(strategies.keys()))
             if st.button("运行示例回测", type="primary"):
                 st.info(f"委托 {name} 策略回测（需策略实现 backtest 方法）")
+
+    # ===== PA 分析工作台 =====
+    elif page == "PA 分析工作台":
+        render_pa_workbench()
 
     # ===== 策略模块 =====
     elif page == "策略模块":
