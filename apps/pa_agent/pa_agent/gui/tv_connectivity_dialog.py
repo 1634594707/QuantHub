@@ -1,4 +1,5 @@
 """Dialog when TradingView cannot be reached (typical: no outbound internet)."""
+
 from __future__ import annotations
 
 from PyQt6.QtCore import QUrl
@@ -57,9 +58,7 @@ def show_tv_connectivity_blocked_dialog(parent: QWidget | None = None) -> str:
         dlg.accept()
 
     btn_mt5.clicked.connect(lambda: _pick("mt5"))
-    btn_cloud.clicked.connect(
-        lambda: (open_tv_cloud_server_wiki(), _pick("cloud"))
-    )
+    btn_cloud.clicked.connect(lambda: (open_tv_cloud_server_wiki(), _pick("cloud")))
 
     dlg.exec()
     return result[0]

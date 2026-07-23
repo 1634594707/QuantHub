@@ -1,4 +1,5 @@
 """Brooks-aligned trend context: background vs recent direction, spike detection."""
+
 from __future__ import annotations
 
 import math
@@ -75,6 +76,7 @@ def _direction_vote_on_slice(
     s2 = 0
     h = W // 2
     if h >= 1 and len(close_prices) >= 2 * h:
+
         def _wavg(vals: list[float], start: int) -> float:
             tw = tv = 0.0
             for li, v in enumerate(vals):
@@ -188,9 +190,17 @@ def detect_recent_spike(frame: Any) -> str | None:
         tuple(bars), ema20, atr_val, window=W, slope_lookback=min(5, n - 1)
     )
 
-    if bull_tb >= SPIKE_MIN_TREND_BARS and bull_tb >= bear_tb * TREND_BAR_DOMINANCE_RATIO and score >= 2:
+    if (
+        bull_tb >= SPIKE_MIN_TREND_BARS
+        and bull_tb >= bear_tb * TREND_BAR_DOMINANCE_RATIO
+        and score >= 2
+    ):
         return "bullish"
-    if bear_tb >= SPIKE_MIN_TREND_BARS and bear_tb >= bull_tb * TREND_BAR_DOMINANCE_RATIO and score <= -2:
+    if (
+        bear_tb >= SPIKE_MIN_TREND_BARS
+        and bear_tb >= bull_tb * TREND_BAR_DOMINANCE_RATIO
+        and score <= -2
+    ):
         return "bearish"
     return None
 
@@ -201,11 +211,7 @@ def build_trend_context(frame: Any, trading_direction: str) -> dict[str, Any]:
     spike = detect_recent_spike(frame)
     td = trading_direction if trading_direction in ("bullish", "bearish", "neutral") else "neutral"
 
-    conflict = (
-        td in ("bullish", "bearish")
-        and bg in ("bullish", "bearish")
-        and td != bg
-    )
+    conflict = td in ("bullish", "bearish") and bg in ("bullish", "bearish") and td != bg
     if td == bg and td != "neutral":
         relationship = "aligned"
     elif conflict:

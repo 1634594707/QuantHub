@@ -1,4 +1,5 @@
 """Unit tests for MT5 symbol availability check."""
+
 from __future__ import annotations
 
 from pa_agent.data.mt5 import MT5Source

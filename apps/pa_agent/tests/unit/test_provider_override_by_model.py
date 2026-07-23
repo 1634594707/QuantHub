@@ -16,9 +16,11 @@ def test_openclaw_overrides_user_url_and_key() -> None:
     s.provider.api_key = "sk-user-input"
 
     # Stub QClaw detection and settings resolution to avoid filesystem/network.
-    with patch("pa_agent.ai.qclaw_connector.detect_qclaw", return_value=True), patch(
-        "pa_agent.ai.qclaw_connector.qclaw_provider_settings"
-    ) as resolve, patch("pa_agent.ai.qclaw_connector.qclaw_health_check_base", return_value=(True, "ok")):
+    with (
+        patch("pa_agent.ai.qclaw_connector.detect_qclaw", return_value=True),
+        patch("pa_agent.ai.qclaw_connector.qclaw_provider_settings") as resolve,
+        patch("pa_agent.ai.qclaw_connector.qclaw_health_check_base", return_value=(True, "ok")),
+    ):
         resolved = MagicMock()
         resolved.model = "openclaw"
         resolved.base_url = "http://127.0.0.1:51187/v1"
@@ -42,9 +44,11 @@ def test_openclaw_apply_preserves_user_thinking_prefs() -> None:
     s.provider.thinking = False
     s.provider.reasoning_effort = "low"
 
-    with patch("pa_agent.ai.qclaw_connector.detect_qclaw", return_value=True), patch(
-        "pa_agent.ai.qclaw_connector.qclaw_provider_settings"
-    ) as resolve, patch("pa_agent.ai.qclaw_connector.qclaw_health_check_base", return_value=(True, "ok")):
+    with (
+        patch("pa_agent.ai.qclaw_connector.detect_qclaw", return_value=True),
+        patch("pa_agent.ai.qclaw_connector.qclaw_provider_settings") as resolve,
+        patch("pa_agent.ai.qclaw_connector.qclaw_health_check_base", return_value=(True, "ok")),
+    ):
         resolved = MagicMock()
         resolved.model = "openclaw"
         resolved.base_url = "http://127.0.0.1:51187/v1"
@@ -68,11 +72,13 @@ def test_openclaw_wb_overrides_user_url_and_key() -> None:
     s.provider.base_url = "https://example.com/v1"
     s.provider.api_key = "sk-user-input"
 
-    with patch("pa_agent.ai.workbuddy_connector.detect_workbuddy", return_value=True), patch(
-        "pa_agent.ai.workbuddy_connector.workbuddy_provider_settings"
-    ) as resolve, patch(
-        "pa_agent.ai.workbuddy_connector.workbuddy_health_check",
-        return_value=(True, "ok"),
+    with (
+        patch("pa_agent.ai.workbuddy_connector.detect_workbuddy", return_value=True),
+        patch("pa_agent.ai.workbuddy_connector.workbuddy_provider_settings") as resolve,
+        patch(
+            "pa_agent.ai.workbuddy_connector.workbuddy_health_check",
+            return_value=(True, "ok"),
+        ),
     ):
         resolved = MagicMock()
         resolved.model = "openclaw_wb"
@@ -97,11 +103,13 @@ def test_openclaw_wb_apply_preserves_user_thinking_prefs() -> None:
     s.provider.thinking = False
     s.provider.reasoning_effort = "medium"
 
-    with patch("pa_agent.ai.workbuddy_connector.detect_workbuddy", return_value=True), patch(
-        "pa_agent.ai.workbuddy_connector.workbuddy_provider_settings"
-    ) as resolve, patch(
-        "pa_agent.ai.workbuddy_connector.workbuddy_health_check",
-        return_value=(True, "ok"),
+    with (
+        patch("pa_agent.ai.workbuddy_connector.detect_workbuddy", return_value=True),
+        patch("pa_agent.ai.workbuddy_connector.workbuddy_provider_settings") as resolve,
+        patch(
+            "pa_agent.ai.workbuddy_connector.workbuddy_health_check",
+            return_value=(True, "ok"),
+        ),
     ):
         resolved = MagicMock()
         resolved.model = "openclaw_wb/deepseek-v4-flash"
@@ -125,11 +133,13 @@ def test_openclaw_wb_on_load_keeps_submodel_from_settings() -> None:
     s.provider.model = "openclaw_wb/deepseek-v4-flash"
     s.provider.base_url = "https://copilot.tencent.com/v2"
 
-    with patch("pa_agent.ai.workbuddy_connector.detect_workbuddy", return_value=True), patch(
-        "pa_agent.ai.workbuddy_connector.workbuddy_provider_settings"
-    ) as resolve, patch(
-        "pa_agent.ai.workbuddy_connector.workbuddy_health_check",
-        return_value=(True, "ok"),
+    with (
+        patch("pa_agent.ai.workbuddy_connector.detect_workbuddy", return_value=True),
+        patch("pa_agent.ai.workbuddy_connector.workbuddy_provider_settings") as resolve,
+        patch(
+            "pa_agent.ai.workbuddy_connector.workbuddy_health_check",
+            return_value=(True, "ok"),
+        ),
     ):
         resolved = MagicMock()
         resolved.model = "openclaw_wb/deepseek-v4-flash"
@@ -154,9 +164,11 @@ def test_openclaw_cs_overrides_user_url_and_key() -> None:
     s.provider.base_url = "https://example.com/v1"
     s.provider.api_key = "sk-user-input"
 
-    with patch("pa_agent.ai.qclaw_connector.detect_qclaw", return_value=True), patch(
-        "pa_agent.ai.qclaw_connector.qclaw_provider_settings"
-    ) as resolve, patch("pa_agent.ai.qclaw_connector.qclaw_health_check_base", return_value=(True, "ok")):
+    with (
+        patch("pa_agent.ai.qclaw_connector.detect_qclaw", return_value=True),
+        patch("pa_agent.ai.qclaw_connector.qclaw_provider_settings") as resolve,
+        patch("pa_agent.ai.qclaw_connector.qclaw_health_check_base", return_value=(True, "ok")),
+    ):
         resolved = MagicMock()
         resolved.model = "openclaw_cs"
         resolved.base_url = "http://127.0.0.1:51187/v1"
@@ -171,4 +183,3 @@ def test_openclaw_cs_overrides_user_url_and_key() -> None:
 
     assert s.provider.base_url == "http://127.0.0.1:51187/v1"
     assert s.provider.api_key == "tok-from-qclaw"
-

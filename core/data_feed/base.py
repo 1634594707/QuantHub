@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """数据层统一抽象。
 
 定义:
@@ -8,19 +7,21 @@
 
 具体实现见 akshare_source / eastmoney_source / okx_source。
 """
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Iterable
 
 import pandas as pd
 
 
 class Market(str, Enum):
     """市场标识。"""
+
     A_SHARES = "a_shares"
     CRYPTO = "crypto"
     MT5 = "mt5"
@@ -28,6 +29,7 @@ class Market(str, Enum):
 
 class Interval(str, Enum):
     """K线周期（统一枚举，各 source 负责映射到具体 API 参数）。"""
+
     M1 = "1m"
     M5 = "5m"
     M15 = "15m"
@@ -41,6 +43,7 @@ class Interval(str, Enum):
 @dataclass
 class Kline:
     """统一 K线结构（可批量组装为 DataFrame）。"""
+
     symbol: str
     market: str
     interval: str
@@ -50,8 +53,8 @@ class Kline:
     close: float
     volume: float
     ts: datetime
-    amount: float | None = None       # 成交额（A股常用）
-    turnover: float | None = None     # 换手率（加密无）
+    amount: float | None = None  # 成交额（A股常用）
+    turnover: float | None = None  # 换手率（加密无）
 
     def to_row(self) -> dict:
         return {
@@ -72,23 +75,25 @@ class Kline:
 @dataclass
 class News:
     """新闻条目。"""
+
     title: str
     content: str
     ts: datetime
-    source: str                       # 来源（东财/新浪/...）
+    source: str  # 来源（东财/新浪/...）
     url: str | None = None
-    symbols: list[str] = field(default_factory=list)   # 关联标的
+    symbols: list[str] = field(default_factory=list)  # 关联标的
 
 
 @dataclass
 class Announcement:
     """上市公司公告。"""
+
     symbol: str
     title: str
     ts: datetime
     content: str | None = None
     url: str | None = None
-    ann_type: str | None = None       # 公告类型（如"股东回馈"）
+    ann_type: str | None = None  # 公告类型（如"股东回馈"）
 
 
 class DataSource(ABC):
@@ -129,10 +134,21 @@ class DataSource(ABC):
 def klines_to_df(klines: list[Kline]) -> pd.DataFrame:
     """把 Kline 列表转为 DataFrame，按 ts 升序。"""
     if not klines:
-        return pd.DataFrame(columns=[
-            "symbol", "market", "interval", "datetime",
-            "open", "high", "low", "close", "volume", "amount", "turnover",
-        ])
+        return pd.DataFrame(
+            columns=[
+                "symbol",
+                "market",
+                "interval",
+                "datetime",
+                "open",
+                "high",
+                "low",
+                "close",
+                "volume",
+                "amount",
+                "turnover",
+            ]
+        )
     df = pd.DataFrame([k.to_row() for k in klines])
     df = df.sort_values("datetime").reset_index(drop=True)
     return df

@@ -1,9 +1,9 @@
-# -*- coding: utf-8 -*-
 """Streamlit 统一看板入口。
 
 聚合所有模块: 结果、回测、信号、监控。
 无鉴权（本地使用）。启动: streamlit run apps/dashboard/app.py
 """
+
 from __future__ import annotations
 
 import sys
@@ -14,12 +14,11 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-import pandas as pd
 import streamlit as st
 
-from core.config import get_config, get_repo_root
+from core.config import get_config
 from core.signals import get_bus
-from core.viz import COLORS, render_module_status, render_signal_table
+from core.viz import render_module_status, render_signal_table
 from strategies import discover_and_register, list_strategies
 
 st.set_page_config(page_title="QuantHub 看板", layout="wide", page_icon="📊")
@@ -38,8 +37,10 @@ def main() -> None:
     st.title("📊 QuantHub 统一量化看板")
     cfg = load_config()
     live = cfg.get("live_trading", False)
-    st.caption(f"版本 {cfg.get('version', '?')} | schema {cfg.get('schema_version', 1)} | "
-               f"模式: {'🔴 实盘' if live else '🟢 研究(dry-run)'}")
+    st.caption(
+        f"版本 {cfg.get('version', '?')} | schema {cfg.get('schema_version', 1)} | "
+        f"模式: {'🔴 实盘' if live else '🟢 研究(dry-run)'}"
+    )
 
     # ===== 侧边栏 =====
     with st.sidebar:

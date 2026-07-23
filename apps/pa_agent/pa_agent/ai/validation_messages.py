@@ -1,4 +1,5 @@
 """Human-readable labels for validation error prefixes (P0-3)."""
+
 from __future__ import annotations
 
 _PREFIX_RULES: tuple[tuple[str, str], ...] = (

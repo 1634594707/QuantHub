@@ -9,8 +9,19 @@ def test_compute_kline_geometry_features_classifies_basic_bars() -> None:
         symbol="XAUUSD",
         timeframe="5m",
         bars=(
-            KlineBar(seq=1, ts_open=1.0, open=10.0, high=15.0, low=9.0, close=14.5, volume=1, closed=True),
-            KlineBar(seq=2, ts_open=0.0, open=11.0, high=13.0, low=10.0, close=12.0, volume=1, closed=True),
+            KlineBar(
+                seq=1, ts_open=1.0, open=10.0, high=15.0, low=9.0, close=14.5, volume=1, closed=True
+            ),
+            KlineBar(
+                seq=2,
+                ts_open=0.0,
+                open=11.0,
+                high=13.0,
+                low=10.0,
+                close=12.0,
+                volume=1,
+                closed=True,
+            ),
         ),
         indicators=IndicatorBundle(ema20=(12.0, 11.0), atr14=(3.0, 2.0)),
         snapshot_ts_local_ms=1,
@@ -31,10 +42,39 @@ def test_compute_kline_geometry_features_marks_multibar_patterns() -> None:
         symbol="XAUUSD",
         timeframe="5m",
         bars=(
-            KlineBar(seq=1, ts_open=3.0, open=12.0, high=13.0, low=11.0, close=12.8, volume=1, closed=True),
-            KlineBar(seq=2, ts_open=2.0, open=11.0, high=14.0, low=10.0, close=13.5, volume=1, closed=True),
-            KlineBar(seq=3, ts_open=1.0, open=10.0, high=12.0, low=10.0, close=11.5, volume=1, closed=True),
-            KlineBar(seq=4, ts_open=0.0, open=10.0, high=15.0, low=9.0, close=14.0, volume=1, closed=True),
+            KlineBar(
+                seq=1,
+                ts_open=3.0,
+                open=12.0,
+                high=13.0,
+                low=11.0,
+                close=12.8,
+                volume=1,
+                closed=True,
+            ),
+            KlineBar(
+                seq=2,
+                ts_open=2.0,
+                open=11.0,
+                high=14.0,
+                low=10.0,
+                close=13.5,
+                volume=1,
+                closed=True,
+            ),
+            KlineBar(
+                seq=3,
+                ts_open=1.0,
+                open=10.0,
+                high=12.0,
+                low=10.0,
+                close=11.5,
+                volume=1,
+                closed=True,
+            ),
+            KlineBar(
+                seq=4, ts_open=0.0, open=10.0, high=15.0, low=9.0, close=14.0, volume=1, closed=True
+            ),
         ),
         indicators=IndicatorBundle(
             ema20=(9.0, 9.0, 9.0, 9.0),
@@ -56,9 +96,29 @@ def test_compute_kline_geometry_features_detects_inside_sequence_and_micro_doubl
         symbol="XAUUSD",
         timeframe="5m",
         bars=(
-            KlineBar(seq=1, ts_open=2.0, open=10.0, high=12.0, low=10.0, close=11.0, volume=1, closed=True),
-            KlineBar(seq=2, ts_open=1.0, open=11.0, high=13.0, low=10.0, close=12.0, volume=1, closed=True),
-            KlineBar(seq=3, ts_open=0.0, open=12.0, high=14.0, low=9.0, close=13.0, volume=1, closed=True),
+            KlineBar(
+                seq=1,
+                ts_open=2.0,
+                open=10.0,
+                high=12.0,
+                low=10.0,
+                close=11.0,
+                volume=1,
+                closed=True,
+            ),
+            KlineBar(
+                seq=2,
+                ts_open=1.0,
+                open=11.0,
+                high=13.0,
+                low=10.0,
+                close=12.0,
+                volume=1,
+                closed=True,
+            ),
+            KlineBar(
+                seq=3, ts_open=0.0, open=12.0, high=14.0, low=9.0, close=13.0, volume=1, closed=True
+            ),
         ),
         indicators=IndicatorBundle(ema20=(11.0, 11.0, 11.0), atr14=(1.0, 1.0, 1.0)),
         snapshot_ts_local_ms=1,
@@ -76,9 +136,36 @@ def test_geometry_features_limit_keeps_prev_bar_context() -> None:
         symbol="XAUUSD",
         timeframe="5m",
         bars=(
-            KlineBar(seq=1, ts_open=3.0, open=11.5, high=12.0, low=11.0, close=11.8, volume=1, closed=True),
-            KlineBar(seq=2, ts_open=2.0, open=11.0, high=11.8, low=10.9, close=11.2, volume=1, closed=True),
-            KlineBar(seq=3, ts_open=1.0, open=12.0, high=14.0, low=11.0, close=13.0, volume=1, closed=True),
+            KlineBar(
+                seq=1,
+                ts_open=3.0,
+                open=11.5,
+                high=12.0,
+                low=11.0,
+                close=11.8,
+                volume=1,
+                closed=True,
+            ),
+            KlineBar(
+                seq=2,
+                ts_open=2.0,
+                open=11.0,
+                high=11.8,
+                low=10.9,
+                close=11.2,
+                volume=1,
+                closed=True,
+            ),
+            KlineBar(
+                seq=3,
+                ts_open=1.0,
+                open=12.0,
+                high=14.0,
+                low=11.0,
+                close=13.0,
+                volume=1,
+                closed=True,
+            ),
         ),
         indicators=IndicatorBundle(ema20=(11.0, 11.0, 11.0), atr14=(1.0, 1.0, 1.0)),
         snapshot_ts_local_ms=1,
@@ -96,8 +183,19 @@ def test_flat_bar_type_when_zero_range_and_not_inside() -> None:
         symbol="X",
         timeframe="5m",
         bars=(
-            KlineBar(seq=1, ts_open=1.0, open=10.0, high=10.0, low=10.0, close=10.0, volume=1, closed=True),
-            KlineBar(seq=2, ts_open=0.0, open=9.0, high=9.0, low=8.0, close=8.5, volume=1, closed=True),
+            KlineBar(
+                seq=1,
+                ts_open=1.0,
+                open=10.0,
+                high=10.0,
+                low=10.0,
+                close=10.0,
+                volume=1,
+                closed=True,
+            ),
+            KlineBar(
+                seq=2, ts_open=0.0, open=9.0, high=9.0, low=8.0, close=8.5, volume=1, closed=True
+            ),
         ),
         indicators=IndicatorBundle(ema20=(10.0, 10.0), atr14=(1.0, 1.0)),
         snapshot_ts_local_ms=1,
@@ -113,8 +211,12 @@ def test_follow_through_1_2_uses_direction_not_extreme() -> None:
         symbol="X",
         timeframe="5m",
         bars=(
-            KlineBar(seq=1, ts_open=2.0, open=8.0, high=9.0, low=7.5, close=7.8, volume=1, closed=True),
-            KlineBar(seq=2, ts_open=1.0, open=10.0, high=12.0, low=9.0, close=11.0, volume=1, closed=True),
+            KlineBar(
+                seq=1, ts_open=2.0, open=8.0, high=9.0, low=7.5, close=7.8, volume=1, closed=True
+            ),
+            KlineBar(
+                seq=2, ts_open=1.0, open=10.0, high=12.0, low=9.0, close=11.0, volume=1, closed=True
+            ),
         ),
         indicators=IndicatorBundle(ema20=(8.5, 11.0), atr14=(1.0, 1.0)),
         snapshot_ts_local_ms=1,
@@ -128,8 +230,19 @@ def test_follow_through_1_2_uses_direction_not_extreme() -> None:
         symbol="X",
         timeframe="5m",
         bars=(
-            KlineBar(seq=1, ts_open=2.0, open=11.5, high=12.0, low=10.5, close=11.2, volume=1, closed=True),
-            KlineBar(seq=2, ts_open=1.0, open=10.0, high=11.0, low=8.0, close=9.0, volume=1, closed=True),
+            KlineBar(
+                seq=1,
+                ts_open=2.0,
+                open=11.5,
+                high=12.0,
+                low=10.5,
+                close=11.2,
+                volume=1,
+                closed=True,
+            ),
+            KlineBar(
+                seq=2, ts_open=1.0, open=10.0, high=11.0, low=8.0, close=9.0, volume=1, closed=True
+            ),
         ),
         indicators=IndicatorBundle(ema20=(11.2, 9.5), atr14=(1.0, 1.0)),
         snapshot_ts_local_ms=1,

@@ -1,7 +1,7 @@
 """Prompt assembler for Stage 1 (diagnosis) and Stage 2 (decision)."""
+
 from __future__ import annotations
 
-import datetime
 import functools
 import json
 import logging
@@ -10,15 +10,15 @@ from pathlib import Path
 from typing import Any
 
 from pa_agent.ai.decision_stance import build_decision_stance_guidance, normalize_stance
-from pa_agent.ai.pattern_routing import (
-    STAGE1_DETECTED_PATTERNS_GUIDE,
-    STAGE1_PATTERN_BRIEFS_BLOCK,
-)
 from pa_agent.ai.kline_features import bar_candle_direction_label, compute_kline_geometry_features
 from pa_agent.ai.market_features import (
     compute_simple_market_features,
     inject_market_features_section,
     render_simple_market_features,
+)
+from pa_agent.ai.pattern_routing import (
+    STAGE1_DETECTED_PATTERNS_GUIDE,
+    STAGE1_PATTERN_BRIEFS_BLOCK,
 )
 from pa_agent.data.base import KlineFrame
 from pa_agent.data.datetime_ts import format_epoch_for_display
@@ -143,7 +143,7 @@ _STAGE2_TAIL_REMINDER = (
     "禁止调用 exec/Python/写文件等工具；算术在 JSON 推理字段内完成。\n"
     "若 token 紧张，优先保证 `content` 有 JSON，可缩短思考。\n"
     "⚠️ 禁止在 content 中只写思考过程或分隔符（如 ---输出JSON---）而不附 JSON——"
-    "这会导致校验直接失败。哪怕只输出最小骨架 {\"decision\":{\"order_type\":\"不下单\",...}} 也比没有强。\n\n"
+    '这会导致校验直接失败。哪怕只输出最小骨架 {"decision":{"order_type":"不下单",...}} 也比没有强。\n\n'
     "【⚠️ 输出前自检 — terminal.outcome 语义规则（在输出 JSON 前逐项确认）：】\n"
     "1. §9.0=否 时，**必须先写 §9.0P** 评估背景限价；仅当 §9.0P 也=否 且无三价方案时，"
     "terminal.outcome=wait（node_id=9.0P 或 9.0）。\n"
@@ -151,7 +151,7 @@ _STAGE2_TAIL_REMINDER = (
     "   §9.0=是（有合格信号棒）或 §9.0P=是（计划型限价）且有三价 → 继续 §10，不得因缺信号棒直接 wait。\n"
     "   禁止写 reject — 你没有东西可以拒绝（除非 §10.3 已有三价方案）。\n"
     "2. 你有入场方案（entry/stop/target 三价齐全），但 10.3 交易者方程不通过？\n"
-    "   → 这才可以写 terminal.outcome=reject，node_id=\"10.3\"。\n"
+    '   → 这才可以写 terminal.outcome=reject，node_id="10.3"。\n'
     "3. 你有入场方案且 10.3 通过？→ terminal.outcome=trade，node_id 为最终节点。\n"
     "   **禁止**写 action/execute/entry 等自创词，只能是 wait|reject|trade|proceed。\n"
     "4. 限价/突破尚未触发？→ entry_bar.freshness=pending（禁止 limit_order_pending 等自创词）。\n"
@@ -687,6 +687,7 @@ _NEXT_BAR_DISABLED_NOTE = """\
 `next_cycle_prediction` 上，勿因缺少 `next_bar_prediction` 反复重试。
 """.strip()
 
+
 def _build_next_cycle_prediction_instruction(*, enable_next_bar: bool) -> str:
     """Return next-cycle instruction; avoid referencing next_bar when that feature is off."""
     if enable_next_bar:
@@ -746,7 +747,7 @@ spike | micro_channel | tight_channel | normal_channel | broad_channel | trendin
 # txt files merged into each stage prompt (order preserved)
 COMMON_SYSTEM_STAGE1_TXT_FILES: tuple[str, ...] = (
     "提示词大纲_人设与思维方式.txt",
-    "二元决策.txt",           # unified with Stage 2 for prefix caching; §0–§2 gate subset is included
+    "二元决策.txt",  # unified with Stage 2 for prefix caching; §0–§2 gate subset is included
 )
 COMMON_SYSTEM_STAGE2_TXT_FILES: tuple[str, ...] = (
     "提示词大纲_人设与思维方式.txt",
@@ -861,11 +862,7 @@ def stage2_user_task_txt_files(
             else ()
         )
         skip = frozenset((*opposite, *opposite_spike))
-        core = [
-            f
-            for f in routed
-            if f not in skip
-        ]
+        core = [f for f in routed if f not in skip]
         core.extend(STAGE2_BASE_PROMPT_TXT_FILES)
     return list(dict.fromkeys([*core]))
 
@@ -888,6 +885,7 @@ def stage2_prompt_txt_files(
 
 
 # ── PromptAssembler ────────────────────────────────────────────────────────────
+
 
 class PromptAssembler:
     """Builds message lists for Stage 1 and Stage 2 API calls."""
@@ -1009,7 +1007,7 @@ class PromptAssembler:
                 f"{feat.ema_relation:<7} | "
                 f"{_fmt_feature(feat.overlap_prev_ratio):<10} | "
                 f"{feat.inside_sequence:<6} | "
-                f"{str(feat.ioi_pattern):<3} | "
+                f"{feat.ioi_pattern!s:<3} | "
                 f"{feat.micro_double:<4} | "
                 f"{feat.gap_bar:<5} | "
                 f"{feat.ema_gap_count:<9} | "
@@ -1025,7 +1023,7 @@ class PromptAssembler:
         try:
             features = compute_simple_market_features(frame)
             return render_simple_market_features(features)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.warning("_render_simple_market_features_block failed: %s", exc)
             return ""
 
@@ -1118,9 +1116,7 @@ class PromptAssembler:
                 f"record.meta: {getattr(previous_record, 'meta', '<missing>')!r}"
             )
         prev_diag = getattr(previous_record, "stage1_diagnosis", None) or {}
-        if not prev_assistant_content and not (
-            isinstance(prev_diag, dict) and prev_diag
-        ):
+        if not prev_assistant_content and not (isinstance(prev_diag, dict) and prev_diag):
             raise ValueError(
                 f"build_incremental_stage1: previous_record.stage1_response "
                 f"has no 'content' field. "
@@ -1167,10 +1163,10 @@ class PromptAssembler:
         )
 
         return [
-            {"role": "system",    "content": system_content},
-            {"role": "user",      "content": prev_user_content},
+            {"role": "system", "content": system_content},
+            {"role": "user", "content": prev_user_content},
             assistant_turn,
-            {"role": "user",      "content": incremental_user_content},
+            {"role": "user", "content": incremental_user_content},
         ]
 
     def _stage1_pattern_supplement(self) -> str:
@@ -1198,9 +1194,9 @@ class PromptAssembler:
         """
         try:
             from pa_agent.ai.decision_nodes import (
+                judge_always_in,
                 judge_data_sufficiency,
                 judge_direction,
-                judge_always_in,
             )
             from pa_agent.ai.trend_context import (
                 build_trend_context,
@@ -1227,9 +1223,7 @@ class PromptAssembler:
             n_bars_hint = len(frame.bars)
             hint_lines.append(render_three_window_summary(frame, trend_ctx))
             hint_lines.append("")
-            hint_lines.append(
-                "**§2.2 长程背景 vs 近期方向（程序摘要，供 gate_trace 2.2 引用）**"
-            )
+            hint_lines.append("**§2.2 长程背景 vs 近期方向（程序摘要，供 gate_trace 2.2 引用）**")
             hint_lines.append(
                 f"  背景方向（K{n_bars_hint}-K41）≈ {trend_ctx['background_direction']}；"
                 f"交易主方向（近期）≈ {trend_ctx['trading_direction']}；"
@@ -1262,11 +1256,13 @@ class PromptAssembler:
                 "  • override_reason 必须具体，不接受「整体看跌」「感觉已变」等模糊描述。"
             )
             return "\n".join(hint_lines)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.warning("_render_program_prefill_hint failed: %s", exc)
             return ""
 
-    def _build_stage1_user_prompt(self, frame: KlineFrame, *, analysis_mode: str = "original") -> str:
+    def _build_stage1_user_prompt(
+        self, frame: KlineFrame, *, analysis_mode: str = "original"
+    ) -> str:
         """Build the Stage 1 task turn; stage-specific rules stay out of system."""
         pattern_block = self._stage1_pattern_supplement()
         prefill_hint = self._render_program_prefill_hint(frame)
@@ -1364,7 +1360,7 @@ class PromptAssembler:
             '  "incremental_delta": {"new_closed_bars":["K1"],'
             '"changed_fields":["direction","cycle_position"],'
             '"summary":"相对上一轮：新增K1突破区间上沿，方向由中性转偏多"}\n'
-            "- new_closed_bars 长度必须等于「新增已收盘K线」数量（1根则只写 [\"K1\"]）。\n"
+            '- new_closed_bars 长度必须等于「新增已收盘K线」数量（1根则只写 ["K1"]）。\n'
             "- 并在 summary / risk_warning / gate_trace 中说明相对上一轮变化。\n"
             "- gate_result=proceed 时 gate_trace 仍须覆盖 §1.2、§1.3、§2.1、§2.2、§2.5（§1.1/§2.3/§2.4 由程序填充）。\n"
             "- 输出仍必须是完整阶段一 JSON，而不是差异补丁。\n\n"
@@ -1442,7 +1438,7 @@ class PromptAssembler:
             '  "incremental_delta": {"new_closed_bars":["K1"],'
             '"changed_fields":["direction","cycle_position"],'
             '"summary":"相对上一轮：新增K1突破区间上沿，方向由中性转偏多"}\n'
-            "- new_closed_bars 长度必须等于「新增已收盘K线」数量（1根则只写 [\"K1\"]）。\n"
+            '- new_closed_bars 长度必须等于「新增已收盘K线」数量（1根则只写 ["K1"]）。\n'
             "- 并在 summary / risk_warning / gate_trace 中说明相对上一轮变化。\n"
             "- gate_result=proceed 时 gate_trace 仍须覆盖 §1.2、§1.3、§2.1、§2.2、§2.5（§1.1/§2.3/§2.4 由程序填充）。\n"
             "- 输出仍必须是完整阶段一 JSON，而不是差异补丁。\n\n"
@@ -1507,10 +1503,7 @@ class PromptAssembler:
 
         unpredictable = bool(pred.get("unpredictable", False))
         if unpredictable:
-            return (
-                "## 上一轮下一根K线预测\n\n"
-                "上一轮标记为不可预测；本轮请独立判断。\n"
-            )
+            return "## 上一轮下一根K线预测\n\n上一轮标记为不可预测；本轮请独立判断。\n"
 
         direction = pred.get("direction") or "—"
         probs = pred.get("probabilities") or {}
@@ -1689,11 +1682,7 @@ class PromptAssembler:
             )
             simple_features_block = self._render_simple_market_features_block(frame)
             if simple_features_block:
-                kline_block += (
-                    _MARKET_FEATURES_AUTHORITY_NOTE
-                    + simple_features_block
-                    + "\n\n"
-                )
+                kline_block += _MARKET_FEATURES_AUTHORITY_NOTE + simple_features_block + "\n\n"
             if breakout_tick_hint:
                 kline_block += f"{breakout_tick_hint}\n\n"
         else:
@@ -1921,9 +1910,7 @@ class PromptAssembler:
                 "请结合 K 线摆动高低点与 EMA 自行定价。"
             )
         if direction == "neutral":
-            lines.append(
-                "- 阶段一 direction=neutral：**§9.0P 默认 wait**（禁止双边边界挂单）。"
-            )
+            lines.append("- 阶段一 direction=neutral：**§9.0P 默认 wait**（禁止双边边界挂单）。")
         return "\n".join(lines) + "\n"
 
     @staticmethod

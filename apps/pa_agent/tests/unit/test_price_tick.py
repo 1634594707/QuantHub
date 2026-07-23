@@ -1,4 +1,5 @@
 """Tests for breakout tick inference and entry_price normalization."""
+
 from __future__ import annotations
 
 from pa_agent.ai.json_validator import JsonValidator
@@ -10,9 +11,6 @@ from pa_agent.util.price_tick import (
     normalize_breakout_entry_price,
     round_to_tick,
 )
-from tests.fixtures.validators import schema_test_validator
-
-import json
 
 
 def _frame(high: float = 104.0) -> KlineFrame:

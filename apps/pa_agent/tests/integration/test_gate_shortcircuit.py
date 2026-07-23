@@ -1,19 +1,23 @@
 """Integration: Stage1 gate wait short-circuits Stage2 API call."""
+
 from __future__ import annotations
 
 import copy
 from unittest.mock import MagicMock
 
-from tests.fixtures.validators import schema_test_validator
 from pa_agent.ai.router import route_strategy_files
 from pa_agent.orchestrator.two_stage import TwoStageOrchestrator
 from pa_agent.util.threading import CancelToken, OrchestratorEvent
+from tests.fixtures.validators import schema_test_validator
 
 from .conftest import VALID_STAGE1, make_reply
 
 
 def test_gate_wait_skips_stage2_chat(
-    frame, pending_writer, assembler, exp_reader,
+    frame,
+    pending_writer,
+    assembler,
+    exp_reader,
 ) -> None:
     stage1_wait = copy.deepcopy(VALID_STAGE1)
     stage1_wait["gate_result"] = "wait"

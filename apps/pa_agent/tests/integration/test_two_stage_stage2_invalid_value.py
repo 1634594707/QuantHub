@@ -2,16 +2,17 @@
 
 Task 11.7
 """
+
 from __future__ import annotations
 
 import copy
 import json
 from unittest.mock import MagicMock
 
-from tests.fixtures.validators import schema_test_validator
 from pa_agent.ai.router import route_strategy_files
 from pa_agent.orchestrator.two_stage import TwoStageOrchestrator
 from pa_agent.util.threading import CancelToken, OrchestratorEvent
+from tests.fixtures.validators import schema_test_validator
 
 from .conftest import VALID_STAGE1, VALID_STAGE2, make_reply
 

@@ -1,4 +1,5 @@
 """Tests for order-opportunity detection."""
+
 from __future__ import annotations
 
 from pa_agent.gui.order_opportunity import (
@@ -57,11 +58,11 @@ def test_play_order_alert_sound_uses_wav_on_windows(monkeypatch) -> None:
         MB_ICONEXCLAMATION = 48
 
         @staticmethod
-        def PlaySound(name, flags):  # noqa: ANN001
+        def PlaySound(name, flags):
             played.append(str(name))
 
         @staticmethod
-        def MessageBeep(_kind):  # noqa: ANN001
+        def MessageBeep(_kind):
             played.append("MessageBeep")
 
     monkeypatch.setattr("sys.platform", "win32")

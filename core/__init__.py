@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """QuantHub 统一底座 (core)
 
 子模块:
@@ -9,6 +8,7 @@
     - backtest  : 网格回测 + backtrader 集成 + 通用事件驱动框架
     - viz       : Streamlit 组件库 + Plotly helper
 """
+
 from __future__ import annotations
 
 __version__ = "0.1.0"

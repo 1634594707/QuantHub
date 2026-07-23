@@ -4,18 +4,8 @@ Hosts two prediction modules:
   1. 下一根K线预期 (migrated from DecisionPanel)
   2. 下一个市场周期预期 (new, AI-generated next_cycle_prediction)
 """
-from __future__ import annotations
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import (
-    QFrame,
-    QHBoxLayout,
-    QLabel,
-    QSizePolicy,
-    QTextEdit,
-    QVBoxLayout,
-    QWidget,
-)
+from __future__ import annotations
 
 from pa_agent.ai.cycle_enums import (
     CYCLE_ORDER,
@@ -28,6 +18,16 @@ from pa_agent.gui.prediction_format import (
     _PREDICTION_UNPREDICTABLE_LABEL,
     _dominant_prediction_direction,
     _format_prediction_probs_line,
+)
+from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import (
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QSizePolicy,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
 )
 
 _REASON_EDIT_CSS = (

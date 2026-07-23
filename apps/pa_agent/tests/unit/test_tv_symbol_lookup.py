@@ -1,8 +1,8 @@
 """TradingView HK codes and name alias lookup."""
+
 from __future__ import annotations
 
 import pytest
-
 from pa_agent.data.market_defaults import (
     equity_tv_auto_probe_plan,
     normalize_hk_tv_code,

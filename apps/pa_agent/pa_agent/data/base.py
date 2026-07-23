@@ -1,27 +1,27 @@
 """Core data types and DataSource abstract base class."""
+
 from __future__ import annotations
 
-import math
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
-from typing import Sequence
-
+from dataclasses import dataclass
 
 # ── KlineBar ──────────────────────────────────────────────────────────────────
+
 
 @dataclass(frozen=True)
 class KlineBar:
     """A single OHLCV bar with sequence number and closed flag."""
-    seq: int           # 1 = newest closed bar, N = oldest; 0 = forming bar (not counted)
-    ts_open: float     # Unix timestamp in milliseconds (UTC) of bar open
+
+    seq: int  # 1 = newest closed bar, N = oldest; 0 = forming bar (not counted)
+    ts_open: float  # Unix timestamp in milliseconds (UTC) of bar open
     open: float
     high: float
     low: float
     close: float
     volume: float
-    amount: float = 0.0   # turnover amount (成交额); 0 when unavailable
+    amount: float = 0.0  # turnover amount (成交额); 0 when unavailable
     pct_chg: float | None = None  # daily change % from API when available
-    closed: bool = True   # False for the currently-forming bar
+    closed: bool = True  # False for the currently-forming bar
 
 
 def normalize_kline_bar(bar: KlineBar) -> KlineBar:
@@ -32,12 +32,7 @@ def normalize_kline_bar(bar: KlineBar) -> KlineBar:
     high = max(bar.high, bar.low)
     low = min(bar.high, bar.low)
     close = max(low, min(high, bar.close))
-    if (
-        high == bar.high
-        and low == bar.low
-        and close == bar.close
-        and ts_ms == bar.ts_open
-    ):
+    if high == bar.high and low == bar.low and close == bar.close and ts_ms == bar.ts_open:
         return bar
     return KlineBar(
         seq=bar.seq,
@@ -55,14 +50,17 @@ def normalize_kline_bar(bar: KlineBar) -> KlineBar:
 
 # ── IndicatorBundle ───────────────────────────────────────────────────────────
 
+
 @dataclass(frozen=True)
 class IndicatorBundle:
     """Per-bar indicator values aligned to a KlineFrame's bars list."""
-    ema20: tuple[float, ...]   # len == len(bars); nan for warm-up period
-    atr14: tuple[float, ...]   # len == len(bars); nan for warm-up period
+
+    ema20: tuple[float, ...]  # len == len(bars); nan for warm-up period
+    atr14: tuple[float, ...]  # len == len(bars); nan for warm-up period
 
 
 # ── KlineFrame ────────────────────────────────────────────────────────────────
+
 
 @dataclass(frozen=True)
 class KlineFrame:
@@ -72,14 +70,16 @@ class KlineFrame:
     bars[-1] is the oldest bar (seq=N, closed=True).
     snapshot_ts_local_ms is the local machine time when the snapshot was taken.
     """
+
     symbol: str
     timeframe: str
     bars: tuple[KlineBar, ...]
     indicators: IndicatorBundle
-    snapshot_ts_local_ms: int   # milliseconds since epoch, local time
+    snapshot_ts_local_ms: int  # milliseconds since epoch, local time
 
 
 # ── DataSource ABC ────────────────────────────────────────────────────────────
+
 
 class DataSourceError(Exception):
     """Base class for data source errors."""

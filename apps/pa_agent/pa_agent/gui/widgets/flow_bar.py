@@ -1,15 +1,15 @@
 """5-step horizontal flow indicator."""
+
 from __future__ import annotations
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget
 
-
 _COLORS = {
-    "idle":   {"bg": "#1c2128", "border": "#484f58", "glow": None},
-    "done":   {"bg": "#22c55e", "border": "#22c55e", "glow": "rgba(34,197,94,0.18)"},
+    "idle": {"bg": "#1c2128", "border": "#484f58", "glow": None},
+    "done": {"bg": "#22c55e", "border": "#22c55e", "glow": "rgba(34,197,94,0.18)"},
     "active": {"bg": "#1c2128", "border": "#38bdf8", "glow": "rgba(56,189,248,0.20)"},
-    "error":  {"bg": "#ef4444", "border": "#ef4444", "glow": "rgba(239,68,68,0.18)"},
+    "error": {"bg": "#ef4444", "border": "#ef4444", "glow": "rgba(239,68,68,0.18)"},
 }
 
 _DEFAULT_NAMES = ["数据", "快照", "诊断", "决策", "追问"]
@@ -85,9 +85,7 @@ class _StepWidget(QFrame):
         self._dot.setStyleSheet(dot_ss)
 
         if spec["glow"]:
-            self._glow.setStyleSheet(
-                f"background: {spec['glow']}; border-radius: 15px;"
-            )
+            self._glow.setStyleSheet(f"background: {spec['glow']}; border-radius: 15px;")
         else:
             self._glow.setStyleSheet("background: transparent; border-radius: 15px;")
 

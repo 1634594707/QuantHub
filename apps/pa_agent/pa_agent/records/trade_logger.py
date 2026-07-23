@@ -13,13 +13,13 @@ Image : trade_records/<symbol>_<timeframe>_<timestamp>.png
 The image filename uses the same timestamp as the ``record_time`` field so
 entries are easy to correlate.
 """
+
 from __future__ import annotations
 
 import csv
 import json
 import logging
 import math
-import os
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -102,12 +102,14 @@ _CSV_FIELDNAMES = [
 
 # ── Internal helpers ──────────────────────────────────────────────────────────
 
+
 def _parse_sr_price(raw: object) -> float | None:
     """Parse a price value that may be a number, string, or range (e.g. '5380-5400').
 
     Returns the midpoint for ranges, the numeric value for singles, or None.
     """
     import re as _re
+
     if raw is None:
         return None
     if isinstance(raw, (int, float)):
@@ -151,17 +153,23 @@ def _get(d: dict | None, *keys: str, default: Any = "") -> Any:
 
 # ── Chart rendering ───────────────────────────────────────────────────────────
 
-def _render_chart(bars_newest_first: list[Any], ema20_newest_first: list[float],
-                  symbol: str, timeframe: str, image_path: Path,
-                  entry_price: float | None = None,
-                  stop_loss_price: float | None = None,
-                  take_profit_price: float | None = None,
-                  take_profit_price_2: float | None = None,
-                  order_direction: str = "",
-                  order_type: str = "",
-                  diagnosis_confidence: str = "",
-                  trade_confidence: str = "",
-                  estimated_win_rate: str = "") -> bool:
+
+def _render_chart(
+    bars_newest_first: list[Any],
+    ema20_newest_first: list[float],
+    symbol: str,
+    timeframe: str,
+    image_path: Path,
+    entry_price: float | None = None,
+    stop_loss_price: float | None = None,
+    take_profit_price: float | None = None,
+    take_profit_price_2: float | None = None,
+    order_direction: str = "",
+    order_type: str = "",
+    diagnosis_confidence: str = "",
+    trade_confidence: str = "",
+    estimated_win_rate: str = "",
+) -> bool:
     """Draw a candlestick + EMA20 chart and save to *image_path*.
 
     Returns True on success, False if matplotlib is unavailable.
@@ -172,9 +180,10 @@ def _render_chart(bars_newest_first: list[Any], ema20_newest_first: list[float],
     """
     try:
         import matplotlib
+
         matplotlib.use("Agg")  # non-interactive backend
-        import matplotlib.pyplot as plt
         import matplotlib.patches as mpatches
+        import matplotlib.pyplot as plt
         from matplotlib.lines import Line2D
     except ImportError:
         logger.warning("matplotlib not installed; skipping chart generation")
@@ -182,9 +191,13 @@ def _render_chart(bars_newest_first: list[Any], ema20_newest_first: list[float],
 
     # Try to use a CJK-capable font so Chinese labels render correctly
     import matplotlib.font_manager as _fm
+
     _cjk_candidates = [
-        "Microsoft YaHei", "SimHei", "WenQuanYi Micro Hei",
-        "Noto Sans CJK SC", "Source Han Sans CN",
+        "Microsoft YaHei",
+        "SimHei",
+        "WenQuanYi Micro Hei",
+        "Noto Sans CJK SC",
+        "Source Han Sans CN",
     ]
     _available = {f.name for f in _fm.fontManager.ttflist}
     for _fc in _cjk_candidates:
@@ -240,8 +253,14 @@ def _render_chart(bars_newest_first: list[Any], ema20_newest_first: list[float],
         # Sequence label on every 10th bar (newest = seq 1 at right)
         if seq is not None and seq % 10 == 0:
             ax.text(
-                i, h * 1.0003, f"K{seq}",
-                color="#8b949e", fontsize=6.5, ha="center", va="bottom", zorder=4,
+                i,
+                h * 1.0003,
+                f"K{seq}",
+                color="#8b949e",
+                fontsize=6.5,
+                ha="center",
+                va="bottom",
+                zorder=4,
             )
 
     # ── EMA20 line ────────────────────────────────────────────────────────────
@@ -262,25 +281,38 @@ def _render_chart(bars_newest_first: list[Any], ema20_newest_first: list[float],
         spine.set_edgecolor("#30363d")
     ax.set_title(
         f"{symbol} {timeframe}  —  最近 {n} 根K线（K1=最新收盘）",
-        color="#e6edf3", fontsize=10, pad=8,
+        color="#e6edf3",
+        fontsize=10,
+        pad=8,
     )
 
     # ── Order type badge (top-left corner) ────────────────────────────────────
     if order_type:
         _ot = str(order_type).strip()
         _ot_colors = {
-            "限价单": "#fbbf24",   # amber
-            "突破单": "#a78bfa",   # purple
-            "市价单": "#34d399",   # teal
+            "限价单": "#fbbf24",  # amber
+            "突破单": "#a78bfa",  # purple
+            "市价单": "#34d399",  # teal
         }
         _ot_color = _ot_colors.get(_ot, "#8b949e")
         ax.text(
-            0.01, 0.97, _ot,
+            0.01,
+            0.97,
+            _ot,
             transform=ax.transAxes,
-            color=_ot_color, fontsize=9, fontweight="bold",
-            va="top", ha="left",
-            bbox=dict(facecolor="#161b22", edgecolor=_ot_color,
-                      linewidth=1.2, alpha=0.9, pad=3, boxstyle="round,pad=0.3"),
+            color=_ot_color,
+            fontsize=9,
+            fontweight="bold",
+            va="top",
+            ha="left",
+            bbox=dict(
+                facecolor="#161b22",
+                edgecolor=_ot_color,
+                linewidth=1.2,
+                alpha=0.9,
+                pad=3,
+                boxstyle="round,pad=0.3",
+            ),
             zorder=10,
         )
 
@@ -297,22 +329,32 @@ def _render_chart(bars_newest_first: list[Any], ema20_newest_first: list[float],
     if _conf_parts:
         _conf_text = "   ".join(_conf_parts)
         ax.text(
-            0.01, 0.905, _conf_text,
+            0.01,
+            0.905,
+            _conf_text,
             transform=ax.transAxes,
-            color="#cbd5e1", fontsize=8,
-            va="top", ha="left",
-            bbox=dict(facecolor="#161b22", edgecolor="#30363d",
-                      linewidth=0.8, alpha=0.85, pad=3, boxstyle="round,pad=0.3"),
+            color="#cbd5e1",
+            fontsize=8,
+            va="top",
+            ha="left",
+            bbox=dict(
+                facecolor="#161b22",
+                edgecolor="#30363d",
+                linewidth=0.8,
+                alpha=0.85,
+                pad=3,
+                boxstyle="round,pad=0.3",
+            ),
             zorder=10,
         )
 
     # ── Entry / SL / TP horizontal lines ──────────────────────────────────────
     # Determine bull/bear from order_direction for colour defaults
     _is_long = "short" not in order_direction.lower() and "做空" not in order_direction
-    _ENTRY_COLOR = "#60a5fa"   # blue
-    _TP_COLOR    = "#4ade80"   # green
-    _TP2_COLOR   = "#86efac"   # lighter green
-    _SL_COLOR    = "#f87171"   # red
+    _ENTRY_COLOR = "#60a5fa"  # blue
+    _TP_COLOR = "#4ade80"  # green
+    _TP2_COLOR = "#86efac"  # lighter green
+    _SL_COLOR = "#f87171"  # red
 
     _price_lines: list[tuple[float, str, str]] = []  # (price, color, label)
     if entry_price is not None:
@@ -327,12 +369,16 @@ def _render_chart(bars_newest_first: list[Any], ema20_newest_first: list[float],
     _label_x = n - 1 + _RIGHT_MARGIN - 0.3  # anchor for right-side text
     for _price, _color, _label in _price_lines:
         # Dashed line from bar 0 to right margin
-        ax.axhline(_price, color=_color, linewidth=1.0, linestyle="--",
-                   alpha=0.85, zorder=6)
+        ax.axhline(_price, color=_color, linewidth=1.0, linestyle="--", alpha=0.85, zorder=6)
         # Price label at right margin
         ax.text(
-            _label_x, _price, _label,
-            color=_color, fontsize=7.5, ha="right", va="center",
+            _label_x,
+            _price,
+            _label,
+            color=_color,
+            fontsize=7.5,
+            ha="right",
+            va="center",
             bbox=dict(facecolor="#0d1117", edgecolor="none", alpha=0.7, pad=1.5),
             zorder=7,
         )
@@ -345,12 +391,15 @@ def _render_chart(bars_newest_first: list[Any], ema20_newest_first: list[float],
         # Arrow anchor Y
         _last_bar = bars[-1] if bars else None
         if _last_bar is not None:
-            _last_close = (_last_bar.close if hasattr(_last_bar, "close")
-                           else float(_last_bar.get("close", 0)))
-            _last_high  = (_last_bar.high if hasattr(_last_bar, "high")
-                           else float(_last_bar.get("high", 0)))
-            _last_low   = (_last_bar.low if hasattr(_last_bar, "low")
-                           else float(_last_bar.get("low", 0)))
+            _last_close = (
+                _last_bar.close if hasattr(_last_bar, "close") else float(_last_bar.get("close", 0))
+            )
+            _last_high = (
+                _last_bar.high if hasattr(_last_bar, "high") else float(_last_bar.get("high", 0))
+            )
+            _last_low = (
+                _last_bar.low if hasattr(_last_bar, "low") else float(_last_bar.get("low", 0))
+            )
         else:
             _last_close = _last_high = _last_low = entry_price or 0
 
@@ -362,56 +411,79 @@ def _render_chart(bars_newest_first: list[Any], ema20_newest_first: list[float],
             else:
                 all_prices += [float(_b.get("high", 0)), float(_b.get("low", 0))]
         _price_range = max(all_prices) - min(all_prices) if all_prices else 1.0
-        _arrow_len = _price_range * 0.06   # 6% of visible range
-        _arrow_x   = n - 1                 # x = last bar index
+        _arrow_len = _price_range * 0.06  # 6% of visible range
+        _arrow_x = n - 1  # x = last bar index
 
         if _is_long:
             # Up arrow: tail at low, head above
-            _tail_y = (_last_low - _price_range * 0.01)
+            _tail_y = _last_low - _price_range * 0.01
             _head_y = _tail_y + _arrow_len
             ax.annotate(
-                "", xy=(_arrow_x, _head_y), xytext=(_arrow_x, _tail_y),
-                arrowprops=dict(arrowstyle="-|>", color="#4ade80",
-                                lw=2.5, mutation_scale=18),
+                "",
+                xy=(_arrow_x, _head_y),
+                xytext=(_arrow_x, _tail_y),
+                arrowprops=dict(arrowstyle="-|>", color="#4ade80", lw=2.5, mutation_scale=18),
                 zorder=8,
             )
             ax.text(
-                _arrow_x, _tail_y - _price_range * 0.005, "做多",
-                color="#4ade80", fontsize=8, ha="center", va="top",
-                fontweight="bold", zorder=9,
+                _arrow_x,
+                _tail_y - _price_range * 0.005,
+                "做多",
+                color="#4ade80",
+                fontsize=8,
+                ha="center",
+                va="top",
+                fontweight="bold",
+                zorder=9,
             )
         else:
             # Down arrow: tail at high, head below
-            _tail_y = (_last_high + _price_range * 0.01)
+            _tail_y = _last_high + _price_range * 0.01
             _head_y = _tail_y - _arrow_len
             ax.annotate(
-                "", xy=(_arrow_x, _head_y), xytext=(_arrow_x, _tail_y),
-                arrowprops=dict(arrowstyle="-|>", color="#f87171",
-                                lw=2.5, mutation_scale=18),
+                "",
+                xy=(_arrow_x, _head_y),
+                xytext=(_arrow_x, _tail_y),
+                arrowprops=dict(arrowstyle="-|>", color="#f87171", lw=2.5, mutation_scale=18),
                 zorder=8,
             )
             ax.text(
-                _arrow_x, _tail_y + _price_range * 0.005, "做空",
-                color="#f87171", fontsize=8, ha="center", va="bottom",
-                fontweight="bold", zorder=9,
+                _arrow_x,
+                _tail_y + _price_range * 0.005,
+                "做空",
+                color="#f87171",
+                fontsize=8,
+                ha="center",
+                va="bottom",
+                fontweight="bold",
+                zorder=9,
             )
 
     legend_handles = [Line2D([0], [0], color="#fbbf24", linewidth=1.5, label="EMA20")]
     if entry_price is not None:
-        legend_handles.append(Line2D([0], [0], color=_ENTRY_COLOR, linewidth=1.0,
-                                     linestyle="--", label="入场"))
+        legend_handles.append(
+            Line2D([0], [0], color=_ENTRY_COLOR, linewidth=1.0, linestyle="--", label="入场")
+        )
     if take_profit_price is not None:
-        legend_handles.append(Line2D([0], [0], color=_TP_COLOR, linewidth=1.0,
-                                     linestyle="--", label="TP1"))
+        legend_handles.append(
+            Line2D([0], [0], color=_TP_COLOR, linewidth=1.0, linestyle="--", label="TP1")
+        )
     if take_profit_price_2 is not None:
-        legend_handles.append(Line2D([0], [0], color=_TP2_COLOR, linewidth=1.0,
-                                     linestyle="--", label="TP2"))
+        legend_handles.append(
+            Line2D([0], [0], color=_TP2_COLOR, linewidth=1.0, linestyle="--", label="TP2")
+        )
     if stop_loss_price is not None:
-        legend_handles.append(Line2D([0], [0], color=_SL_COLOR, linewidth=1.0,
-                                     linestyle="--", label="止损"))
+        legend_handles.append(
+            Line2D([0], [0], color=_SL_COLOR, linewidth=1.0, linestyle="--", label="止损")
+        )
 
-    ax.legend(handles=legend_handles,
-              facecolor="#161b22", edgecolor="#30363d", labelcolor="#e6edf3", fontsize=8)
+    ax.legend(
+        handles=legend_handles,
+        facecolor="#161b22",
+        edgecolor="#30363d",
+        labelcolor="#e6edf3",
+        fontsize=8,
+    )
     ax.yaxis.tick_right()
     ax.yaxis.set_label_position("right")
     ax.grid(axis="y", color="#21262d", linewidth=0.5, zorder=1)
@@ -419,8 +491,7 @@ def _render_chart(bars_newest_first: list[Any], ema20_newest_first: list[float],
 
     plt.tight_layout()
     image_path.parent.mkdir(parents=True, exist_ok=True)
-    plt.savefig(str(image_path), dpi=120, bbox_inches="tight",
-                facecolor="#0d1117")
+    plt.savefig(str(image_path), dpi=120, bbox_inches="tight", facecolor="#0d1117")
     plt.close(fig)
     logger.info("Trade chart saved: %s", image_path)
     return True
@@ -428,12 +499,13 @@ def _render_chart(bars_newest_first: list[Any], ema20_newest_first: list[float],
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
+
 def save_trade_record(
     *,
     decision_inner: dict,
     stage2_full: dict,
     stage1_diagnosis: dict | None,
-    frame: Any,            # KlineFrame or None
+    frame: Any,  # KlineFrame or None
     meta_symbol: str,
     meta_timeframe: str,
     decision_stance: str,
@@ -456,7 +528,7 @@ def save_trade_record(
             model_name=model_name,
             structure_flip_cooldown_bars=structure_flip_cooldown_bars,
         )
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.error("save_trade_record failed: %s", exc, exc_info=True)
 
 
@@ -516,13 +588,13 @@ def _save_trade_record_impl(
                 trade_confidence=str(dec.get("trade_confidence") or ""),
                 estimated_win_rate=str(dec.get("estimated_win_rate") or ""),
             )
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.warning("chart render failed: %s", exc)
 
     # ── Decision trace summary (node_id + answer, compact) ───────────────────
     trace = stage2_full.get("decision_trace") or []
     trace_summary = " | ".join(
-        f"{t.get('node_id','')}:{t.get('answer','')}" for t in trace if isinstance(t, dict)
+        f"{t.get('node_id', '')}:{t.get('answer', '')}" for t in trace if isinstance(t, dict)
     )
 
     from pa_agent.ai.decision_continuity import (
@@ -545,7 +617,6 @@ def _save_trade_record_impl(
         "timeframe": meta_timeframe,
         "decision_stance": decision_stance,
         "model": model_name,
-
         "order_direction": _get(dec, "order_direction"),
         "order_type": _get(dec, "order_type"),
         "entry_price": _get(dec, "entry_price"),
@@ -555,24 +626,20 @@ def _save_trade_record_impl(
         "entry_rule": _get(dec, "entry_rule"),
         "entry_basis_bar": _get(dec, "entry_basis_bar"),
         "entry_basis_extreme": _get(dec, "entry_basis_extreme"),
-
         "diagnosis_confidence": _get(dec, "diagnosis_confidence"),
         "diagnosis_confidence_reasoning": _get(dec, "diagnosis_confidence_reasoning"),
         "trade_confidence": _get(dec, "trade_confidence"),
         "trade_confidence_reasoning": _get(dec, "trade_confidence_reasoning"),
         "estimated_win_rate": _get(dec, "estimated_win_rate"),
         "estimated_win_rate_reasoning": _get(dec, "estimated_win_rate_reasoning"),
-
         "reasoning": _get(dec, "reasoning"),
         "key_factors": _j(_get(dec, "key_factors")),
         "watch_points": _j(_get(dec, "watch_points")),
         "risk_assessment": _get(dec, "risk_assessment"),
         "invalidation_condition": _get(dec, "invalidation_condition"),
-
         "diag_cycle_position": _get(diag, "cycle_position"),
         "diag_direction": _get(diag, "direction"),
         "diag_key_signals": _j(_get(diag, "key_signals")),
-
         "s2_always_in": _get(bar_analysis, "always_in"),
         "s2_bar_type": _get(bar_analysis, "bar_type"),
         "s2_signal_bar_bar": _get(signal_bar, "bar"),
@@ -584,23 +651,18 @@ def _save_trade_record_impl(
         "s2_entry_bar_follow_through": _get(entry_bar, "follow_through"),
         "s2_is_second_entry": _get(second_entry, "is_second_entry"),
         "s2_second_entry_type": _get(second_entry, "type"),
-
         "next_cycle": _get(next_cycle, "cycle"),
         "next_cycle_direction": _get(next_cycle, "direction"),
         "next_cycle_probabilities": _j(_get(next_cycle, "probabilities")),
         "next_cycle_reasoning": _get(next_cycle, "reasoning"),
-
         "terminal_node_id": _get(terminal, "node_id"),
         "terminal_outcome": _get(terminal, "outcome"),
         "terminal_label": _get(terminal, "label"),
-
         "decision_trace_summary": trace_summary,
-
         "prev_plan_relation": audit.get("prev_plan_relation", ""),
         "prev_plan_invalidated": audit.get("prev_plan_invalidated", ""),
         "prev_plan_entry": audit.get("prev_plan_entry", ""),
         "bars_since_prev_plan": audit.get("bars_since_prev_plan", ""),
-
         "chart_image": image_filename if chart_written else "",
     }
 

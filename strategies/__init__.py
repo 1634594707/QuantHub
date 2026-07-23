@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """QuantHub 策略插件层。
 
 子包:
@@ -9,6 +8,7 @@
 
 所有策略继承 strategies.base.StrategyBase，通过 @register_strategy 注册。
 """
+
 from __future__ import annotations
 
 import importlib
@@ -26,8 +26,11 @@ from strategies.base import (
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    "StrategyBase", "StrategyInfo",
-    "get_strategy", "list_strategies", "register_strategy",
+    "StrategyBase",
+    "StrategyInfo",
+    "get_strategy",
+    "list_strategies",
+    "register_strategy",
 ]
 
 # 需要预加载以触发 @register_strategy 的策略模块
@@ -55,7 +58,7 @@ def discover_and_register() -> dict[str, Any]:
     for mod in _STRATEGY_MODULES:
         try:
             importlib.import_module(mod)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             failed.append(mod)
             logger.warning("策略模块加载失败: %s (%s)", mod, exc)
     if failed:

@@ -7,8 +7,14 @@ from pa_agent.data.snapshot import _rebase_closed_bars
 
 def test_normalize_kline_bar_converts_ts_open_seconds_to_ms() -> None:
     raw = KlineBar(
-        seq=1, ts_open=1_718_454_600.0, open=10.0, high=12.0, low=10.0, close=11.0,
-        volume=1.0, closed=True,
+        seq=1,
+        ts_open=1_718_454_600.0,
+        open=10.0,
+        high=12.0,
+        low=10.0,
+        close=11.0,
+        volume=1.0,
+        closed=True,
     )
     fixed = normalize_kline_bar(raw)
     assert fixed.ts_open == 1_718_454_600_000.0
@@ -63,10 +69,24 @@ def test_close_position_clamped_in_features() -> None:
         timeframe="5m",
         bars=(
             KlineBar(
-                seq=1, ts_open=1.0, open=10.0, high=12.0, low=10.0, close=20.0, volume=1, closed=True
+                seq=1,
+                ts_open=1.0,
+                open=10.0,
+                high=12.0,
+                low=10.0,
+                close=20.0,
+                volume=1,
+                closed=True,
             ),
             KlineBar(
-                seq=2, ts_open=0.0, open=10.0, high=12.0, low=10.0, close=11.0, volume=1, closed=True
+                seq=2,
+                ts_open=0.0,
+                open=10.0,
+                high=12.0,
+                low=10.0,
+                close=11.0,
+                volume=1,
+                closed=True,
             ),
         ),
         indicators=IndicatorBundle(ema20=(11.0, 11.0), atr14=(2.0, 2.0)),

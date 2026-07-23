@@ -1,4 +1,5 @@
 """Tests for pattern routing overlays and stage-1 pattern coherence."""
+
 from __future__ import annotations
 
 from pa_agent.ai.coherence_checks import validate_stage1_coherence
@@ -96,7 +97,6 @@ def test_tr_boundary_syncs_middle_range_and_barbwire() -> None:
         "bar_analysis": {"entry_setup_type": "tr_boundary"},
         "program_features": {"barbwire_candidate": True, "barbwire_score": 0.72},
     }
-    from pa_agent.ai.pattern_routing import sync_detected_patterns_field
     from pa_agent.ai.stage1_normalizer import normalize_stage1
 
     out = normalize_stage1(s1, normalization_mode="strict")

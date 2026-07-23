@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """经典 Pivot 枢轴点计算。
 
 从原 ``trading-master/03-daily_news/daily-news/scripts/pivot.py`` 下沉而来，
@@ -14,6 +13,7 @@ DataFrame 取前一交易日 OHLC 的便捷入口。
     S2 = P - (H - L)
     S3 = S1 - (H - L)
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -35,10 +35,10 @@ def calc_pivots(high: float, low: float, close: float) -> dict[str, float]:
     p = (high + low + close) / 3
     r = high - low
     return {
-        "P":  p,
+        "P": p,
         "R1": 2 * p - low,
         "R2": p + r,
-        "R3": 2 * p - low + r,   # R1 + (H - L)
+        "R3": 2 * p - low + r,  # R1 + (H - L)
         "S1": 2 * p - high,
         "S2": p - r,
         "S3": 2 * p - high - r,  # S1 - (H - L)

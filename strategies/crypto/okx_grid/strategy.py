@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """OKX 永续多因子轮动网格策略。
 
 把原 ``OKX Grid Master`` 下沉为 QuantHub 策略插件：
@@ -10,10 +9,11 @@
     - 实盘默认关闭：``is_live()`` 需全局 ``live_trading=true`` 且
       ``modules.okx_grid.live=true`` 双开
 """
+
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
 import pandas as pd
 
@@ -33,18 +33,20 @@ _MARKET = "crypto"
 # 默认因子配置（动量 / 波动率 / 流动性），与 selector.DEFAULT_FACTOR_CONFIG 一致
 # True=升序(选小的), False=降序(选大的)
 _DEFAULT_FACTOR_CONFIG = {
-    "波动率": False,         # 高波动（网格收益空间大）
-    "momentum_12": False,    # 高动量
-    "vol_ratio_24": False,   # 高成交活跃（流动性）
+    "波动率": False,  # 高波动（网格收益空间大）
+    "momentum_12": False,  # 高动量
+    "vol_ratio_24": False,  # 高成交活跃（流动性）
 }
 
 
-@register_strategy(StrategyInfo(
-    name="okx_grid",
-    market="crypto",
-    live_capable=True,
-    description="OKX永续多因子轮动网格(实盘默认关)",
-))
+@register_strategy(
+    StrategyInfo(
+        name="okx_grid",
+        market="crypto",
+        live_capable=True,
+        description="OKX永续多因子轮动网格(实盘默认关)",
+    )
+)
 class OkxGridStrategy(StrategyBase):
     """OKX 永续多因子轮动网格策略。
 
@@ -58,8 +60,8 @@ class OkxGridStrategy(StrategyBase):
 
     def __init__(self, config: dict | None = None) -> None:
         super().__init__(config=config)
-        self._source: Optional[OkxSource] = None
-        self._executor: Optional[OkxExecutor] = None
+        self._source: OkxSource | None = None
+        self._executor: OkxExecutor | None = None
 
     # ------------------------------------------------------------------
     # 数据源 / 执行器懒加载
@@ -127,7 +129,7 @@ class OkxGridStrategy(StrategyBase):
         for sym in symbols:
             try:
                 df = self.source.get_kline(sym, interval=interval, limit=limit)
-            except Exception:  # noqa: BLE001
+            except Exception:
                 logger.exception("okx 取 K线失败: %s", sym)
                 continue
             if df is not None and not df.empty:
@@ -163,10 +165,10 @@ class OkxGridStrategy(StrategyBase):
 
             if pos < 0.4:
                 direction = "buy"
-                score = 1.0 - pos          # 越接近下限，买入置信越强
+                score = 1.0 - pos  # 越接近下限，买入置信越强
             elif pos > 0.6:
                 direction = "sell"
-                score = pos                # 越接近上限，卖出置信越强
+                score = pos  # 越接近上限，卖出置信越强
             else:
                 direction = "hold"
                 score = 0.5
@@ -200,7 +202,7 @@ class OkxGridStrategy(StrategyBase):
     # 回测
     # ------------------------------------------------------------------
 
-    def backtest(self, klines: pd.DataFrame, **kwargs: Any) -> "BacktestResult":
+    def backtest(self, klines: pd.DataFrame, **kwargs: Any) -> BacktestResult:
         """用 ``core.backtest.GridBacktester`` 跑网格回测。
 
         Args:
@@ -219,9 +221,9 @@ class OkxGridStrategy(StrategyBase):
             upper=float(kwargs.get("upper", grid_cfg.get("upper", 1.2))),
             lower=float(kwargs.get("lower", grid_cfg.get("lower", 0.8))),
             grids=int(kwargs.get("grids", grid_cfg.get("grids", 20))),
-            amount_per_grid=float(kwargs.get(
-                "amount_per_grid", grid_cfg.get("amount_per_grid", 100.0)
-            )),
+            amount_per_grid=float(
+                kwargs.get("amount_per_grid", grid_cfg.get("amount_per_grid", 100.0))
+            ),
             base_price=kwargs.get("base_price"),
             fee_rate=float(kwargs.get("fee_rate", 0.0006)),
             slippage=float(kwargs.get("slippage", 0.0005)),
@@ -266,6 +268,6 @@ class OkxGridStrategy(StrategyBase):
                 return {"action": "close", "result": self.executor.close_grid_order(algo_id)}
             # 默认: 查询运行中的网格
             return {"action": "query", "result": self.executor.query_grid_orders()}
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.exception("okx_grid.live_tick 执行失败")
             return None

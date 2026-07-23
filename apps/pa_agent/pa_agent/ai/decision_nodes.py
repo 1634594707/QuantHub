@@ -16,20 +16,12 @@ This module contains:
 
 from __future__ import annotations
 
-
-
 import logging
-
 import math
-
 from dataclasses import dataclass
-
 from typing import Any
 
-
-
 logger = logging.getLogger(__name__)
-
 
 
 def _coerce_dict(value: Any) -> dict[str, Any]:
@@ -47,15 +39,14 @@ def _coerce_trace_list(trace: Any) -> list[dict[str, Any]]:
 # ── Threshold constants ────────────────────────────────────────────────────────
 
 
+BAR_COUNT_THRESHOLD: int = 20  # §1.1 data sufficiency threshold
 
-BAR_COUNT_THRESHOLD: int = 20           # §1.1 data sufficiency threshold
+DIRECTION_WINDOW: int = 8  # §2.3 direction voting window (short) — 缩小到8根，重点捕捉近期结构突变
+DIRECTION_WINDOW_MED: int = 20  # §2.3 medium window — 仅作背景参考，强短窗口时不扣分
+DIRECTION_STRONG_SHORT_SCORE: int = 4  # |score|≥此值时忽略中窗口冲突（新趋势优先于旧背景）
 
-DIRECTION_WINDOW: int = 8               # §2.3 direction voting window (short) — 缩小到8根，重点捕捉近期结构突变
-DIRECTION_WINDOW_MED: int = 20         # §2.3 medium window — 仅作背景参考，强短窗口时不扣分
-DIRECTION_STRONG_SHORT_SCORE: int = 4   # |score|≥此值时忽略中窗口冲突（新趋势优先于旧背景）
-
-ALWAYS_IN_NEAR_WINDOW: int = 8          # §2.4 近端主判（Brooks：惯性=刚刚在做的事）
-ALWAYS_IN_WINDOW: int = 20             # §2.4 背景参考窗口（不否决近端结论）
+ALWAYS_IN_NEAR_WINDOW: int = 8  # §2.4 近端主判（Brooks：惯性=刚刚在做的事）
+ALWAYS_IN_WINDOW: int = 20  # §2.4 背景参考窗口（不否决近端结论）
 ALWAYS_IN_NEAR_SAME_SIDE_RATIO: float = 0.65  # 近端加权同侧占比（8根窗口略低于20根阈值）
 
 ALWAYS_IN_SAME_SIDE_RATIO: float = 0.7  # §2.4 same-side ratio threshold
@@ -63,7 +54,7 @@ ALWAYS_IN_PULLBACK_ATR_RATIO: float = 1.5  # §2.4 max pullback depth (×ATR) fo
 
 SIGNAL_BAR_LONG_ATR_RATIO: float = 2.0  # §9.3 overlong threshold
 
-EMA_SLOPE_LOOKBACK: int = 10            # EMA slope lookback bars
+EMA_SLOPE_LOOKBACK: int = 10  # EMA slope lookback bars
 
 # ── §2.3 direction vote thresholds ────────────────────────────────────────────
 # Score from 5 signals (EMA slope, close gravity, HH/HL structure,
@@ -81,18 +72,25 @@ OVERLAP_LOW_THRESHOLD: float = 0.45
 OVERLAP_HIGH_THRESHOLD: float = 0.65
 
 
-
 # ── Override permission sets ──────────────────────────────────────────────────
-
 
 
 LOCKED_NODES: frozenset[str] = frozenset({"1.1", "9.1"})
 
-OVERRIDABLE_NODES: frozenset[str] = frozenset({
-
-    "1.3", "2.3", "2.4", "2.5", "9.2", "9.3", "11.1", "11.2", "11.3", "11.4",
-
-})
+OVERRIDABLE_NODES: frozenset[str] = frozenset(
+    {
+        "1.3",
+        "2.3",
+        "2.4",
+        "2.5",
+        "9.2",
+        "9.3",
+        "11.1",
+        "11.2",
+        "11.3",
+        "11.4",
+    }
+)
 
 # Nodes where the AI is the primary judge; program does not replace AI when AI wrote the node.
 # The program node is used as-is only when the AI omitted the node entirely.
@@ -101,15 +99,15 @@ AI_PRIMARY_NODES: frozenset[str] = frozenset({"1.3", "2.5"})
 AI_PRIMARY_SUPPLEMENT_NODES: frozenset[str] = frozenset()
 
 # §1.3 extreme chaos thresholds
-CHAOS_OVERLAP_THRESHOLD: float = 0.70      # mean overlap_prev_ratio above this → chaotic
-CHAOS_EMA_FLAT_ATR_RATIO: float = 0.05     # EMA slope dead-zone (×ATR) for "flat" check
-CHAOS_DIRECTION_SCORE_MAX: int = 1         # |direction score| ≤ this → no clear direction
+CHAOS_OVERLAP_THRESHOLD: float = 0.70  # mean overlap_prev_ratio above this → chaotic
+CHAOS_EMA_FLAT_ATR_RATIO: float = 0.05  # EMA slope dead-zone (×ATR) for "flat" check
+CHAOS_DIRECTION_SCORE_MAX: int = 1  # |direction score| ≤ this → no clear direction
 
 # §2.5 momentum strength thresholds
-MOMENTUM_OVERLAP_WEAK: float = 0.50       # above → weak momentum (lots of overlap)
-                                           # 0.50 is conservative: healthy trends show <0.3-0.4 overlap
+MOMENTUM_OVERLAP_WEAK: float = 0.50  # above → weak momentum (lots of overlap)
+# 0.50 is conservative: healthy trends show <0.3-0.4 overlap
 MOMENTUM_TREND_RATIO_STRONG: float = 1.5  # bull/bear trend bar ratio ≥ this → strong side
-MOMENTUM_PULLBACK_DEEP_ATR: float = 3.0   # pullback > this×ATR → deep (weak momentum)
+MOMENTUM_PULLBACK_DEEP_ATR: float = 3.0  # pullback > this×ATR → deep (weak momentum)
 # M1 absolute floor: directional trend bars must be ≥ this fraction of ALL bars
 # in the near-term window.  Prevents "2 bear vs 1 bull = dominant" from triggering
 # when 5 out of 8 bars are doji/inside/other (market is hesitating, not trending).
@@ -119,15 +117,11 @@ MOMENTUM_TREND_BAR_MIN_RATIO: float = 0.50  # ≥50% of all bars must be trend b
 SAFETY_GATE_NODES: frozenset[str] = frozenset({"1.1", "10.3", "14"})
 
 
-
 # ── Result types ──────────────────────────────────────────────────────────────
 
 
-
 @dataclass(frozen=True)
-
 class PreflightResult:
-
     """Result of preflight data gate check."""
 
     ok: bool
@@ -137,37 +131,27 @@ class PreflightResult:
     failed_check: str | None  # bars_empty_or_bad_ohlc / bar_count_lt_20 / indicators_all_nan
 
 
-
-
-
 @dataclass(frozen=True)
-
 class NodeFill:
-
     """Intermediate representation of a program-filled trace node."""
 
     node_id: str
 
-    answer: str        # ∈ TRACE_ANSWERS: 是/否/中性/等待/不适用
+    answer: str  # ∈ TRACE_ANSWERS: 是/否/中性/等待/不适用
 
-    reason: str        # non-empty
+    reason: str  # non-empty
 
-    bar_range: str     # like "K20-K1" / "K1" / "不适用"
+    bar_range: str  # like "K20-K1" / "K1" / "不适用"
 
     branch: str | None = None
 
     section: str | None = None
 
 
-
-
-
 # ── PreflightDataGate ─────────────────────────────────────────────────────────
 
 
-
 def check_preflight_data(frame: Any) -> PreflightResult:
-
     """Pre-AI call deterministic data quality gate (pure function, no AI calls).
 
 
@@ -187,69 +171,43 @@ def check_preflight_data(frame: Any) -> PreflightResult:
     """
 
     try:
-
         return _check_preflight_data_inner(frame)
 
-    except Exception as exc:  # noqa: BLE001
-
+    except Exception as exc:
         logger.warning("check_preflight_data: unexpected exception: %s", exc)
 
         return PreflightResult(
-
             ok=False,
-
             reason=f"数据校验时发生异常：{exc}",
-
             failed_check="bars_empty_or_bad_ohlc",
-
         )
 
 
-
-
-
 def _check_preflight_data_inner(frame: Any) -> PreflightResult:
-
     """Inner implementation without exception guard."""
 
     # ── Check 1: frame and bars non-empty, OHLC valid ────────────────────────
 
     if frame is None:
-
         return PreflightResult(
-
             ok=False,
-
             reason="frame 为空，无法分析。",
-
             failed_check="bars_empty_or_bad_ohlc",
-
         )
-
-
 
     bars = getattr(frame, "bars", None)
 
     if not bars:
-
         return PreflightResult(
-
             ok=False,
-
             reason="K线序列为空，无法分析。",
-
             failed_check="bars_empty_or_bad_ohlc",
-
         )
-
-
 
     # Validate each bar's OHLC
 
     for bar in bars:
-
         try:
-
             o = float(getattr(bar, "open", None))
 
             h = float(getattr(bar, "high", None))
@@ -259,225 +217,136 @@ def _check_preflight_data_inner(frame: Any) -> PreflightResult:
             c = float(getattr(bar, "close", None))
 
         except (TypeError, ValueError):
-
             return PreflightResult(
-
                 ok=False,
-
                 reason="存在K线 OHLC 字段缺失或非数值，数据不合法。",
-
                 failed_check="bars_empty_or_bad_ohlc",
-
             )
-
-
 
         if not (math.isfinite(o) and math.isfinite(h) and math.isfinite(lo) and math.isfinite(c)):
-
             return PreflightResult(
-
                 ok=False,
-
                 reason="存在K线 OHLC 含 NaN/Inf 等非有限数值。",
-
                 failed_check="bars_empty_or_bad_ohlc",
-
             )
-
-
 
         if h < lo:
-
             return PreflightResult(
-
                 ok=False,
-
                 reason=f"存在K线 high({h}) < low({lo})，数据不合法。",
-
                 failed_check="bars_empty_or_bad_ohlc",
-
             )
-
-
 
     # ── Check 2: bar count >= 20 ──────────────────────────────────────────────
 
     try:
-
         n = max(int(getattr(b, "seq", 0)) for b in bars)
 
     except (TypeError, ValueError):
-
         return PreflightResult(
-
             ok=False,
-
             reason="无法读取K线 seq 字段，无法计算K线数量。",
-
             failed_check="bars_empty_or_bad_ohlc",
-
         )
-
-
 
     if n < BAR_COUNT_THRESHOLD:
-
         return PreflightResult(
-
             ok=False,
-
             reason=f"已收盘K线数量 {n} 根不足 {BAR_COUNT_THRESHOLD} 根，数据不足以分析。",
-
             failed_check="bar_count_lt_20",
-
         )
-
-
 
     # ── Check 3: EMA20/ATR14 at least one non-NaN ────────────────────────────
 
     indicators = getattr(frame, "indicators", None)
 
     if indicators is not None:
-
         ema20 = getattr(indicators, "ema20", ())
 
         atr14 = getattr(indicators, "atr14", ())
 
-
-
         def _all_nan(seq: Any) -> bool:
 
             try:
-
                 return all(math.isnan(float(v)) for v in seq) if seq else True
 
             except (TypeError, ValueError):
-
                 return True
 
-
-
         if _all_nan(ema20) and _all_nan(atr14):
-
             return PreflightResult(
-
                 ok=False,
-
                 reason="EMA20 与 ATR14 全为 NaN，指标预热不足，无法分析。",
-
                 failed_check="indicators_all_nan",
-
             )
 
-
-
     return PreflightResult(ok=True, reason="", failed_check=None)
-
-
-
 
 
 # ── Helper: node label ────────────────────────────────────────────────────────
 
 
-
 def _node_label(node_id: str) -> str:
-
     """Get human-readable question text for a node id from the decision tree."""
 
     try:
-
         from pa_agent.ai.decision_tree import node_label as _nl
 
         return _nl(node_id)
 
-    except Exception:  # noqa: BLE001
-
+    except Exception:
         return node_id
 
 
-
-
-
 def build_program_trace_node(fill: NodeFill, *, tree: Any = None) -> dict[str, Any]:
-
     """Convert a NodeFill to a valid trace dict (question from decision tree node_label)."""
 
     try:
-
         from pa_agent.ai.decision_tree import node_label as _nl
 
         question = _nl(fill.node_id, tree)
 
-    except Exception:  # noqa: BLE001
-
+    except Exception:
         question = fill.node_id
 
-
-
     node: dict[str, Any] = {
-
         "node_id": fill.node_id,
-
         "question": question,
-
         "answer": fill.answer,
-
         "reason": fill.reason,
-
         "bar_range": fill.bar_range,
-
         "skipped": False,
-
     }
 
     if fill.branch:
-
         node["branch"] = fill.branch
 
     if fill.section:
-
         node["section"] = fill.section
 
     return node
 
 
-
-
-
 # ── DataSufficiencyJudge ──────────────────────────────────────────────────────
 
 
-
 def judge_data_sufficiency(frame: Any) -> NodeFill:
-
     """Fill §1.1=是 (data already sufficient, PreflightDataGate already passed)."""
 
     bars = getattr(frame, "bars", ()) or ()
 
     try:
-
         n = max(int(getattr(b, "seq", 0)) for b in bars)
 
     except (TypeError, ValueError):
-
         n = len(bars)
 
     return NodeFill(
-
         node_id="1.1",
-
         answer="是",
-
         reason=f"已收盘K线 {n} 根 ≥ {BAR_COUNT_THRESHOLD} 根阈值（已通过前置数据闸门），数据量满足分析要求。",
-
         bar_range=f"K{n}-K1",
-
     )
-
-
-
 
 
 # ── MarketChaosJudge ──────────────────────────────────────────────────────────
@@ -527,8 +396,7 @@ def judge_market_chaos(frame: Any) -> NodeFill:
                     thr = CHAOS_EMA_FLAT_ATR_RATIO * float(atr14[0])
                 ema_flat = abs(slope) < thr
                 c1_desc = (
-                    f"EMA斜率({'平坦✓' if ema_flat else '有方向✗'}"
-                    f",d={slope:.4f},阈值±{thr:.4f})"
+                    f"EMA斜率({'平坦✓' if ema_flat else '有方向✗'},d={slope:.4f},阈值±{thr:.4f})"
                 )
     except (TypeError, ValueError):
         pass
@@ -617,7 +485,6 @@ def judge_market_chaos(frame: Any) -> NodeFill:
 
 
 # ── DirectionJudge helpers ────────────────────────────────────────────────────
-
 
 
 def _count_trend_bars(bars: Any, W: int) -> tuple[int, int]:
@@ -767,7 +634,7 @@ def judge_direction(frame: Any) -> tuple[str, NodeFill]:
                 return total_wv / total_w if total_w > 0 else float("nan")
 
             near_vals = close_prices[:h]
-            far_vals = close_prices[h:2 * h]
+            far_vals = close_prices[h : 2 * h]
             near = _weighted_avg(near_vals, 0)
             far = _weighted_avg(far_vals, h)
             if not math.isnan(near) and not math.isnan(far):
@@ -805,9 +672,7 @@ def judge_direction(frame: Any) -> tuple[str, NodeFill]:
             else:
                 s3_desc = f"波段结构:0(HH={hh},HL={hl},LL={ll},LH={lh})"
         else:
-            s3_desc = (
-                f"波段结构:0(枢轴不足,highs={len(swing_highs)},lows={len(swing_lows)})"
-            )
+            s3_desc = f"波段结构:0(枢轴不足,highs={len(swing_highs)},lows={len(swing_lows)})"
     except (TypeError, ValueError, IndexError):
         pass
 
@@ -826,16 +691,10 @@ def judge_direction(frame: Any) -> tuple[str, NodeFill]:
                 s4_desc = f"趋势棒占比:-1(空头趋势棒{bear_tb}根,多头0根)"
             elif bull_tb >= bear_tb * TREND_BAR_DOMINANCE_RATIO:
                 s4 = 1
-                s4_desc = (
-                    f"趋势棒占比:+1(多{bull_tb}/空{bear_tb}"
-                    f"≥{TREND_BAR_DOMINANCE_RATIO:.1f}×)"
-                )
+                s4_desc = f"趋势棒占比:+1(多{bull_tb}/空{bear_tb}≥{TREND_BAR_DOMINANCE_RATIO:.1f}×)"
             elif bear_tb >= bull_tb * TREND_BAR_DOMINANCE_RATIO:
                 s4 = -1
-                s4_desc = (
-                    f"趋势棒占比:-1(空{bear_tb}/多{bull_tb}"
-                    f"≥{TREND_BAR_DOMINANCE_RATIO:.1f}×)"
-                )
+                s4_desc = f"趋势棒占比:-1(空{bear_tb}/多{bull_tb}≥{TREND_BAR_DOMINANCE_RATIO:.1f}×)"
             else:
                 s4_desc = f"趋势棒占比:0(多{bull_tb}/空{bear_tb},无明显优势)"
         else:
@@ -896,6 +755,7 @@ def judge_direction(frame: Any) -> tuple[str, NodeFill]:
                 close_prices_med.append(float("nan"))
         hm = W_med // 2
         if hm >= 1 and len(close_prices_med) >= 2 * hm:
+
             def _weighted_avg_med(vals: list[float], start_idx: int) -> float:
                 total_w = 0.0
                 total_wv = 0.0
@@ -908,7 +768,7 @@ def judge_direction(frame: Any) -> tuple[str, NodeFill]:
                 return total_wv / total_w if total_w > 0 else float("nan")
 
             near_m_vals = close_prices_med[:hm]
-            far_m_vals = close_prices_med[hm:2 * hm]
+            far_m_vals = close_prices_med[hm : 2 * hm]
             near_m = _weighted_avg_med(near_m_vals, 0)
             far_m = _weighted_avg_med(far_m_vals, hm)
             if not math.isnan(near_m) and not math.isnan(far_m):
@@ -979,68 +839,49 @@ def judge_direction(frame: Any) -> tuple[str, NodeFill]:
     return direction, fill
 
 
-
-
-
 def _find_swings(bars: Any, W: int) -> tuple[list[float], list[float]]:
-
     """Find swing highs and lows using left/right 2-bar pivot detection."""
 
     window = list(bars[:W])
 
     if len(window) < 5:
-
         return [], []
-
-
 
     swing_highs: list[float] = []
 
     swing_lows: list[float] = []
 
-
-
     for i in range(2, len(window) - 2):
-
         h = float(window[i].high)
 
-        if (float(window[i - 1].high) < h and
-
-                float(window[i - 2].high) < h and
-
-                float(window[i + 1].high) < h and
-
-                float(window[i + 2].high) < h):
-
+        if (
+            float(window[i - 1].high) < h
+            and float(window[i - 2].high) < h
+            and float(window[i + 1].high) < h
+            and float(window[i + 2].high) < h
+        ):
             swing_highs.append(h)
-
-
 
         lo = float(window[i].low)
 
-        if (float(window[i - 1].low) > lo and
-
-                float(window[i - 2].low) > lo and
-
-                float(window[i + 1].low) > lo and
-
-                float(window[i + 2].low) > lo):
-
+        if (
+            float(window[i - 1].low) > lo
+            and float(window[i - 2].low) > lo
+            and float(window[i + 1].low) > lo
+            and float(window[i + 2].low) > lo
+        ):
             swing_lows.append(lo)
 
-
-
     return swing_highs, swing_lows
-
-
-
 
 
 # ── AlwaysInJudge ─────────────────────────────────────────────────────────────
 
 
 def _weighted_ema_side_weights(
-    bars: Any, N: int, ema20: tuple,
+    bars: Any,
+    N: int,
+    ema20: tuple,
 ) -> tuple[float, float]:
     """Linear-decay weighted counts of closes above/below EMA in first N bars."""
     w_above = 0.0
@@ -1122,9 +963,7 @@ def _eval_always_in_gates(
             else:
                 swing_desc = f"波段结构混乱(HH={hh},HL={hl},LL={ll},LH={lh})"
         else:
-            swing_desc = (
-                f"波段结构:枢轴不足(highs={len(swing_highs)},lows={len(swing_lows)})"
-            )
+            swing_desc = f"波段结构:枢轴不足(highs={len(swing_highs)},lows={len(swing_lows)})"
     except (TypeError, ValueError, IndexError):
         pass
 
@@ -1211,12 +1050,20 @@ def judge_always_in(frame: Any) -> NodeFill:
     N_bg = min(ALWAYS_IN_WINDOW, n)
 
     near = _eval_always_in_gates(
-        bars, N_near, ema20, atr14, n,
+        bars,
+        N_near,
+        ema20,
+        atr14,
+        n,
         slope_lookback=min(5, n - 1),
         same_side_ratio=ALWAYS_IN_NEAR_SAME_SIDE_RATIO,
     )
     bg = _eval_always_in_gates(
-        bars, N_bg, ema20, atr14, n,
+        bars,
+        N_bg,
+        ema20,
+        atr14,
+        n,
         slope_lookback=EMA_SLOPE_LOOKBACK,
         same_side_ratio=ALWAYS_IN_SAME_SIDE_RATIO,
     )
@@ -1348,19 +1195,22 @@ def judge_momentum_strength(frame: Any, direction: str = "neutral") -> NodeFill:
     # of ALL bars in the window.  Without this, 2 bear vs 1 bull in 8 bars triggers
     # "dominant" even though 63% of bars are doji/inside (hesitation, not trend).
     abs_floor_met = (
-        total_bars_in_window > 0
-        and total_tb / total_bars_in_window >= MOMENTUM_TREND_BAR_MIN_RATIO
+        total_bars_in_window > 0 and total_tb / total_bars_in_window >= MOMENTUM_TREND_BAR_MIN_RATIO
     )
     m1_strong = False
     if abs_floor_met:
-        if direction == "bullish" and bull_tb >= MOMENTUM_TREND_RATIO_STRONG * max(bear_tb, 1):
-            m1_strong = True
-        elif direction == "bearish" and bear_tb >= MOMENTUM_TREND_RATIO_STRONG * max(bull_tb, 1):
+        if (
+            direction == "bullish" and bull_tb >= MOMENTUM_TREND_RATIO_STRONG * max(bear_tb, 1)
+        ) or (direction == "bearish" and bear_tb >= MOMENTUM_TREND_RATIO_STRONG * max(bull_tb, 1)):
             m1_strong = True
         # direction=neutral: M1 cannot be "dominant" — if the program itself calls
         # the direction neutral it means neither side leads convincingly.
         # A 3:2 ratio in 8 bars is noise, not momentum.  Leave m1_strong=False.
-    abs_ratio_str = f"{total_tb}/{total_bars_in_window}={total_tb/max(total_bars_in_window,1):.0%}" if total_bars_in_window else "N/A"
+    abs_ratio_str = (
+        f"{total_tb}/{total_bars_in_window}={total_tb / max(total_bars_in_window, 1):.0%}"
+        if total_bars_in_window
+        else "N/A"
+    )
     m1_desc = (
         f"近{W_near}根趋势棒（多{bull_tb}/空{bear_tb}，总趋势棒占比{abs_ratio_str}，"
         f"方向={direction}，"
@@ -1401,7 +1251,9 @@ def judge_momentum_strength(frame: Any, direction: str = "neutral") -> NodeFill:
     )
 
     # ── Scoring ───────────────────────────────────────────────────────────────
-    strong_count = int(m1_strong) + int(m2_strong) + (int(m3_strong) if m3_strong is not None else 0)
+    strong_count = (
+        int(m1_strong) + int(m2_strong) + (int(m3_strong) if m3_strong is not None else 0)
+    )
 
     if strong_count >= 2:
         answer = "是"
@@ -1415,8 +1267,7 @@ def judge_momentum_strength(frame: Any, direction: str = "neutral") -> NodeFill:
         answer = "否"
         branch = None
         conclusion = (
-            "惯性偏弱，不宜趋势跟踪；但§2.5否不触发gate=wait，"
-            "继续进入策略分支等待合适入场时机。"
+            "惯性偏弱，不宜趋势跟踪；但§2.5否不触发gate=wait，继续进入策略分支等待合适入场时机。"
         )
 
     reason = (
@@ -1437,36 +1288,27 @@ def judge_momentum_strength(frame: Any, direction: str = "neutral") -> NodeFill:
 # ── SignalBarJudge ─────────────────────────────────────────────────────────────
 
 
-
-
 def _get_signal_seq(out: dict[str, Any], bars: Any) -> int:
-
     """Locate signal bar seq: prefer bar_analysis.signal_bar.bar, else K1."""
 
     try:
-
         from pa_agent.util.price_tick import parse_k_seq
 
         bar_analysis = out.get("bar_analysis")
 
         if isinstance(bar_analysis, dict):
-
             signal_bar = bar_analysis.get("signal_bar")
 
             if isinstance(signal_bar, dict):
-
                 bar_str = signal_bar.get("bar")
 
                 if bar_str:
-
                     seq = parse_k_seq(bar_str)
 
                     if seq is not None and seq >= 1:
-
                         return seq
 
-    except Exception:  # noqa: BLE001
-
+    except Exception:
         pass
 
     return 1  # default to K1
@@ -1502,11 +1344,7 @@ def is_planned_limit_order(out: dict[str, Any]) -> bool:
         return False
     strength = str(entry_bar.get("strength", "") or "").strip().lower()
     freshness = str(entry_bar.get("freshness", "") or "").strip().lower()
-    pending = (
-        strength == "not_triggered"
-        or entry_bar.get("bar") is None
-        or freshness == "pending"
-    )
+    pending = strength == "not_triggered" or entry_bar.get("bar") is None or freshness == "pending"
     if not pending:
         return False
     quality = str(signal_bar.get("quality", "") or "").strip().lower()
@@ -1530,27 +1368,15 @@ def is_planned_limit_order(out: dict[str, Any]) -> bool:
     return False
 
 
-
-
-
 def judge_signal_bar_closed(sig: int, frame: Any) -> NodeFill:
-
     """§9.1: signal bar is always closed (all bars in KlineFrame are closed)."""
 
     return NodeFill(
-
         node_id="9.1",
-
         answer="是",
-
         reason=f"K{sig}为已收盘K线（KlineFrame内所有K线均已收盘），可作为信号棒。",
-
         bar_range=f"K{sig}",
-
     )
-
-
-
 
 
 # §9.2 direction consistency sets
@@ -1645,185 +1471,108 @@ def judge_signal_bar_direction(
     )
 
 
-
-
-
 def judge_signal_bar_length(sig: int, features: dict[int, Any]) -> NodeFill:
-
     """§9.3: check if signal bar is overlong (range_atr_ratio > 2.0)."""
 
     feat = features.get(sig)
 
     ratio = feat.range_atr_ratio if feat else None
 
-
-
     if ratio is None:
-
         answer = "是"
 
-        reason = (
-
-            f"K{sig} range_atr_ratio无法计算（ATR预热不足或range=0），"
-
-            "按潜在过长保守处理→是。"
-
-        )
+        reason = f"K{sig} range_atr_ratio无法计算（ATR预热不足或range=0），按潜在过长保守处理→是。"
 
     elif ratio > SIGNAL_BAR_LONG_ATR_RATIO:
-
         answer = "是"
 
         reason = (
-
             f"K{sig} range_atr_ratio={ratio:.3f} > {SIGNAL_BAR_LONG_ATR_RATIO}，"
-
             "信号棒过长，止损可能超过ATR 2倍，需用资金管理止损或放弃。"
-
         )
 
     else:
-
         answer = "否"
 
         reason = (
-
             f"K{sig} range_atr_ratio={ratio:.3f} ≤ {SIGNAL_BAR_LONG_ATR_RATIO}，"
-
             "信号棒长度在可接受范围内，不过长。"
-
         )
 
-
-
     return NodeFill(
-
         node_id="9.3",
-
         answer=answer,
-
         reason=reason,
-
         bar_range=f"K{sig}",
-
     )
-
-
-
 
 
 # ── FollowThroughJudge ────────────────────────────────────────────────────────
 
 
-
 def judge_follow_through(sig: int, features: dict[int, Any]) -> NodeFill:
-
     """§9.5: follow_through_1_2 mapping."""
 
     feat = features.get(sig)
 
     ft = feat.follow_through_1_2 if feat else None
 
-
-
     _FT_MAP = {
-
         "yes": "是",
-
         "failed": "否",
-
         "no": "否",
-
         "pending": "等待",
-
     }
 
-
-
     if ft in _FT_MAP:
-
         answer = _FT_MAP[ft]
 
         reason = f"K{sig}的follow_through_1_2={ft!r}→{answer}。"
 
     else:
-
         answer = "等待"
 
         reason = f"K{sig}的follow_through_1_2={ft!r}（缺失或未知），保守取等待。"
 
-
-
     # bar_range covers signal bar and subsequent bars
 
     if sig > 1:
-
         bar_range = f"K{sig}-K1"
 
     else:
-
         bar_range = "K1"
 
-
-
     return NodeFill(
-
         node_id="9.5",
-
         answer=answer,
-
         reason=reason,
-
         bar_range=bar_range,
-
     )
-
-
-
 
 
 # ── OrderMethodRouter ─────────────────────────────────────────────────────────
 
 
-
 # cycle_position → candidate order method
 
 _CYCLE_ORDER_METHOD: dict[str, str] = {
-
     "spike": "市价单",
-
     "micro_channel": "突破单",
-
     "tight_channel": "突破单",
-
     "normal_channel": "突破单",
-
     "broad_channel": "限价单",
-
     "trading_range": "限价单",
-
     "trending_tr": "突破单",
-
     "extreme_tr": "不下单",
-
     "unknown": "不下单",
-
 }
 
 
-
-
-
 def route_order_method(
-
     stage1_json: dict[str, Any] | None,
-
     decision: dict[str, Any],
-
     decision_trace: list[dict[str, Any]],
-
 ) -> list[dict[str, Any]]:
-
     """Route order method based on cycle_position; return §11 trace nodes."""
 
     decision = _coerce_dict(decision)
@@ -1834,86 +1583,69 @@ def route_order_method(
 
     order_type = decision.get("order_type")
 
-
-
     # Safety: if already no-order, don't inject §11 nodes
 
     if order_type == "不下单":
-
         return []
-
-
 
     # Check safety gates: §10.3=否 or §14 violation
 
     def _trace_answer(trace: list, node_id: str) -> str | None:
 
         for item in trace:
-
             if not isinstance(item, dict):
-
                 continue
 
             if str(item.get("node_id", "")).strip() == node_id:
-
                 return str(item.get("answer", "")).strip()
 
         return None
 
-
-
     if _trace_answer(decision_trace, "10.3") == "否":
-
         return []
-
-
 
     def _sec14_violated(trace: list) -> bool:
 
-        _DENIAL_PHRASES = ("未触犯", "未违反", "无触犯", "无违规", "通过扫描", "扫描通过", "无禁止", "未触发")
+        _DENIAL_PHRASES = (
+            "未触犯",
+            "未违反",
+            "无触犯",
+            "无违规",
+            "通过扫描",
+            "扫描通过",
+            "无禁止",
+            "未触发",
+        )
 
         for item in trace:
-
             if not isinstance(item, dict):
-
                 continue
 
             nid = str(item.get("node_id", "")).strip()
 
             if not nid.startswith("14"):
-
                 continue
 
             if str(item.get("answer", "")).strip() != "是":
-
                 continue
 
             # Cross-check reason: if it contains denial phrases the AI used wrong answer
             reason = str(item.get("reason", "") or "")
 
             if any(phrase in reason for phrase in _DENIAL_PHRASES):
-
                 continue
 
             return True
 
         return False
 
-
-
     if _sec14_violated(decision_trace):
-
         return []
-
-
 
     cycle = "unknown"
 
     if stage1:
-
         cycle = str(stage1.get("cycle_position", "unknown") or "unknown").strip()
-
-
 
     candidate = _CYCLE_ORDER_METHOD.get(cycle, "不下单")
 
@@ -1955,12 +1687,9 @@ def route_order_method(
         candidate = "突破单"
 
     if candidate == "不下单":
-
         # Not a trading context for this cycle
 
         return []
-
-
 
     # ── spike_ending / spike_pullback exception ───────────────────────────────
     # When cycle_position=spike but spike_stage indicates the spike has already
@@ -1975,46 +1704,31 @@ def route_order_method(
     #   2. model chose 突破单
     #   3. a valid entry_basis_bar + entry_basis_extreme are present (breakout anchor)
     if cycle == "spike" and candidate == "市价单":
-
         spike_stage = str(stage1.get("spike_stage") or "").strip().lower()
 
         if spike_stage in ("ending", "pullback", "channel") and model_order_type == "突破单":
-
             has_basis = bool(
-
                 decision.get("entry_basis_bar") and decision.get("entry_basis_extreme")
-
             )
 
             if has_basis:
-
                 candidate = "突破单"
 
         return []
-
-
 
     # Breakout order: check for valid entry_basis; fall back to limit when unavailable.
 
     breakout_fallback_to_limit = False
 
     if candidate == "突破单":
-
-        has_basis = bool(
-
-            decision.get("entry_basis_bar") and decision.get("entry_basis_extreme")
-
-        )
+        has_basis = bool(decision.get("entry_basis_bar") and decision.get("entry_basis_extreme"))
 
         if not has_basis:
-
             # No breakout anchor → try limit at structural level (if §10.3 already passed).
 
             breakout_fallback_to_limit = True
 
             candidate = "限价单"
-
-
 
     # Determine which §11 node corresponds to the final method
 
@@ -2029,42 +1743,25 @@ def route_order_method(
     # 11.4: broad_channel → 限价单 (broad)
 
     _METHOD_NODE: dict[str, tuple[str, str]] = {
-
-        "spike":         ("11.1", "市价单"),
-
+        "spike": ("11.1", "市价单"),
         "micro_channel": ("11.2", "突破单"),
-
         "tight_channel": ("11.2", "突破单"),
-
-        "normal_channel":("11.2", "突破单"),
-
+        "normal_channel": ("11.2", "突破单"),
         "broad_channel": ("11.2", "限价单"),
-
         "trading_range": ("11.3", "限价单"),
-
-        "trending_tr":   ("11.2", "突破单"),
-
+        "trending_tr": ("11.2", "突破单"),
     }
-
-
 
     cycle_node_info = _METHOD_NODE.get(cycle)
 
     if not cycle_node_info:
-
         return []
 
-
-
     final_node_id, _ = cycle_node_info
-
-
 
     # Update decision order_type to match candidate
 
     decision["order_type"] = candidate
-
-
 
     nodes = []
 
@@ -2074,26 +1771,15 @@ def route_order_method(
 
     final_idx = all_nodes.index(final_node_id) if final_node_id in all_nodes else -1
 
-
-
     _node_reasons: dict[str, str] = {
-
         "11.1": "趋势/尖峰阶段，价格快速移动，适合市价单立即入场。",
-
         "11.2": "通道结构，等待突破确认，使用突破单。",
-
         "11.3": "交易区间，在区间边界附近使用限价单。",
-
         "11.4": "宽通道/特殊情况，使用限价单。",
-
     }
 
-
-
     for i, nid in enumerate(all_nodes):
-
         if i > final_idx:
-
             break
 
         answer = "是" if nid == final_node_id else "否"
@@ -2101,11 +1787,14 @@ def route_order_method(
         reason = _node_reasons.get(nid, f"§{nid}判定。")
 
         if nid == final_node_id:
-
             # For spike_ending exception: the candidate was overridden to 突破单,
             # make the reason explicit so the audit trail is clear.
             spike_stage_label = str(stage1.get("spike_stage") or "").strip().lower()
-            if cycle == "spike" and candidate == "突破单" and spike_stage_label in ("ending", "pullback", "channel"):
+            if (
+                cycle == "spike"
+                and candidate == "突破单"
+                and spike_stage_label in ("ending", "pullback", "channel")
+            ):
                 reason = (
                     f"cycle_position={cycle}（spike_stage={spike_stage_label}，尖峰已结束）"
                     f"→{candidate}（保留模型突破单选择；尖峰结束后等待信号棒突破确认是正确做法，"
@@ -2114,88 +1803,63 @@ def route_order_method(
             elif breakout_fallback_to_limit and candidate == "限价单":
                 reason = (
                     f"cycle_position={cycle} 默认突破单，但无有效 entry_basis_bar/extreme；"
-                    f"§10.3 已通过 → 改用限价单在结构位挂单（回撤/反弹到位入场）。"
-                    + reason
+                    f"§10.3 已通过 → 改用限价单在结构位挂单（回撤/反弹到位入场）。" + reason
                 )
             else:
                 reason = f"cycle_position={cycle}→{candidate}。" + reason
 
-        nodes.append(NodeFill(
-
-            node_id=nid,
-
-            answer=answer,
-
-            reason=reason,
-
-            bar_range="K1",
-
-        ))
-
-
+        nodes.append(
+            NodeFill(
+                node_id=nid,
+                answer=answer,
+                reason=reason,
+                bar_range="K1",
+            )
+        )
 
     return nodes
-
-
-
 
 
 # ── OverrideArbiter ───────────────────────────────────────────────────────────
 
 
-
 def _conservativeness_rank(node_id: str, answer: str) -> int:
-
     """Return conservativeness rank for safety gate ordering (higher = more conservative)."""
 
     nid = str(node_id).strip()
 
     ans = str(answer).strip()
 
-
-
     if nid == "10.3":
-
         return 5 if ans == "否" else 3
 
     if nid == "14":
-
         return 5 if ans == "是" else 3
 
     # order_type dimension (§11 nodes)
 
     if nid in ("11.1", "11.2", "11.3", "11.4"):
-
         return 5 if ans == "不下单" else 3
 
     return 3
 
 
-
-
-
 def write_override_trace(node: dict[str, Any], override: dict[str, Any]) -> None:
-
     """Write override trace fields to node (in-place). Records program original values."""
 
     node["program_answer"] = node.get("answer")
 
     if "branch" in node:
-
         node["program_branch"] = node.get("branch")
 
     node["answer"] = override["answer"]
 
     if override.get("branch"):
-
         node["branch"] = override["branch"]
 
     node["override_reason"] = str(override.get("override_reason", "")).strip()
 
     node["overridden_by_ai"] = True
-
-
-
 
 
 def _node_id_sort_key(node_id: str) -> tuple[int, int, str]:
@@ -2220,13 +1884,9 @@ def _node_id_sort_key(node_id: str) -> tuple[int, int, str]:
 
 
 def merge_program_nodes(
-
     trace: list[dict[str, Any]],
-
     program_nodes: list[dict[str, Any]],
-
 ) -> list[dict[str, Any]]:
-
     """Merge program nodes into trace by node_id.
 
     Two merge modes based on node type:
@@ -2246,24 +1906,18 @@ def merge_program_nodes(
 
     prog_by_id = {n["node_id"]: n for n in program_nodes if isinstance(n, dict) and "node_id" in n}
 
-
-
     replaced_ids: set[str] = set()
 
     for i, item in enumerate(result):
-
         if not isinstance(item, dict):
-
             continue
 
         nid = str(item.get("node_id", "")).strip()
 
         if nid not in prog_by_id:
-
             continue
 
         if nid in AI_PRIMARY_NODES:
-
             if nid in AI_PRIMARY_SUPPLEMENT_NODES:
                 # AI-primary + program supplement in reason (§1.3 only)
                 prog_node = prog_by_id[nid]
@@ -2278,13 +1932,10 @@ def merge_program_nodes(
             # §2.5: keep AI node as-is; program metrics are not appended to reason.
 
         else:
-
             # Program-authoritative: program result replaces AI node
             result[i] = prog_by_id[nid]
 
         replaced_ids.add(nid)
-
-
 
     # Insert new nodes then re-sort by numeric node_id so injected program nodes
     # land in their natural document position (1.1 < 1.2 < 2.3 < 2.5) rather
@@ -2293,30 +1944,23 @@ def merge_program_nodes(
     new_nodes = [node for nid, node in prog_by_id.items() if nid not in replaced_ids]
 
     if new_nodes:
-
         result.extend(new_nodes)
 
         result.sort(
-
-            key=lambda x: _node_id_sort_key(str(x.get("node_id", "")))
-
-            if isinstance(x, dict) else (999, 999, "")
-
+            key=lambda x: (
+                _node_id_sort_key(str(x.get("node_id", "")))
+                if isinstance(x, dict)
+                else (999, 999, "")
+            )
         )
-
-
 
     return result
 
 
 def merge_program_nodes_head(
-
     trace: list[dict[str, Any]],
-
     program_nodes: list[dict[str, Any]],
-
 ) -> list[dict[str, Any]]:
-
     """Merge program nodes into trace, placing NEW nodes at the HEAD (before AI nodes).
 
     Used when gate_result=wait/unknown so the AI's terminating node stays at the end.
@@ -2332,19 +1976,15 @@ def merge_program_nodes_head(
     replaced_ids: set[str] = set()
 
     for i, item in enumerate(result):
-
         if not isinstance(item, dict):
-
             continue
 
         nid = str(item.get("node_id", "")).strip()
 
         if nid not in prog_by_id:
-
             continue
 
         if nid in AI_PRIMARY_NODES:
-
             if nid in AI_PRIMARY_SUPPLEMENT_NODES:
                 prog_node = prog_by_id[nid]
                 prog_reason = str(prog_node.get("reason", "") or "").strip()
@@ -2357,7 +1997,6 @@ def merge_program_nodes_head(
                         result[i]["reason"] = f"{ai_reason} {supplement}".strip()
 
         else:
-
             result[i] = prog_by_id[nid]
 
         replaced_ids.add(nid)
@@ -2367,29 +2006,21 @@ def merge_program_nodes_head(
     # node (answer=否/等待) remains at the end of the trace.
     new_nodes = sorted(
         [node for nid, node in prog_by_id.items() if nid not in replaced_ids],
-        key=lambda x: _node_id_sort_key(str(x.get("node_id", ""))) if isinstance(x, dict) else (999, 999, ""),
+        key=lambda x: (
+            _node_id_sort_key(str(x.get("node_id", ""))) if isinstance(x, dict) else (999, 999, "")
+        ),
     )
 
     return new_nodes + result
 
 
-
-
-
 def apply_overrides(
-
     program_nodes: list[dict[str, Any]],
-
     node_overrides: Any,
-
     *,
-
     out: dict[str, Any],
-
     stage: str,
-
 ) -> list[dict[str, Any]]:
-
     """Apply controlled overrides to program nodes. Returns final node list with traces.
 
 
@@ -2414,106 +2045,74 @@ def apply_overrides(
 
     from pa_agent.ai.decision_tree import TRACE_ANSWERS
 
-
-
     result = [dict(n) for n in program_nodes]
 
     prog_ids = {n["node_id"] for n in result if isinstance(n, dict) and "node_id" in n}
 
-
-
     if not isinstance(node_overrides, list):
-
         return result
-
-
 
     # Build index for fast lookup
 
-    node_index = {n["node_id"]: i for i, n in enumerate(result) if isinstance(n, dict) and "node_id" in n}
-
-
+    node_index = {
+        n["node_id"]: i for i, n in enumerate(result) if isinstance(n, dict) and "node_id" in n
+    }
 
     seen_overrides: set[str] = set()
 
-
-
     for ov in node_overrides:
-
         if not isinstance(ov, dict):
-
             continue
 
         node_id = str(ov.get("node_id", "")).strip()
 
         if not node_id:
-
             continue
 
         if node_id not in prog_ids:
-
             continue
 
         answer = str(ov.get("answer", "")).strip()
 
         if answer not in TRACE_ANSWERS:
-
             continue
-
-
 
         # Take first valid override per node_id
 
         if node_id in seen_overrides:
-
             continue
 
         seen_overrides.add(node_id)
 
-
-
         # Rule 3: locked node
 
         if node_id in LOCKED_NODES:
-
             logger.info(
-
                 "apply_overrides: ignoring override for locked node %s (stage=%s)",
-
-                node_id, stage,
-
+                node_id,
+                stage,
             )
 
             continue
-
-
 
         # Rule 4: missing override_reason
 
         override_reason = str(ov.get("override_reason", "") or "").strip()
 
         if not override_reason:
-
             logger.debug(
-
                 "apply_overrides: rejecting override for %s - missing override_reason",
-
                 node_id,
-
             )
 
             continue
 
-
-
         # Rule 5: safety gate direction check
 
         if node_id in SAFETY_GATE_NODES:
-
             idx = node_index.get(node_id)
 
             if idx is not None:
-
                 current_answer = str(result[idx].get("answer", "")).strip()
 
                 current_rank = _conservativeness_rank(node_id, current_answer)
@@ -2521,39 +2120,29 @@ def apply_overrides(
                 new_rank = _conservativeness_rank(node_id, answer)
 
                 if new_rank < current_rank:
-
                     logger.debug(
-
                         "apply_overrides: rejecting aggressive safety gate override "
-
                         "for %s (rank %d -> %d is less conservative)",
-
-                        node_id, current_rank, new_rank,
-
+                        node_id,
+                        current_rank,
+                        new_rank,
                     )
 
                     continue
 
-
-
         # Rule 6: §2.3 direction consistency
 
         if node_id == "2.3":
-
             branch = str(ov.get("branch", "") or "").strip()
 
             valid = _validate_dir_override(answer, branch)
 
             if not valid:
-
                 logger.debug(
-
                     "apply_overrides: rejecting §2.3 override - "
-
                     "answer/branch inconsistent: answer=%s branch=%s",
-
-                    answer, branch,
-
+                    answer,
+                    branch,
                 )
 
                 continue
@@ -2563,7 +2152,6 @@ def apply_overrides(
             idx = node_index.get(node_id)
 
             if idx is not None:
-
                 write_override_trace(result[idx], ov)
 
                 # Sync direction field
@@ -2571,27 +2159,21 @@ def apply_overrides(
                 direction_map = {"bullish": "bullish", "bearish": "bearish", "neutral": "neutral"}
 
                 if branch in direction_map:
-
                     out["direction"] = direction_map[branch]
 
             continue
 
-
-
         # Rule 7: accept override for OVERRIDABLE_NODES
 
         if node_id in OVERRIDABLE_NODES:
-
             idx = node_index.get(node_id)
 
             if idx is not None:
-
                 write_override_trace(result[idx], ov)
 
                 # §11 override: sync order_type
 
                 if node_id in ("11.1", "11.2", "11.3", "11.4"):
-
                     _sync_order_type_from_11_override(out, result[idx], ov)
 
                 # §2.4 override: sync bar_analysis.always_in so the field stays
@@ -2599,33 +2181,21 @@ def apply_overrides(
                 # Without this, bar_analysis.always_in keeps the program's value
                 # while direction/gate_trace reflect the AI's override — self-contradiction.
                 if node_id == "2.4":
-
                     _sync_always_in_from_24_override(out, ov)
-
-
 
     return result
 
 
-
-
-
 def _validate_dir_override(answer: str, branch: str) -> bool:
-
     """Validate §2.3 answer/branch consistency."""
 
     if branch in ("bullish", "bearish"):
-
         return answer == "是"
 
     elif branch == "neutral":
-
         return answer == "中性"
 
     return False  # invalid branch
-
-
-
 
 
 def _sync_always_in_from_24_override(
@@ -2659,62 +2229,39 @@ def _sync_always_in_from_24_override(
 
 
 def _sync_order_type_from_11_override(
-
     out: dict[str, Any],
-
     node: dict[str, Any],
-
     override: dict[str, Any],
-
 ) -> None:
-
     """After §11 override accepted, sync decision.order_type if not 不下单."""
 
     decision = out.get("decision")
 
     if not isinstance(decision, dict):
-
         return
-
-
 
     new_answer = str(override.get("answer", "")).strip()
 
     if new_answer != "是":
-
         return
-
-
 
     node_id = str(node.get("node_id", ""))
 
     node_method_map = {
-
         "11.1": "市价单",
-
         "11.2": "突破单",
-
         "11.3": "限价单",
-
         "11.4": "限价单",
-
     }
 
     method = node_method_map.get(node_id)
 
     if not method or decision.get("order_type") == "不下单":
-
         return
-
-
 
     existing = str(decision.get("order_type") or "").strip()
 
-    has_basis = bool(
-
-        decision.get("entry_basis_bar") and decision.get("entry_basis_extreme")
-
-    )
+    has_basis = bool(decision.get("entry_basis_bar") and decision.get("entry_basis_extreme"))
 
     # Mirror judge_section11 breakout_fallback_to_limit: §11.2 defaults to 突破单,
 
@@ -2723,48 +2270,31 @@ def _sync_order_type_from_11_override(
     # explicit 限价单/市价单 plan (e.g. §9.0P planned limit) instead of forcing 突破单.
 
     if method == "突破单" and not has_basis:
-
         if existing in ("限价单", "市价单"):
-
             return
 
         method = "限价单"
 
-
-
     decision["order_type"] = method
-
-
-
 
 
 # ── DecisionNodeEngine ────────────────────────────────────────────────────────
 
 
-
 class DecisionNodeEngine:
-
     """Deterministic decision node engine (stateless, pure-function based)."""
 
-
-
     @staticmethod
-
     def apply_stage1(out: dict[str, Any], frame: Any) -> None:
-
         """In-place modify stage1 JSON: fill §1.1/§2.3/§2.4, apply overrides, update direction."""
 
         # Ensure gate_trace exists
 
         out.setdefault("gate_trace", [])
 
-
-
         # Step 1: DataSufficiencyJudge → §1.1=是
 
         fill_11 = judge_data_sufficiency(frame)
-
-
 
         # Step 1b: MarketChaosJudge → §1.3
         # Checks EMA flatness + high bar overlap + no directional signal.
@@ -2772,29 +2302,21 @@ class DecisionNodeEngine:
 
         fill_13 = judge_market_chaos(frame)
 
-
-
         # Step 2: DirectionJudge → §2.3 + direction field
 
         direction, fill_23 = judge_direction(frame)
 
         out["direction"] = direction
 
-
-
         # Step 3: AlwaysInJudge → §2.4
 
         fill_24 = judge_always_in(frame)
-
-
 
         # Step 3b: MomentumStrengthJudge → §2.5
         # Assesses trend-bar dominance, overlap, pullback depth.
         # Overridable; per §2.5 rules, answer=否 does NOT trigger gate=wait.
 
         fill_25 = judge_momentum_strength(frame, direction=direction)
-
-
 
         # Convert NodeFill → trace dicts
 
@@ -2813,29 +2335,18 @@ class DecisionNodeEngine:
         # misled into thinking a 否 answer blocked the gate.
         node_25["non_blocking"] = True
 
-
-
         program_nodes = [node_11, node_13, node_23, node_24, node_25]
-
-
 
         # Step 4: Apply overrides
 
         node_overrides = out.get("node_overrides")
 
         final_nodes = apply_overrides(
-
             program_nodes,
-
             node_overrides,
-
             out=out,
-
             stage="stage1",
-
         )
-
-
 
         # Step 5: Merge into gate_trace
         # If gate_result is wait/unknown, prepend program nodes so the AI's terminating
@@ -2871,32 +2382,21 @@ class DecisionNodeEngine:
             from pa_agent.ai.trend_context import build_trend_context
 
             out["trend_context"] = build_trend_context(frame, str(out.get("direction", "neutral")))
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.warning("build_trend_context failed: %s", exc)
 
-
-
     @staticmethod
-
     def apply_stage2(
-
         out: dict[str, Any],
-
         frame: Any,
-
         stage1_json: dict[str, Any] | None,
-
     ) -> None:
-
         """In-place modify stage2 JSON: fill §9.1/§9.2/§9.3/§9.5/§11, apply overrides."""
 
         # Short-circuit for gate-shortcircuited stage2
 
         if out.get("gate_shortcircuited"):
-
             return
-
-
 
         # Ensure decision_trace exists
 
@@ -2911,31 +2411,23 @@ class DecisionNodeEngine:
 
         order_direction = str(decision.get("order_direction", "") or "").strip() or None
 
-
-
         # Get geometry features
 
         features: dict[int, Any] = {}
 
         try:
-
             from pa_agent.ai.kline_features import compute_kline_geometry_features
 
             raw_features = compute_kline_geometry_features(frame)
 
             features = {f.seq: f for f in raw_features}
 
-        except Exception:  # noqa: BLE001
-
+        except Exception:
             pass
-
-
 
         # Locate signal bar seq
 
         sig = _get_signal_seq(out, getattr(frame, "bars", ()))
-
-
 
         # Check §9.0 answer: if AI said no valid signal bar, skip §9.1-9.5
         # rather than injecting misleading program-computed values.
@@ -2957,8 +2449,6 @@ class DecisionNodeEngine:
             elif _ans_90 in ("否", "等待") and has_background_limit_path(out):
                 _section9_has_signal = True
 
-
-
         # Step 1: SignalBarJudge → §9.1, §9.2, §9.3
 
         fill_91 = judge_signal_bar_closed(sig, frame)
@@ -2967,13 +2457,9 @@ class DecisionNodeEngine:
 
         fill_93 = judge_signal_bar_length(sig, features)
 
-
-
         # Step 2: FollowThroughJudge → §9.5
 
         fill_95 = judge_follow_through(sig, features)
-
-
 
         # Step 3: OrderMethodRouter → §11 nodes
 
@@ -2986,10 +2472,7 @@ class DecisionNodeEngine:
         sec11_fills: list[NodeFill] = []
 
         if current_order_type != "不下单":
-
             sec11_fills = route_order_method(stage1_json, decision, decision_trace)
-
-
 
         # Convert to dicts
 
@@ -2998,7 +2481,6 @@ class DecisionNodeEngine:
         node_92 = build_program_trace_node(fill_92)
 
         if fill_92.answer == "不适用":
-
             node_92["skipped"] = True
 
         node_93 = build_program_trace_node(fill_93)
@@ -3016,56 +2498,33 @@ class DecisionNodeEngine:
         elif _planned_limit:
             _bar_analysis = out.get("bar_analysis")
             _signal_bar = (
-                _bar_analysis.get("signal_bar")
-                if isinstance(_bar_analysis, dict)
-                else None
+                _bar_analysis.get("signal_bar") if isinstance(_bar_analysis, dict) else None
             )
-            _no_signal_bar = (
-                not isinstance(_signal_bar, dict) or not _signal_bar.get("bar")
-            )
+            _no_signal_bar = not isinstance(_signal_bar, dict) or not _signal_bar.get("bar")
             if _no_signal_bar or has_background_limit_path(out):
                 _skip_reason = (
-                    "计划型限价单（§9.0P 或 §9.0 背景路径），尚无已收盘信号棒，"
-                    "§9.1-9.3不适用。"
+                    "计划型限价单（§9.0P 或 §9.0 背景路径），尚无已收盘信号棒，§9.1-9.3不适用。"
                 )
                 for _node in (node_91, node_92, node_93):
                     _node["skipped"] = True
                     _node["answer"] = "不适用"
                     _node["reason"] = _skip_reason
 
-
-
         sec11_nodes = [build_program_trace_node(f) for f in sec11_fills]
 
-
-
         program_nodes = [node_91, node_92, node_93, node_95] + sec11_nodes
-
-
 
         # Step 4: Apply overrides
 
         node_overrides = out.get("node_overrides")
 
         final_nodes = apply_overrides(
-
             program_nodes,
-
             node_overrides,
-
             out=out,
-
             stage="stage2",
-
         )
-
-
 
         # Step 5: Merge into decision_trace
 
-        out["decision_trace"] = merge_program_nodes(
-
-            out["decision_trace"], final_nodes
-
-        )
-
+        out["decision_trace"] = merge_program_nodes(out["decision_trace"], final_nodes)

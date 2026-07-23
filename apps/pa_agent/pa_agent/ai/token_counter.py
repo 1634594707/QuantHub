@@ -1,4 +1,5 @@
 """Token estimation using tiktoken."""
+
 from __future__ import annotations
 
 import logging
@@ -15,6 +16,7 @@ def estimate_tokens(messages: list[dict], model_hint: str = "cl100k_base") -> in
     """
     try:
         import tiktoken  # type: ignore[import]
+
         enc = tiktoken.get_encoding(model_hint)
     except Exception as exc:
         logger.warning("tiktoken unavailable (%s); using char/4 fallback", exc)

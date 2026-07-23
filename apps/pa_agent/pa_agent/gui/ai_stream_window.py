@@ -1,11 +1,12 @@
 """Live AI stream panel: reasoning stream, or content stream when API has no reasoning."""
+
 from __future__ import annotations
 
 import logging
 import time
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import QThread, pyqtSignal, QObject
+from PyQt6.QtCore import QObject, QThread, pyqtSignal
 from PyQt6.QtGui import QColor, QFont, QTextCharFormat, QTextCursor
 from PyQt6.QtWidgets import (
     QHBoxLayout,
@@ -41,9 +42,9 @@ class _ChatWorker(QThread):
 
     def __init__(
         self,
-        session: "FreeChatSession",
+        session: FreeChatSession,
         user_text: str,
-        cancel_token: "CancelToken",
+        cancel_token: CancelToken,
         parent: QObject | None = None,
     ) -> None:
         super().__init__(parent)
@@ -61,7 +62,7 @@ class _ChatWorker(QThread):
             )
             hit_pct = round(reply.usage.cache_hit_rate * 100, 1) if reply.usage else 0.0
             self.finished.emit(reply.content, reply.reasoning_content or "", hit_pct)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.error("ChatWorker error: %s", exc, exc_info=True)
             self.error.emit(str(exc))
 
@@ -71,12 +72,12 @@ class AIStreamPanel(QWidget):
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self._session: Optional["FreeChatSession"] = None
-        self._cancel_token: Optional["CancelToken"] = None
-        self._worker: Optional[_ChatWorker] = None
+        self._session: FreeChatSession | None = None
+        self._cancel_token: CancelToken | None = None
+        self._worker: _ChatWorker | None = None
         self._sending = False
         self._red_warned = False
-        self._settings: Optional["Settings"] = None
+        self._settings: Settings | None = None
 
         self._stage: str = ""
         self._reasoning_chars = 0
@@ -165,12 +166,7 @@ class AIStreamPanel(QWidget):
 
     def _build_input_area(self) -> QWidget:
         box = QWidget()
-        box.setStyleSheet(
-            "QWidget {"
-            " background: #161b22;"
-            " border-top: 1px solid #30363d;"
-            "}"
-        )
+        box.setStyleSheet("QWidget { background: #161b22; border-top: 1px solid #30363d;}")
         row = QHBoxLayout(box)
         row.setContentsMargins(12, 10, 12, 10)
         row.setSpacing(8)
@@ -225,7 +221,7 @@ class AIStreamPanel(QWidget):
         row.addLayout(button_col)
         return box
 
-    def bind_settings(self, settings: Optional["Settings"]) -> None:
+    def bind_settings(self, settings: Settings | None) -> None:
         self._settings = settings
         self._apply_stream_font()
         self._refresh_mode_label()
@@ -243,9 +239,7 @@ class AIStreamPanel(QWidget):
             )
         elif "minimax.io" in base or "minimax.com" in base:
             thinking = "adaptive" if p.thinking else "disabled"
-            self._mode_label.setText(
-                f"MiniMax: thinking={thinking} · {p.model}"
-            )
+            self._mode_label.setText(f"MiniMax: thinking={thinking} · {p.model}")
         elif "kkone.vip" in base:
             thinking = "开" if p.thinking else "关"
             self._mode_label.setText(
@@ -266,9 +260,7 @@ class AIStreamPanel(QWidget):
                 f"{p.reasoning_effort if p.thinking else '—'} · {p.model}"
             )
         else:
-            self._mode_label.setText(
-                f"API: {p.model} · 思考={('开' if p.thinking else '关')}"
-            )
+            self._mode_label.setText(f"API: {p.model} · 思考={('开' if p.thinking else '关')}")
 
     def _update_stats(self) -> None:
         labels = {"stage1": "阶段一", "stage2": "阶段二", "chat": "追问"}
@@ -374,7 +366,9 @@ class AIStreamPanel(QWidget):
         self._reasoning_edit.moveCursor(QTextCursor.MoveOperation.End)
         self._update_stats()
         if stage == self._stage:
-            title = self._stage_title(self._stage) if self._stage in ("stage1", "stage2") else "追问"
+            title = (
+                self._stage_title(self._stage) if self._stage in ("stage1", "stage2") else "追问"
+            )
             self._phase_label.setText(f"▶ {title} — {self._stream_phase_suffix()}")
 
     def _append_reasoning(self, chunk: str) -> None:
@@ -459,7 +453,9 @@ class AIStreamPanel(QWidget):
         self._content_headers_written.clear()
         self._finalized_stages.clear()
         if self._stage:
-            title = self._stage_title(self._stage) if self._stage in ("stage1", "stage2") else "追问"
+            title = (
+                self._stage_title(self._stage) if self._stage in ("stage1", "stage2") else "追问"
+            )
             self._phase_label.setText(f"▶ {title} — {self._stream_phase_suffix()}")
         else:
             self._phase_label.setText("等待分析…")
@@ -480,8 +476,8 @@ class AIStreamPanel(QWidget):
 
     def set_session(
         self,
-        session: "FreeChatSession",
-        cancel_token: "CancelToken",
+        session: FreeChatSession,
+        cancel_token: CancelToken,
     ) -> None:
         self._session = session
         self._cancel_token = cancel_token

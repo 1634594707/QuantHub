@@ -1,4 +1,5 @@
 """Tests for stage prompt .txt file list helpers."""
+
 from __future__ import annotations
 
 from pa_agent.ai.prompt_assembler import (

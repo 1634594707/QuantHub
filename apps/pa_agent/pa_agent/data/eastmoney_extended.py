@@ -2,20 +2,22 @@
 
 Discovered via ``scripts/probe_single_stock_apis*.py`` (2026-06).
 """
+
 from __future__ import annotations
 
 import json
 import logging
 import re
 import time
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Any, Callable
+from typing import Any
 
 from pa_agent.data.eastmoney_client import (
-    EastMoneyTransientError,
     _QUOTE_HOSTS,
     _REFERER_KLINE,
     _UT,
+    EastMoneyTransientError,
     _get_json_on_hosts,
     stock_secid,
 )
@@ -29,9 +31,7 @@ _NEWS_URL = "https://np-listapi.eastmoney.com/comm/web/getNewsByColumns"
 _REPORT_URL = "https://reportapi.eastmoney.com/report/list"
 
 # push2 ``ulist.np`` 资金流字段（与行情页「资金流向」一致）
-_MONEY_FLOW_FIELDS = (
-    "f62,f184,f66,f69,f72,f75,f78,f81,f84,f87,f204,f205,f124"
-)
+_MONEY_FLOW_FIELDS = "f62,f184,f66,f69,f72,f75,f78,f81,f84,f87,f204,f205,f124"
 # stock/get 估值/指标扩展字段
 _VALUATION_FIELDS = (
     "f57,f58,f43,f116,f117,f162,f167,f168,f169,f170,f46,f44,f45,f47,f48,f60,"
@@ -89,9 +89,7 @@ _EMWEB_PAGES = frozenset(
 _BOARD_FLOW_FIELDS = "f12,f14,f2,f3,f62,f184,f66,f69"
 
 _FFLOW_FIELDS1 = "f1,f2,f3,f7"
-_FFLOW_FIELDS2 = (
-    "f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61,f62,f63,f64,f65"
-)
+_FFLOW_FIELDS2 = "f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61,f62,f63,f64,f65"
 _FFLOW_DAILY_NAMES = (
     "date",
     "main_net",
@@ -696,7 +694,7 @@ def fetch_portal_datacenter_bundle(symbol: str) -> dict[str, list[dict[str, Any]
             try:
                 key, rows = fut.result()
                 bundle[key] = rows
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 logger.debug("portal bundle key failed: %s", exc)
     for key in _PORTAL_DC_KEYS:
         bundle.setdefault(key, [])
@@ -730,7 +728,9 @@ def fetch_compact_stock_context(symbol: str, *, use_cache: bool = True) -> dict[
     return dict(ctx)
 
 
-def _apply_operations_fields(ctx: dict[str, Any], ops: dict[str, Any] | None) -> list[dict[str, Any]]:
+def _apply_operations_fields(
+    ctx: dict[str, Any], ops: dict[str, Any] | None
+) -> list[dict[str, Any]]:
     """Derive F10 OperationsRequired sub-fields; return ssbk board list."""
     boards: list[dict[str, Any]] = []
     ctx["operations"] = ops
@@ -802,13 +802,13 @@ def _build_compact_stock_context(code: str) -> dict[str, Any]:
             key = futures[fut]
             try:
                 ctx[key] = fut.result()
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 logger.warning("compact fetch %s failed for %s: %s", key, code, exc)
                 ctx[key] = [] if key in list_keys else None
     boards = _apply_operations_fields(ctx, ctx.get("operations"))
     try:
         ctx["board_flows"] = fetch_stock_board_money_flows(code, boards, limit=3)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.warning("compact board_flows failed for %s: %s", code, exc)
         ctx["board_flows"] = []
     return ctx
@@ -924,9 +924,7 @@ def format_compact_stock_context_for_prompt(ctx: dict[str, Any]) -> str:
     if intraday:
         lines.append("### 当日分时主力净流入（最近）")
         for row in intraday[-3:]:
-            lines.append(
-                f"- {row.get('time', '—')}: {_fmt_money_yuan(row.get('main_net'))}"
-            )
+            lines.append(f"- {row.get('time', '—')}: {_fmt_money_yuan(row.get('main_net'))}")
         lines.append("")
     top_h = ctx.get("top_holders") or []
     if top_h:
@@ -1317,20 +1315,12 @@ def fetch_stock_extended_profile(
     profile["lhb_sell"] = datacenter_for_symbol("lhb_sell", code, page_size=5)
     profile["block_trade"] = datacenter_for_symbol("block_trade", code, page_size=5)
     profile["portal"] = fetch_portal_datacenter_bundle(code)
-    profile["announcements"] = fetch_stock_announcements(
-        code, page_size=list_page_size
-    )
+    profile["announcements"] = fetch_stock_announcements(code, page_size=list_page_size)
     if include_fflow_klines:
-        profile["money_flow_intraday"] = fetch_money_flow_klines(
-            code, klt="1", lmt=0
-        )
-        profile["money_flow_daily"] = fetch_money_flow_klines(
-            code, klt="101", lmt=60
-        )
+        profile["money_flow_intraday"] = fetch_money_flow_klines(code, klt="1", lmt=0)
+        profile["money_flow_daily"] = fetch_money_flow_klines(code, klt="101", lmt=60)
     if include_news:
         profile["news"] = fetch_stock_news(code, page_size=list_page_size)
     if include_reports:
-        profile["research_reports"] = fetch_research_reports(
-            code, page_size=list_page_size
-        )
+        profile["research_reports"] = fetch_research_reports(code, page_size=list_page_size)
     return profile

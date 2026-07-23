@@ -1,10 +1,10 @@
 """Tests for timezone-safe market data timestamp helpers."""
+
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
-
 from pa_agent.data.datetime_ts import (
     datetime_to_ts_ms,
     format_epoch_for_display,
@@ -21,7 +21,7 @@ def test_naive_datetime_uses_utc_wall_clock_not_local_timestamp():
 
 
 def test_aware_utc_datetime_converts_correctly():
-    dt = datetime(2024, 6, 15, 12, 30, 0, tzinfo=timezone.utc)
+    dt = datetime(2024, 6, 15, 12, 30, 0, tzinfo=UTC)
     assert datetime_to_ts_ms(dt) == 1_718_454_600_000
 
 
@@ -48,7 +48,7 @@ def test_format_epoch_for_display_no_local_shift():
 
 
 def test_naive_local_to_utc_uses_host_offset():
-  # 2024-06-15 20:30 in UTC+8 == 2024-06-15 12:30 UTC
+    # 2024-06-15 20:30 in UTC+8 == 2024-06-15 12:30 UTC
     import time as _time
 
     if _time.timezone == 0 and not _time.daylight:
@@ -56,6 +56,6 @@ def test_naive_local_to_utc_uses_host_offset():
 
     local = datetime(2024, 6, 15, 20, 30, 0)
     utc = naive_local_to_utc(local)
-    assert utc.tzinfo == timezone.utc
+    assert utc.tzinfo == UTC
     assert utc.hour == 12
     assert utc.minute == 30

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """信号中枢 dispatcher。
 
 职责:
@@ -12,13 +11,17 @@
 CLI 二次确认:
     live_trading=true 且模块 live=true 时，下单前在终端要求输入确认码。
 """
+
 from __future__ import annotations
 
 from apps.dispatcher.confirm import cli_confirm
 from apps.dispatcher.risk import RiskChecker, RiskError
-from apps.dispatcher.router import OrderRouter, OrderIntent
+from apps.dispatcher.router import OrderIntent, OrderRouter
 
 __all__ = [
-    "cli_confirm", "RiskChecker", "RiskError",
-    "OrderRouter", "OrderIntent",
+    "OrderIntent",
+    "OrderRouter",
+    "RiskChecker",
+    "RiskError",
+    "cli_confirm",
 ]

@@ -1,4 +1,5 @@
 """Unit tests for Cursor SDK stream event mapping."""
+
 from __future__ import annotations
 
 from types import SimpleNamespace

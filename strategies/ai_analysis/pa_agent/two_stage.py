@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """两阶段 LLM 价格行为分析编排（Al Brooks PA）。
 
 从原 ``PA_Agent/pa_agent/orchestrator/two_stage.py`` 提取核心两阶段流程:
@@ -23,13 +22,13 @@
 
 主流程 ``run_two_stage`` 返回 ``TwoStageResult``，供 ``strategy.py`` 解析为 Signal。
 """
+
 from __future__ import annotations
 
 import json
 import logging
 import math
 from dataclasses import dataclass, field
-from typing import Any
 
 import pandas as pd
 
@@ -40,14 +39,16 @@ logger = logging.getLogger(__name__)
 
 # ── 结果数据类 ─────────────────────────────────────────────────────────────────
 
+
 @dataclass
 class TwoStageResult:
     """两阶段分析的最终结果。"""
-    stage1_json: dict | None              # 阶段一诊断 JSON（失败时为 None）
-    stage2_json: dict | None              # 阶段二决策 JSON（失败/闸门短路时为 None）
-    stage1_content: str = ""              # 阶段一原始正文（调试用）
-    stage2_content: str = ""              # 阶段二原始正文（调试用）
-    error: str | None = None              # 失败原因（成功时为 None）
+
+    stage1_json: dict | None  # 阶段一诊断 JSON（失败时为 None）
+    stage2_json: dict | None  # 阶段二决策 JSON（失败/闸门短路时为 None）
+    stage1_content: str = ""  # 阶段一原始正文（调试用）
+    stage2_content: str = ""  # 阶段二原始正文（调试用）
+    error: str | None = None  # 失败原因（成功时为 None）
     usage: dict[str, int] = field(default_factory=dict)
 
 
@@ -166,6 +167,7 @@ def _stage2_system_prompt() -> str:
 
 # ── K 线表组装 ─────────────────────────────────────────────────────────────────
 
+
 def _format_kline_table(df: pd.DataFrame, tail: int = 60) -> str:
     """把 K 线 DataFrame 格式化为供 LLM 阅读的文本表格（最近 tail 根）。
 
@@ -251,6 +253,7 @@ def _build_stage2_messages(
 
 # ── JSON 解析（简化校验） ─────────────────────────────────────────────────────
 
+
 def _extract_json(content: str) -> dict | None:
     """从 LLM 正文里提取首个 JSON 对象。
 
@@ -266,7 +269,7 @@ def _extract_json(content: str) -> dict | None:
         # 去掉首行围栏
         first_nl = text.find("\n")
         if first_nl != -1:
-            text = text[first_nl + 1:]
+            text = text[first_nl + 1 :]
         if text.rstrip().endswith("```"):
             text = text.rstrip()[:-3]
         text = text.strip()
@@ -301,7 +304,7 @@ def _extract_json(content: str) -> dict | None:
         elif ch == "}":
             depth -= 1
             if depth == 0:
-                snippet = text[start:i + 1]
+                snippet = text[start : i + 1]
                 try:
                     obj = json.loads(snippet)
                     if isinstance(obj, dict):
@@ -317,6 +320,7 @@ def _has_required_keys(obj: dict, keys: list[str]) -> bool:
 
 
 # ── 主流程 ─────────────────────────────────────────────────────────────────────
+
 
 def _call_llm(
     client: LLMClient,
@@ -377,7 +381,7 @@ def run_two_stage(
     # 2. 取得 LLM 客户端
     try:
         client = llm or get_llm()
-    except Exception as exc:  # noqa: BLE001 - LLM 未配置时给出明确错误
+    except Exception as exc:
         result.error = f"LLM 客户端初始化失败: {exc}"
         return result
 
@@ -385,7 +389,7 @@ def run_two_stage(
     messages_s1 = _build_stage1_messages(symbol, timeframe, kline_text)
     try:
         content_s1, usage_s1 = _call_llm(client, messages_s1)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         result.error = f"阶段一 LLM 调用失败: {exc}"
         return result
     result.stage1_content = content_s1
@@ -430,12 +434,10 @@ def run_two_stage(
         return result
 
     # 5. Stage 2: 决策评估
-    messages_s2 = _build_stage2_messages(
-        symbol, timeframe, kline_text, stage1_json, content_s1
-    )
+    messages_s2 = _build_stage2_messages(symbol, timeframe, kline_text, stage1_json, content_s1)
     try:
         content_s2, usage_s2 = _call_llm(client, messages_s2)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         result.error = f"阶段二 LLM 调用失败: {exc}"
         return result
     result.stage2_content = content_s2

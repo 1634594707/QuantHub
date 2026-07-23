@@ -1,4 +1,5 @@
 """Fatal crash diagnostics: faulthandler dump file for native/Qt crashes."""
+
 from __future__ import annotations
 
 import faulthandler
@@ -16,7 +17,7 @@ _enabled = False
 
 def enable_crash_diagnostics() -> None:
     """Write Python/native stack traces to logs/crash.log on fatal errors."""
-    global _crash_file, _enabled  # noqa: PLW0603
+    global _crash_file, _enabled
 
     if _enabled:
         return

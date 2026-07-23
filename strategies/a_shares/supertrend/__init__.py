@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """A股 SuperTrend 趋势跟踪策略模块。
 
 导出:
@@ -6,6 +5,7 @@
     - run_scan           : 便捷扫描入口
     - supertrend         : SuperTrend 指标计算函数
 """
+
 from __future__ import annotations
 
 from strategies.a_shares.supertrend.indicators import supertrend

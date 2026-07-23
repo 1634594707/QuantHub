@@ -1,4 +1,5 @@
 """Sidebar panel: which .txt prompt files were sent to AI in the latest run."""
+
 from __future__ import annotations
 
 from PyQt6.QtCore import Qt

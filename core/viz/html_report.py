@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """自包含 HTML 报告生成器（不依赖 Streamlit，可落盘 / 邮件 / 企微）。
 
 设计目标：把"HTML 报告"作为底座通用能力，而不是每个策略各写一套。
@@ -13,12 +12,14 @@
     - Plotly 图表可选 CDN 或 inline 嵌入；plotly 缺失时图表段优雅跳过
     - 输出单文件 HTML，自带样式，可离线打开（CDN 模式需联网渲染图表）
 """
+
 from __future__ import annotations
 
 import html as _html
 import re
+from collections.abc import Iterable
 from datetime import datetime
-from typing import Any, Iterable, Optional
+from typing import Any
 
 # Plotly.js CDN（按需替换为内联以彻底离线）
 PLOTLY_CDN = "https://cdn.plot.ly/plotly-2.35.2.min.js"
@@ -35,8 +36,8 @@ _THEMES: dict[str, dict[str, str]] = {
         "muted": "#8B98A9",
         "border": "#263041",
         "accent": "#2E86AB",
-        "up": "#E63946",      # A股习惯：涨红
-        "down": "#06A77D",    # 跌绿
+        "up": "#E63946",  # A股习惯：涨红
+        "down": "#06A77D",  # 跌绿
         "shadow": "0 2px 8px rgba(0,0,0,0.4)",
     },
     "light": {
@@ -131,8 +132,9 @@ class HTMLReport:
         r.save("report.html")
     """
 
-    def __init__(self, title: str = "QuantHub 报告", theme: str = "dark",
-                 plotly_cdn: bool = True) -> None:
+    def __init__(
+        self, title: str = "QuantHub 报告", theme: str = "dark", plotly_cdn: bool = True
+    ) -> None:
         if theme not in _THEMES:
             raise ValueError(f"未知主题 {theme!r}，可选: {list(_THEMES)}")
         self.title = title
@@ -140,28 +142,28 @@ class HTMLReport:
         self._t = _THEMES[theme]
         self._plotly_cdn = plotly_cdn
         self._blocks: list[str] = []
-        self._charts: list[str] = []   # 需内联 plotly.js 时集中放置
+        self._charts: list[str] = []  # 需内联 plotly.js 时集中放置
         self._plotly_inlined = False
 
     # -- 内容块 ----------------------------------------------------------
-    def add_raw(self, html: str) -> "HTMLReport":
+    def add_raw(self, html: str) -> HTMLReport:
         self._blocks.append(html)
         return self
 
-    def add_heading(self, text: str, level: int = 2) -> "HTMLReport":
+    def add_heading(self, text: str, level: int = 2) -> HTMLReport:
         lvl = max(1, min(4, level))
         self._blocks.append(f"<h{lvl} class='h{lvl}'>{_html.escape(text)}</h{lvl}>")
         return self
 
-    def add_paragraph(self, text: str) -> "HTMLReport":
+    def add_paragraph(self, text: str) -> HTMLReport:
         self._blocks.append(f"<p>{_html.escape(text)}</p>")
         return self
 
-    def add_markdown(self, md: str) -> "HTMLReport":
+    def add_markdown(self, md: str) -> HTMLReport:
         self._blocks.append(_md_to_html(md))
         return self
 
-    def add_card(self, title: str, body: str, span: int = 1) -> "HTMLReport":
+    def add_card(self, title: str, body: str, span: int = 1) -> HTMLReport:
         """单卡片。body 可为 HTML 片段；span 1/2 控制网格占位。"""
         cls = "card" if span == 1 else "card span2"
         self._blocks.append(
@@ -170,8 +172,9 @@ class HTMLReport:
         )
         return self
 
-    def add_table(self, headers: Iterable[str], rows: Iterable[Iterable[Any]],
-                  cls: str = "tbl") -> "HTMLReport":
+    def add_table(
+        self, headers: Iterable[str], rows: Iterable[Iterable[Any]], cls: str = "tbl"
+    ) -> HTMLReport:
         th = "".join(f"<th>{_html.escape(str(h))}</th>" for h in headers)
         body_rows = []
         for row in rows:
@@ -179,12 +182,12 @@ class HTMLReport:
             body_rows.append(f"<tr>{tds}</tr>")
         table = (
             f'<table class="{cls}"><thead><tr>{th}</tr></thead>'
-            f'<tbody>{"".join(body_rows)}</tbody></table>'
+            f"<tbody>{''.join(body_rows)}</tbody></table>"
         )
         self._blocks.append(table)
         return self
 
-    def add_chart(self, fig: Any, title: Optional[str] = None) -> "HTMLReport":
+    def add_chart(self, fig: Any, title: str | None = None) -> HTMLReport:
         """嵌入一个 Plotly Figure。fig 需有 to_html 方法。
 
         plotly 缺失或 fig 非法时，输出占位提示而非崩溃。
@@ -196,8 +199,7 @@ class HTMLReport:
                     '<div class="chart-na">⚠️ 图表对象缺少 to_html 方法，已跳过</div>'
                 )
                 return self
-            fig_html = to_html(full_html=False, include_plotlyjs=False,
-                               config={"responsive": True})
+            fig_html = to_html(full_html=False, include_plotlyjs=False, config={"responsive": True})
         except Exception as exc:  # pragma: no cover - 防御性
             self._blocks.append(
                 f'<div class="chart-na">⚠️ 图表渲染失败：{_html.escape(str(exc))}</div>'
@@ -237,6 +239,7 @@ class HTMLReport:
 
     def save(self, path: str) -> str:
         from pathlib import Path
+
         p = Path(path)
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(self.to_html(), encoding="utf-8")
@@ -246,11 +249,13 @@ class HTMLReport:
 def _inline_plotly_js() -> str:
     """尝试读取本地 plotly 包内嵌的 min.js；失败则回退 CDN。"""
     try:
-        import plotly
         from pathlib import Path
+
+        import plotly
+
         cand = Path(plotly.__file__).parent / "package_data" / "plotly.min.js"
         if cand.exists():
-            return f'<script>{cand.read_text(encoding="utf-8")}</script>'
+            return f"<script>{cand.read_text(encoding='utf-8')}</script>"
     except Exception:
         pass
     return f'<script src="{PLOTLY_CDN}" charset="utf-8"></script>'

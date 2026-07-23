@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """智能选币引擎（源自 OKX Grid Master strategy/selector.py）。
 
 多因子截面排名选币策略:
@@ -10,6 +9,7 @@
       / calc_bollinger_signals / calc_macd_signals 的因子公式严格保持原实现，
       未做任何修改。
 """
+
 from __future__ import annotations
 
 import numpy as np
@@ -23,46 +23,46 @@ def calc_time_series_factors(df):
     :return: df (追加因子列)
     """
     # === 涨跌幅 ===
-    df['涨跌幅'] = df['close'].pct_change()
-    df['涨跌幅'].fillna(value=df['close'] / df['open'] - 1, inplace=True)
+    df["涨跌幅"] = df["close"].pct_change()
+    df["涨跌幅"].fillna(value=df["close"] / df["open"] - 1, inplace=True)
 
     # === 波动率 (滚动标准差) ===
     for n in [12, 24]:
-        df[f'volatility_{n}'] = df['涨跌幅'].rolling(n).std() * np.sqrt(24 * 365)
+        df[f"volatility_{n}"] = df["涨跌幅"].rolling(n).std() * np.sqrt(24 * 365)
 
     # 综合波动率因子 (用于选币)
-    df['波动率'] = df['volatility_12']
+    df["波动率"] = df["volatility_12"]
 
     # === 动量因子 ===
     for n in [6, 12, 24]:
-        df[f'momentum_{n}'] = df['close'].pct_change(n)
+        df[f"momentum_{n}"] = df["close"].pct_change(n)
 
     # === RSI ===
     for n in [14, 28]:
-        delta = df['close'].diff()
+        delta = df["close"].diff()
         gain = delta.where(delta > 0, 0).rolling(n).mean()
         loss = (-delta.where(delta < 0, 0)).rolling(n).mean()
         rs = gain / loss.replace(0, np.nan)
-        df[f'rsi_{n}'] = 100 - (100 / (1 + rs))
+        df[f"rsi_{n}"] = 100 - (100 / (1 + rs))
 
     # === 布林带位置 ===
     for n in [20, 50]:
-        ma = df['close'].rolling(n).mean()
-        std = df['close'].rolling(n).std()
+        ma = df["close"].rolling(n).mean()
+        std = df["close"].rolling(n).std()
         upper = ma + 2 * std
         lower = ma - 2 * std
-        df[f'boll_pos_{n}'] = (df['close'] - lower) / (upper - lower)
-        df[f'boll_width_{n}'] = (upper - lower) / ma
+        df[f"boll_pos_{n}"] = (df["close"] - lower) / (upper - lower)
+        df[f"boll_width_{n}"] = (upper - lower) / ma
 
     # === 上涨/下跌标记 ===
-    df['上涨'] = 0
-    df['下跌'] = 0
-    df.loc[df['涨跌幅'] > 0, '上涨'] = 1
-    df.loc[df['涨跌幅'] <= 0, '下跌'] = 1
+    df["上涨"] = 0
+    df["下跌"] = 0
+    df.loc[df["涨跌幅"] > 0, "上涨"] = 1
+    df.loc[df["涨跌幅"] <= 0, "下跌"] = 1
 
     # === 成交量比率 ===
     for n in [12, 24]:
-        df[f'vol_ratio_{n}'] = df['volume'] / df['volume'].rolling(n).mean()
+        df[f"vol_ratio_{n}"] = df["volume"] / df["volume"].rolling(n).mean()
 
     return df
 
@@ -74,19 +74,19 @@ def calc_cross_section_factors(all_coin_data):
     :return: all_coin_data (追加截面因子)
     """
     # 上涨比例 (市场情绪)
-    all_coin_data['上涨数量'] = all_coin_data.groupby('time')['上涨'].transform('sum')
-    all_coin_data['下跌数量'] = all_coin_data.groupby('time')['下跌'].transform('sum')
-    total = all_coin_data['上涨数量'] + all_coin_data['下跌数量']
-    all_coin_data['上涨比例'] = all_coin_data['上涨数量'] / total.replace(0, np.nan)
+    all_coin_data["上涨数量"] = all_coin_data.groupby("time")["上涨"].transform("sum")
+    all_coin_data["下跌数量"] = all_coin_data.groupby("time")["下跌"].transform("sum")
+    total = all_coin_data["上涨数量"] + all_coin_data["下跌数量"]
+    all_coin_data["上涨比例"] = all_coin_data["上涨数量"] / total.replace(0, np.nan)
 
     # 成交额排名 (截面百分位)
-    all_coin_data['成交额排名'] = all_coin_data.groupby('time')['volume'].rank(
-        method='first', ascending=False, pct=True
+    all_coin_data["成交额排名"] = all_coin_data.groupby("time")["volume"].rank(
+        method="first", ascending=False, pct=True
     )
 
     # 涨跌幅截面百分位
-    all_coin_data['涨跌幅排名'] = all_coin_data.groupby('time')['涨跌幅'].rank(
-        method='first', ascending=True, pct=True
+    all_coin_data["涨跌幅排名"] = all_coin_data.groupby("time")["涨跌幅"].rank(
+        method="first", ascending=True, pct=True
     )
 
     return all_coin_data
@@ -111,39 +111,37 @@ def select_coins(data, factor_config, top_n=1):
     # 计算每个因子的排名
     rank_cols = []
     for factor, ascending in factor_config.items():
-        col_name = f'rank_{factor}'
-        df[col_name] = df.groupby('time')[factor].rank(
-            method='first', ascending=ascending
-        )
+        col_name = f"rank_{factor}"
+        df[col_name] = df.groupby("time")[factor].rank(method="first", ascending=ascending)
         rank_cols.append(col_name)
 
     # 综合排名 (简单加总)
-    df['rank_sum'] = df[rank_cols].sum(axis=1)
-    df['rank'] = df.groupby('time')['rank_sum'].rank(method='first', ascending=True)
+    df["rank_sum"] = df[rank_cols].sum(axis=1)
+    df["rank"] = df.groupby("time")["rank_sum"].rank(method="first", ascending=True)
 
     # 选取Top-N
-    selected = df[df['rank'] <= top_n].copy()
-    selected.sort_values('time', inplace=True)
+    selected = df[df["rank"] <= top_n].copy()
+    selected.sort_values("time", inplace=True)
 
     return selected
 
 
 def calc_bollinger_signals(df, n=20, std_dev=2):
     """布林带信号"""
-    df[f'ma_{n}'] = df['close'].rolling(n).mean()
-    df[f'std_{n}'] = df['close'].rolling(n).std()
-    df[f'boll_upper_{n}'] = df[f'ma_{n}'] + std_dev * df[f'std_{n}']
-    df[f'boll_lower_{n}'] = df[f'ma_{n}'] - std_dev * df[f'std_{n}']
+    df[f"ma_{n}"] = df["close"].rolling(n).mean()
+    df[f"std_{n}"] = df["close"].rolling(n).std()
+    df[f"boll_upper_{n}"] = df[f"ma_{n}"] + std_dev * df[f"std_{n}"]
+    df[f"boll_lower_{n}"] = df[f"ma_{n}"] - std_dev * df[f"std_{n}"]
     return df
 
 
 def calc_macd_signals(df, fast=12, slow=26, signal=9):
     """MACD信号"""
-    df['ema_fast'] = df['close'].ewm(span=fast, adjust=False).mean()
-    df['ema_slow'] = df['close'].ewm(span=slow, adjust=False).mean()
-    df['dif'] = df['ema_fast'] - df['ema_slow']
-    df['dea'] = df['dif'].ewm(span=signal, adjust=False).mean()
-    df['macd_hist'] = 2 * (df['dif'] - df['dea'])
+    df["ema_fast"] = df["close"].ewm(span=fast, adjust=False).mean()
+    df["ema_slow"] = df["close"].ewm(span=slow, adjust=False).mean()
+    df["dif"] = df["ema_fast"] - df["ema_slow"]
+    df["dea"] = df["dif"].ewm(span=signal, adjust=False).mean()
+    df["macd_hist"] = 2 * (df["dif"] - df["dea"])
     return df
 
 
@@ -152,9 +150,9 @@ def calc_macd_signals(df, fast=12, slow=26, signal=9):
 # 默认因子配置（动量 / 波动率 / 流动性）
 # True=升序排列(选小的), False=降序排列(选大的)
 DEFAULT_FACTOR_CONFIG = {
-    "波动率": False,         # 高波动（网格收益空间大）
-    "momentum_12": False,    # 高动量
-    "vol_ratio_24": False,   # 高成交活跃（流动性）
+    "波动率": False,  # 高波动（网格收益空间大）
+    "momentum_12": False,  # 高动量
+    "vol_ratio_24": False,  # 高成交活跃（流动性）
 }
 
 

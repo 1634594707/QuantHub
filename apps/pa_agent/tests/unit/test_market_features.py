@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from pa_agent.ai.market_features import compute_simple_market_features, render_simple_market_features
+from pa_agent.ai.market_features import (
+    compute_simple_market_features,
+    render_simple_market_features,
+)
 from pa_agent.data.base import IndicatorBundle, KlineBar, KlineFrame
 
 
@@ -20,7 +23,9 @@ def _frame(*bars: KlineBar) -> KlineFrame:
 
 def test_range_position_upper_third() -> None:
     bars = tuple(
-        KlineBar(seq=i + 1, ts_open=float(i), open=105.0, high=110.0, low=100.0, close=108.0, volume=1)
+        KlineBar(
+            seq=i + 1, ts_open=float(i), open=105.0, high=110.0, low=100.0, close=108.0, volume=1
+        )
         for i in range(8)
     )
     features = compute_simple_market_features(_frame(*bars), lookback=8)
@@ -77,7 +82,9 @@ def test_breakout_failure_detected() -> None:
 
 def test_measured_move_range_projection() -> None:
     bars = tuple(
-        KlineBar(seq=i + 1, ts_open=float(i), open=105.0, high=110.0, low=100.0, close=105.0, volume=1)
+        KlineBar(
+            seq=i + 1, ts_open=float(i), open=105.0, high=110.0, low=100.0, close=105.0, volume=1
+        )
         for i in range(6)
     )
     features = compute_simple_market_features(_frame(*bars), lookback=6)
@@ -89,7 +96,9 @@ def test_measured_move_range_projection() -> None:
 
 def test_render_includes_key_sections() -> None:
     bars = tuple(
-        KlineBar(seq=i + 1, ts_open=float(i), open=105.0, high=110.0, low=100.0, close=108.0, volume=1)
+        KlineBar(
+            seq=i + 1, ts_open=float(i), open=105.0, high=110.0, low=100.0, close=108.0, volume=1
+        )
         for i in range(6)
     )
     text = render_simple_market_features(compute_simple_market_features(_frame(*bars)))

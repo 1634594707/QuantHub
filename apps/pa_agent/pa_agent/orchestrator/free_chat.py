@@ -5,11 +5,13 @@ AnalysisRecord and sends follow-up messages to the DeepSeek API.
 
 Design reference: design.md §B.17
 """
+
 from __future__ import annotations
 
-import logging
 import json
-from typing import TYPE_CHECKING, Callable, Optional
+import logging
+from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from pa_agent.ai.deepseek_client import DeepSeekClient
@@ -17,6 +19,8 @@ if TYPE_CHECKING:
     from pa_agent.ai.session_ledger import SessionTokenLedger
     from pa_agent.config.settings import Settings
     from pa_agent.records.pending_writer import PendingWriter
+
+from datetime import UTC
 
 from pa_agent.ai.deepseek_client import AIReply
 from pa_agent.records.schema import AnalysisRecord, FollowupTurn
@@ -31,10 +35,10 @@ def _derive_record_id(record: AnalysisRecord) -> str:
 
     Uses the same logic as ``_build_basename`` in pending_writer.py.
     """
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     ms = record.meta.timestamp_local_ms
-    dt = datetime.fromtimestamp(ms / 1000, tz=timezone.utc).astimezone()
+    dt = datetime.fromtimestamp(ms / 1000, tz=UTC).astimezone()
     ts_str = dt.strftime("%Y-%m-%d_%H-%m-%S")
     symbol = record.meta.symbol
     timeframe = record.meta.timeframe
@@ -78,12 +82,12 @@ class FreeChatSession:
     def __init__(
         self,
         base_record: AnalysisRecord,
-        client: "DeepSeekClient",
-        assembler: "PromptAssembler",
-        pending_writer: "PendingWriter",
-        ledger: "SessionTokenLedger",
-        settings: Optional["Settings"] = None,
-        kline_snapshot_fn: Optional[Callable[[], str]] = None,
+        client: DeepSeekClient,
+        assembler: PromptAssembler,
+        pending_writer: PendingWriter,
+        ledger: SessionTokenLedger,
+        settings: Settings | None = None,
+        kline_snapshot_fn: Callable[[], str] | None = None,
     ) -> None:
         self._base_record = base_record
         self._client = client
@@ -227,7 +231,9 @@ class FreeChatSession:
             body = round(abs(k1_close - k1_open), 3)
             full_range = round(k1_high - k1_low, 3)
             body_ratio = round(body / full_range, 2) if full_range > 0 else 0
-            direction_zh = "阴线" if k1_close < k1_open else ("阳线" if k1_close > k1_open else "平盘")
+            direction_zh = (
+                "阴线" if k1_close < k1_open else ("阳线" if k1_close > k1_open else "平盘")
+            )
             k1_bar_type = bar_analysis.get("bar_type", "")
             k1_desc = (
                 f"K1（最新已收盘）：{direction_zh}，开={k1_open}，高={k1_high}，"
@@ -235,12 +241,16 @@ class FreeChatSession:
                 f"实体={body}（占比{body_ratio:.0%}），上影={upper_wick}，下影={lower_wick}；"
                 f"程序分类：{k1_bar_type}。"
             )
-        recall_parts.append(f"【上次决策结果】{order_type}" + (f"（{order_dir}）" if order_dir else ""))
+        recall_parts.append(
+            f"【上次决策结果】{order_type}" + (f"（{order_dir}）" if order_dir else "")
+        )
         if k1_desc:
             recall_parts.append(f"【K1数据·程序计算】{k1_desc}")
         if reasoning:
             # Truncate to avoid token bloat; the key facts are already in k1_desc
-            recall_parts.append(f"【决策推理摘要】{reasoning[:600]}" + ("…" if len(reasoning) > 600 else ""))
+            recall_parts.append(
+                f"【决策推理摘要】{reasoning[:600]}" + ("…" if len(reasoning) > 600 else "")
+            )
         if watch_points:
             recall_parts.append("【关注点】" + "；".join(watch_points[:3]))
         recall_content = "\n".join(recall_parts)
@@ -258,8 +268,8 @@ class FreeChatSession:
         self,
         user_text: str,
         cancel_token: CancelToken,
-        on_reasoning_token: "Callable[[str], None] | None" = None,
-        on_content_token: "Callable[[str], None] | None" = None,
+        on_reasoning_token: Callable[[str], None] | None = None,
+        on_content_token: Callable[[str], None] | None = None,
     ) -> AIReply:
         """Send *user_text* to the AI and return the reply.
 
@@ -319,7 +329,7 @@ class FreeChatSession:
                         f"{kline_table}\n\n"
                         f"---\n\n{user_text}"
                     )
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 logger.warning("kline_snapshot_fn failed: %s", exc)
 
         history_for_api.append({"role": "user", "content": user_content})
@@ -327,9 +337,7 @@ class FreeChatSession:
         # ── 2. Resolve reasoning_effort ───────────────────────────────────────
         reasoning_effort = "high"
         if self._settings is not None:
-            reasoning_effort = getattr(
-                self._settings.provider, "reasoning_effort", "high"
-            )
+            reasoning_effort = getattr(self._settings.provider, "reasoning_effort", "high")
 
         # ── 3. Check cancellation before API call ─────────────────────────────
         from pa_agent.ai.deepseek_client import CancelledError
@@ -383,11 +391,13 @@ class FreeChatSession:
 
         # ── 5. Append to history_full (with reasoning preserved) ──────────────
         self._history_full.append({"role": "user", "content": user_text})
-        self._history_full.append({
-            "role": "assistant",
-            "content": reply.content,
-            "reasoning_content": reply.reasoning_content,
-        })
+        self._history_full.append(
+            {
+                "role": "assistant",
+                "content": reply.content,
+                "reasoning_content": reply.reasoning_content,
+            }
+        )
 
         # ── 6. Accumulate usage in ledger ─────────────────────────────────────
         self._ledger.add(reply.usage)

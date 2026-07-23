@@ -1,4 +1,5 @@
 """Unified AI turn display — tabbed panes, single scroll per view."""
+
 from __future__ import annotations
 
 from PyQt6.QtCore import Qt
@@ -123,9 +124,7 @@ class AITurnCard(QFrame):
             sys_edit.setVisible(False)
             sys_toggle.toggled.connect(sys_edit.setVisible)
             sys_toggle.toggled.connect(
-                lambda c, b=sys_toggle: b.setText(
-                    "▼ System" if c else "▶ System（点击展开）"
-                )
+                lambda c, b=sys_toggle: b.setText("▼ System" if c else "▶ System（点击展开）")
             )
             layout.addWidget(sys_toggle)
             layout.addWidget(sys_edit)
@@ -173,9 +172,7 @@ class AITurnCard(QFrame):
 
     def mark_done(self, elapsed_s: float | None = None) -> None:
         self._streaming = False
-        self._status.setText(
-            f"完成 · {elapsed_s:.1f}s" if elapsed_s is not None else "完成"
-        )
+        self._status.setText(f"完成 · {elapsed_s:.1f}s" if elapsed_s is not None else "完成")
 
     def scroll_active_to_bottom(self) -> None:
         idx = self._tabs.currentIndex()

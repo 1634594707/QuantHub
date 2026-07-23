@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """A股影响评分与置信度计算（固定公式）。
 
 从原 ``trading-master/03-daily_news/daily-news/scripts/scoring.py`` 下沉而来，
@@ -9,14 +8,15 @@
 
 所有公式保持与原脚本一致，禁止主观拍分。
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-
 # ─────────────────────────────────────────────
 # Core formula helpers（与原 scoring.py 完全一致）
 # ─────────────────────────────────────────────
+
 
 def clamp(value: float, lo: float = 0, hi: float = 100) -> float:
     return max(lo, min(hi, value))
@@ -75,7 +75,9 @@ def apply_penalties(raw: float, gap_count: int, div_count: int) -> float:
     return clamp(raw - penalty)
 
 
-def calc_composite_env(tech: float, risk: float, macro: float, commodity: float, event: float) -> float:
+def calc_composite_env(
+    tech: float, risk: float, macro: float, commodity: float, event: float
+) -> float:
     """综合环境分."""
     return round(0.30 * tech + 0.20 * risk + 0.20 * macro + 0.15 * commodity + 0.15 * event, 1)
 
@@ -109,9 +111,11 @@ def confidence_level(score: float) -> str:
 # 结构化打分入口
 # ─────────────────────────────────────────────
 
+
 @dataclass
 class ScoringInput:
     """打分所需全部原始输入（对应 scoring.md §2 必填字段）。"""
+
     # 技术面
     above_ma20: bool = False
     above_ma50: bool = False
@@ -121,9 +125,9 @@ class ScoringInput:
     above_pivot: bool = False
     # 风险偏好
     breadth_available: bool = False
-    breadth_score: float = 30.0        # 广度原始分 0–60
-    etf_change: float = 0.0            # 300ETF 日涨跌 %（代理口径）
-    news_risk_adj: float = 0.0         # 新闻风险修正 -20 到 +20
+    breadth_score: float = 30.0  # 广度原始分 0–60
+    etf_change: float = 0.0  # 300ETF 日涨跌 %（代理口径）
+    news_risk_adj: float = 0.0  # 新闻风险修正 -20 到 +20
     # 宏观/商品/事件 证据计数
     macro_bull: int = 0
     macro_bear: int = 0
@@ -132,31 +136,32 @@ class ScoringInput:
     event_bull: int = 0
     event_bear: int = 0
     # 数据质量
-    available: int = 0                 # 可用数据项数量
-    total: int = 0                     # 应有数据项总数
-    consistent: int = 0                # 双源一致项数量
-    verifiable: int = 0                # 可校验（双源）项数量
-    gaps: int = 0                      # 关键缺口项数
-    divergences: int = 0               # 明显分歧项数
+    available: int = 0  # 可用数据项数量
+    total: int = 0  # 应有数据项总数
+    consistent: int = 0  # 双源一致项数量
+    verifiable: int = 0  # 可校验（双源）项数量
+    gaps: int = 0  # 关键缺口项数
+    divergences: int = 0  # 明显分歧项数
 
 
 @dataclass
 class ScoreBreakdown:
     """打分结果。所有分数均为惩罚后的最终分（0–100）。"""
-    tech: float                        # 技术结构强度
-    risk: float                        # 风险偏好温度
-    risk_label: str                    # 风险偏好口径
-    macro: float                       # 宏观与流动性支持
-    commodity: float                   # 商品与通胀扰动
-    event: float                       # 事件冲击可控度
-    composite: float                   # 综合环境分
-    data_completeness: float           # 数据完整性
-    source_consistency: float          # 多源一致性
-    tech_clarity: float                # 技术信号清晰度
-    confidence: float                  # 置信度总分
-    confidence_level: str              # 置信度等级 High/Medium/Low
-    pace: str                          # 执行节奏（进攻/均衡/防守/观望）
-    is_proxy: bool = field(default=False)   # 风险偏好是否使用代理口径
+
+    tech: float  # 技术结构强度
+    risk: float  # 风险偏好温度
+    risk_label: str  # 风险偏好口径
+    macro: float  # 宏观与流动性支持
+    commodity: float  # 商品与通胀扰动
+    event: float  # 事件冲击可控度
+    composite: float  # 综合环境分
+    data_completeness: float  # 数据完整性
+    source_consistency: float  # 多源一致性
+    tech_clarity: float  # 技术信号清晰度
+    confidence: float  # 置信度总分
+    confidence_level: str  # 置信度等级 High/Medium/Low
+    pace: str  # 执行节奏（进攻/均衡/防守/观望）
+    is_proxy: bool = field(default=False)  # 风险偏好是否使用代理口径
 
     def to_dict(self) -> dict:
         return {
@@ -205,14 +210,21 @@ def score_environment(inp: ScoringInput) -> ScoreBreakdown:
     """
     # ── 技术结构强度 ──────────────────────
     tech_raw = calc_technical_strength(
-        inp.above_ma20, inp.above_ma50, inp.above_ma200,
-        inp.rsi, inp.macd_positive, inp.above_pivot,
+        inp.above_ma20,
+        inp.above_ma50,
+        inp.above_ma200,
+        inp.rsi,
+        inp.macd_positive,
+        inp.above_pivot,
     )
     tech = apply_penalties(tech_raw, inp.gaps, inp.divergences)
 
     # ── 风险偏好温度 ──────────────────────
     risk_raw, risk_label = calc_risk_appetite(
-        inp.breadth_available, inp.breadth_score, inp.etf_change, inp.news_risk_adj,
+        inp.breadth_available,
+        inp.breadth_score,
+        inp.etf_change,
+        inp.news_risk_adj,
     )
     risk = apply_penalties(risk_raw, inp.gaps, inp.divergences)
 

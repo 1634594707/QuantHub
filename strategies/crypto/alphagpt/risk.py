@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """风控适配器 — 复用 apps.dispatcher.risk.RiskChecker + 蜜罐检查。
 
 **不重新实现**仓位/敞口/流动性等风控规则，仅做适配：
@@ -8,12 +7,13 @@
        （流动性阈值 + Jupiter 卖出路径报价验证）。solana 为重依赖，懒加载；
        实盘关闭场景下若依赖未装则跳过（返回安全）。
 """
+
 from __future__ import annotations
 
 import logging
 from typing import Any
 
-from apps.dispatcher.risk import RiskChecker, RiskContext, RiskError
+from apps.dispatcher.risk import RiskChecker, RiskContext
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +66,7 @@ async def check_honeypot(token_address: str, liquidity_usd: float, *, jupiter: A
         try:
             # 委托原 AlphaGPT execution 层概念；solana/aiohttp 为重依赖
             from execution.jupiter import JupiterAggregator
+
             jupiter = JupiterAggregator()
             own_jup = True
         except ImportError:
@@ -83,7 +84,7 @@ async def check_honeypot(token_address: str, liquidity_usd: float, *, jupiter: A
             logger.warning("蜜罐检查: 无法验证卖出路径（疑似蜜罐）: %s", token_address)
             return False
         return True
-    except Exception:  # noqa: BLE001 - 蜜罐检查异常一律视为不安全
+    except Exception:
         logger.exception("蜜罐检查异常: %s", token_address)
         return False
     finally:

@@ -1,4 +1,5 @@
 """Binary decision tree loader and trace helpers (方案 A)."""
+
 from __future__ import annotations
 
 import re
@@ -13,12 +14,8 @@ _BINARY_DECISION_FILE = "二元决策.txt"
 _SECTION_RE = re.compile(r"^##\s+(\d+)\.\s+(.+)$")
 _NODE_RE = re.compile(r"^###\s+([\d.]+[A-Z]?)\s+(.+)$")
 _NODE_HEADER_LINE_RE = re.compile(r"^###\s+([\d.]+[A-Z]?)\s+")
-_BRANCH_OUTCOME_LINE_RE = re.compile(
-    r"^(是|否)(?:[，,]([^：:\n]+))?[：:]\s*(.*)$"
-)
-_BRANCH_OUTCOME_STOP_RE = re.compile(
-    r"^(处理|判断依据|条件|说明|多头条件|空头条件|上涨|下跌)[：:]"
-)
+_BRANCH_OUTCOME_LINE_RE = re.compile(r"^(是|否)(?:[，,]([^：:\n]+))?[：:]\s*(.*)$")
+_BRANCH_OUTCOME_STOP_RE = re.compile(r"^(处理|判断依据|条件|说明|多头条件|空头条件|上涨|下跌)[：:]")
 _BAR_RANGE_RE = re.compile(r"^K(\d+)-K(\d+)$", re.IGNORECASE)
 _SINGLE_BAR_RE = re.compile(r"^K(\d+)$", re.IGNORECASE)
 _QUESTION_BAR_BASIS_SUFFIX_RE = re.compile(r"（基于[^）]+判断）$")
@@ -50,6 +47,7 @@ def _gate_trace_sort_key(node_id: str) -> tuple[int, int, str]:
         return (major, int(sub), node_id)
     except ValueError:
         return (major, 999, node_id)
+
 
 def _node_sort_key(node_id: str) -> tuple[int, str]:
     """Sort key for decision_trace ordering checks."""
@@ -340,7 +338,9 @@ def validate_bar_range_field(item: dict[str, Any], path: str) -> list[str]:
         return errors
 
     if "填写" in br or br.startswith("<") or "由你" in br:
-        errors.append(f"{path}: bar_range must be actual K-line seqs from the table, not a placeholder")
+        errors.append(
+            f"{path}: bar_range must be actual K-line seqs from the table, not a placeholder"
+        )
         return errors
 
     text = br.upper().replace(" ", "")
@@ -412,8 +412,7 @@ def build_stage2_gate_wait_response(stage1_json: dict[str, Any]) -> dict[str, An
             ),
             "diagnosis_confidence": stage1_json.get("diagnosis_confidence", 0),
             "diagnosis_confidence_reasoning": (
-                stage1_json.get("risk_warning")
-                or f"闸门在 {node_id}，市场诊断置信度沿用阶段一。"
+                stage1_json.get("risk_warning") or f"闸门在 {node_id}，市场诊断置信度沿用阶段一。"
             ),
             "trade_confidence": 0,
             "trade_confidence_reasoning": "闸门未通过，不执行交易决策。",
@@ -450,9 +449,7 @@ def build_stage2_gate_wait_response(stage1_json: dict[str, Any]) -> dict[str, An
             "cycle": None,
             "direction": None,
             "probabilities": None,
-            "reasoning": (
-                f"阶段一闸门未通过（{node_id}），未进入阶段二周期演变评估。"
-            ),
+            "reasoning": (f"阶段一闸门未通过（{node_id}），未进入阶段二周期演变评估。"),
             "unpredictable": True,
             "features_used": ["stage1_diagnosis"],
         },
@@ -548,9 +545,7 @@ def validate_stage2_trace_consistency(stage2: dict[str, Any]) -> list[str]:
     if order_type == "不下单" and outcome == "trade":
         errors.append('order_type 不下单 cannot pair with terminal.outcome "trade"')
     if order_type in ("限价单", "突破单", "市价单") and outcome in ("wait", "reject"):
-        errors.append(
-            f"order_type {order_type} cannot pair with terminal.outcome {outcome!r}"
-        )
+        errors.append(f"order_type {order_type} cannot pair with terminal.outcome {outcome!r}")
     if (
         order_type in ("限价单", "突破单", "市价单")
         and outcome == "trade"
@@ -568,9 +563,7 @@ def validate_stage2_trace_consistency(stage2: dict[str, Any]) -> list[str]:
     node_ids = _trace_node_ids(trace)
 
     if "0.3" in node_ids:
-        errors.append(
-            "decision_trace must not include 0.3; use 10.3 after stop/target are set"
-        )
+        errors.append("decision_trace must not include 0.3; use 10.3 after stop/target are set")
 
     # §10 子节点顺序：10.1 → 10.2 → 10.3
     for a, b in (("10.1", "10.2"), ("10.2", "10.3")):
@@ -604,9 +597,7 @@ def validate_stage2_trace_consistency(stage2: dict[str, Any]) -> list[str]:
         if idx_103 >= 0 and term_nid not in ("10.3", "10.2", "10.1", "9.5", "9.2"):
             pass  # allow other legitimate early stops
         if idx_103 >= 0 and trace[idx_103].get("answer") == "否" and term_nid != "10.3":
-            errors.append(
-                "when 10.3 answer is 否, terminal.node_id should be 10.3"
-            )
+            errors.append("when 10.3 answer is 否, terminal.node_id should be 10.3")
 
         # Detect the "no entry plan → terminal=reject" anti-pattern.
         # When §9.0 answer is 否/等待 (no valid signal bar) or §10.1 answer is 否
@@ -639,7 +630,16 @@ def validate_stage2_trace_consistency(stage2: dict[str, Any]) -> list[str]:
                 no_entry_plan = True
         if no_entry_plan and outcome == "reject":
             # Check if §14 genuinely triggered (true violation, not AI misuse)
-            _DENIAL = ("未触犯", "未违反", "无触犯", "无违规", "通过扫描", "扫描通过", "无禁止", "未触发")
+            _DENIAL = (
+                "未触犯",
+                "未违反",
+                "无触犯",
+                "无违规",
+                "通过扫描",
+                "扫描通过",
+                "无禁止",
+                "未触发",
+            )
             sec14_genuinely_violated = any(
                 str(item.get("node_id", "")).strip().startswith("14")
                 and str(item.get("answer", "")).strip() == "是"
@@ -658,9 +658,7 @@ def validate_stage2_trace_consistency(stage2: dict[str, Any]) -> list[str]:
     ranks = [_node_sort_key(n)[0] for n in node_ids if not n.startswith("0.")]
     for i in range(1, len(ranks)):
         if ranks[i] < ranks[i - 1]:
-            errors.append(
-                f"decision_trace chapter order violation near node {node_ids[i]}"
-            )
+            errors.append(f"decision_trace chapter order violation near node {node_ids[i]}")
             break
 
     return errors

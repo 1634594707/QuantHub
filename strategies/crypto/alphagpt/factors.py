@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """AlphaGPT 因子计算 — 从 model_core/factors.py 逐字移植。
 
 因子公式（``RMSNormFactor`` / ``MemeIndicators`` / ``AdvancedFactorEngineer`` /
@@ -8,6 +7,7 @@
 torch 为重依赖：本模块在模块级 ``import torch``，但由 ``strategy.py`` 懒加载，
 故策略包导入不触发 torch。
 """
+
 from __future__ import annotations
 
 import torch
@@ -18,13 +18,14 @@ from strategies.crypto.alphagpt.stack_vm import FEATURE_NAMES
 
 class RMSNormFactor(nn.Module):
     """RMSNorm for factor normalization"""
+
     def __init__(self, d_model, eps=1e-6):
         super().__init__()
         self.eps = eps
         self.weight = nn.Parameter(torch.ones(d_model))
 
     def forward(self, x):
-        rms = torch.sqrt(torch.mean(x ** 2, dim=-1, keepdim=True) + self.eps)
+        rms = torch.sqrt(torch.mean(x**2, dim=-1, keepdim=True) + self.eps)
         return (x / rms) * self.weight
 
 
@@ -50,7 +51,7 @@ class MemeIndicators:
 
     @staticmethod
     def pump_deviation(close, window=20):
-        pad = torch.zeros((close.shape[0], window-1), device=close.device)
+        pad = torch.zeros((close.shape[0], window - 1), device=close.device)
         c_pad = torch.cat([pad, close], dim=1)
         ma = c_pad.unfold(1, window, 1).mean(dim=-1)
         dev = (close - ma) / (ma + 1e-9)
@@ -60,9 +61,9 @@ class MemeIndicators:
     def volatility_clustering(close, window=10):
         """Detect volatility clustering patterns"""
         ret = torch.log(close / (torch.roll(close, 1, dims=1) + 1e-9))
-        ret_sq = ret ** 2
+        ret_sq = ret**2
 
-        pad = torch.zeros((ret_sq.shape[0], window-1), device=close.device)
+        pad = torch.zeros((ret_sq.shape[0], window - 1), device=close.device)
         ret_sq_pad = torch.cat([pad, ret_sq], dim=1)
         vol_ma = ret_sq_pad.unfold(1, window, 1).mean(dim=-1)
 
@@ -73,7 +74,7 @@ class MemeIndicators:
         """Capture momentum reversal signals"""
         ret = torch.log(close / (torch.roll(close, 1, dims=1) + 1e-9))
 
-        pad = torch.zeros((ret.shape[0], window-1), device=close.device)
+        pad = torch.zeros((ret.shape[0], window - 1), device=close.device)
         ret_pad = torch.cat([pad, ret], dim=1)
         mom = ret_pad.unfold(1, window, 1).sum(dim=-1)
 
@@ -91,7 +92,7 @@ class MemeIndicators:
         gains = torch.relu(ret)
         losses = torch.relu(-ret)
 
-        pad = torch.zeros((gains.shape[0], window-1), device=close.device)
+        pad = torch.zeros((gains.shape[0], window - 1), device=close.device)
         gains_pad = torch.cat([pad, gains], dim=1)
         losses_pad = torch.cat([pad, losses], dim=1)
 
@@ -106,6 +107,7 @@ class MemeIndicators:
 
 class AdvancedFactorEngineer:
     """Advanced feature engineering with multiple factor types"""
+
     def __init__(self):
         self.rms_norm = RMSNormFactor(1)
 
@@ -118,13 +120,13 @@ class AdvancedFactorEngineer:
 
     def compute_advanced_features(self, raw_dict):
         """Compute 12-dimensional feature space with advanced factors"""
-        c = raw_dict['close']
-        o = raw_dict['open']
-        h = raw_dict['high']
-        l = raw_dict['low']
-        v = raw_dict['volume']
-        liq = raw_dict['liquidity']
-        fdv = raw_dict['fdv']
+        c = raw_dict["close"]
+        o = raw_dict["open"]
+        h = raw_dict["high"]
+        l = raw_dict["low"]
+        v = raw_dict["volume"]
+        liq = raw_dict["liquidity"]
+        fdv = raw_dict["fdv"]
 
         # Basic factors
         ret = torch.log(c / (torch.roll(c, 1, dims=1) + 1e-9))
@@ -149,20 +151,23 @@ class AdvancedFactorEngineer:
         vol_prev = torch.roll(v, 1, dims=1)
         vol_trend = (v - vol_prev) / (vol_prev + 1.0)
 
-        features = torch.stack([
-            self.robust_norm(ret),
-            liq_score,
-            pressure,
-            self.robust_norm(fomo),
-            self.robust_norm(dev),
-            self.robust_norm(log_vol),
-            self.robust_norm(vol_cluster),
-            momentum_rev,
-            self.robust_norm(rel_strength),
-            self.robust_norm(hl_range),
-            close_pos,
-            self.robust_norm(vol_trend)
-        ], dim=1)
+        features = torch.stack(
+            [
+                self.robust_norm(ret),
+                liq_score,
+                pressure,
+                self.robust_norm(fomo),
+                self.robust_norm(dev),
+                self.robust_norm(log_vol),
+                self.robust_norm(vol_cluster),
+                momentum_rev,
+                self.robust_norm(rel_strength),
+                self.robust_norm(hl_range),
+                close_pos,
+                self.robust_norm(vol_trend),
+            ],
+            dim=1,
+        )
 
         return features
 
@@ -172,13 +177,13 @@ class FeatureEngineer:
 
     @staticmethod
     def compute_features(raw_dict):
-        c = raw_dict['close']
-        o = raw_dict['open']
-        h = raw_dict['high']
-        l = raw_dict['low']
-        v = raw_dict['volume']
-        liq = raw_dict['liquidity']
-        fdv = raw_dict['fdv']
+        c = raw_dict["close"]
+        o = raw_dict["open"]
+        h = raw_dict["high"]
+        l = raw_dict["low"]
+        v = raw_dict["volume"]
+        liq = raw_dict["liquidity"]
+        fdv = raw_dict["fdv"]
 
         ret = torch.log(c / (torch.roll(c, 1, dims=1) + 1e-9))
         liq_score = MemeIndicators.liquidity_health(liq, fdv)
@@ -193,13 +198,16 @@ class FeatureEngineer:
             norm = (t - median) / mad
             return torch.clamp(norm, -5.0, 5.0)
 
-        features = torch.stack([
-            robust_norm(ret),
-            liq_score,
-            pressure,
-            robust_norm(fomo),
-            robust_norm(dev),
-            robust_norm(log_vol)
-        ], dim=1)
+        features = torch.stack(
+            [
+                robust_norm(ret),
+                liq_score,
+                pressure,
+                robust_norm(fomo),
+                robust_norm(dev),
+                robust_norm(log_vol),
+            ],
+            dim=1,
+        )
 
         return features

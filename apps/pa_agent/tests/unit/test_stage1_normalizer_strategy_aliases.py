@@ -1,4 +1,5 @@
 """Stage 1 normalizer maps common wrong strategy file names."""
+
 from __future__ import annotations
 
 from pa_agent.ai.stage1_normalizer import normalize_stage1

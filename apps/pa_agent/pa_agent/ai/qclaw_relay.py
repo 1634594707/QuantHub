@@ -6,6 +6,7 @@ Forwards OpenAI-compatible requests to QClaw's internal LLM proxy
 
 Must be started inside the QClaw gateway process tree (via gateway ``/exec``).
 """
+
 from __future__ import annotations
 
 import argparse
@@ -13,7 +14,6 @@ import http.server
 import json
 import logging
 import socket
-import sys
 import threading
 import time
 import urllib.error
@@ -70,7 +70,9 @@ class ProxyHandler(http.server.BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         if self.path in ("/", "/health"):
-            payload = json.dumps({"ok": True, "upstream": UPSTREAM, "service": "pa-agent-qclaw-relay"})
+            payload = json.dumps(
+                {"ok": True, "upstream": UPSTREAM, "service": "pa-agent-qclaw-relay"}
+            )
             body = payload.encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json")

@@ -1,4 +1,5 @@
 """Sequence number label item for pyqtgraph."""
+
 from __future__ import annotations
 
 import pyqtgraph as pg

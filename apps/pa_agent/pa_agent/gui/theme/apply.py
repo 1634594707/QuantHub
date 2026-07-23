@@ -1,4 +1,5 @@
 """Apply the global application theme."""
+
 from __future__ import annotations
 
 from pathlib import Path

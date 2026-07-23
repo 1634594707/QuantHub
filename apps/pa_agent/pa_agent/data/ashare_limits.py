@@ -1,8 +1,10 @@
 """A-share limit-up / limit-down detection for table and chart markers."""
+
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import datetime
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING
 from zoneinfo import ZoneInfo
 
 if TYPE_CHECKING:
@@ -38,14 +40,14 @@ def limit_prices(prev_close: float, ratio: float) -> tuple[float, float]:
     return up, down
 
 
-def _bar_trade_date(bar: "KlineBar"):
+def _bar_trade_date(bar: KlineBar):
     ts_ms = int(bar.ts_open)
     if ts_ms < 1_000_000_000_000:
         ts_ms *= 1000
     return datetime.fromtimestamp(ts_ms / 1000, tz=_CN_TZ).date()
 
 
-def trading_day_close_map(bars: Sequence["KlineBar"]) -> dict:
+def trading_day_close_map(bars: Sequence[KlineBar]) -> dict:
     """Map each trading date to that session's official close (last bar of the day)."""
     closes: dict = {}
     for bar in reversed(bars):
@@ -53,7 +55,7 @@ def trading_day_close_map(bars: Sequence["KlineBar"]) -> dict:
     return closes
 
 
-def _bars_cache_key(bars: Sequence["KlineBar"]) -> tuple:
+def _bars_cache_key(bars: Sequence[KlineBar]) -> tuple:
     """Hashable key for memoizing close maps on a bar sequence."""
     return tuple((int(b.ts_open), float(b.close)) for b in bars)
 
@@ -62,7 +64,7 @@ _LAST_CLOSE_MAP_KEY: tuple | None = None
 _LAST_CLOSE_MAP: dict = {}
 
 
-def _close_map_for_bars(bars: Sequence["KlineBar"]) -> dict:
+def _close_map_for_bars(bars: Sequence[KlineBar]) -> dict:
     global _LAST_CLOSE_MAP_KEY, _LAST_CLOSE_MAP
     key = _bars_cache_key(bars)
     if key == _LAST_CLOSE_MAP_KEY:
@@ -73,7 +75,7 @@ def _close_map_for_bars(bars: Sequence["KlineBar"]) -> dict:
     return closes
 
 
-def prev_trading_day_close(bars: Sequence["KlineBar"], index: int) -> float | None:
+def prev_trading_day_close(bars: Sequence[KlineBar], index: int) -> float | None:
     """Previous trading day's close for ``bars[index]`` (newest-first list)."""
     if index < 0 or index >= len(bars):
         return None
@@ -89,7 +91,7 @@ def prev_trading_day_close(bars: Sequence["KlineBar"], index: int) -> float | No
     return closes[days[pos + 1]]
 
 
-def effective_pct_chg(bar: "KlineBar", prev_close: float | None) -> float | None:
+def effective_pct_chg(bar: KlineBar, prev_close: float | None) -> float | None:
     """Return change %; prefer API ``pct_chg``, else compute from prev close."""
     pct = getattr(bar, "pct_chg", None)
     if pct is not None:
@@ -104,7 +106,7 @@ def _near(price: float, target: float, eps: float = 0.015) -> bool:
 
 
 def limit_bar_label(
-    bar: "KlineBar",
+    bar: KlineBar,
     *,
     prev_close: float | None,
     symbol: str,
@@ -137,7 +139,7 @@ def limit_bar_label(
 
 
 def limit_labels_for_frame(
-    bars: Sequence["KlineBar"],
+    bars: Sequence[KlineBar],
     symbol: str,
     *,
     stock_name: str = "",

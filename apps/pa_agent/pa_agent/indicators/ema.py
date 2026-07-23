@@ -1,4 +1,5 @@
 """Exponential Moving Average (EMA) — full and incremental."""
+
 from __future__ import annotations
 
 import math
@@ -8,10 +9,11 @@ from dataclasses import dataclass
 @dataclass(frozen=True)
 class EmaState:
     """Minimal state for incremental EMA computation."""
-    last: float       # most recent EMA value (nan during warm-up)
+
+    last: float  # most recent EMA value (nan during warm-up)
     period: int
-    count: int        # number of values seen so far
-    _sum: float       # running sum during warm-up phase
+    count: int  # number of values seen so far
+    _sum: float  # running sum during warm-up phase
 
 
 def ema_full(values: list[float], period: int) -> list[float]:

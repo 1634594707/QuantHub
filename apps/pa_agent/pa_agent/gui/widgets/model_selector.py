@@ -1,4 +1,5 @@
 """ModelSelector — pill button with a custom dropdown for model selection."""
+
 from __future__ import annotations
 
 from PyQt6.QtCore import QPoint, Qt, pyqtSignal
@@ -44,12 +45,8 @@ class _ModelOption(QWidget):
         self._name.setStyleSheet("color: #c9d1d9; font-size: 12px;")
 
         self._meta = QLabel(meta)
-        self._meta.setStyleSheet(
-            "color: #6e7681; font-size: 11px; font-family: monospace;"
-        )
-        self._meta.setAlignment(
-            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
-        )
+        self._meta.setStyleSheet("color: #6e7681; font-size: 11px; font-family: monospace;")
+        self._meta.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
         layout.addWidget(self._dot)
         layout.addWidget(self._name)
@@ -73,9 +70,7 @@ class _ModelOption(QWidget):
                 " background-color: rgba(56,189,248,0.18);"
                 "}"
             )
-            self._dot.setStyleSheet(
-                "background-color: #38bdf8; border-radius: 3px;"
-            )
+            self._dot.setStyleSheet("background-color: #38bdf8; border-radius: 3px;")
         else:
             self.setStyleSheet(
                 "_ModelOption {"
@@ -85,9 +80,7 @@ class _ModelOption(QWidget):
                 " background-color: #21262d;"
                 "}"
             )
-            self._dot.setStyleSheet(
-                "background-color: #6e7681; border-radius: 3px;"
-            )
+            self._dot.setStyleSheet("background-color: #6e7681; border-radius: 3px;")
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
         self.selected.emit(self._model_id)
@@ -118,11 +111,7 @@ class ModelDropdown(QWidget):
         self._frame = QFrame(self)
         self._frame.setGraphicsEffect(shadow)
         self._frame.setStyleSheet(
-            "QFrame {"
-            " background-color: #1c2128;"
-            " border: 1px solid #484f58;"
-            " border-radius: 10px;"
-            "}"
+            "QFrame { background-color: #1c2128; border: 1px solid #484f58; border-radius: 10px;}"
         )
 
         self._layout = QVBoxLayout(self._frame)

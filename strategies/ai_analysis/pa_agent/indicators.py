@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """价格行为指标计算（ATR / EMA）。
 
 从原 ``PA_Agent/pa_agent/indicators/atr.py`` 与 ``ema.py`` 提取，
@@ -11,6 +10,7 @@
     - EMA: 前 period-1 个值为 nan 暖机；第 period 个为前 period 个值的简单平均；
       之后采用标准 EMA  prev = x*α + prev*(1-α), α = 2/(period+1)
 """
+
 from __future__ import annotations
 
 import math
@@ -19,17 +19,18 @@ from typing import Any
 
 import pandas as pd
 
-
 # ── ATR (Average True Range, Wilder smoothing) ───────────────────────────────
+
 
 @dataclass(frozen=True)
 class AtrState:
     """增量 ATR 计算的最小状态。"""
-    last: float        # 最近一次 ATR 值（暖机期为 nan）
+
+    last: float  # 最近一次 ATR 值（暖机期为 nan）
     period: int
-    count: int         # 已处理的 bar 数
+    count: int  # 已处理的 bar 数
     prev_close: float  # 上一根 bar 的收盘价（未设置时为 nan）
-    _sum_tr: float     # 暖机期 TR 的累计和
+    _sum_tr: float  # 暖机期 TR 的累计和
 
 
 def _true_range(high: float, low: float, prev_close: float) -> float:
@@ -90,20 +91,29 @@ def atr_incremental(state: AtrState, high: float, low: float, close: float) -> A
 
     if count < period:
         return AtrState(
-            last=math.nan, period=period, count=count,
-            prev_close=close, _sum_tr=state._sum_tr + tr,
+            last=math.nan,
+            period=period,
+            count=count,
+            prev_close=close,
+            _sum_tr=state._sum_tr + tr,
         )
     elif count == period:
         seed = (state._sum_tr + tr) / period
         return AtrState(
-            last=seed, period=period, count=count,
-            prev_close=close, _sum_tr=0.0,
+            last=seed,
+            period=period,
+            count=count,
+            prev_close=close,
+            _sum_tr=0.0,
         )
     else:
         new_last = (state.last * (period - 1) + tr) / period
         return AtrState(
-            last=new_last, period=period, count=count,
-            prev_close=close, _sum_tr=0.0,
+            last=new_last,
+            period=period,
+            count=count,
+            prev_close=close,
+            _sum_tr=0.0,
         )
 
 
@@ -114,13 +124,15 @@ def make_atr_state(period: int = 14) -> AtrState:
 
 # ── EMA (Exponential Moving Average) ─────────────────────────────────────────
 
+
 @dataclass(frozen=True)
 class EmaState:
     """增量 EMA 计算的最小状态。"""
-    last: float    # 最近一次 EMA 值（暖机期为 nan）
+
+    last: float  # 最近一次 EMA 值（暖机期为 nan）
     period: int
-    count: int     # 已处理的值数
-    _sum: float    # 暖机期的累计和
+    count: int  # 已处理的值数
+    _sum: float  # 暖机期的累计和
 
 
 def ema_full(values: list[float], period: int) -> list[float]:
@@ -175,6 +187,7 @@ def make_ema_state(period: int) -> EmaState:
 
 
 # ── DataFrame 适配入口 ─────────────────────────────────────────────────────────
+
 
 def _is_nan(x: Any) -> bool:
     """宽松判断标量是否为 NaN（兼容 None / 非数值）。"""

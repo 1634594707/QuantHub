@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """A股新闻情绪扫描 策略模块。
 
 把原 ``trading-master/01-News_Sentiment_Scanner`` 下沉为 QuantHub 策略插件：
@@ -10,6 +9,7 @@
     - NewsScannerStrategy : 策略类（继承 StrategyBase，已 @register_strategy）
     - scan                : 供 apps.scheduler 调用的扫描入口
 """
+
 from __future__ import annotations
 
 from strategies.a_shares.news_scanner.strategy import NewsScannerStrategy, scan

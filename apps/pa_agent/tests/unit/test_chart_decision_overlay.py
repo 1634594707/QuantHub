@@ -1,4 +1,5 @@
 """Tests for chart continuity overlay enrichment."""
+
 from __future__ import annotations
 
 from types import SimpleNamespace
@@ -69,7 +70,12 @@ def test_enrich_keeps_previous_prices_on_wait_no_order() -> None:
 def test_enrich_skips_when_previous_plan_invalidated() -> None:
     frame = _frame()
     frame.bars[0] = _bar(2625.0, high=2631.0, low=2624.0)
-    current = {"order_type": "不下单", "entry_price": None, "take_profit_price": None, "stop_loss_price": None}
+    current = {
+        "order_type": "不下单",
+        "entry_price": None,
+        "take_profit_price": None,
+        "stop_loss_price": None,
+    }
     out = enrich_decision_for_chart_overlay(
         current,
         stage2_full={"terminal": {"outcome": "wait"}},

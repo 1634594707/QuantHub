@@ -1,11 +1,10 @@
-# -*- coding: utf-8 -*-
 """core.data_feed 单测（不依赖网络）。"""
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta
 
 import pandas as pd
-import pytest
 
 from core.data_feed.base import (
     Announcement,
@@ -29,8 +28,17 @@ def test_market_enum():
 
 
 def test_kline_to_row():
-    k = Kline(symbol="000001", market="a_shares", interval="1d",
-              open=10, high=11, low=9.5, close=10.5, volume=1000, ts=datetime.now())
+    k = Kline(
+        symbol="000001",
+        market="a_shares",
+        interval="1d",
+        open=10,
+        high=11,
+        low=9.5,
+        close=10.5,
+        volume=1000,
+        ts=datetime.now(),
+    )
     row = k.to_row()
     assert row["symbol"] == "000001"
     assert row["open"] == 10
@@ -45,10 +53,28 @@ def test_klines_to_df_empty():
 
 def test_klines_to_df_sorted():
     now = datetime.now()
-    k1 = Kline(symbol="x", market="a_shares", interval="1d",
-               open=1, high=2, low=0.5, close=1.5, volume=10, ts=now)
-    k2 = Kline(symbol="x", market="a_shares", interval="1d",
-               open=1, high=2, low=0.5, close=1.5, volume=10, ts=now - timedelta(days=1))
+    k1 = Kline(
+        symbol="x",
+        market="a_shares",
+        interval="1d",
+        open=1,
+        high=2,
+        low=0.5,
+        close=1.5,
+        volume=10,
+        ts=now,
+    )
+    k2 = Kline(
+        symbol="x",
+        market="a_shares",
+        interval="1d",
+        open=1,
+        high=2,
+        low=0.5,
+        close=1.5,
+        volume=10,
+        ts=now - timedelta(days=1),
+    )
     df = klines_to_df([k1, k2])
     assert len(df) == 2
     # 升序
@@ -61,6 +87,7 @@ def test_datasource_default_news_empty():
     class Stub(DataSource):
         name = "stub"
         market = "a_shares"
+
         def get_kline(self, symbol, interval, start=None, end=None, limit=500):
             return pd.DataFrame()
 

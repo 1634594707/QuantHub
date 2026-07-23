@@ -1,4 +1,5 @@
 """Design tokens for the PA Agent dark trading-terminal theme (OKLch-inspired)."""
+
 from __future__ import annotations
 
 # ---------------------------------------------------------------------------

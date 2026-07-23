@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """价格行为两阶段 LLM 分析策略模块（PA Agent 迁移版）。
 
 导出:
@@ -6,6 +5,7 @@
     - run_analysis    : 供 apps.scheduler / CLI 调用的便捷分析入口
     - run_scheduled  : 供 apps.scheduler 定时批量遍历标的
 """
+
 from __future__ import annotations
 
 from strategies.ai_analysis.pa_agent.strategy import (

@@ -1,4 +1,5 @@
 """Synthetic newest-first K-line lists for tests."""
+
 from __future__ import annotations
 
 from pa_agent.data.base import KlineBar

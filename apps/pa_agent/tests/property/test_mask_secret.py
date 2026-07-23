@@ -1,7 +1,8 @@
 """Property-based tests for mask_secret (task 3.4 / PR6)."""
+
 from __future__ import annotations
-import pytest
-from hypothesis import given, settings as h_settings
+
+from hypothesis import given
 from hypothesis import strategies as st
 from pa_agent.util.mask_secret import mask_secret
 

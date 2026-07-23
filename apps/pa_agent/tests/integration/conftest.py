@@ -1,12 +1,11 @@
-# -*- coding: utf-8 -*-
 """Shared test infrastructure for TwoStageOrchestrator integration tests."""
+
 from __future__ import annotations
 
 import json
 from unittest.mock import MagicMock
 
 import pytest
-
 from pa_agent.data.base import IndicatorBundle, KlineBar, KlineFrame
 from tests.fixtures.gate_trace import make_bar_by_bar_summary, make_mandatory_gate_trace_proceed
 
@@ -177,10 +176,10 @@ def make_frame() -> KlineFrame:
         KlineBar(
             seq=i + 1,
             ts_open=1000 - i * 60000,
-            open=2000.0 + (n - 1 - i) * 2.0,   # older bars have lower price
+            open=2000.0 + (n - 1 - i) * 2.0,  # older bars have lower price
             high=2010.0 + (n - 1 - i) * 2.0,
             low=1990.0 + (n - 1 - i) * 2.0,
-            close=2005.0 + (n - 1 - i) * 2.0,   # close rises: K20=close~2005, K1=close~2043
+            close=2005.0 + (n - 1 - i) * 2.0,  # close rises: K20=close~2005, K1=close~2043
             volume=100.0,
             closed=(i > 0),
         )

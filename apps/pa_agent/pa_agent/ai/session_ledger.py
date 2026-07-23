@@ -1,4 +1,5 @@
 """Session-level token usage ledger (no pricing)."""
+
 from __future__ import annotations
 
 import logging
@@ -28,7 +29,7 @@ class SessionTokenLedger(QObject):
         self,
         context_window: int = 1_000_000,
         warn_pct: float = 80.0,
-        parent: "QObject | None" = None,
+        parent: QObject | None = None,
     ) -> None:
         super().__init__(parent)
         self._context_window = context_window

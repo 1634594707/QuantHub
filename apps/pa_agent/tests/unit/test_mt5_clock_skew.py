@@ -1,11 +1,12 @@
 """Unit tests: MT5 server clock skew vs local time in forming-bar countdown."""
+
 from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from pa_agent.data.bar_close_wait import seconds_until_bar_closes
+
+
 def test_countdown_inflates_when_local_lags_server_by_3h() -> None:
     """Reproduce Hantec-style skew: bar ts from MT5, now from Windows 3h behind."""
     offset_ms = 3 * 3600 * 1000
@@ -57,4 +58,3 @@ def test_mt5_server_time_ms_returns_none_when_disconnected() -> None:
 
     src = MT5Source()
     assert src.server_time_ms() is None
-

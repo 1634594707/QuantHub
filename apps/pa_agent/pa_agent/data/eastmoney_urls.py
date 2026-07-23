@@ -1,4 +1,5 @@
 """Build quote.eastmoney.com URLs for embedded web charts."""
+
 from __future__ import annotations
 
 from pa_agent.data.ashare_common import is_index_symbol, normalize_ashare_symbol

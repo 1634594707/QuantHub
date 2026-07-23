@@ -8,6 +8,7 @@
 注意：不要在 Spyder / Jupyter 里用 %runfile 启动本程序——会杀死当前内核。
 请用系统终端 ``python run.py``，或在 Spyder 中运行本文件（会自动转到独立进程）。
 """
+
 from __future__ import annotations
 
 import os
@@ -46,9 +47,7 @@ def _launch_detached_subprocess() -> None:
     cmd = [sys.executable, script, "--subprocess"]
     kwargs: dict = {"cwd": _here, "close_fds": True}
     if sys.platform == "win32":
-        kwargs["creationflags"] = (
-            subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
-        )
+        kwargs["creationflags"] = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
     subprocess.Popen(cmd, **kwargs)
 
 
@@ -60,7 +59,7 @@ def _print_embedded_console_help() -> None:
         "  继续在内核里运行会导致「The kernel died」且通常没有 Python  traceback。\n"
         "\n"
         "  已尝试在独立进程中启动 GUI。若窗口未出现，请在终端执行：\n"
-        f"      python \"{os.path.join(_here, 'run.py')}\"\n"
+        f'      python "{os.path.join(_here, "run.py")}"\n'
         "\n"
         "  崩溃排查可查看：logs/pa_agent.log 、 logs/crash.log\n"
         "══════════════════════════════════════════════════════════════\n"

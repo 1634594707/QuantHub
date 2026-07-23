@@ -1,4 +1,5 @@
 """Full stage-1 gate_trace fixtures for validator coherence tests."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -23,8 +24,7 @@ def make_mandatory_gate_trace_proceed(
         else:
             bar_range = f"K{hi}-K{lo}"
         reason = (
-            f"节点{nid}依据当前K线窗口{bar_range}完成定性判断，"
-            f"结构与周期识别一致，可继续后续分析。"
+            f"节点{nid}依据当前K线窗口{bar_range}完成定性判断，结构与周期识别一致，可继续后续分析。"
         )
         if nid == STAGE1_MANDATORY_GATE_NODES[-1]:
             reason += " 闸门通过，可进入阶段二。"

@@ -1,4 +1,5 @@
 """Lightweight K-line geometry features for prompt context."""
+
 from __future__ import annotations
 
 import math

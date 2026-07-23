@@ -1,19 +1,29 @@
 """Baostock fallback for A-share minute history beyond East Money rolling window."""
+
 from __future__ import annotations
 
 import contextlib
 import io
 import logging
 import threading
+from collections.abc import Callable
 from datetime import timedelta
-from typing import Any, Callable, TypeVar
+from typing import Any, TypeVar
 
 from pa_agent.data.ashare_common import (
     cn_now as _cn_now,
+)
+from pa_agent.data.ashare_common import (
     df_to_bars_asc as _df_to_bars_asc,
+)
+from pa_agent.data.ashare_common import (
     is_index_symbol,
     normalize_ashare_symbol,
+)
+from pa_agent.data.ashare_common import (
     normalize_ohlcv_df as _normalize_ohlcv_df,
+)
+from pa_agent.data.ashare_common import (
     resample_rows_to_4h as _resample_rows_to_4h,
 )
 from pa_agent.data.base import DataSourceTransientError
@@ -128,7 +138,7 @@ class _BaostockSession:
                         cls._force_reset_locked()
                         continue
                     raise
-                except Exception as exc:  # noqa: BLE001
+                except Exception as exc:
                     last_exc = exc
                     if attempt == 0:
                         logger.info(
@@ -138,12 +148,8 @@ class _BaostockSession:
                         )
                         cls._force_reset_locked()
                         continue
-                    raise DataSourceTransientError(
-                        f"Baostock {label} 失败: {exc}"
-                    ) from exc
-            raise DataSourceTransientError(
-                f"Baostock {label} 失败: {last_exc}"
-            ) from last_exc
+                    raise DataSourceTransientError(f"Baostock {label} 失败: {exc}") from exc
+            raise DataSourceTransientError(f"Baostock {label} 失败: {last_exc}") from last_exc
 
     @classmethod
     def _ensure_login_locked(cls) -> None:
@@ -166,7 +172,7 @@ class _BaostockSession:
 
             with contextlib.redirect_stdout(io.StringIO()):
                 bs.logout()
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.debug("Baostock logout: %s", exc)
         cls._logged_in = False
 
@@ -180,12 +186,12 @@ class _BaostockSession:
             if sock is not None:
                 try:
                     sock.close()
-                except Exception:  # noqa: BLE001
+                except Exception:
                     pass
-                setattr(ctx, "default_socket", None)
+                ctx.default_socket = None
             with contextlib.redirect_stdout(io.StringIO()):
                 bs.logout()
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.debug("Baostock force reset: %s", exc)
         cls._logged_in = False
 
@@ -219,7 +225,7 @@ def fetch_daily_history_baostock(symbol: str, n: int) -> list[dict[str, Any]]:
 
     import pandas as pd
 
-    cols = [x.strip() for x in "date,code,open,high,low,close,volume".split(",")]
+    cols = [x.strip() for x in ["date", "code", "open", "high", "low", "close", "volume"]]
     df = pd.DataFrame(data, columns=cols)
     norm = _normalize_ohlcv_df(df, time_col="date")
     return _df_to_bars_asc(norm, time_col="date")[-n:]
@@ -277,7 +283,9 @@ def fetch_minute_history_baostock(
     if freq != "d":
         time_digits = df["time"].astype(str).str.replace(r"\D", "", regex=True)
         # Baostock time: YYYYMMDDHHMMSSmmm (e.g. 20260302103000000)
-        bar_time = pd.to_datetime(time_digits.str.slice(0, 14), format="%Y%m%d%H%M%S", errors="coerce")
+        bar_time = pd.to_datetime(
+            time_digits.str.slice(0, 14), format="%Y%m%d%H%M%S", errors="coerce"
+        )
         slim = pd.DataFrame(
             {
                 "bar_time": bar_time,

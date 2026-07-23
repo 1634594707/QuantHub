@@ -1,4 +1,5 @@
 """Construct :class:`DataSource` implementations by kind id."""
+
 from __future__ import annotations
 
 from typing import Literal

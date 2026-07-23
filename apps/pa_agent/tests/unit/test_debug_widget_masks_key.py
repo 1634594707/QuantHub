@@ -4,6 +4,7 @@ Task 16.5 — pytest-qt test.
 
 Validates: Requirements R17.6, R4.5
 """
+
 from __future__ import annotations
 
 import pytest
@@ -12,7 +13,6 @@ import pytest
 pytest.importorskip("PyQt6")
 
 from pa_agent.util.mask_secret import mask_secret
-
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -31,6 +31,7 @@ def debug_widget(qtbot):
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+
 def _all_text_areas(widget) -> list[str]:
     """Return the plain-text content of all 4 QTextEdit areas."""
     return [
@@ -42,6 +43,7 @@ def _all_text_areas(widget) -> list[str]:
 
 
 # ── Tests ─────────────────────────────────────────────────────────────────────
+
 
 class TestDebugWidgetMasksKey:
     """DebugWidget must never display the plaintext API key in any text area."""

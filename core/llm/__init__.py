@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """统一 LLM 客户端。
 
 支持 DeepSeek / OpenAI 兼容接口（统一走 openai SDK），支持远程 API。
@@ -9,13 +8,14 @@
     - 超时 / 重试
     - token 估算（tiktoken）
 """
+
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
 from typing import Any
 
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from core.config import get_config
 
@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class LLMResponse:
     """LLM 响应封装。"""
+
     content: str
     model: str
     usage: dict[str, int] | None = None
@@ -55,8 +56,7 @@ class LLMClient:
         except ImportError as e:
             raise ImportError("openai 未安装，请运行: pip install openai") from e
         self._OpenAI = OpenAI
-        self._client = OpenAI(api_key=self._api_key, base_url=self._base_url,
-                              timeout=self._timeout)
+        self._client = OpenAI(api_key=self._api_key, base_url=self._base_url, timeout=self._timeout)
 
     def _retryer(self):
         return retry(
@@ -118,9 +118,10 @@ class LLMClient:
         """粗略估算 token 数（tiktoken，可能不精确适用于中文）。"""
         try:
             import tiktoken
+
             enc = tiktoken.get_encoding("cl100k_base")
             return len(enc.encode(text))
-        except Exception:  # noqa: BLE001
+        except Exception:
             # fallback: 字符数 / 2
             return max(1, len(text) // 2)
 

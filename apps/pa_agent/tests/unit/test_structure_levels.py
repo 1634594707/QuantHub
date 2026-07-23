@@ -1,4 +1,5 @@
 """Tests for deterministic Stage 1 support/resistance refresh."""
+
 from __future__ import annotations
 
 from pa_agent.ai.stage1_normalizer import normalize_stage1
@@ -25,7 +26,9 @@ def _frame_from_closes(closes: list[float]) -> KlineFrame:
         symbol="BTCUSDm",
         timeframe="5m",
         bars=tuple(bars),
-        indicators=IndicatorBundle(ema20=tuple([float("nan")] * len(bars)), atr14=tuple([10.0] * len(bars))),
+        indicators=IndicatorBundle(
+            ema20=tuple([float("nan")] * len(bars)), atr14=tuple([10.0] * len(bars))
+        ),
         snapshot_ts_local_ms=0,
     )
 

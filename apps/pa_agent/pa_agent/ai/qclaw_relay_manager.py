@@ -1,11 +1,11 @@
 """Start and monitor the PA Agent QClaw reasoning relay."""
+
 from __future__ import annotations
 
 import json
 import logging
 import os
 import subprocess
-import sys
 import threading
 import time
 import uuid
@@ -106,7 +106,7 @@ def _start_relay_via_openclaw_gateway(token: str, port: int) -> bool:
     node, mjs = cli
     relay_script = _RELAY_SCRIPT.resolve()
     message = (
-        f'/exec background=true yieldMs=600000 '
+        f"/exec background=true yieldMs=600000 "
         f'python "{relay_script}" --port {port} --self-test --token {token}'
     )
     params = json.dumps(
@@ -180,8 +180,7 @@ def ensure_qclaw_relay(token: str, *, port: int = _DEFAULT_RELAY_PORT) -> tuple[
         if not _start_relay_via_openclaw_gateway(token, port):
             return (
                 False,
-                "无法通过 QClaw Gateway 启动 reasoning 中继代理。"
-                "请确认 QClaw 正在运行。",
+                "无法通过 QClaw Gateway 启动 reasoning 中继代理。请确认 QClaw 正在运行。",
             )
 
         if not _wait_for_relay(port, _STARTUP_TIMEOUT_S):

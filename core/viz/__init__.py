@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """统一可视化组件库。
 
 提供:
@@ -8,10 +7,11 @@
 
 Plotly / Streamlit 按 extra 安装（uv sync --extra viz）。
 """
+
 from __future__ import annotations
 
 import logging
-from typing import Iterable
+from collections.abc import Iterable
 
 import pandas as pd
 
@@ -41,14 +41,19 @@ def plot_equity_curve(equity: pd.DataFrame, title: str = "权益曲线") -> obje
         return go.Figure()
 
     fig = go.Figure()
-    fig.add_trace(go.Scatter(
-        x=equity["datetime"], y=equity["equity"],
-        mode="lines", name="Equity",
-        line=dict(color=COLORS["primary"], width=2),
-    ))
+    fig.add_trace(
+        go.Scatter(
+            x=equity["datetime"],
+            y=equity["equity"],
+            mode="lines",
+            name="Equity",
+            line=dict(color=COLORS["primary"], width=2),
+        )
+    )
     fig.update_layout(
         title=title,
-        xaxis_title="日期", yaxis_title="权益",
+        xaxis_title="日期",
+        yaxis_title="权益",
         template="plotly_white",
         hovermode="x unified",
     )
@@ -65,16 +70,25 @@ def plot_kline(klines: pd.DataFrame, title: str = "K线图") -> object:
     if klines.empty:
         return go.Figure()
 
-    fig = go.Figure(data=[go.Candlestick(
-        x=klines["datetime"],
-        open=klines["open"], high=klines["high"],
-        low=klines["low"], close=klines["close"],
-        increasing_line_color=COLORS["up"],
-        decreasing_line_color=COLORS["down"],
-    )])
+    fig = go.Figure(
+        data=[
+            go.Candlestick(
+                x=klines["datetime"],
+                open=klines["open"],
+                high=klines["high"],
+                low=klines["low"],
+                close=klines["close"],
+                increasing_line_color=COLORS["up"],
+                decreasing_line_color=COLORS["down"],
+            )
+        ]
+    )
     fig.update_layout(
-        title=title, xaxis_title="日期", yaxis_title="价格",
-        template="plotly_white", xaxis_rangeslider_visible=False,
+        title=title,
+        xaxis_title="日期",
+        yaxis_title="价格",
+        template="plotly_white",
+        xaxis_rangeslider_visible=False,
     )
     return fig
 
@@ -88,12 +102,19 @@ def render_signal_table(signals: Iterable) -> None:
 
     rows = []
     for s in signals:
-        rows.append({
-            "时间": s.ts, "来源": s.source, "标的": s.symbol,
-            "市场": s.market, "方向": s.direction, "评分": f"{s.score:.2f}",
-            "置信度": f"{s.confidence:.2f}", "周期": s.timeframe,
-            "标签": ",".join(s.tags),
-        })
+        rows.append(
+            {
+                "时间": s.ts,
+                "来源": s.source,
+                "标的": s.symbol,
+                "市场": s.market,
+                "方向": s.direction,
+                "评分": f"{s.score:.2f}",
+                "置信度": f"{s.confidence:.2f}",
+                "周期": s.timeframe,
+                "标签": ",".join(s.tags),
+            }
+        )
     if not rows:
         st.info("暂无信号")
         return

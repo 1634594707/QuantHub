@@ -1,7 +1,6 @@
 """Chart skip-redraw when frozen closed frame matches snapshot."""
-from __future__ import annotations
 
-import math
+from __future__ import annotations
 
 from pa_agent.data.base import IndicatorBundle, KlineBar, KlineFrame
 from pa_agent.data.snapshot import frame_is_pure_closed, frames_equal_for_chart

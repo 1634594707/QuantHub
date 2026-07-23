@@ -1,4 +1,5 @@
 """TradingView user-facing error messages."""
+
 from __future__ import annotations
 
 from pa_agent.data.tradingview_errors import format_tradingview_fetch_error

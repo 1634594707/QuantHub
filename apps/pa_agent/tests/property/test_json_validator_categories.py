@@ -1,18 +1,18 @@
 """Property-based tests for JsonValidator category classification (task 8.4 / PR7)."""
+
 from __future__ import annotations
 
 import json
-import pytest
-from pa_agent.ai.json_validator import JsonValidator, Ok, ValidationError
-from pa_agent.config.settings import ValidationSettings
-from tests.fixtures.gate_trace import make_bar_by_bar_summary, make_mandatory_gate_trace_proceed
 
+from pa_agent.ai.json_validator import Ok, ValidationError
+from tests.fixtures.gate_trace import make_bar_by_bar_summary, make_mandatory_gate_trace_proceed
 from tests.fixtures.validators import schema_test_validator, strict_test_validator
 
 validator = strict_test_validator()
 lenient_validator = schema_test_validator()
 
 # ── Minimal valid Stage 1 object ──────────────────────────────────────────────
+
 
 def _valid_stage1() -> dict:
     return {
@@ -96,6 +96,7 @@ def _valid_stage2() -> dict:
 
 
 # ── Category tests ────────────────────────────────────────────────────────────
+
 
 def test_valid_stage1_returns_ok():
     """Valid Stage 1 JSON returns Ok.

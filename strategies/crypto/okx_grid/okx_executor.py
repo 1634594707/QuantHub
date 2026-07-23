@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """OKX 实盘下单适配器。
 
 复用 ``core.data_feed.okx_source.OkxSource`` 的 ``_exchange`` 实例（ccxt.okx），
@@ -7,6 +6,7 @@
 实盘默认关闭：``live=False`` 时所有方法返回拟下单 JSON（dry-run），
 不触达交易所；仅当 ``live=True`` 时才真正调用 ccxt 私有接口。
 """
+
 from __future__ import annotations
 
 import logging

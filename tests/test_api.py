@@ -1,5 +1,5 @@
-# -*- coding: utf-8 -*-
 """apps.api 统一网关集成测试（TestClient，不依赖网络/模型）。"""
+
 from __future__ import annotations
 
 import pytest
@@ -41,8 +41,7 @@ def test_unknown_strategy_404(client):
 
 def test_run_realtime_analyzer_offline(client):
     """离线（无网络/LLM）下实时分析器降级为快照，网关应返回 200 + 结构化结果。"""
-    r = client.post("/strategies/realtime_analyzer/run",
-                    json={"params": {"codes": ["600519"]}})
+    r = client.post("/strategies/realtime_analyzer/run", json={"params": {"codes": ["600519"]}})
     assert r.status_code == 200
     body = r.json()
     assert body["name"] == "realtime_analyzer"
@@ -55,10 +54,17 @@ def test_run_realtime_analyzer_offline(client):
 
 
 def test_signal_publish_and_read(client):
-    r = client.post("/signals/publish", json={
-        "symbol": "BTC", "market": "crypto", "direction": "buy",
-        "score": 0.9, "confidence": 0.7, "source": "api_test",
-    })
+    r = client.post(
+        "/signals/publish",
+        json={
+            "symbol": "BTC",
+            "market": "crypto",
+            "direction": "buy",
+            "score": 0.9,
+            "confidence": 0.7,
+            "source": "api_test",
+        },
+    )
     assert r.status_code == 200
     assert r.json()["ok"] is True
 

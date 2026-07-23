@@ -4,6 +4,7 @@ Computes only objective, low-ambiguity facts (range position, overlap, swings,
 breakout reclaim, H/L count triggers, structure/MM candidates). Complex pattern
 labels (wedge, MTR, etc.) remain with the model.
 """
+
 from __future__ import annotations
 
 import math
@@ -204,9 +205,7 @@ def render_simple_market_features(features: SimpleMarketFeatures) -> str:
                 "lower_third": "下三分之一（偏支撑/下沿）",
                 "unknown": "未知",
             }.get(features.zone, features.zone)
-            lines.append(
-                f"- 收盘位置分位：**{features.price_position:.2f}** → {zone_zh}"
-            )
+            lines.append(f"- 收盘位置分位：**{features.price_position:.2f}** → {zone_zh}")
         if features.dist_to_high_atr is not None and features.dist_to_low_atr is not None:
             lines.append(
                 f"- 距上沿 {features.dist_to_high_atr}×ATR / 距下沿 {features.dist_to_low_atr}×ATR"
@@ -555,7 +554,9 @@ def _pullback_metrics(
         pivot_price = lows[-1].price
         depth = max(0.0, close - pivot_price)
 
-    pivot_seq = highs[-1].seq if highs and (not lows or highs[-1].seq >= lows[-1].seq) else lows[-1].seq
+    pivot_seq = (
+        highs[-1].seq if highs and (not lows or highs[-1].seq >= lows[-1].seq) else lows[-1].seq
+    )
     bars_since = max(0, pivot_seq - 1)
     return round(depth / atr, 3), bars_since
 
@@ -706,9 +707,7 @@ def _compute_hl_count(bars: tuple[KlineBar, ...], atr: float | None) -> HLCountS
             bull += 1
             last_bull = int(newer.seq)
         elif (
-            float(newer.close) < float(older.low)
-            and reset_range > 0
-            and newer_range >= reset_range
+            float(newer.close) < float(older.low) and reset_range > 0 and newer_range >= reset_range
         ):
             bull = 0
 

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """QuantHub 策略脚手架 —— 资深开发者定的"团队规范即代码"。
 
 按 docs/CODE_QUALITY.md 的契约，一键生成一个**合规**的策略包：
@@ -20,14 +19,13 @@
     - 登记步骤幂等（已存在则跳过）。
     - --dry-run 完全不写盘，只打印将要做什么。
 """
+
 from __future__ import annotations
 
 import argparse
 import logging
 import re
-import shutil
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -105,7 +103,7 @@ def run_{name}(symbol: str | None = None, **kwargs: Any) -> list:
 __all__ = ["{class_name}", "run_{name}"]
 '''
 
-_PYPROJECT_TPL = '''[project]
+_PYPROJECT_TPL = """[project]
 name = "quanthub-{name}"
 version = "0.1.0"
 description = "{desc}"
@@ -118,14 +116,14 @@ dependencies = [
 [tool.uv.sources]
 quanthub-core = {{ workspace = true }}
 strategies-base = {{ workspace = true }}
-'''
+"""
 
 
 def _class_name(name: str) -> str:
     return "".join(w.capitalize() for w in name.split("_")) + "Strategy"
 
 
-def _insert_before_closing_bracket(text: str, marker: str, new_line: str) -> Optional[str]:
+def _insert_before_closing_bracket(text: str, marker: str, new_line: str) -> str | None:
     """在 text 中定位以 marker 开头的块，在其闭合 `]` 前插入 new_line（幂等）。"""
     if new_line.strip() in text:
         return None  # 已存在，跳过
@@ -144,7 +142,7 @@ def _insert_before_closing_bracket(text: str, marker: str, new_line: str) -> Opt
     return text[:insert_at] + prefix + new_line.strip() + "\n" + text[insert_at:]
 
 
-def _append_yaml_module(text: str, name: str, desc: str) -> Optional[str]:
+def _append_yaml_module(text: str, name: str, desc: str) -> str | None:
     """在 configs yaml 的 modules: 块末尾插入新模块（幂等）。"""
     if f"  {name}:" in text:
         return None
@@ -152,7 +150,7 @@ def _append_yaml_module(text: str, name: str, desc: str) -> Optional[str]:
     mod_idx = next((i for i, l in enumerate(lines) if l.strip() == "modules:"), None)
     if mod_idx is None:
         # 无 modules 段则追加
-        block = f"\nmodules:\n  {name}:\n    enabled: false\n    description: \"{desc}\"\n"
+        block = f'\nmodules:\n  {name}:\n    enabled: false\n    description: "{desc}"\n'
         return text + block
     # 找 modules: 下最后一个 2 空格缩进的子项
     last = mod_idx
@@ -161,8 +159,8 @@ def _append_yaml_module(text: str, name: str, desc: str) -> Optional[str]:
             last = j
         elif re.match(r"\S", lines[j]):  # 遇到顶格/其它键，块结束
             break
-    new_block = f"  {name}:\n    enabled: false\n    description: \"{desc}\"\n"
-    out = lines[:last + 1] + [new_block] + lines[last + 1:]
+    new_block = f'  {name}:\n    enabled: false\n    description: "{desc}"\n'
+    out = lines[: last + 1] + [new_block] + lines[last + 1 :]
     return "".join(out)
 
 
@@ -188,7 +186,11 @@ def scaffold(
 
     class_name = _class_name(name)
     strategy_py = _STRATEGY_TPL.format(
-        name=name, market=market, desc=desc, author=author, class_name=class_name,
+        name=name,
+        market=market,
+        desc=desc,
+        author=author,
+        class_name=class_name,
         live_capable=str(live_capable).lower(),
     )
     init_py = _INIT_TPL.format(name=name, market=market, desc=desc, class_name=class_name)
@@ -244,7 +246,9 @@ def scaffold(
     root_pyproject = repo_root / "pyproject.toml"
     member_line = f'    "strategies/{market}/{name}",'
     if dry_run:
-        log.append(f"[dry-run] 将在 {root_pyproject} 的 [tool.uv.workspace] members 追加: {member_line}")
+        log.append(
+            f"[dry-run] 将在 {root_pyproject} 的 [tool.uv.workspace] members 追加: {member_line}"
+        )
     else:
         t = root_pyproject.read_text(encoding="utf-8")
         new_t = _insert_before_closing_bracket(t, "[tool.uv.workspace]", member_line)
@@ -256,10 +260,12 @@ def scaffold(
 
     log.append("")
     log.append("下一步：")
-    log.append(f"  uv sync                         # 安装新成员")
-    log.append(f"  uv run pytest tests/ -q        # 必须全绿（记得加 tests/ 覆盖新策略）")
-    log.append(f"  uv run python -c \"from strategies import discover_and_register, list_strategies; "
-               f"discover_and_register(); print('{name}' in list_strategies())\"")
+    log.append("  uv sync                         # 安装新成员")
+    log.append("  uv run pytest tests/ -q        # 必须全绿（记得加 tests/ 覆盖新策略）")
+    log.append(
+        f'  uv run python -c "from strategies import discover_and_register, list_strategies; '
+        f"discover_and_register(); print('{name}' in list_strategies())\""
+    )
     return log
 
 
@@ -276,9 +282,13 @@ def main() -> None:
 
     try:
         log = scaffold(
-            name=args.name, market=args.market, desc=args.desc or args.name,
-            author=args.author, live_capable=args.live_capable,
-            repo_root=Path(args.repo), dry_run=args.dry_run,
+            name=args.name,
+            market=args.market,
+            desc=args.desc or args.name,
+            author=args.author,
+            live_capable=args.live_capable,
+            repo_root=Path(args.repo),
+            dry_run=args.dry_run,
         )
     except (ValueError, FileExistsError) as e:
         print(f"[错误] {e}")

@@ -1,4 +1,5 @@
 """User-facing Chinese messages for TradingView / tvdatafeed failures."""
+
 from __future__ import annotations
 
 from pa_agent.data.market_defaults import (
@@ -89,10 +90,7 @@ def format_tradingview_fetch_error(
             hint = "TVC + GOLD"
         elif ex == "CAPITALCOM":
             hint = "CAPITALCOM + GOLD"
-        return (
-            f"TradingView 无数据（{ex} / {sym}）："
-            f"该组合可能无效，现货黄金请用 {hint}"
-        )
+        return f"TradingView 无数据（{ex} / {sym}）：该组合可能无效，现货黄金请用 {hint}"
 
     if cause is not None:
         return f"TradingView 拉取失败（{ex_hint} / {sym}）：{cause}"

@@ -1,4 +1,5 @@
 """Refresh interval, cache TTL, and zombie-loop timing for data sources."""
+
 from __future__ import annotations
 
 HTTP_POLL_SOURCES: frozenset[str] = frozenset({"eastmoney", "akshare"})

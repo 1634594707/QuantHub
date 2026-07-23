@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """A股晨会简报策略。
 
 把原 ``trading-master/03-daily_news/daily-news``（晨会简报）下沉为 QuantHub 策略模块：
@@ -15,6 +14,7 @@ prompt 规格（full / intraday / swing）对应原 A/B/C 三档报告：
     - intraday → A档 日内交易报告
     - swing    → B档 波段交易报告
 """
+
 from __future__ import annotations
 
 import logging
@@ -28,10 +28,10 @@ from core.config import get_config
 from core.data_feed import Interval, get_data_source
 from core.llm import get_llm
 from core.signals import Signal
-from strategies.a_shares.morning_brief.pivot import calc_pivots, pivots_from_klines
+from strategies.a_shares.morning_brief.pivot import pivots_from_klines
 from strategies.a_shares.morning_brief.scoring import (
-    ScoringInput,
     ScoreBreakdown,
+    ScoringInput,
     score_environment,
 )
 from strategies.base import StrategyBase, StrategyInfo, register_strategy
@@ -334,12 +334,15 @@ _PROMPTS = {
 # 策略
 # ─────────────────────────────────────────────
 
-@register_strategy(StrategyInfo(
-    name="morning_brief",
-    market="a_shares",
-    live_capable=False,
-    description="A股晨会简报自动生成",
-))
+
+@register_strategy(
+    StrategyInfo(
+        name="morning_brief",
+        market="a_shares",
+        live_capable=False,
+        description="A股晨会简报自动生成",
+    )
+)
 class MorningBriefStrategy(StrategyBase):
     """A股晨会简报策略。
 
@@ -386,7 +389,7 @@ class MorningBriefStrategy(StrategyBase):
         index_data = self._fetch_indices(ds, symbols, kline_limit)
         try:
             news_list = ds.get_news(symbol=None, limit=news_limit)
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.exception("获取市场新闻失败")
             news_list = []
 
@@ -398,7 +401,7 @@ class MorningBriefStrategy(StrategyBase):
         if scoring_input is not None:
             try:
                 score = score_environment(scoring_input)
-            except Exception:  # noqa: BLE001
+            except Exception:
                 logger.exception("评分计算失败，简报将缺少评分区块")
                 score = None
 
@@ -436,13 +439,17 @@ class MorningBriefStrategy(StrategyBase):
             entry: dict = {"symbol": sym, "ok": False}
             try:
                 df = ds.get_kline(sym, Interval.DAILY, limit=kline_limit)
-            except Exception:  # noqa: BLE001
+            except Exception:
                 logger.warning("获取 K线失败: %s", sym, exc_info=True)
                 df = pd.DataFrame()
             if df is None or df.empty:
                 out.append(entry)
                 continue
-            df = df.sort_values("datetime").reset_index(drop=True) if "datetime" in df.columns else df
+            df = (
+                df.sort_values("datetime").reset_index(drop=True)
+                if "datetime" in df.columns
+                else df
+            )
             entry["df"] = df
             entry["pivots"] = pivots_from_klines(df)
             entry["ta"] = self._basic_ta(df)
@@ -457,8 +464,13 @@ class MorningBriefStrategy(StrategyBase):
 
         数据不足时对应字段返回 None / False，不抛异常。
         """
-        out: dict = {"above_ma20": False, "above_ma50": False, "above_ma200": False,
-                     "rsi": None, "macd_positive": False}
+        out: dict = {
+            "above_ma20": False,
+            "above_ma50": False,
+            "above_ma200": False,
+            "rsi": None,
+            "macd_positive": False,
+        }
         if df is None or df.empty or "close" not in df.columns:
             return out
         close = df["close"].astype(float)
@@ -545,16 +557,21 @@ class MorningBriefStrategy(StrategyBase):
             rsi=ta["rsi"] if ta["rsi"] is not None else 50.0,
             macd_positive=ta["macd_positive"],
             above_pivot=above_pivot,
-            breadth_available=False,          # 无广度数据 → 代理口径
+            breadth_available=False,  # 无广度数据 → 代理口径
             etf_change=etf_change,
             news_risk_adj=0.0,
-            macro_bull=0, macro_bear=0,
-            commodity_bull=0, commodity_bear=0,
-            event_bull=0, event_bear=0,
+            macro_bull=0,
+            macro_bear=0,
+            commodity_bull=0,
+            commodity_bear=0,
+            event_bull=0,
+            event_bear=0,
             available=ok_count,
             total=total if total else 1,
-            consistent=0, verifiable=0,       # 单源，未做双源校验
-            gaps=0, divergences=0,
+            consistent=0,
+            verifiable=0,  # 单源，未做双源校验
+            gaps=0,
+            divergences=0,
         )
 
     # ------------------------------------------------------------------
@@ -610,7 +627,9 @@ class MorningBriefStrategy(StrategyBase):
         if score is not None:
             lines.append("## 影响评分（固定公式计算结果，禁止主观调整）")
             lines.append(f"- 技术结构强度: {score.tech:.1f}")
-            lines.append(f"- 风险偏好温度: {score.risk:.1f}（{score.risk_label}{'，[代理]' if score.is_proxy else ''}）")
+            lines.append(
+                f"- 风险偏好温度: {score.risk:.1f}（{score.risk_label}{'，[代理]' if score.is_proxy else ''}）"
+            )
             lines.append(f"- 宏观与流动性支持: {score.macro:.1f}")
             lines.append(f"- 商品与通胀扰动: {score.commodity:.1f}")
             lines.append(f"- 事件冲击可控度: {score.event:.1f}")
@@ -643,10 +662,7 @@ class MorningBriefStrategy(StrategyBase):
             {"role": "system", "content": f"报告规格:\n{prompt}"},
             {
                 "role": "user",
-                "content": (
-                    f"以下是当日市场上下文，请按报告规格生成今日晨会简报：\n\n"
-                    f"{context}"
-                ),
+                "content": (f"以下是当日市场上下文，请按报告规格生成今日晨会简报：\n\n{context}"),
             },
         ]
         provider = kwargs.get("llm_provider")
@@ -655,7 +671,7 @@ class MorningBriefStrategy(StrategyBase):
             llm = get_llm(provider)
             resp = llm.chat(messages, temperature=temperature)
             return (resp.content or "").strip()
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.exception("LLM 生成简报失败")
             return ""
 
@@ -680,7 +696,7 @@ class MorningBriefStrategy(StrategyBase):
                 symbol=",".join(symbols[:3]),
                 market=_MARKET,
                 timeframe="daily",
-                direction="hold",           # 信息型信号，非买卖建议
+                direction="hold",  # 信息型信号，非买卖建议
                 score=sig_score,
                 confidence=confidence,
                 source=_SOURCE,
@@ -709,7 +725,7 @@ class MorningBriefStrategy(StrategyBase):
         )
         try:
             return get_notifier().send(msg)
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.exception("简报推送失败")
             return {}
 
@@ -718,8 +734,10 @@ class MorningBriefStrategy(StrategyBase):
 # scheduler 入口
 # ─────────────────────────────────────────────
 
-def generate(symbols: list[str] | None = None, style: str = "full", push: bool = True,
-             **kwargs: Any) -> list[Signal]:
+
+def generate(
+    symbols: list[str] | None = None, style: str = "full", push: bool = True, **kwargs: Any
+) -> list[Signal]:
     """生成并（默认）推送当日晨会简报（供 apps.scheduler 调用）。
 
     Args:

@@ -5,7 +5,6 @@ import types
 
 import pandas as pd
 import pytest
-
 from pa_agent.config.settings import Settings
 from pa_agent.data.base import DataSourceTransientError
 from pa_agent.data.tushare_source import (

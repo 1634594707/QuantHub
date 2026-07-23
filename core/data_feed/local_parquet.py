@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """本地 Parquet K 线数据源（离线优先）。
 
 直接从 ``data/`` 目录读取已落地的 Parquet K 线，使所有策略
@@ -21,6 +20,7 @@
     src = get_data_source("crypto")        # 在线 OKX 优先，失败 fallback 到本地
     src = get_data_source("a_shares")     # 本地 parquet 优先，失败 fallback 到 akshare/东财
 """
+
 from __future__ import annotations
 
 import logging
@@ -96,7 +96,9 @@ class LocalParquetSource(DataSource):
         self._index = self._scan()
         logger.info(
             "[LocalParquet] 已索引 %d 个本地 K 线文件（root=%s，组=%s）",
-            len(self._index), self.root, list(self.groups.keys()),
+            len(self._index),
+            self.root,
+            list(self.groups.keys()),
         )
 
     # ── 文件索引 ───────────────────────────────────────────────
@@ -135,8 +137,20 @@ class LocalParquetSource(DataSource):
         limit: int = 500,
     ) -> pd.DataFrame:
         interval = Interval(interval).value if not isinstance(interval, str) else interval
-        cols = ["symbol", "market", "interval", "datetime", "open", "high",
-                 "low", "close", "volume", "amount", "turnover", "bar_time"]
+        cols = [
+            "symbol",
+            "market",
+            "interval",
+            "datetime",
+            "open",
+            "high",
+            "low",
+            "close",
+            "volume",
+            "amount",
+            "turnover",
+            "bar_time",
+        ]
 
         for gname, cfg in self.groups.items():
             norm = cfg.get("symbol_norm", "symbol")
@@ -159,11 +173,12 @@ class LocalParquetSource(DataSource):
         return pd.DataFrame(columns=cols)
 
     # ── 内部 ───────────────────────────────────────────────────
-    def _read(self, path: Path, symbol: str, interval: str,
-              cfg: dict, gname: str) -> pd.DataFrame | None:
+    def _read(
+        self, path: Path, symbol: str, interval: str, cfg: dict, gname: str
+    ) -> pd.DataFrame | None:
         try:
             df = pd.read_parquet(path)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.warning("[LocalParquet] 读取失败 %s: %s", path.name, exc)
             return None
 

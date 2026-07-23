@@ -1,4 +1,5 @@
 """Tests for §11 order-method routing."""
+
 from __future__ import annotations
 
 from pa_agent.ai.decision_nodes import route_order_method

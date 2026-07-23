@@ -1,4 +1,5 @@
 """Average True Range (ATR) — full and incremental (Wilder smoothing)."""
+
 from __future__ import annotations
 
 import math
@@ -8,11 +9,12 @@ from dataclasses import dataclass
 @dataclass(frozen=True)
 class AtrState:
     """Minimal state for incremental ATR computation."""
-    last: float       # most recent ATR value (nan during warm-up)
+
+    last: float  # most recent ATR value (nan during warm-up)
     period: int
-    count: int        # number of bars seen so far
-    prev_close: float # previous bar's close (nan if not yet set)
-    _sum_tr: float    # running sum of TR during warm-up
+    count: int  # number of bars seen so far
+    prev_close: float  # previous bar's close (nan if not yet set)
+    _sum_tr: float  # running sum of TR during warm-up
 
 
 def _true_range(high: float, low: float, prev_close: float) -> float:
@@ -78,20 +80,29 @@ def atr_incremental(state: AtrState, high: float, low: float, close: float) -> A
 
     if count < period:
         return AtrState(
-            last=math.nan, period=period, count=count,
-            prev_close=close, _sum_tr=state._sum_tr + tr,
+            last=math.nan,
+            period=period,
+            count=count,
+            prev_close=close,
+            _sum_tr=state._sum_tr + tr,
         )
     elif count == period:
         seed = (state._sum_tr + tr) / period
         return AtrState(
-            last=seed, period=period, count=count,
-            prev_close=close, _sum_tr=0.0,
+            last=seed,
+            period=period,
+            count=count,
+            prev_close=close,
+            _sum_tr=0.0,
         )
     else:
         new_last = (state.last * (period - 1) + tr) / period
         return AtrState(
-            last=new_last, period=period, count=count,
-            prev_close=close, _sum_tr=0.0,
+            last=new_last,
+            period=period,
+            count=count,
+            prev_close=close,
+            _sum_tr=0.0,
         )
 
 

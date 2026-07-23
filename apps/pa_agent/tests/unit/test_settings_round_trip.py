@@ -1,10 +1,10 @@
 """Unit tests for settings load/save round-trip (task 2.4)."""
+
 from __future__ import annotations
+
 import json
 from unittest.mock import patch
 
-import pytest
-from pathlib import Path
 from pa_agent.config.settings import Settings, load_settings, save_settings
 
 

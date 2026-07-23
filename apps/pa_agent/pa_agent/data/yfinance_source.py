@@ -6,6 +6,7 @@ NQ=F (Nasdaq), BTC-USD, etc.
 Note: yfinance data has ~15 min delay for futures. Intraday data
 (< 1d interval) is only available for the last 60 days.
 """
+
 from __future__ import annotations
 
 import logging
@@ -22,21 +23,21 @@ logger = logging.getLogger(__name__)
 
 # Map our timeframe strings → yfinance interval strings
 _TF_MAP: dict[str, str] = {
-    "1m":  "1m",
-    "2m":  "2m",
-    "5m":  "5m",
+    "1m": "1m",
+    "2m": "2m",
+    "5m": "5m",
     "15m": "15m",
     "30m": "30m",
-    "1h":  "1h",
-    "4h":  "1h",   # yfinance has no 4h; use 1h and take every 4th bar
-    "1d":  "1d",
-    "1w":  "1wk",
-    "1M":  "1mo",
+    "1h": "1h",
+    "4h": "1h",  # yfinance has no 4h; use 1h and take every 4th bar
+    "1d": "1d",
+    "1w": "1wk",
+    "1M": "1mo",
 }
 
 # How many bars to request from yfinance (we need more for 4h aggregation)
 _FETCH_MULTIPLIER: dict[str, int] = {
-    "4h": 4,   # fetch 4x bars then downsample
+    "4h": 4,  # fetch 4x bars then downsample
 }
 
 # yfinance period strings for intraday vs daily
@@ -60,6 +61,7 @@ class YFinanceSource(DataSource):
     def connect(self) -> None:
         try:
             import yfinance  # noqa: F401  — just verify it's installed
+
             self._connected = True
             logger.info("YFinanceSource connected (yfinance available)")
         except ImportError as exc:
@@ -75,14 +77,14 @@ class YFinanceSource(DataSource):
 
     def list_symbols(self) -> list[str]:
         return [
-            "GC=F",    # Gold futures
-            "CL=F",    # Crude Oil futures
-            "ES=F",    # S&P 500 futures
-            "NQ=F",    # Nasdaq futures
-            "SI=F",    # Silver futures
-            "HG=F",    # Copper futures
-            "BTC-USD", # Bitcoin
-            "ETH-USD", # Ethereum
+            "GC=F",  # Gold futures
+            "CL=F",  # Crude Oil futures
+            "ES=F",  # S&P 500 futures
+            "NQ=F",  # Nasdaq futures
+            "SI=F",  # Silver futures
+            "HG=F",  # Copper futures
+            "BTC-USD",  # Bitcoin
+            "ETH-USD",  # Ethereum
         ]
 
     def supported_timeframes(self) -> list[str]:
@@ -92,9 +94,7 @@ class YFinanceSource(DataSource):
 
     def subscribe(self, symbol: str, timeframe: str) -> None:
         if timeframe not in _TF_MAP:
-            raise ValueError(
-                f"Unsupported timeframe: {timeframe!r}. Use one of {list(_TF_MAP)}"
-            )
+            raise ValueError(f"Unsupported timeframe: {timeframe!r}. Use one of {list(_TF_MAP)}")
         self._symbol = symbol
         self._timeframe = timeframe
         logger.info("YFinanceSource subscribed: %s %s", symbol, timeframe)
@@ -126,7 +126,7 @@ class YFinanceSource(DataSource):
 
         # Choose period based on timeframe
         if self._timeframe in _INTRADAY_TF:
-            period = "60d"   # max for intraday
+            period = "60d"  # max for intraday
         else:
             period = "2y"
 
@@ -177,6 +177,7 @@ class YFinanceSource(DataSource):
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+
 def _resample_4h(df):
     """Resample a 1h OHLCV DataFrame to 4h bars."""
     import pandas as pd
@@ -190,13 +191,19 @@ def _resample_4h(df):
     if df.index.tz is None:
         df.index = df.index.tz_localize("UTC")
 
-    resampled = df.resample("4h").agg({
-        "Open":   "first",
-        "High":   "max",
-        "Low":    "min",
-        "Close":  "last",
-        "Volume": "sum",
-    }).dropna()
+    resampled = (
+        df.resample("4h")
+        .agg(
+            {
+                "Open": "first",
+                "High": "max",
+                "Low": "min",
+                "Close": "last",
+                "Volume": "sum",
+            }
+        )
+        .dropna()
+    )
     return resampled
 
 

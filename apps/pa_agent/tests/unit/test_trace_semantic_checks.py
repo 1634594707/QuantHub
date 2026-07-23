@@ -1,7 +1,6 @@
 """Unit tests for trace semantic validation."""
-from __future__ import annotations
 
-import json
+from __future__ import annotations
 
 from pa_agent.ai.stage1_normalizer import normalize_stage1
 from pa_agent.ai.trace_semantic_checks import (
@@ -93,9 +92,7 @@ def test_always_in_question_fuzzy_match() -> None:
 
 def test_channel_direction_question_paraphrase() -> None:
     expected = "通道方向是上涨还是下跌？"
-    assert _question_matches_tree(
-        expected, "通道方向是否为下跌？", node_id="4.2"
-    )
+    assert _question_matches_tree(expected, "通道方向是否为下跌？", node_id="4.2")
 
 
 def test_user_gate_trace_passes_after_normalize() -> None:

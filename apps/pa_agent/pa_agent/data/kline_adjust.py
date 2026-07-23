@@ -1,4 +1,5 @@
 """K-line price adjustment (复权) preference for A-share HTTP sources."""
+
 from __future__ import annotations
 
 from typing import Literal

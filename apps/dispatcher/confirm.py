@@ -1,9 +1,9 @@
-# -*- coding: utf-8 -*-
 """实盘 CLI 二次确认。
 
 下单前在终端要求人工输入确认码，避免误触发。
 配置见 configs/base.yaml: live_confirm
 """
+
 from __future__ import annotations
 
 import logging
@@ -46,8 +46,12 @@ def cli_confirm(order_summary: dict) -> bool:
     for k, v in order_summary.items():
         print(f"  {k}: {v}", file=sys.stderr)
     print("-" * 60, file=sys.stderr)
-    print(f"输入 '{token}' 确认下单（{timeout}秒超时自动取消）；其他输入取消: ",
-          end="", file=sys.stderr, flush=True)
+    print(
+        f"输入 '{token}' 确认下单（{timeout}秒超时自动取消）；其他输入取消: ",
+        end="",
+        file=sys.stderr,
+        flush=True,
+    )
 
     # Windows 不支持 select 超时读 stdin，用线程+队列实现
     import queue
@@ -60,7 +64,7 @@ def cli_confirm(order_summary: dict) -> bool:
         try:
             line = sys.stdin.readline().strip()
             q.put(line)
-        except Exception:  # noqa: BLE001
+        except Exception:
             q.put(None)
 
     t = threading.Thread(target=_reader, daemon=True)

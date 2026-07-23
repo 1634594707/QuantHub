@@ -3,19 +3,19 @@ history_for_api but preserves it in history_full.
 
 Task 12.4 — Validates: Requirements R11.4, R11.5
 """
+
 from __future__ import annotations
 
-from unittest.mock import MagicMock, call, patch
-import pytest
+from unittest.mock import MagicMock
 
 from pa_agent.orchestrator.free_chat import FreeChatSession
 from pa_agent.records.schema import AnalysisRecord, RecordMeta
 from pa_agent.util.threading import CancelToken
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_reply(content: str = "AI response", reasoning: str = "AI reasoning") -> MagicMock:
     """Build a mock AIReply."""
@@ -84,6 +84,7 @@ def _make_session(client: MagicMock) -> FreeChatSession:
 # Tests
 # ---------------------------------------------------------------------------
 
+
 class TestFreeChatResendDropsReasoning:
     """Default keep_reasoning_in_resend=False: reasoning stripped from API calls."""
 
@@ -134,9 +135,7 @@ class TestFreeChatResendDropsReasoning:
         session.send("question 2", cancel)
         session.send("question 3", cancel)
 
-        assistant_msgs = [
-            m for m in session.history_full if m.get("role") == "assistant"
-        ]
+        assistant_msgs = [m for m in session.history_full if m.get("role") == "assistant"]
         assert len(assistant_msgs) == 3
         for i, msg in enumerate(assistant_msgs, start=1):
             assert "reasoning_content" in msg, (

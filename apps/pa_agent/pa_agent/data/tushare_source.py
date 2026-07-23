@@ -1,4 +1,5 @@
 """Tushare-based A-share K-line data source."""
+
 from __future__ import annotations
 
 import logging

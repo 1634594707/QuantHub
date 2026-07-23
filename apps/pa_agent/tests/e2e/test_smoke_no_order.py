@@ -2,20 +2,19 @@
 
 Task 19.2
 """
+
 from __future__ import annotations
 
 import json
 from unittest.mock import MagicMock
 
-import pytest
 import pyqtgraph as pg
-
+import pytest
+from pa_agent.ai.router import route_strategy_files
 from pa_agent.app_context import AppContext
+from tests.fixtures.ai_payloads import VALID_STAGE1, VALID_STAGE2_NO_ORDER
 from tests.fixtures.kline_bars import make_newest_first_bars
 from tests.fixtures.validators import schema_test_validator
-from pa_agent.ai.router import route_strategy_files
-
-from tests.fixtures.ai_payloads import VALID_STAGE1, VALID_STAGE2_NO_ORDER
 
 
 def _make_reply(content_dict: dict) -> MagicMock:
@@ -79,16 +78,11 @@ def test_no_order_shows_no_trade_conclusion(qtbot, tmp_path):
 
     # DecisionPanel should show 不下单
     conclusion_text = window._decision_panel._conclusion_label.text()
-    assert "不下单" in conclusion_text, (
-        f"Expected 不下单 conclusion, got: {conclusion_text!r}"
-    )
+    assert "不下单" in conclusion_text, f"Expected 不下单 conclusion, got: {conclusion_text!r}"
 
     # Chart should have no InfiniteLine items (no entry/TP/SL lines)
     chart = window._chart_widget
-    infinite_lines = [
-        item for item in chart.items()
-        if isinstance(item, pg.InfiniteLine)
-    ]
+    infinite_lines = [item for item in chart.items() if isinstance(item, pg.InfiniteLine)]
     assert len(infinite_lines) == 0, (
         f"Expected no InfiniteLine items for 不下单, found {len(infinite_lines)}"
     )

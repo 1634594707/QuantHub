@@ -1,12 +1,11 @@
 """Timed replay of a saved AnalysisRecord through the same UI signals as live analysis."""
+
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any
-
-from PyQt6.QtCore import QObject, QTimer, pyqtSignal
 
 from pa_agent.records.schema import AnalysisRecord
+from PyQt6.QtCore import QObject, QTimer, pyqtSignal
 
 # One Unicode codepoint per “token”, like real API streaming.
 _CHAR_MS = 16

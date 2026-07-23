@@ -1,4 +1,5 @@
 """Application entry point for PA Agent."""
+
 from __future__ import annotations
 
 import logging
@@ -23,23 +24,28 @@ def main(argv: list[str] | None = None) -> int:
     app.setApplicationName("PA Agent")
 
     from pa_agent.gui.theme import apply_theme
+
     apply_theme(app)
 
     logger.info("PA Agent starting up")
 
     # Bootstrap all components (settings, data source, AI client, etc.)
     from pa_agent.app_context import AppContext
+
     ctx = AppContext.bootstrap()
 
     # Update logging with the real API key now that settings are loaded
     if ctx.settings is not None:
-        from pa_agent.util.logging import configure_logging, update_api_key
+        from pa_agent.util.logging import configure_logging
+
         configure_logging(api_key=ctx.settings.provider.api_key)
         from pa_agent.util.crash_diagnostics import log_startup_diagnostics
+
         log_startup_diagnostics()
 
     # Build and show the main window
     from pa_agent.gui.main_window import MainWindow
+
     window = MainWindow(ctx)
     window.show()
 

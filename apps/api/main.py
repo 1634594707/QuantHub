@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """QuantHub 统一 API 网关（单端口）。
 
 把分散在多个源项目里的 FastAPI/Flask 服务收口为 **一个** 进程、一个端口：
@@ -16,21 +15,23 @@
 
     uv run uvicorn apps.api.main:app --host 0.0.0.0 --port 8000
 """
+
 from __future__ import annotations
 
 import inspect
 import logging
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import datetime
-from typing import Any, AsyncIterator, Optional
+from typing import Any
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from strategies import discover_and_register, get_strategy, list_strategies
-from core.signals import Signal, get_bus
 from core.config import get_config
+from core.signals import Signal, get_bus
+from strategies import discover_and_register, get_strategy, list_strategies
 
 logger = logging.getLogger(__name__)
 
@@ -65,8 +66,9 @@ app.add_middleware(
 # 请求 / 响应模型
 # ---------------------------------------------------------------------------
 class RunRequest(BaseModel):
-    params: dict[str, Any] = Field(default_factory=dict,
-                                   description="透传给策略 produce() 的参数（如 codes/with_kline）")
+    params: dict[str, Any] = Field(
+        default_factory=dict, description="透传给策略 produce() 的参数（如 codes/with_kline）"
+    )
 
 
 class PublishRequest(BaseModel):
@@ -92,11 +94,16 @@ def _signal_to_dict(sig: Any) -> dict[str, Any]:
             pass
     if isinstance(sig, Signal):
         return {
-            "symbol": sig.symbol, "market": sig.market,
-            "timeframe": sig.timeframe, "direction": sig.direction,
-            "score": sig.score, "confidence": sig.confidence,
-            "source": sig.source, "tags": list(sig.tags or []),
-            "meta": sig.meta or {}, "ts": getattr(sig, "ts", None),
+            "symbol": sig.symbol,
+            "market": sig.market,
+            "timeframe": sig.timeframe,
+            "direction": sig.direction,
+            "score": sig.score,
+            "confidence": sig.confidence,
+            "source": sig.source,
+            "tags": list(sig.tags or []),
+            "meta": sig.meta or {},
+            "ts": getattr(sig, "ts", None),
         }
     return dict(sig)
 
@@ -142,12 +149,14 @@ def get_strategies() -> dict[str, Any]:
     _ensure_discovered()
     out = []
     for name, info in list_strategies().items():
-        out.append({
-            "name": name,
-            "market": info.market,
-            "live_capable": info.live_capable,
-            "description": info.description or "",
-        })
+        out.append(
+            {
+                "name": name,
+                "market": info.market,
+                "live_capable": info.live_capable,
+                "description": info.description or "",
+            }
+        )
     return {"count": len(out), "strategies": out}
 
 
@@ -196,9 +205,15 @@ def get_signals(limit: int = 50) -> dict[str, Any]:
 def publish_signal(req: PublishRequest) -> dict[str, Any]:
     _ensure_discovered()
     sig = Signal(
-        symbol=req.symbol, market=req.market, timeframe=req.timeframe,
-        direction=req.direction, score=req.score, confidence=req.confidence,
-        source=req.source, tags=req.tags, meta=req.meta,
+        symbol=req.symbol,
+        market=req.market,
+        timeframe=req.timeframe,
+        direction=req.direction,
+        score=req.score,
+        confidence=req.confidence,
+        source=req.source,
+        tags=req.tags,
+        meta=req.meta,
     )
     get_bus().publish(sig)
     return {"ok": True, "signal": _signal_to_dict(sig)}
@@ -206,4 +221,5 @@ def publish_signal(req: PublishRequest) -> dict[str, Any]:
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8000)

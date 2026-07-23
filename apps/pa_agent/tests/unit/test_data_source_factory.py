@@ -1,7 +1,9 @@
 """Tests for data source factory and settings."""
+
 from __future__ import annotations
 
 from pa_agent.config.settings import GeneralSettings
+from pa_agent.data.eastmoney_source import EastMoneySource
 from pa_agent.data.factory import (
     DATA_SOURCE_CHOICES,
     create_data_source,
@@ -9,10 +11,9 @@ from pa_agent.data.factory import (
     default_tradingview_exchange,
     normalize_data_source_kind,
 )
-from pa_agent.data.eastmoney_source import EastMoneySource
 from pa_agent.data.mt5 import MT5Source
-from pa_agent.data.tushare_source import TushareSource
 from pa_agent.data.tradingview import TradingViewSource
+from pa_agent.data.tushare_source import TushareSource
 
 
 def test_normalize_data_source_kind_defaults_unknown():

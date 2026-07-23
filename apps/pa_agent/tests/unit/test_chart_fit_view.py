@@ -1,4 +1,5 @@
 """ChartWidget auto-fit view range after symbol/timeframe or demo load."""
+
 from __future__ import annotations
 
 import math
@@ -140,9 +141,8 @@ class TestResizableAxisItem:
     """viewportEvent-based axis resize."""
 
     def test_axis_resize_via_viewport_event(self, chart_widget, qtbot):
-        from PyQt6.QtCore import QPointF
+        from PyQt6.QtCore import QEvent, QPointF, Qt
         from PyQt6.QtGui import QMouseEvent
-        from PyQt6.QtCore import QEvent, Qt
         from PyQt6.QtWidgets import QApplication
 
         vp = chart_widget.viewport()
@@ -150,23 +150,35 @@ class TestResizableAxisItem:
         initial_w = chart_widget.getPlotItem().getAxis("left").width()
 
         # Press near axis right edge → should start resize
-        me_press = QMouseEvent(QEvent.Type.MouseButtonPress, QPointF(edge_wx - 2, 300),
-                               Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton,
-                               Qt.KeyboardModifier.NoModifier)
+        me_press = QMouseEvent(
+            QEvent.Type.MouseButtonPress,
+            QPointF(edge_wx - 2, 300),
+            Qt.MouseButton.LeftButton,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
         QApplication.sendEvent(vp, me_press)
         assert chart_widget._axis_resizing is True
 
         # Drag right by 30px
-        me_drag = QMouseEvent(QEvent.Type.MouseMove, QPointF(edge_wx + 28, 300),
-                              Qt.MouseButton.NoButton, Qt.MouseButton.LeftButton,
-                              Qt.KeyboardModifier.NoModifier)
+        me_drag = QMouseEvent(
+            QEvent.Type.MouseMove,
+            QPointF(edge_wx + 28, 300),
+            Qt.MouseButton.NoButton,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
         QApplication.sendEvent(vp, me_drag)
         qtbot.wait(60)  # let layout engine apply setWidth
 
         # Release
-        me_rel = QMouseEvent(QEvent.Type.MouseButtonRelease, QPointF(edge_wx + 28, 300),
-                              Qt.MouseButton.LeftButton, Qt.MouseButton.NoButton,
-                              Qt.KeyboardModifier.NoModifier)
+        me_rel = QMouseEvent(
+            QEvent.Type.MouseButtonRelease,
+            QPointF(edge_wx + 28, 300),
+            Qt.MouseButton.LeftButton,
+            Qt.MouseButton.NoButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
         QApplication.sendEvent(vp, me_rel)
 
         final_w = chart_widget.getPlotItem().getAxis("left").width()
@@ -174,32 +186,43 @@ class TestResizableAxisItem:
         assert chart_widget._axis_resizing is False
 
     def test_axis_resize_minimum_width(self, chart_widget, qtbot):
-        from PyQt6.QtCore import QPointF
-        from PyQt6.QtGui import QMouseEvent
-        from PyQt6.QtCore import QEvent, Qt
-        from PyQt6.QtWidgets import QApplication
         from pa_agent.gui.chart_widget import _AXIS_RESIZE_MIN_WIDTH
+        from PyQt6.QtCore import QEvent, QPointF, Qt
+        from PyQt6.QtGui import QMouseEvent
+        from PyQt6.QtWidgets import QApplication
 
         vp = chart_widget.viewport()
         edge_wx = chart_widget._axis_right_edge_wx()
 
         # Press near axis edge
-        me_press = QMouseEvent(QEvent.Type.MouseButtonPress, QPointF(edge_wx - 2, 300),
-                                Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton,
-                                Qt.KeyboardModifier.NoModifier)
+        me_press = QMouseEvent(
+            QEvent.Type.MouseButtonPress,
+            QPointF(edge_wx - 2, 300),
+            Qt.MouseButton.LeftButton,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
         QApplication.sendEvent(vp, me_press)
 
         # Drag far left
-        me_drag = QMouseEvent(QEvent.Type.MouseMove, QPointF(0, 300),
-                               Qt.MouseButton.NoButton, Qt.MouseButton.LeftButton,
-                               Qt.KeyboardModifier.NoModifier)
+        me_drag = QMouseEvent(
+            QEvent.Type.MouseMove,
+            QPointF(0, 300),
+            Qt.MouseButton.NoButton,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
         QApplication.sendEvent(vp, me_drag)
         qtbot.wait(60)
 
         # Release
-        me_rel = QMouseEvent(QEvent.Type.MouseButtonRelease, QPointF(0, 300),
-                              Qt.MouseButton.LeftButton, Qt.MouseButton.NoButton,
-                              Qt.KeyboardModifier.NoModifier)
+        me_rel = QMouseEvent(
+            QEvent.Type.MouseButtonRelease,
+            QPointF(0, 300),
+            Qt.MouseButton.LeftButton,
+            Qt.MouseButton.NoButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
         QApplication.sendEvent(vp, me_rel)
 
         final_w = chart_widget.getPlotItem().getAxis("left").width()
@@ -207,16 +230,19 @@ class TestResizableAxisItem:
 
     def test_viewbox_still_receives_normal_click(self, chart_widget, qtbot):
         """Click in the ViewBox area should NOT be consumed by axis resize."""
-        from PyQt6.QtCore import QPointF
+        from PyQt6.QtCore import QEvent, QPointF, Qt
         from PyQt6.QtGui import QMouseEvent
-        from PyQt6.QtCore import QEvent, Qt
         from PyQt6.QtWidgets import QApplication
 
         vp = chart_widget.viewport()
         # Click in the center of the chart (far from axis edge)
-        me = QMouseEvent(QEvent.Type.MouseButtonPress, QPointF(400, 300),
-                          Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton,
-                          Qt.KeyboardModifier.NoModifier)
+        me = QMouseEvent(
+            QEvent.Type.MouseButtonPress,
+            QPointF(400, 300),
+            Qt.MouseButton.LeftButton,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
         QApplication.sendEvent(vp, me)
         # viewportEvent passes through to super(), not consumed by us
         assert chart_widget._axis_resizing is False

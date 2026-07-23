@@ -1,4 +1,5 @@
 """Stage-1 pattern tags, entry_setup overlays, and stage-1 briefs for routing."""
+
 from __future__ import annotations
 
 import re
@@ -30,7 +31,10 @@ _PATTERN_KEYWORD_TAGS: tuple[tuple[tuple[str, ...], str], ...] = (
     (("mtr", "主要趋势反转", "趋势反转尝试"), "mtr"),
     (("铁丝网", "barbwire", "凝滞区"), "barbwire"),
     (("重叠度高", "重叠多", "k线重叠", "重叠严重"), "overlap"),
-    (("区间下沿", "区间上沿", "区间边界", "交易区间", "交易区间下沿", "交易区间上沿"), "middle_range"),
+    (
+        ("区间下沿", "区间上沿", "区间边界", "交易区间", "交易区间下沿", "交易区间上沿"),
+        "middle_range",
+    ),
     (("h1", "h2", "l1", "l2", "计数入场", "high1", "high2", "low1", "low2"), "h1"),
     (("always in", "ail", "ais", "20gb", "缺口棒"), "always_in"),
     (("磁力", "套住", "trapped", "信号失败"), "failed_signal"),

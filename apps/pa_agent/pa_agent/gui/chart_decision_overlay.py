@@ -1,4 +1,5 @@
 """Resolve which trade prices the chart should draw (including continuity wait)."""
+
 from __future__ import annotations
 
 from typing import Any

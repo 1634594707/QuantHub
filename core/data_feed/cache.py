@@ -1,9 +1,9 @@
-# -*- coding: utf-8 -*-
 """SQLite 缓存层。
 
 统一缓存键: (symbol, market, interval, date)。
 行情与公告分别设置 TTL（见 configs/base.yaml: data_feed.cache）。
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -11,20 +11,18 @@ import json
 import sqlite3
 import threading
 import time
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
 
 import pandas as pd
 
 from core.config import get_config, get_path
-from core.data_feed.base import Announcement, Kline, News
 
 
 class CacheStore:
     """线程安全的 SQLite 缓存。所有数据源共享。"""
 
-    _instance: "CacheStore | None" = None
+    _instance: CacheStore | None = None
     _lock = threading.Lock()
 
     def __new__(cls, *args, **kwargs):
@@ -139,7 +137,11 @@ class CacheStore:
             "(cache_key, symbol, market, interval, date, payload, created_at) "
             "VALUES (?, ?, ?, ?, ?, ?, ?)",
             (
-                key, symbol, market, interval, date,
+                key,
+                symbol,
+                market,
+                interval,
+                date,
                 payload.to_json(orient="records"),
                 time.time(),
             ),
@@ -176,14 +178,11 @@ class CacheStore:
     def clear(self) -> None:
         """清空全部缓存。"""
         conn = self._conn()
-        conn.executescript(
-            "DELETE FROM kline_cache; DELETE FROM doc_cache;"
-        )
+        conn.executescript("DELETE FROM kline_cache; DELETE FROM doc_cache;")
         conn.commit()
 
 
 def cache_key_date(ts: datetime | None = None) -> str:
     """生成缓存键中的 date 部分（UTC 日期，便于跨市场统一）。"""
-    from datetime import timezone
-    ts = ts or datetime.now(timezone.utc)
+    ts = ts or datetime.now(UTC)
     return ts.strftime("%Y-%m-%d")

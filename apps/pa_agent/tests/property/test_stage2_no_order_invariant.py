@@ -1,12 +1,13 @@
 """Property-based tests for Stage 2 不下单 ↔ null invariant (task 8.5 / PR3)."""
+
 from __future__ import annotations
 
 import json
-import pytest
-from hypothesis import given, settings as h_settings
-from hypothesis import strategies as st
-from pa_agent.ai.json_validator import JsonValidator, Ok, ValidationError
 
+from hypothesis import given
+from hypothesis import settings as h_settings
+from hypothesis import strategies as st
+from pa_agent.ai.json_validator import Ok, ValidationError
 from tests.fixtures.validators import schema_test_validator
 
 validator = schema_test_validator()
@@ -108,6 +109,7 @@ def _base_stage2(decision: dict) -> dict:
 
 # ── 不下单 side ────────────────────────────────────────────────────────────────
 
+
 def test_no_order_all_null_accepted():
     """不下单 with all price fields null is accepted.
 
@@ -143,6 +145,7 @@ def test_no_order_with_non_null_price_rejected(price_val) -> None:
 
 
 # ── 有下单 side ────────────────────────────────────────────────────────────────
+
 
 @given(order_type=st.sampled_from(_ORDER_TYPES_WITH_TRADE))
 @h_settings(max_examples=50)

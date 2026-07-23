@@ -1,4 +1,5 @@
 """Overlay horizontal lines for entry / TP / SL on a pyqtgraph PlotWidget."""
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -10,10 +11,10 @@ if TYPE_CHECKING:
     from pyqtgraph import PlotItem
 
 # Line colors
-_COLOR_ENTRY = QColor(30, 144, 255)   # dodger blue
-_COLOR_TP = QColor(0, 200, 80)        # green
-_COLOR_TP2 = QColor(100, 220, 140)    # lighter green
-_COLOR_SL = QColor(220, 50, 50)       # red
+_COLOR_ENTRY = QColor(30, 144, 255)  # dodger blue
+_COLOR_TP = QColor(0, 200, 80)  # green
+_COLOR_TP2 = QColor(100, 220, 140)  # lighter green
+_COLOR_SL = QColor(220, 50, 50)  # red
 
 
 class OverlayLines:
@@ -34,14 +35,14 @@ class OverlayLines:
         self._items: list[pg.GraphicsItem] = []
         # (TextItem, exact line price) — never re-parse Y from formatted label text.
         self._labels: list[tuple[pg.TextItem, float]] = []
-        self._plot: "PlotItem | None" = None
+        self._plot: PlotItem | None = None
         self._range_conn = None
 
     # ── Public API ────────────────────────────────────────────────────────────
 
     def set_lines(
         self,
-        plot: "PlotItem",
+        plot: PlotItem,
         entry: float,
         tp: float,
         sl: float,
@@ -91,12 +92,12 @@ class OverlayLines:
         vb = plot.getViewBox()
         self._range_conn = vb.sigRangeChanged.connect(self._update_label_positions)
 
-    def clear_lines(self, plot: "PlotItem") -> None:
+    def clear_lines(self, plot: PlotItem) -> None:
         """Remove all managed lines and labels from the plot."""
         if self._range_conn is not None:
             try:
                 plot.getViewBox().sigRangeChanged.disconnect(self._range_conn)
-            except Exception:  # noqa: BLE001
+            except Exception:
                 pass
             self._range_conn = None
 
@@ -114,7 +115,7 @@ class OverlayLines:
             return
         try:
             x_min = self._plot.getViewBox().viewRange()[0][0]
-        except Exception:  # noqa: BLE001
+        except Exception:
             return
         for label, price in self._labels:
             label.setPos(x_min, price)

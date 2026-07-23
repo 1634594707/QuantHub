@@ -30,8 +30,7 @@ _WORKBUDDY_DEFAULT_INTERNAL_MODEL = "auto"
 
 # WorkBuddy known config paths
 _WORKBUDDY_CONFIG_DIR = Path(
-    os.environ.get("WORKBUDDY_CONFIG_DIR", "")
-    or Path.home() / ".workbuddy"
+    os.environ.get("WORKBUDDY_CONFIG_DIR", "") or Path.home() / ".workbuddy"
 )
 _WORKBUDDY_SESSION_PATH = _WORKBUDDY_CONFIG_DIR / "app" / "session"
 _WORKBUDDY_LOCAL_STATE = _WORKBUDDY_SESSION_PATH / "Local State"
@@ -152,10 +151,7 @@ def should_use_workbuddy_provider(
     base = (base_url or "").strip().lower()
     if not base:
         return False
-    return (
-        "copilot.tencent.com" in base
-        or "codebuddy" in base
-    )
+    return "copilot.tencent.com" in base or "codebuddy" in base
 
 
 def detect_workbuddy() -> bool:
@@ -253,6 +249,7 @@ def _decrypt_electron_token() -> str | None:
     Returns the token string, or None if decryption fails / no token found.
     """
     import sys
+
     if sys.platform != "win32":
         return None
 
@@ -268,6 +265,7 @@ def _decrypt_electron_token() -> str | None:
 
     try:
         import base64
+
         encrypted_key = base64.b64decode(encrypted_key_b64)
     except Exception:
         return None
@@ -282,6 +280,7 @@ def _decrypt_electron_token() -> str | None:
     # ── Search all LevelDB stores for encrypted values ────────────────────
     try:
         from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
         aesgcm = AESGCM(aes_key)
     except ImportError:
         logger.debug("cryptography not installed; skipping DPAPI decryption")
@@ -312,7 +311,7 @@ def _decrypt_electron_token() -> str | None:
                     if idx == -1:
                         break
                     start = idx + 3
-                    encrypted_val = data[start:start + 2048]
+                    encrypted_val = data[start : start + 2048]
                     if len(encrypted_val) >= 27:
                         try:
                             nonce = encrypted_val[:12]
@@ -342,7 +341,12 @@ def _decrypt_electron_token() -> str | None:
                                 if "accessToken" in plain_str or "access_token" in plain_str:
                                     try:
                                         obj = json.loads(plain_str)
-                                        for k in ("accessToken", "access_token", "token", "bearerToken"):
+                                        for k in (
+                                            "accessToken",
+                                            "access_token",
+                                            "token",
+                                            "bearerToken",
+                                        ):
                                             if k in obj:
                                                 return str(obj[k])
                                     except json.JSONDecodeError:
@@ -449,7 +453,7 @@ def workbuddy_provider_settings(
     thinking: bool = True,
     reasoning_effort: str = "high",
     context_window: int = 2_000_000,
-) -> "AIProviderSettings | None":
+) -> AIProviderSettings | None:
     """Return AIProviderSettings for WorkBuddy's model route."""
     from pa_agent.config.settings import AIProviderSettings
 
@@ -466,11 +470,7 @@ def workbuddy_provider_settings(
     endpoint, token = info
     base_url = f"{endpoint.rstrip('/')}{_WORKBUDDY_API_PATH}"
 
-    route_model = (
-        (model or "").strip()
-        if is_openclaw_wb_model(model)
-        else _WORKBUDDY_MODEL
-    )
+    route_model = (model or "").strip() if is_openclaw_wb_model(model) else _WORKBUDDY_MODEL
     api_model = _resolve_workbuddy_model(route_model)
 
     logger.info(
@@ -496,7 +496,7 @@ def _resolve_workbuddy_model(model: str | None) -> str:
     If model is just ``openclaw_wb``, use WorkBuddy's default ``auto`` model.
     """
     if model and model.startswith(f"{_WORKBUDDY_MODEL}/"):
-        suffix = model[len(_WORKBUDDY_MODEL) + 1:]
+        suffix = model[len(_WORKBUDDY_MODEL) + 1 :]
         return suffix.strip() or _WORKBUDDY_DEFAULT_INTERNAL_MODEL
     return _WORKBUDDY_DEFAULT_INTERNAL_MODEL
 
@@ -534,9 +534,7 @@ def apply_workbuddy_provider_to_settings(
         )
 
     model_arg = (
-        model_hint
-        if is_openclaw_wb_model(model_hint)
-        else _WORKBUDDY_DEFAULT_INTERNAL_MODEL
+        model_hint if is_openclaw_wb_model(model_hint) else _WORKBUDDY_DEFAULT_INTERNAL_MODEL
     )
     resolved = workbuddy_provider_settings(model=model_arg)
     if resolved is None:
@@ -554,7 +552,7 @@ def apply_workbuddy_provider_to_settings(
             f"2. Token 文件 ({_WORKBUDDY_TOKEN_FILE})\n"
             "3. 环境变量 (WORKBUDDY_API_TOKEN)\n\n"
             "也可手动配置 Token（任选其一）：\n"
-            f"• echo \"你的Token\" > {_WORKBUDDY_TOKEN_FILE}\n"
+            f'• echo "你的Token" > {_WORKBUDDY_TOKEN_FILE}\n'
             "• 设置环境变量：WORKBUDDY_API_TOKEN"
         )
 
@@ -623,8 +621,8 @@ def workbuddy_health_check(*, timeout: float = 5.0) -> tuple[bool, str]:
                 False,
                 "WorkBuddy 环境已检测到，但未找到 API Token。\n\n"
                 "请通过以下方式配置 Token（任选其一）：\n"
-                f"• 在终端执行：echo \"你的Token\" > {_WORKBUDDY_TOKEN_FILE}\n"
-                "• 设置环境变量：export WORKBUDDY_API_TOKEN=你的Token"
+                f'• 在终端执行：echo "你的Token" > {_WORKBUDDY_TOKEN_FILE}\n'
+                "• 设置环境变量：export WORKBUDDY_API_TOKEN=你的Token",
             )
         return False, "WorkBuddy 环境未检测到"
 
@@ -633,8 +631,7 @@ def workbuddy_health_check(*, timeout: float = 5.0) -> tuple[bool, str]:
 
     if _probe_workbuddy_api(base_url, token, timeout=timeout):
         return True, (
-            f"WorkBuddy 连接正常 ({base_url})，"
-            f"API 模型默认使用 {_WORKBUDDY_DEFAULT_INTERNAL_MODEL}"
+            f"WorkBuddy 连接正常 ({base_url})，API 模型默认使用 {_WORKBUDDY_DEFAULT_INTERNAL_MODEL}"
         )
 
     try:
@@ -691,9 +688,7 @@ def sync_workbuddy_provider_on_load(
 
     after_url = str(getattr(provider, "base_url", "") or "")
     after_model = str(getattr(provider, "model", "") or "")
-    if save_path is not None and (
-        before_url != after_url or before_model != after_model
-    ):
+    if save_path is not None and (before_url != after_url or before_model != after_model):
         try:
             from pa_agent.config.settings import save_settings
 
@@ -704,6 +699,4 @@ def sync_workbuddy_provider_on_load(
                 after_url,
             )
         except Exception as exc:
-            logger.warning(
-                "Failed to persist synced WorkBuddy provider: %s", exc
-            )
+            logger.warning("Failed to persist synced WorkBuddy provider: %s", exc)

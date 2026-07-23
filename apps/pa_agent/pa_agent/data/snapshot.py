@@ -1,4 +1,5 @@
 """KlineFrame snapshot builder."""
+
 from __future__ import annotations
 
 import math
@@ -107,15 +108,15 @@ def compute_indicators(bars: list[KlineBar]) -> IndicatorBundle:
     Indicators are computed on the reversed (oldest-first) sequence and then
     reversed back so that index *i* aligns with ``bars[i]`` (K1 at index 0).
     """
-    from pa_agent.indicators.ema import ema_full
     from pa_agent.indicators.atr import atr_full
+    from pa_agent.indicators.ema import ema_full
 
     # bars is newest-first; indicators need oldest-first input
     bars_asc = list(reversed(bars))
 
     closes = [b.close for b in bars_asc]
-    highs  = [b.high  for b in bars_asc]
-    lows   = [b.low   for b in bars_asc]
+    highs = [b.high for b in bars_asc]
+    lows = [b.low for b in bars_asc]
 
     ema20_asc = ema_full(closes, period=20)
     atr14_asc = atr_full(highs, lows, closes, period=14)

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """指数 parquet 损坏修复（P-C，可选执行）。
 
 只读调研结论见 docs/DATA_QUALITY.md。本脚本**默认 dry-run**（只统计、不写文件）；
@@ -15,6 +14,7 @@
     uv run python tools/repair_indices_parquet.py --apply   # 真正修复（先备份）
     uv run python tools/repair_indices_parquet.py --apply --mode flip
 """
+
 from __future__ import annotations
 
 import argparse
@@ -41,8 +41,10 @@ def _repair(df: pd.DataFrame, mode: str) -> tuple[pd.DataFrame, int, int]:
 
     if has_ohlc:
         invalid = (
-            (df["open"] <= 0) | (df["high"] <= 0)
-            | (df["low"] <= 0) | (df["close"] <= 0)
+            (df["open"] <= 0)
+            | (df["high"] <= 0)
+            | (df["low"] <= 0)
+            | (df["close"] <= 0)
             | (df["high"] < df["low"])
         )
         if mode == "flip":
@@ -51,8 +53,10 @@ def _repair(df: pd.DataFrame, mode: str) -> tuple[pd.DataFrame, int, int]:
             for c in ohlc_cols:
                 df.loc[flip_mask, c] = -df.loc[flip_mask, c]
             invalid = (
-                (df["open"] <= 0) | (df["high"] <= 0)
-                | (df["low"] <= 0) | (df["close"] <= 0)
+                (df["open"] <= 0)
+                | (df["high"] <= 0)
+                | (df["low"] <= 0)
+                | (df["close"] <= 0)
                 | (df["high"] < df["low"])
             )
         dropped = int(invalid.sum())
@@ -71,8 +75,12 @@ def _repair(df: pd.DataFrame, mode: str) -> tuple[pd.DataFrame, int, int]:
 def main() -> None:
     ap = argparse.ArgumentParser(description="指数 parquet 损坏修复（默认 dry-run）")
     ap.add_argument("--apply", action="store_true", help="真正落盘（默认仅统计）")
-    ap.add_argument("--mode", choices=["drop", "flip"], default="drop",
-                    help="drop=删非法行（默认）；flip=负价翻正")
+    ap.add_argument(
+        "--mode",
+        choices=["drop", "flip"],
+        default="drop",
+        help="drop=删非法行（默认）；flip=负价翻正",
+    )
     args = ap.parse_args()
 
     files = sorted(IDX_DIR.glob("idx_*.parquet"))
@@ -98,8 +106,10 @@ def main() -> None:
         if args.apply and (dropped or vol_fixed or len(new_df) != len(df)):
             shutil.copy(f, backup_dir / f.name)
             new_df.to_parquet(f, index=False)
-        print(f"  {f.name:32s} rows {len(df):>7} -> {len(new_df):>7} "
-              f"| 删 {dropped:>6} | 体积修正 {vol_fixed:>6}")
+        print(
+            f"  {f.name:32s} rows {len(df):>7} -> {len(new_df):>7} "
+            f"| 删 {dropped:>6} | 体积修正 {vol_fixed:>6}"
+        )
 
     print(f"\n合计：文件 {len(files)} | 删除行 {tot_dropped} | 体积修正 {tot_vol_fixed}")
     if args.apply:

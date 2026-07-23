@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """APScheduler 定时任务调度器。
 
 负责:
@@ -10,10 +9,11 @@
 
 cron 表达式来自 configs/a_shares.yaml / crypto.yaml 的 modules.<name>.cron
 """
+
 from __future__ import annotations
 
 import logging
-from typing import Callable
+from collections.abc import Callable
 
 # ======= 先触发策略注册，再看板/调度器共用同一注册表 =======
 from strategies import discover_and_register
@@ -68,8 +68,9 @@ def _build_jobs() -> list[dict]:
             else:
                 # 通用入口：运行策略 produce()，已内部发布到信号总线
                 func_name = f"__run_strategy__:{name}"
-            jobs.append({"name": f"{market}_{name}", "market": market,
-                         "cron": cron, "func_name": func_name})
+            jobs.append(
+                {"name": f"{market}_{name}", "market": market, "cron": cron, "func_name": func_name}
+            )
     return jobs
 
 
@@ -92,13 +93,17 @@ def start() -> None:
         minute, hour, day, month, day_of_week = parts
         try:
             scheduler.add_job(
-                _dispatch_job, CronTrigger(minute=minute, hour=hour, day=day,
-                                           month=month, day_of_week=day_of_week),
-                args=[job["func_name"]], id=job["name"], name=job["name"],
+                _dispatch_job,
+                CronTrigger(
+                    minute=minute, hour=hour, day=day, month=month, day_of_week=day_of_week
+                ),
+                args=[job["func_name"]],
+                id=job["name"],
+                name=job["name"],
                 replace_existing=True,
             )
             logger.info("注册任务 %s: %s", job["name"], job["cron"])
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.exception("注册任务失败: %s", job["name"])
 
     logger.info("调度器启动，共 %d 个任务", len(jobs))
@@ -112,7 +117,7 @@ def _run_strategy(strategy_name: str) -> None:
     """通用入口：执行指定策略的 produce()（策略内部会发布信号到总线）。"""
     try:
         strategy = get_strategy(strategy_name)
-    except Exception:  # noqa: BLE001
+    except Exception:
         logger.exception("未找到策略: %s", strategy_name)
         return
     try:
@@ -122,15 +127,16 @@ def _run_strategy(strategy_name: str) -> None:
         # 按模块配置中的 timeframe 或默认 1h 传参
         try:
             strategy.produce(timeframe="1h")
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.exception("策略执行失败: %s", strategy_name)
-    except Exception:  # noqa: BLE001
+    except Exception:
         logger.exception("策略执行失败: %s", strategy_name)
 
 
 def _dispatch_job(func_name: str) -> None:
     """按函数全路径动态导入并执行；通用策略入口以 __run_strategy__:<name> 标识。"""
     import importlib
+
     if func_name.startswith("__run_strategy__:"):
         strategy_name = func_name.split(":", 1)[1]
         _run_strategy(strategy_name)
@@ -140,7 +146,7 @@ def _dispatch_job(func_name: str) -> None:
         mod = importlib.import_module(module_path)
         fn = getattr(mod, fn_name)
         fn()
-    except Exception:  # noqa: BLE001
+    except Exception:
         logger.exception("任务执行失败: %s", func_name)
 
 

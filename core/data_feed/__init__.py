@@ -1,10 +1,10 @@
-# -*- coding: utf-8 -*-
 """数据层统一入口。
 
 对外暴露:
     get_data_source(market) -> DataSourceProxy (带缓存+fallback)
     Kline / News / Announcement / DataSource / Interval / Market
 """
+
 from __future__ import annotations
 
 from core.data_feed.base import (
@@ -25,13 +25,13 @@ from core.data_feed.factory import (
 
 __all__ = [
     "Announcement",
+    "CacheStore",
     "DataSource",
     "DataSourceProxy",
     "Interval",
     "Kline",
     "Market",
     "News",
-    "CacheStore",
     "cache_key_date",
     "get_data_source",
     "klines_to_df",

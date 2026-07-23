@@ -1,4 +1,5 @@
 """Tests for API response field extraction."""
+
 from __future__ import annotations
 
 from pa_agent.ai.response_extract import content_from_response, reasoning_from_response

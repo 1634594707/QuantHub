@@ -1,8 +1,8 @@
-# -*- coding: utf-8 -*-
 """``python -m apps.pa_agent`` 入口。
 
 等价于 ``python apps/pa_agent/run.py``：把本目录加入 sys.path 后启动上游 PyQt6 应用。
 """
+
 from __future__ import annotations
 
 import os

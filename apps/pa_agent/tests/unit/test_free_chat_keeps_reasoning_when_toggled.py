@@ -3,21 +3,19 @@ reasoning_content in history_for_api and JSONL output always has ai_reasoning.
 
 Task 12.5 — Validates: Requirements R11.4, R11.5, R12.4
 """
+
 from __future__ import annotations
 
-import json
 from unittest.mock import MagicMock
-
-import pytest
 
 from pa_agent.orchestrator.free_chat import FreeChatSession
 from pa_agent.records.schema import AnalysisRecord, RecordMeta
 from pa_agent.util.threading import CancelToken
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_reply(content: str = "AI response", reasoning: str = "AI reasoning") -> MagicMock:
     """Build a mock AIReply."""
@@ -82,6 +80,7 @@ def _make_session_with_toggle(client: MagicMock) -> FreeChatSession:
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
+
 
 class TestFreeChatKeepsReasoningWhenToggled:
     """keep_reasoning_in_resend=True: reasoning preserved in API messages."""
@@ -176,9 +175,7 @@ class TestFreeChatKeepsReasoningWhenToggled:
         assert len(calls) == 3
         for i, c in enumerate(calls, start=1):
             turn_obj = c[0][1]  # FollowupTurn
-            assert turn_obj.ai_reasoning is not None, (
-                f"Turn {i}: ai_reasoning is None"
-            )
+            assert turn_obj.ai_reasoning is not None, f"Turn {i}: ai_reasoning is None"
             assert turn_obj.ai_reasoning == f"reasoning {i}"
 
     def test_append_followup_jsonl_has_ai_reasoning_without_toggle(self):
@@ -218,9 +215,7 @@ class TestFreeChatKeepsReasoningWhenToggled:
         session.send("q1", cancel)
         session.send("q2", cancel)
 
-        assistant_msgs = [
-            m for m in session.history_full if m.get("role") == "assistant"
-        ]
+        assistant_msgs = [m for m in session.history_full if m.get("role") == "assistant"]
         assert len(assistant_msgs) == 2
         for i, msg in enumerate(assistant_msgs, start=1):
             assert msg.get("reasoning_content") == f"reasoning {i}"

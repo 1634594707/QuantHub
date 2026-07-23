@@ -1,4 +1,5 @@
 """Demo mode: replay saved analysis records in the UI."""
+
 from pa_agent.demo.record_loader import (
     frame_from_record_klines,
     is_demo_playable,

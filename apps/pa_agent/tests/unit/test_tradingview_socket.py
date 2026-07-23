@@ -5,12 +5,12 @@ close the socket after every fetch and when re-subscribing, so half-open
 connections don't accumulate (which trips TradingView rate limiting) and a
 symbol/timeframe switch can abort an in-flight request.
 """
+
 from __future__ import annotations
 
 from unittest.mock import MagicMock
 
 import pytest
-
 from pa_agent.data.tradingview import TradingViewSource
 
 

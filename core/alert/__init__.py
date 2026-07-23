@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """统一告警通知。
 
 支持企业微信群机器人 / 通用 Webhook / Telegram。
@@ -6,12 +5,13 @@
 
 复用原"羊毛监控"的 WeChatPusher 约定，扩展 Webhook / Telegram。
 """
+
 from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Iterable
 
 import requests
 
@@ -23,10 +23,11 @@ logger = logging.getLogger(__name__)
 @dataclass
 class AlertMessage:
     """统一告警消息体。"""
+
     title: str
     content: str
-    level: str = "info"             # info | warning | error
-    source: str = "quanthub"        # 模块名
+    level: str = "info"  # info | warning | error
+    source: str = "quanthub"  # 模块名
     tags: list[str] | None = None
 
     def to_text(self) -> str:
@@ -60,7 +61,7 @@ class Notifier:
             r = requests.post(webhook_url, json=payload, timeout=10)
             r.raise_for_status()
             return r.json().get("errcode", -1) == 0
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.exception("wecom 通知发送失败")
             return False
 
@@ -70,14 +71,17 @@ class Notifier:
             logger.warning("webhook url 未配置，跳过")
             return False
         payload = {
-            "title": msg.title, "content": msg.content,
-            "level": msg.level, "source": msg.source, "tags": msg.tags or [],
+            "title": msg.title,
+            "content": msg.content,
+            "level": msg.level,
+            "source": msg.source,
+            "tags": msg.tags or [],
         }
         try:
             r = requests.post(url, json=payload, timeout=10)
             r.raise_for_status()
             return True
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.exception("webhook 通知发送失败")
             return False
 
@@ -92,7 +96,7 @@ class Notifier:
             r = requests.post(url, data={"chat_id": chat_id, "text": msg.to_text()}, timeout=10)
             r.raise_for_status()
             return r.json().get("ok", False)
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.exception("telegram 通知发送失败")
             return False
 

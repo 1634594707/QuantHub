@@ -1,10 +1,9 @@
-# -*- coding: utf-8 -*-
 """统一绩效指标计算。"""
+
 from __future__ import annotations
 
 import math
 
-import numpy as np
 import pandas as pd
 
 
@@ -24,9 +23,13 @@ def compute_metrics(
     """
     if returns is None or returns.empty:
         return {
-            "annual_return": 0.0, "annual_volatility": 0.0,
-            "sharpe": 0.0, "sortino": 0.0, "calmar": 0.0,
-            "max_drawdown": 0.0, "win_rate": 0.0,
+            "annual_return": 0.0,
+            "annual_volatility": 0.0,
+            "sharpe": 0.0,
+            "sortino": 0.0,
+            "calmar": 0.0,
+            "max_drawdown": 0.0,
+            "win_rate": 0.0,
         }
 
     mean_r = float(returns.mean())
@@ -37,7 +40,9 @@ def compute_metrics(
 
     downside = returns[returns < 0]
     downside_std = float(downside.std(ddof=1)) if len(downside) > 1 else 0.0
-    sortino = (annual_return / (downside_std * math.sqrt(periods_per_year))) if downside_std > 0 else 0.0
+    sortino = (
+        (annual_return / (downside_std * math.sqrt(periods_per_year))) if downside_std > 0 else 0.0
+    )
 
     calmar = (annual_return / abs(max_drawdown)) if max_drawdown < 0 else 0.0
     win_rate = float((returns > 0).sum() / len(returns)) if len(returns) > 0 else 0.0

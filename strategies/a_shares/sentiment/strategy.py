@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """A股 FinBERT2 新闻情绪策略。
 
 把原 ``市场情绪系统`` 的情绪分析下沉为 QuantHub 策略插件：
@@ -8,10 +7,11 @@
     - 按情绪分数产出 ``Signal`` 并推入信号总线
     - 回测走 ``core.backtest.EventEngine``
 """
+
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
 import pandas as pd
 
@@ -30,12 +30,14 @@ _SOURCE = "sentiment"
 _MARKET = "a_shares"
 
 
-@register_strategy(StrategyInfo(
-    name="sentiment",
-    market="a_shares",
-    live_capable=False,
-    description="FinBERT2 中文新闻情绪系统",
-))
+@register_strategy(
+    StrategyInfo(
+        name="sentiment",
+        market="a_shares",
+        live_capable=False,
+        description="FinBERT2 中文新闻情绪系统",
+    )
+)
 class SentimentStrategy(StrategyBase):
     """新闻情绪策略。
 
@@ -45,7 +47,7 @@ class SentimentStrategy(StrategyBase):
 
     def __init__(self, config: dict | None = None) -> None:
         super().__init__(config=config)
-        self._analyzer: Optional[SentimentAnalyzer] = None
+        self._analyzer: SentimentAnalyzer | None = None
 
     # ------------------------------------------------------------------
     # 懒加载分析器
@@ -85,7 +87,7 @@ class SentimentStrategy(StrategyBase):
         for symbol in symbols:
             try:
                 news_list = ds.get_news(symbol=symbol, limit=news_limit)
-            except Exception:  # noqa: BLE001
+            except Exception:
                 logger.exception("获取新闻失败: %s", symbol)
                 continue
             if not news_list:
@@ -97,7 +99,7 @@ class SentimentStrategy(StrategyBase):
                 signals.append(sig)
         return signals
 
-    def _build_signal(self, symbol: str, news_list: list, timeframe: str) -> Optional[Signal]:
+    def _build_signal(self, symbol: str, news_list: list, timeframe: str) -> Signal | None:
         """聚合新闻情绪 → 单个 Signal。"""
         analyzer = self.analyzer
         scores: list[float] = []
@@ -169,7 +171,7 @@ class SentimentStrategy(StrategyBase):
     # 回测
     # ------------------------------------------------------------------
 
-    def backtest(self, klines: pd.DataFrame, **kwargs: Any) -> "BacktestResult":
+    def backtest(self, klines: pd.DataFrame, **kwargs: Any) -> BacktestResult:
         """用 ``core.backtest.EventEngine`` 跑情绪策略回测。
 
         Args:
@@ -184,8 +186,9 @@ class SentimentStrategy(StrategyBase):
         if klines is None or klines.empty:
             return BacktestResult.empty(engine="event")
 
-        symbol = (kwargs.get("symbol")
-                  or (klines["symbol"].iloc[0] if "symbol" in klines.columns else "unknown"))
+        symbol = kwargs.get("symbol") or (
+            klines["symbol"].iloc[0] if "symbol" in klines.columns else "unknown"
+        )
 
         # 情绪分数：优先用调用方传入，否则抓新闻现算
         sentiment_score = kwargs.get("sentiment_score")
@@ -227,14 +230,13 @@ class SentimentStrategy(StrategyBase):
         try:
             ds = get_data_source(_MARKET)
             news_list = ds.get_news(symbol=symbol, limit=news_limit)
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.exception("回测取新闻失败: %s", symbol)
             return 0.5
         if not news_list:
             return 0.5
         analyzer = self.analyzer
         scores = [
-            analyzer.analyze((n.title or "") + "。" + (n.content or ""))[0]
-            for n in news_list
+            analyzer.analyze((n.title or "") + "。" + (n.content or ""))[0] for n in news_list
         ]
         return sum(scores) / len(scores) if scores else 0.5

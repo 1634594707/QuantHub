@@ -4,6 +4,7 @@ Run:
   set KKAI_API_KEY=sk-...
   py -3 -m pytest tests/integration/test_kkai_thinking_live.py -v -s
 """
+
 from __future__ import annotations
 
 import json

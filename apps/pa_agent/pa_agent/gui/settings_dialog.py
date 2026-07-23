@@ -1,8 +1,27 @@
 """Settings dialog for PA Agent — edits all Settings fields via a form."""
+
 from __future__ import annotations
 
 from collections.abc import Callable
 
+from pa_agent.ai.cursor_connector import (
+    is_openclaw_cs_model,
+    should_use_cursor_provider,
+)
+from pa_agent.ai.qclaw_connector import (
+    detect_qclaw,
+    is_openclaw_model,
+    should_use_qclaw_provider,
+)
+from pa_agent.ai.workbuddy_connector import (
+    detect_workbuddy,
+    is_openclaw_wb_model,
+    should_use_workbuddy_provider,
+)
+from pa_agent.config.paths import SETTINGS_JSON_PATH
+from pa_agent.config.settings import Settings, save_settings
+from PyQt6.QtCore import Qt, QUrl
+from PyQt6.QtGui import QDesktopServices
 from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -20,30 +39,9 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from PyQt6.QtCore import Qt, QUrl
-from PyQt6.QtGui import QDesktopServices, QFont
-
-from pa_agent.config.settings import Settings, save_settings
-from pa_agent.config.paths import SETTINGS_JSON_PATH
-from pa_agent.ai.cursor_connector import (
-    is_openclaw_cs_model,
-    should_use_cursor_provider,
-)
-from pa_agent.ai.qclaw_connector import (
-    detect_qclaw,
-    is_openclaw_model,
-    should_use_qclaw_provider,
-)
-from pa_agent.ai.workbuddy_connector import (
-    detect_workbuddy,
-    is_openclaw_wb_model,
-    should_use_workbuddy_provider,
-)
 
 _API_KEY_HELP_URL = "https://my.feishu.cn/wiki/CUV1wUKWxiQGhekQdRvcZQQ2ncf"
-_AGENT_TUTORIAL_URL = (
-    "https://my.feishu.cn/wiki/BEdFwGJhaiATbukuD2HccSXCnrb?from=from_copylink"
-)
+_AGENT_TUTORIAL_URL = "https://my.feishu.cn/wiki/BEdFwGJhaiATbukuD2HccSXCnrb?from=from_copylink"
 
 
 class SettingsDialog(QDialog):
@@ -255,8 +253,7 @@ class SettingsDialog(QDialog):
         form_layout.addWidget(general_group)
 
         buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Save
-            | QDialogButtonBox.StandardButton.Cancel
+            QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
         )
         buttons.accepted.connect(self._on_save)
         buttons.rejected.connect(self.reject)
@@ -280,9 +277,7 @@ class SettingsDialog(QDialog):
         self._auto_resume_chart_check.setChecked(
             bool(getattr(g, "auto_resume_chart_after_analysis", False))
         )
-        self._keep_analysis_check.setChecked(
-            bool(getattr(g, "keep_analysis", False))
-        )
+        self._keep_analysis_check.setChecked(bool(getattr(g, "keep_analysis", False)))
         self._cancel_keep_on_retry_check.setChecked(
             bool(getattr(g, "cancel_keep_analysis_on_retry", False))
         )
@@ -307,16 +302,10 @@ class SettingsDialog(QDialog):
         self._last_symbol_edit.setText(g.last_symbol)
         self._last_timeframe_edit.setText(g.last_timeframe)
         self._alert_on_order_check.blockSignals(True)
-        self._alert_on_order_check.setChecked(
-            bool(getattr(g, "alert_on_order_opportunity", True))
-        )
+        self._alert_on_order_check.setChecked(bool(getattr(g, "alert_on_order_opportunity", True)))
         self._alert_on_order_check.blockSignals(False)
-        self._flow_auto_play_check.setChecked(
-            getattr(g, "decision_flow_auto_play", False)
-        )
-        self._flow_play_seconds_spin.setValue(
-            getattr(g, "decision_flow_play_seconds", 50)
-        )
+        self._flow_auto_play_check.setChecked(getattr(g, "decision_flow_auto_play", False))
+        self._flow_play_seconds_spin.setValue(getattr(g, "decision_flow_play_seconds", 50))
         self._flow_default_zoom_spin.setValue(
             int(getattr(g, "decision_flow_default_zoom_pct", 600))
         )
@@ -475,6 +464,7 @@ class SettingsDialog(QDialog):
     def _on_enable_next_bar_changed(self, state: int) -> None:
         """勾选开启下根K线预期时弹出提示。"""
         from PyQt6.QtCore import Qt as _Qt
+
         if state == _Qt.CheckState.Checked.value:
             QMessageBox.information(
                 self,
@@ -500,7 +490,7 @@ class SettingsDialog(QDialog):
         layout = QVBoxLayout(dlg)
         label = QLabel(
             "获取无限Token方法需付费49.9元，付费后你将获得<br>"
-            "Deepseek V4 Pro/GLM5.1/Kimi2.6等\"满血\"模型的无限分析方法<br>"
+            'Deepseek V4 Pro/GLM5.1/Kimi2.6等"满血"模型的无限分析方法<br>'
             "注意无限Token只支持使用这个分析软件<br>"
             "如果你愿意付费，请联系QQ：564020069（付费后提供远程协助部署安装服务）<br><br>"
             "如果你不愿意付费，你可以用自己的模型api，如果你不知道模型api是什么<br>"

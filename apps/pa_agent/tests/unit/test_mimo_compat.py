@@ -1,4 +1,5 @@
 """Unit tests for Xiaomi MiMo API compatibility helpers."""
+
 from __future__ import annotations
 
 from pa_agent.ai.mimo_compat import (
@@ -31,7 +32,9 @@ def test_patch_messages_injects_reasoning_for_tool_calls() -> None:
         {
             "role": "assistant",
             "content": "",
-            "tool_calls": [{"id": "call_1", "type": "function", "function": {"name": "x", "arguments": "{}"}}],
+            "tool_calls": [
+                {"id": "call_1", "type": "function", "function": {"name": "x", "arguments": "{}"}}
+            ],
         },
     ]
     patched = patch_messages_for_mimo(messages, model="mimo-v2-flash")
@@ -45,7 +48,9 @@ def test_patch_messages_uses_cached_reasoning_for_tool_calls() -> None:
         {
             "role": "assistant",
             "content": "",
-            "tool_calls": [{"id": "call_1", "type": "function", "function": {"name": "x", "arguments": "{}"}}],
+            "tool_calls": [
+                {"id": "call_1", "type": "function", "function": {"name": "x", "arguments": "{}"}}
+            ],
         },
     ]
     store_reasoning_from_response(
@@ -54,7 +59,9 @@ def test_patch_messages_uses_cached_reasoning_for_tool_calls() -> None:
             "role": "assistant",
             "content": "",
             "reasoning_content": "cached-thought",
-            "tool_calls": [{"id": "call_1", "type": "function", "function": {"name": "x", "arguments": "{}"}}],
+            "tool_calls": [
+                {"id": "call_1", "type": "function", "function": {"name": "x", "arguments": "{}"}}
+            ],
         },
         cache,
     )

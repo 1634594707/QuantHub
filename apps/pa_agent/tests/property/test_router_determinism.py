@@ -1,14 +1,24 @@
 """Property-based tests for route_strategy_files determinism (task 7.4 / PR2)."""
+
 from __future__ import annotations
 
 import copy
-from hypothesis import given, settings as h_settings
+
+from hypothesis import given
+from hypothesis import settings as h_settings
 from hypothesis import strategies as st
 from pa_agent.ai.router import route_strategy_files
 
 _CYCLE_POSITIONS = [
-    "spike", "micro_channel", "tight_channel", "normal_channel", "broad_channel",
-    "trending_tr", "trading_range", "extreme_tr", "unknown",
+    "spike",
+    "micro_channel",
+    "tight_channel",
+    "normal_channel",
+    "broad_channel",
+    "trending_tr",
+    "trading_range",
+    "extreme_tr",
+    "unknown",
 ]
 _DIRECTIONS = ["bullish", "bearish", "neutral"]
 _PATTERNS = [
@@ -20,35 +30,37 @@ _PATTERNS = [
     "failed_signal",
 ]
 
-_ALL_VALID_FILES = frozenset([
-    "提示词大纲_人设与思维方式.txt",
-    "市场诊断框架.txt",
-    "文件16-K线信号识别.txt",
-    "文件17-止损和止盈与仓位管理.txt",
-    "文件23-MeasuredMove与结构目标.txt",
-    "上涨通道分析识别.txt",
-    "上涨通道交易策略.txt",
-    "文件13-窄通道与宽通道策略.txt",
-    "下跌通道分析识别.txt",
-    "下跌通道交易策略.txt",
-    "极速上涨分析识别.txt",
-    "极速上涨交易策略.txt",
-    "极速下跌分析识别.txt",
-    "极速下跌交易策略.txt",
-    "震荡区间分析识别.txt",
-    "震荡区间交易策略.txt",
-    "文件14-楔形形态分析交易.txt",
-    "文件15-二次入场机会.txt",
-    "文件18-突破失败与突破测试.txt",
-    "文件19-H1H2-L1L2计数.txt",
-    "文件20-AlwaysIn与20GB.txt",
-    "文件21-铁丝网与无交易环境.txt",
-    "文件22-信号失败后的磁力位.txt",
-    "文件24-最终旗形与趋势末端.txt",
-    "文件25-主要趋势反转MTR.txt",
-    "文件27-三角形与收敛形态.txt",
-    "文件28-双重顶底与微型结构.txt",
-])
+_ALL_VALID_FILES = frozenset(
+    [
+        "提示词大纲_人设与思维方式.txt",
+        "市场诊断框架.txt",
+        "文件16-K线信号识别.txt",
+        "文件17-止损和止盈与仓位管理.txt",
+        "文件23-MeasuredMove与结构目标.txt",
+        "上涨通道分析识别.txt",
+        "上涨通道交易策略.txt",
+        "文件13-窄通道与宽通道策略.txt",
+        "下跌通道分析识别.txt",
+        "下跌通道交易策略.txt",
+        "极速上涨分析识别.txt",
+        "极速上涨交易策略.txt",
+        "极速下跌分析识别.txt",
+        "极速下跌交易策略.txt",
+        "震荡区间分析识别.txt",
+        "震荡区间交易策略.txt",
+        "文件14-楔形形态分析交易.txt",
+        "文件15-二次入场机会.txt",
+        "文件18-突破失败与突破测试.txt",
+        "文件19-H1H2-L1L2计数.txt",
+        "文件20-AlwaysIn与20GB.txt",
+        "文件21-铁丝网与无交易环境.txt",
+        "文件22-信号失败后的磁力位.txt",
+        "文件24-最终旗形与趋势末端.txt",
+        "文件25-主要趋势反转MTR.txt",
+        "文件27-三角形与收敛形态.txt",
+        "文件28-双重顶底与微型结构.txt",
+    ]
+)
 
 
 def _make_stage1(cp: str, direction: str, patterns: list[str]) -> dict:

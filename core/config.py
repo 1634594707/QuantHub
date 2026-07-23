@@ -1,14 +1,14 @@
-# -*- coding: utf-8 -*-
 """统一配置加载器。
 
 从 configs/*.yaml 加载并合并配置；支持 schema_version 升级钩子。
 所有模块通过 ``core.config.get_config()`` 获取单一配置对象，避免重复读取。
 """
+
 from __future__ import annotations
 
 import os
 from copy import deepcopy
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from typing import Any

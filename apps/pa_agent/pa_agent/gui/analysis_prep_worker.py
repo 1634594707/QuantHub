@@ -1,4 +1,5 @@
 """Background preparation before starting the AI analysis worker."""
+
 from __future__ import annotations
 
 import logging
@@ -82,9 +83,7 @@ class AnalysisPrepWorker(QThread):
                             incremental_new_bar_count = new_count
                             anchor_label = format_bar_ts(delta.anchor_ts_open)
                             if new_count == 0:
-                                incremental_detail = (
-                                    f"锚定K线 {anchor_label}，无新增已收盘K线"
-                                )
+                                incremental_detail = f"锚定K线 {anchor_label}，无新增已收盘K线"
                             elif new_count == 1:
                                 incremental_detail = (
                                     f"锚定K线 {anchor_label}，新增1根 "
@@ -108,6 +107,6 @@ class AnalysisPrepWorker(QThread):
                     incremental_detail=incremental_detail,
                 )
             )
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.exception("Analysis prep failed: %s", exc)
             self.failed.emit(str(exc))

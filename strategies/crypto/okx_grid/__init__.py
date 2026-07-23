@@ -1,10 +1,10 @@
-# -*- coding: utf-8 -*-
 """OKX 永续多因子轮动网格 策略模块。
 
 导出:
     - OkxGridStrategy : 策略类（继承 StrategyBase，已 @register_strategy）
     - run_select      : 选币入口（供调度器/上游调用，从配置读 top_n）
 """
+
 from __future__ import annotations
 
 from typing import Optional
@@ -20,8 +20,8 @@ __all__ = ["OkxGridStrategy", "run_select"]
 
 
 def run_select(
-    klines_dict: Optional[dict[str, pd.DataFrame]] = None,
-    top_n: Optional[int] = None,
+    klines_dict: dict[str, pd.DataFrame] | None = None,
+    top_n: int | None = None,
 ) -> list[str]:
     """选币入口（供调度器/上游调用）。
 

@@ -2,6 +2,7 @@
 
 Task 19.3
 """
+
 from __future__ import annotations
 
 import json
@@ -10,13 +11,11 @@ import time
 from unittest.mock import MagicMock
 
 import pytest
-
+from pa_agent.ai.router import route_strategy_files
 from pa_agent.app_context import AppContext
+from tests.fixtures.ai_payloads import VALID_STAGE1, VALID_STAGE2_ORDER
 from tests.fixtures.kline_bars import make_newest_first_bars
 from tests.fixtures.validators import schema_test_validator
-from pa_agent.ai.router import route_strategy_files
-
-from tests.fixtures.ai_payloads import VALID_STAGE1, VALID_STAGE2_ORDER
 
 
 def _make_reply(content_dict: dict) -> MagicMock:
@@ -50,6 +49,7 @@ def _make_ctx_slow_stage2(tmp_path):
             while time.monotonic() < deadline:
                 if cancel_token is not None and cancel_token.is_set():
                     from pa_agent.ai.deepseek_client import CancelledError
+
                     raise CancelledError("cancelled by token")
                 time.sleep(0.05)
             return _make_reply(VALID_STAGE2_ORDER)
@@ -109,8 +109,7 @@ def test_switch_mid_flight_cancels_worker(qtbot, tmp_path):
     # Tab2 input should be disabled after a symbol switch
     chat_tab = window._tabs.widget(1)
     from PyQt6.QtWidgets import QPlainTextEdit
+
     input_widgets = chat_tab.findChildren(QPlainTextEdit)
     for widget in input_widgets:
-        assert not widget.isEnabled(), (
-            "Tab2 input should be disabled after symbol switch"
-        )
+        assert not widget.isEnabled(), "Tab2 input should be disabled after symbol switch"

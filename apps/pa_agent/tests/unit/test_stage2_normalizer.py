@@ -1,4 +1,5 @@
 """Unit tests for Stage 2 normalizer — next_bar_prediction (T4)."""
+
 from __future__ import annotations
 
 import json
@@ -6,14 +7,13 @@ import json
 from pa_agent.ai.json_validator import Ok
 from pa_agent.ai.stage2_normalizer import (
     _normalize_closed_enum,
+    _normalize_next_bar_prediction,
     _normalize_stage2_bar_analysis_enums,
     _strip_enum_suffix,
     normalize_stage2,
-    _normalize_next_bar_prediction,
 )
 from pa_agent.data.base import IndicatorBundle, KlineBar, KlineFrame
 from tests.fixtures.validators import schema_test_validator
-
 
 # ── Closed enum annotation stripping (bar_type / freshness) ────────────────
 
@@ -24,10 +24,13 @@ def test_strip_enum_suffix_removes_chinese_parenthetical() -> None:
 
 
 def test_normalize_closed_enum_freshness_with_annotation() -> None:
-    assert _normalize_closed_enum(
-        "invalid（信号失效）",
-        frozenset({"fresh", "pending", "stale", "invalid"}),
-    ) == "invalid"
+    assert (
+        _normalize_closed_enum(
+            "invalid（信号失效）",
+            frozenset({"fresh", "pending", "stale", "invalid"}),
+        )
+        == "invalid"
+    )
 
 
 def test_normalize_stage2_bar_analysis_enums_from_user_report() -> None:

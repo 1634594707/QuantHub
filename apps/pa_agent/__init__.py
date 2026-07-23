@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """QuantHub PA_Agent 桌面应用成员（apps/pa_agent）。
 
 双轨并入的一部分：

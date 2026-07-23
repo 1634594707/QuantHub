@@ -1,26 +1,24 @@
-# -*- coding: utf-8 -*-
 """akshare 数据源（A股）。
 
 依赖 akshare，按需安装: pip install akshare
 统一返回 core.data_feed.base 中定义的结构。
 """
+
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterable
 from datetime import datetime, timedelta
-from typing import Iterable
 
 import pandas as pd
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from core.config import get_config
 from core.data_feed.base import (
     Announcement,
     DataSource,
     Interval,
-    Kline,
     News,
-    klines_to_df,
 )
 
 logger = logging.getLogger(__name__)
@@ -45,12 +43,11 @@ class AkshareSource(DataSource):
 
     def __init__(self) -> None:
         try:
-            import akshare as ak  # noqa: F401
+            import akshare as ak
+
             self._ak = ak
         except ImportError as e:
-            raise ImportError(
-                "akshare 未安装，请运行: pip install akshare"
-            ) from e
+            raise ImportError("akshare 未安装，请运行: pip install akshare") from e
         retry_cfg = get_config().get("data_feed", {}).get("retry", {})
         self._max_attempts = retry_cfg.get("max_attempts", 4)
         self._backoff_base = retry_cfg.get("backoff_base", 1.5)
@@ -59,9 +56,7 @@ class AkshareSource(DataSource):
     def _retryer(self):
         return retry(
             stop=stop_after_attempt(self._max_attempts),
-            wait=wait_exponential(
-                multiplier=self._backoff_base, max=self._backoff_cap
-            ),
+            wait=wait_exponential(multiplier=self._backoff_base, max=self._backoff_cap),
             retry=retry_if_exception_type((ConnectionError, TimeoutError, OSError)),
             reraise=True,
         )
@@ -88,14 +83,16 @@ class AkshareSource(DataSource):
         def _fetch():
             if interval in (Interval.DAILY, Interval.WEEKLY):
                 df = self._ak.stock_zh_a_hist(
-                    symbol=symbol, period=ak_period,
+                    symbol=symbol,
+                    period=ak_period,
                     start_date=start.strftime("%Y%m%d"),
                     end_date=end.strftime("%Y%m%d"),
                     adjust="qfq",
                 )
             else:
                 df = self._ak.stock_zh_a_hist_min_em(
-                    symbol=symbol, period=ak_period,
+                    symbol=symbol,
+                    period=ak_period,
                     start_date=start.strftime("%Y-%m-%d %H:%M:%S"),
                     end_date=end.strftime("%Y-%m-%d %H:%M:%S"),
                 )
@@ -112,9 +109,14 @@ class AkshareSource(DataSource):
 
         # 标准化列名（akshare 中文列 -> 统一英文）
         col_map = {
-            "日期": "datetime", "时间": "datetime",
-            "开盘": "open", "最高": "high", "最低": "low",
-            "收盘": "close", "成交量": "volume", "成交额": "amount",
+            "日期": "datetime",
+            "时间": "datetime",
+            "开盘": "open",
+            "最高": "high",
+            "最低": "low",
+            "收盘": "close",
+            "成交量": "volume",
+            "成交额": "amount",
             "换手率": "turnover",
         }
         df = df.rename(columns=col_map)
@@ -123,12 +125,24 @@ class AkshareSource(DataSource):
         df["symbol"] = symbol
         df["market"] = self.market
         df["interval"] = interval.value
-        keep = ["symbol", "market", "interval", "datetime",
-                "open", "high", "low", "close", "volume", "amount", "turnover"]
+        keep = [
+            "symbol",
+            "market",
+            "interval",
+            "datetime",
+            "open",
+            "high",
+            "low",
+            "close",
+            "volume",
+            "amount",
+            "turnover",
+        ]
         return df[[c for c in keep if c in df.columns]].reset_index(drop=True)
 
     def get_news(self, symbol: str | None = None, limit: int = 50) -> list[News]:
         """获取财经新闻（akshare 财联社快讯）。"""
+
         @self._retryer()
         def _fetch():
             return self._ak.stock_info_global_em()
@@ -143,17 +157,20 @@ class AkshareSource(DataSource):
         news: list[News] = []
         for _, row in df.head(limit).iterrows():
             ts = pd.to_datetime(row.get("发布时间", row.get("datetime", datetime.now())))
-            news.append(News(
-                title=str(row.get("标题", row.get("title", ""))),
-                content=str(row.get("内容", row.get("content", ""))),
-                ts=ts.to_pydatetime() if hasattr(ts, "to_pydatetime") else ts,
-                source="eastmoney",
-                url=row.get("链接") or row.get("url"),
-            ))
+            news.append(
+                News(
+                    title=str(row.get("标题", row.get("title", ""))),
+                    content=str(row.get("内容", row.get("content", ""))),
+                    ts=ts.to_pydatetime() if hasattr(ts, "to_pydatetime") else ts,
+                    source="eastmoney",
+                    url=row.get("链接") or row.get("url"),
+                )
+            )
         return news
 
     def get_announcements(self, symbol: str, limit: int = 50) -> list[Announcement]:
         """获取个股公告（akshare 上市公司公告）。"""
+
         @self._retryer()
         def _fetch():
             return self._ak.stock_notice_report(symbol=symbol)
@@ -168,10 +185,12 @@ class AkshareSource(DataSource):
         anns: list[Announcement] = []
         for _, row in df.head(limit).iterrows():
             ts = pd.to_datetime(row.get("公告日期", datetime.now()))
-            anns.append(Announcement(
-                symbol=symbol,
-                title=str(row.get("公告标题", row.get("title", ""))),
-                ts=ts.to_pydatetime() if hasattr(ts, "to_pydatetime") else ts,
-                ann_type=str(row.get("公告类型", "")) or None,
-            ))
+            anns.append(
+                Announcement(
+                    symbol=symbol,
+                    title=str(row.get("公告标题", row.get("title", ""))),
+                    ts=ts.to_pydatetime() if hasattr(ts, "to_pydatetime") else ts,
+                    ann_type=str(row.get("公告类型", "")) or None,
+                )
+            )
         return anns

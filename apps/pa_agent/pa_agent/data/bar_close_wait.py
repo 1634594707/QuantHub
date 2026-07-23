@@ -1,4 +1,5 @@
 """Helpers for waiting until the current forming bar closes."""
+
 from __future__ import annotations
 
 import math
@@ -190,9 +191,7 @@ def current_forming_ts(
     now_ms: int | None = None,
 ) -> int | None:
     """Return ts_open of the newest forming bar, or None if head bar is already closed."""
-    if not has_forming_bar_at_head(
-        bars_newest_first, timeframe, now_ms=now_ms, symbol=symbol
-    ):
+    if not has_forming_bar_at_head(bars_newest_first, timeframe, now_ms=now_ms, symbol=symbol):
         return None
     return int(bars_newest_first[0].ts_open)
 
@@ -215,8 +214,6 @@ def forming_bar_has_closed(
             close_ms = int(waited_ts_open) + duration_s * 1000
             return int(now_ms) >= close_ms
         return False
-    if not has_forming_bar_at_head(
-        bars_newest_first, timeframe, now_ms=now_ms, symbol=symbol
-    ):
+    if not has_forming_bar_at_head(bars_newest_first, timeframe, now_ms=now_ms, symbol=symbol):
         return True
     return int(bars_newest_first[0].ts_open) != int(waited_ts_open)

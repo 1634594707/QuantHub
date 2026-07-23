@@ -1,7 +1,7 @@
 """EnhancedStatusBar — custom status bar with message, progress bar, and label."""
+
 from __future__ import annotations
 
-from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QHBoxLayout, QLabel, QProgressBar, QSizePolicy, QWidget
 
 
@@ -26,8 +26,7 @@ class EnhancedStatusBar(QWidget):
 
         self._message = QLabel("")
         self._message.setStyleSheet(
-            "font-size: 11px; color: #8b949e;"
-            "border: none; background: transparent;"
+            "font-size: 11px; color: #8b949e;border: none; background: transparent;"
         )
         layout.addWidget(self._message, stretch=1)
 
@@ -36,8 +35,7 @@ class EnhancedStatusBar(QWidget):
 
         ctx_label = QLabel("上下文")
         ctx_label.setStyleSheet(
-            "font-size: 11px; color: #8b949e;"
-            "border: none; background: transparent;"
+            "font-size: 11px; color: #8b949e;border: none; background: transparent;"
         )
         right.addWidget(ctx_label)
 
@@ -48,22 +46,18 @@ class EnhancedStatusBar(QWidget):
         self._progress.setValue(0)
         self._progress.setFixedWidth(128)
         self._progress.setMaximumHeight(6)
-        self._progress.setSizePolicy(
-            QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed
-        )
+        self._progress.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         right.addWidget(self._progress)
 
         self._progress_label = QLabel("0% · 0 / 0")
         self._progress_label.setStyleSheet(
-            "font: 11px monospace; color: #8b949e;"
-            "border: none; background: transparent;"
+            "font: 11px monospace; color: #8b949e;border: none; background: transparent;"
         )
         right.addWidget(self._progress_label)
 
         self._tps_label = QLabel("")
         self._tps_label.setStyleSheet(
-            "font: 11px monospace; color: #2dd4bf;"
-            "border: none; background: transparent;"
+            "font: 11px monospace; color: #2dd4bf;border: none; background: transparent;"
         )
         right.addWidget(self._tps_label)
 
@@ -133,7 +127,7 @@ class EnhancedStatusBar(QWidget):
         chunk_colors = {
             "normal": "#38bdf8",
             "yellow": "#f59e0b",
-            "red":    "#ef4444",
+            "red": "#ef4444",
         }
         fill = chunk_colors.get(self._color, chunk_colors["normal"])
         self._progress.setStyleSheet(

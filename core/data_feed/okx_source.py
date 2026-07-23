@@ -1,16 +1,16 @@
-# -*- coding: utf-8 -*-
 """OKX 数据源（加密，基于 ccxt）。
 
 依赖 ccxt，按需安装: pip install ccxt
 """
+
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta
-from typing import Iterable
+from collections.abc import Iterable
+from datetime import datetime
 
 import pandas as pd
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from core.config import get_config
 from core.data_feed.base import DataSource, Interval
@@ -18,9 +18,14 @@ from core.data_feed.base import DataSource, Interval
 logger = logging.getLogger(__name__)
 
 _INTERVAL_MAP = {
-    Interval.M1: "1m", Interval.M5: "5m", Interval.M15: "15m",
-    Interval.M30: "30m", Interval.H1: "1h", Interval.H4: "4h",
-    Interval.DAILY: "1d", Interval.WEEKLY: "1w",
+    Interval.M1: "1m",
+    Interval.M5: "5m",
+    Interval.M15: "15m",
+    Interval.M30: "30m",
+    Interval.H1: "1h",
+    Interval.H4: "4h",
+    Interval.DAILY: "1d",
+    Interval.WEEKLY: "1w",
 }
 
 
@@ -30,20 +35,23 @@ class OkxSource(DataSource):
     name = "okx"
     market = "crypto"
 
-    def __init__(self, api_key: str | None = None, secret: str | None = None,
-                 passphrase: str | None = None) -> None:
+    def __init__(
+        self, api_key: str | None = None, secret: str | None = None, passphrase: str | None = None
+    ) -> None:
         try:
             import ccxt
         except ImportError as e:
             raise ImportError("ccxt 未安装，请运行: pip install ccxt") from e
         self._ccxt = ccxt
-        self._exchange = ccxt.okx({
-            "apiKey": api_key or "",
-            "secret": secret or "",
-            "password": passphrase or "",
-            "enableRateLimit": True,
-            "options": {"defaultType": "swap"},
-        })
+        self._exchange = ccxt.okx(
+            {
+                "apiKey": api_key or "",
+                "secret": secret or "",
+                "password": passphrase or "",
+                "enableRateLimit": True,
+                "options": {"defaultType": "swap"},
+            }
+        )
         retry_cfg = get_config().get("data_feed", {}).get("retry", {})
         self._max_attempts = retry_cfg.get("max_attempts", 4)
         self._backoff_base = retry_cfg.get("backoff_base", 1.5)
@@ -82,7 +90,10 @@ class OkxSource(DataSource):
             if start:
                 since = int(start.timestamp() * 1000)
             return self._exchange.fetch_ohlcv(
-                symbol, timeframe=tf, since=since, limit=limit,
+                symbol,
+                timeframe=tf,
+                since=since,
+                limit=limit,
             )
 
         try:
@@ -101,5 +112,18 @@ class OkxSource(DataSource):
         df["interval"] = interval.value
         df["amount"] = None
         df["turnover"] = None
-        return df[["symbol", "market", "interval", "datetime",
-                   "open", "high", "low", "close", "volume", "amount", "turnover"]]
+        return df[
+            [
+                "symbol",
+                "market",
+                "interval",
+                "datetime",
+                "open",
+                "high",
+                "low",
+                "close",
+                "volume",
+                "amount",
+                "turnover",
+            ]
+        ]

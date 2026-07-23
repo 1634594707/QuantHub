@@ -1,4 +1,5 @@
 """JSON schemas for Stage 1 and Stage 2 AI outputs."""
+
 from __future__ import annotations
 
 # ── Override item schema ──────────────────────────────────────────────────────
@@ -115,8 +116,14 @@ _BAR_ANALYSIS: dict = {
         "bar_type": {
             "type": "string",
             "enum": [
-                "trend_bull", "trend_bear", "doji", "inside",
-                "outside_bull", "outside_bear", "flat", "other",
+                "trend_bull",
+                "trend_bear",
+                "doji",
+                "inside",
+                "outside_bull",
+                "outside_bear",
+                "flat",
+                "other",
             ],
         },
         "signal_bar": _SIGNAL_BAR,
@@ -146,23 +153,40 @@ _BAR_BY_BAR_ITEM: dict = {
         "role": {
             "type": "string",
             "enum": [
-                "structure", "signal", "entry", "confirmation",
-                "noise", "trap", "climax", "test",
+                "structure",
+                "signal",
+                "entry",
+                "confirmation",
+                "noise",
+                "trap",
+                "climax",
+                "test",
             ],
         },
         "bar_type": {
             "type": "string",
             "enum": [
-                "trend_bull", "trend_bear", "doji", "inside",
-                "outside_bull", "outside_bear", "flat", "other",
+                "trend_bull",
+                "trend_bear",
+                "doji",
+                "inside",
+                "outside_bull",
+                "outside_bear",
+                "flat",
+                "other",
             ],
         },
         "context_effect": {
             "type": "string",
             "enum": [
-                "strengthens_bull", "weakens_bull", "strengthens_bear",
-                "weakens_bear", "neutral", "transition",
-                "weakened_bull", "weakened_bear",
+                "strengthens_bull",
+                "weakens_bull",
+                "strengthens_bear",
+                "weakens_bear",
+                "neutral",
+                "transition",
+                "weakened_bull",
+                "weakened_bear",
             ],
         },
         "follow_through": {"type": "string", "enum": ["yes", "no", "pending", "failed"]},
@@ -195,8 +219,15 @@ STAGE1_SCHEMA: dict = {
         "cycle_position": {
             "type": "string",
             "enum": [
-                "spike", "micro_channel", "tight_channel", "normal_channel",
-                "broad_channel", "trending_tr", "trading_range", "extreme_tr", "unknown",
+                "spike",
+                "micro_channel",
+                "tight_channel",
+                "normal_channel",
+                "broad_channel",
+                "trending_tr",
+                "trading_range",
+                "extreme_tr",
+                "unknown",
             ],
         },
         "alternative_cycle_position": {"type": ["string", "null"]},
@@ -384,9 +415,7 @@ _DECISION_BASE: dict = {
         # 有下单 → price fields must be numbers, direction must be 做多/做空
         {
             "if": {
-                "properties": {
-                    "order_type": {"enum": ["限价单", "突破单", "市价单"]}
-                },
+                "properties": {"order_type": {"enum": ["限价单", "突破单", "市价单"]}},
                 "required": ["order_type"],
             },
             "then": {
@@ -511,7 +540,14 @@ _NEXT_CYCLE_PROBABILITIES: dict = {
 
 _NEXT_CYCLE_PREDICTION: dict = {
     "type": "object",
-    "required": ["cycle", "direction", "probabilities", "reasoning", "unpredictable", "features_used"],
+    "required": [
+        "cycle",
+        "direction",
+        "probabilities",
+        "reasoning",
+        "unpredictable",
+        "features_used",
+    ],
     "properties": {
         "cycle": {
             "type": ["string", "null"],

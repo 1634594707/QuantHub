@@ -1,4 +1,5 @@
 """RefreshLoop must fetch enough bars for indicator warmup."""
+
 from __future__ import annotations
 
 import ast

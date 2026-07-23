@@ -13,15 +13,14 @@ Then verifies that save_full() and save_partial() produce files that:
 Note: append_followup() is NOT required to sanitize per task 10.3 scope,
 so it is not tested here for the no-plaintext guarantee.
 """
+
 from __future__ import annotations
 
 import json
 from pathlib import Path
 
-import pytest
-
 from pa_agent.records.pending_writer import PendingWriter
-from pa_agent.records.schema import AnalysisRecord, FollowupTurn, RecordMeta
+from pa_agent.records.schema import AnalysisRecord, RecordMeta
 from pa_agent.util.mask_secret import mask_secret
 
 # A realistic-looking API key long enough that mask_secret produces a meaningful
@@ -45,9 +44,7 @@ def _make_record_with_key(api_key: str) -> AnalysisRecord:
         kline_data=[],
         htf_text="some htf context",
         # api_key embedded in a message content string
-        stage1_messages=[
-            {"role": "user", "content": f"Authorization: Bearer {api_key}"}
-        ],
+        stage1_messages=[{"role": "user", "content": f"Authorization: Bearer {api_key}"}],
         stage1_response=None,
         stage1_diagnosis=None,
         stage2_messages=[],
@@ -64,6 +61,7 @@ def _make_record_with_key(api_key: str) -> AnalysisRecord:
 # save_full — no plaintext key in written file
 # ---------------------------------------------------------------------------
 
+
 class TestSaveFullNoPlaIntextKey:
     def test_plaintext_key_absent_from_file(self, tmp_path: Path) -> None:
         """save_full must not write the plaintext API key to disk."""
@@ -73,9 +71,7 @@ class TestSaveFullNoPlaIntextKey:
         path = writer.save_full(record)
         content = path.read_text(encoding="utf-8")
 
-        assert API_KEY not in content, (
-            f"Plaintext API key found in {path.name}"
-        )
+        assert API_KEY not in content, f"Plaintext API key found in {path.name}"
 
     def test_masked_key_present_in_file(self, tmp_path: Path) -> None:
         """save_full must replace the plaintext key with its masked form."""
@@ -119,6 +115,7 @@ class TestSaveFullNoPlaIntextKey:
 # save_partial — no plaintext key in written file
 # ---------------------------------------------------------------------------
 
+
 class TestSavePartialNoPlaIntextKey:
     def test_plaintext_key_absent_from_file(self, tmp_path: Path) -> None:
         """save_partial must not write the plaintext API key to disk."""
@@ -128,9 +125,7 @@ class TestSavePartialNoPlaIntextKey:
         path = writer.save_partial(record, reason="test")
         content = path.read_text(encoding="utf-8")
 
-        assert API_KEY not in content, (
-            f"Plaintext API key found in {path.name}"
-        )
+        assert API_KEY not in content, f"Plaintext API key found in {path.name}"
 
     def test_masked_key_present_in_file(self, tmp_path: Path) -> None:
         """save_partial must replace the plaintext key with its masked form."""
@@ -183,6 +178,7 @@ class TestSavePartialNoPlaIntextKey:
 # ---------------------------------------------------------------------------
 # Sanity check: mask_secret produces a meaningful masked form for our key
 # ---------------------------------------------------------------------------
+
 
 def test_mask_secret_produces_meaningful_mask() -> None:
     """Verify the test key is long enough for mask_secret to produce a real mask."""

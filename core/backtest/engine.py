@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """回测引擎: backtrader 集成 + 通用事件驱动框架。
 
 提供:
@@ -6,12 +5,14 @@
     - EventEngine: 轻量事件驱动回测（不依赖 backtrader）
     - BacktestResult: 统一结果封装
 """
+
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Callable
+from typing import Any
 
 import pandas as pd
 
@@ -23,6 +24,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class BacktestResult:
     """统一回测结果。"""
+
     equity_curve: pd.DataFrame
     trades: list[dict]
     final_equity: float
@@ -34,7 +36,7 @@ class BacktestResult:
 
     # ---- 统一契约辅助方法（资深开发约定：所有策略 backtest() 必返此类型）----
     @classmethod
-    def empty(cls, engine: str = "none", initial_capital: float = 0.0) -> "BacktestResult":
+    def empty(cls, engine: str = "none", initial_capital: float = 0.0) -> BacktestResult:
         """构造一个合法的「空」回测结果（无数据/未实现时使用）。"""
         return cls(
             equity_curve=pd.DataFrame(columns=["datetime", "equity"]),
@@ -46,7 +48,7 @@ class BacktestResult:
         )
 
     @classmethod
-    def from_dict(cls, d: dict) -> "BacktestResult":
+    def from_dict(cls, d: dict) -> BacktestResult:
         """从 dict 容错构造（接纳历史裸 dict，字段缺失时给安全默认）。"""
         eq = d.get("equity_curve")
         if not isinstance(eq, pd.DataFrame):
@@ -82,26 +84,29 @@ class BacktraderEngine:
         result = engine.run(klines_df, strategy_cls=MyStrategy, strategy_params={...})
     """
 
-    def __init__(self, initial_capital: float = 100000,
-                 commission: float = 0.0003, slippage: float = 0.0002) -> None:
+    def __init__(
+        self, initial_capital: float = 100000, commission: float = 0.0003, slippage: float = 0.0002
+    ) -> None:
         self.initial_capital = initial_capital
         self.commission = commission
         self.slippage = slippage
 
-    def run(self, klines: pd.DataFrame, strategy_cls: Any,
-            strategy_params: dict | None = None) -> BacktestResult:
+    def run(
+        self, klines: pd.DataFrame, strategy_cls: Any, strategy_params: dict | None = None
+    ) -> BacktestResult:
         try:
             import backtrader as bt
         except ImportError as e:
-            raise ImportError(
-                "backtrader 未安装，请运行: pip install backtrader"
-            ) from e
+            raise ImportError("backtrader 未安装，请运行: pip install backtrader") from e
 
         if klines.empty:
             return BacktestResult(
                 equity_curve=pd.DataFrame(columns=["datetime", "equity"]),
-                trades=[], final_equity=self.initial_capital,
-                total_return=0.0, max_drawdown=0.0, engine="backtrader",
+                trades=[],
+                final_equity=self.initial_capital,
+                total_return=0.0,
+                max_drawdown=0.0,
+                engine="backtrader",
             )
 
         cerebro = bt.Cerebro()
@@ -132,16 +137,18 @@ class BacktraderEngine:
         total_return = (final_equity - self.initial_capital) / self.initial_capital
 
         # 提取权益曲线（简化：用 broker value 序列）
-        eq = pd.DataFrame({
-            "datetime": [datetime.now()],
-            "equity": [final_equity],
-        })
+        eq = pd.DataFrame(
+            {
+                "datetime": [datetime.now()],
+                "equity": [final_equity],
+            }
+        )
 
         # 回撤
         try:
             dd = strat.analyzers.drawdown.get_analysis()
             max_dd = -float(getattr(dd, "max", {}).get("drawdown", 0)) / 100
-        except Exception:  # noqa: BLE001
+        except Exception:
             max_dd = 0.0
 
         # 交易
@@ -150,16 +157,20 @@ class BacktraderEngine:
             ta = strat.analyzers.trades.get_analysis()
             for t in ta.get("closed", []):
                 trades_list.append({"pnl": t.pnl, "bar": t.barclose})
-        except Exception:  # noqa: BLE001
+        except Exception:
             pass
 
         returns = eq["equity"].pct_change().dropna()
         metrics = compute_metrics(returns, final_equity, max_dd)
 
         return BacktestResult(
-            equity_curve=eq, trades=trades_list,
-            final_equity=final_equity, total_return=total_return,
-            max_drawdown=max_dd, metrics=metrics, engine="backtrader",
+            equity_curve=eq,
+            trades=trades_list,
+            final_equity=final_equity,
+            total_return=total_return,
+            max_drawdown=max_dd,
+            metrics=metrics,
+            engine="backtrader",
         )
 
 
@@ -170,18 +181,21 @@ class EventEngine:
     策略通过 on_bar(bar, context) 回调接收行情，调用 context.buy/sell 下单。
     """
 
-    def __init__(self, initial_capital: float = 100000,
-                 commission: float = 0.0003) -> None:
+    def __init__(self, initial_capital: float = 100000, commission: float = 0.0003) -> None:
         self.initial_capital = initial_capital
         self.commission = commission
 
-    def run(self, klines: pd.DataFrame,
-            on_bar: Callable[[pd.Series, "EventContext"], None]) -> BacktestResult:
+    def run(
+        self, klines: pd.DataFrame, on_bar: Callable[[pd.Series, EventContext], None]
+    ) -> BacktestResult:
         if klines.empty:
             return BacktestResult(
                 equity_curve=pd.DataFrame(columns=["datetime", "equity"]),
-                trades=[], final_equity=self.initial_capital,
-                total_return=0.0, max_drawdown=0.0, engine="event",
+                trades=[],
+                final_equity=self.initial_capital,
+                total_return=0.0,
+                max_drawdown=0.0,
+                engine="event",
             )
 
         ctx = EventContext(self.initial_capital, self.commission)
@@ -203,9 +217,13 @@ class EventEngine:
         returns = eq_df["equity"].pct_change().dropna()
         metrics = compute_metrics(returns, final_equity, max_dd)
         return BacktestResult(
-            equity_curve=eq_df, trades=ctx.trades,
-            final_equity=final_equity, total_return=total_return,
-            max_drawdown=max_dd, metrics=metrics, engine="event",
+            equity_curve=eq_df,
+            trades=ctx.trades,
+            final_equity=final_equity,
+            total_return=total_return,
+            max_drawdown=max_dd,
+            metrics=metrics,
+            engine="event",
         )
 
 

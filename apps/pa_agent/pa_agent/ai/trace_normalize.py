@@ -1,7 +1,7 @@
 """Normalize gate_trace / decision_trace items before JSON schema validation."""
+
 from __future__ import annotations
 
-import copy
 import logging
 import re
 from typing import Any
@@ -23,9 +23,7 @@ logger = logging.getLogger(__name__)
 NormalizationMode = str  # "strict" | "lenient"
 
 # branch values that mean yes/no but not a cycle id (node 1.2 must use cycle_position).
-_GATE_12_GENERIC_BRANCHES = frozenset(
-    {"yes", "no", "y", "n", "是", "否", "true", "false", ""}
-)
+_GATE_12_GENERIC_BRANCHES = frozenset({"yes", "no", "y", "n", "是", "否", "true", "false", ""})
 
 _BAR_RANGE_RE = re.compile(r"^K(\d+)-K(\d+)$", re.IGNORECASE)
 _SINGLE_BAR_RE = re.compile(r"^K(\d+)$", re.IGNORECASE)
@@ -195,12 +193,9 @@ def _ensure_trace_string_fields(item: dict[str, Any]) -> None:
             else:
                 item[key] = ""
 
-_COMPOSITE_ANSWER_RE = re.compile(
-    r"^(是|否|中性|等待|不适用)\s*[,，:：\-—]\s*(.+)$"
-)
-_COMPOSITE_ANSWER_PAREN_RE = re.compile(
-    r"^(是|否|中性|等待|不适用)\s*[（(](.+?)[）)]\s*$"
-)
+
+_COMPOSITE_ANSWER_RE = re.compile(r"^(是|否|中性|等待|不适用)\s*[,，:：\-—]\s*(.+)$")
+_COMPOSITE_ANSWER_PAREN_RE = re.compile(r"^(是|否|中性|等待|不适用)\s*[（(](.+?)[）)]\s*$")
 
 
 def infer_max_bar_seq_from_trace(trace: list[Any]) -> int | None:
@@ -287,7 +282,11 @@ def fix_bar_range_string(text: str, *, default_max_seq: int | None = None) -> st
             logger.debug(
                 "bar_range=%r has reversed order (K%d before K%d); "
                 "K1=newest, K{N}=older. Auto-fixing to K%d-K%d.",
-                text, a, b, b, a,
+                text,
+                a,
+                b,
+                b,
+                a,
             )
             a, b = b, a
         a = _cap_bar_seq(a, default_max_seq)
@@ -606,9 +605,18 @@ def normalize_trace_list(
     # Reorder by chapter: AI may output nodes in any order; the correct
     # canonical order is by node_id prefix (3.x → 4.x → ... → 14).
     _CHAPTER_ORDER: dict[str, int] = {
-        "3.": 30, "4.": 40, "5.": 50, "6.": 60,
-        "7.": 70, "8.": 80, "9.": 90, "10.": 100,
-        "11.": 110, "12.": 120, "13.": 130, "14": 140,
+        "3.": 30,
+        "4.": 40,
+        "5.": 50,
+        "6.": 60,
+        "7.": 70,
+        "8.": 80,
+        "9.": 90,
+        "10.": 100,
+        "11.": 110,
+        "12.": 120,
+        "13.": 130,
+        "14": 140,
     }
 
     def _chapter_rank(item: Any) -> int:
@@ -768,9 +776,7 @@ def _sync_gate_23_answer_with_direction(obj: dict[str, Any]) -> None:
         if branch_dir in ("bullish", "bearish"):
             if ans == "中性":
                 item["answer"] = "是"
-                logger.debug(
-                    "gate_trace 2.3 answer 中性 -> 是 (branch=%s)", branch_dir
-                )
+                logger.debug("gate_trace 2.3 answer 中性 -> 是 (branch=%s)", branch_dir)
         elif branch_dir == "neutral" and ans in ("是", "否"):
             item["answer"] = "中性"
             logger.debug("gate_trace 2.3 answer %s -> 中性 (branch=neutral)", ans)

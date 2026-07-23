@@ -1,4 +1,5 @@
 """GUI speed profile presets for analysis submissions."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -60,7 +61,7 @@ def get_speed_profile(key: str) -> GuiSpeedProfile:
     return _PROFILE_BY_KEY[key]
 
 
-def apply_speed_profile(settings: "Settings", key: str) -> GuiSpeedProfile:
+def apply_speed_profile(settings: Settings, key: str) -> GuiSpeedProfile:
     """Apply *key* to in-memory settings used by the next GUI analysis."""
     profile = get_speed_profile(key)
     settings.general.analysis_bar_count = profile.analysis_bar_count
@@ -69,7 +70,7 @@ def apply_speed_profile(settings: "Settings", key: str) -> GuiSpeedProfile:
     return profile
 
 
-def infer_speed_profile_key(settings: "Settings | None") -> str:
+def infer_speed_profile_key(settings: Settings | None) -> str:
     """Best-effort profile match for current settings."""
     if settings is None:
         return "standard"

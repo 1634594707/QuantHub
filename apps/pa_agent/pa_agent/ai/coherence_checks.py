@@ -1,4 +1,5 @@
 """Cross-field coherence checks for Stage 1 / Stage 2 AI JSON (P0/P1 validators)."""
+
 from __future__ import annotations
 
 import logging
@@ -119,7 +120,11 @@ def _parse_bar_range_seqs(bar_range: str) -> list[int]:
             logger.warning(
                 "bar_range=%r has reversed order (K%d-K%d); K1=newest, K{N}=older. "
                 "Auto-corrected to K%d-K%d but this may indicate model confusion.",
-                text, a, b, b, a,
+                text,
+                a,
+                b,
+                b,
+                a,
             )
         lo, hi = min(a, b), max(a, b)
         return list(range(lo, hi + 1))
@@ -169,16 +174,19 @@ def validate_skipped_node_consistency(
             logger.warning(
                 "%s[%d] node_id=%s skipped=true but bar_range=%r; "
                 "normalize will correct to '不适用' but this may indicate model confusion",
-                path_prefix, i, nid, br,
+                path_prefix,
+                i,
+                nid,
+                br,
             )
 
     # Check mandatory nodes are not silently skipped
     if mandatory_nodes:
         for nid in mandatory_nodes:
             found_items = [
-                item for item in trace
-                if isinstance(item, dict)
-                and str(item.get("node_id", "") or "").strip() == nid
+                item
+                for item in trace
+                if isinstance(item, dict) and str(item.get("node_id", "") or "").strip() == nid
             ]
             if not found_items:
                 # Node entirely missing — handled elsewhere
@@ -272,12 +280,14 @@ def auto_fix_bar_by_bar_types(
     from pa_agent.ai.kline_features import compute_kline_geometry_features
 
     features = {f.seq: f for f in compute_kline_geometry_features(kline_frame)}
-    _opposites = frozenset({
-        ("trend_bull", "trend_bear"),
-        ("trend_bear", "trend_bull"),
-        ("outside_bull", "outside_bear"),
-        ("outside_bear", "outside_bull"),
-    })
+    _opposites = frozenset(
+        {
+            ("trend_bull", "trend_bear"),
+            ("trend_bear", "trend_bull"),
+            ("outside_bull", "outside_bear"),
+            ("outside_bear", "outside_bull"),
+        }
+    )
     corrections: list[str] = []
     for item in summary:
         if not isinstance(item, dict):
@@ -319,29 +329,24 @@ def validate_stage1_coherence(
     if gate_result == "proceed":
         missing = [n for n in STAGE1_MANDATORY_GATE_NODES if n not in present]
         if missing:
-            errors.append(
-                "gate_result=proceed requires gate_trace nodes: "
-                + ", ".join(missing)
-            )
+            errors.append("gate_result=proceed requires gate_trace nodes: " + ", ".join(missing))
 
     for i, item in enumerate(gate_trace):
         if isinstance(item, dict):
             errors.extend(validate_bar_range_field(item, f"gate_trace[{i}]"))
 
     errors.extend(
-        validate_trace_bars_in_frame(
-            gate_trace, kline_frame=kline_frame, path_prefix="gate_trace"
-        )
+        validate_trace_bars_in_frame(gate_trace, kline_frame=kline_frame, path_prefix="gate_trace")
     )
-    errors.extend(
-        validate_duplicate_bar_ranges(gate_trace, path_prefix="gate_trace")
-    )
+    errors.extend(validate_duplicate_bar_ranges(gate_trace, path_prefix="gate_trace"))
 
     # Check skipped node consistency (mandatory nodes shouldn't be silently skipped)
     mandatory = STAGE1_MANDATORY_GATE_NODES if gate_result == "proceed" else ()
     errors.extend(
         validate_skipped_node_consistency(
-            gate_trace, path_prefix="gate_trace", mandatory_nodes=mandatory,
+            gate_trace,
+            path_prefix="gate_trace",
+            mandatory_nodes=mandatory,
         )
     )
 
@@ -371,9 +376,7 @@ def validate_stage1_coherence(
                 )
         if ans == "中性" and direction not in ("neutral", ""):
             if cycle not in _RANGE_CYCLES:
-                errors.append(
-                    "gate_trace node 2.3 answer=中性 but direction is not neutral"
-                )
+                errors.append("gate_trace node 2.3 answer=中性 but direction is not neutral")
 
     summary = stage1.get("bar_by_bar_summary")
     if isinstance(summary, list):
@@ -424,9 +427,7 @@ def validate_bar_by_bar_vs_features(
 
     features = {f.seq: f for f in compute_kline_geometry_features(kline_frame)}
     bars = getattr(kline_frame, "bars", None)
-    bars_by_seq = (
-        {int(getattr(b, "seq")): b for b in bars if getattr(b, "seq", None)} if bars else {}
-    )
+    bars_by_seq = {int(b.seq): b for b in bars if getattr(b, "seq", None)} if bars else {}
 
     # Threshold bands (prompt-engineering semantics: follow-through and bar-type near
     # hard cutoffs are objectively fuzzy; don't over-penalize the model on boundaries).
@@ -437,18 +438,18 @@ def validate_bar_by_bar_vs_features(
     _TREND_EPS = 0.03
 
     _STRUCTURAL_TYPES = frozenset({"inside", "outside_bull", "outside_bear"})
-    _THRESHOLD_SENSITIVE_TYPES = frozenset(
-        {"doji", "trend_bull", "trend_bear", "other"}
-    )
+    _THRESHOLD_SENSITIVE_TYPES = frozenset({"doji", "trend_bull", "trend_bear", "other"})
     # outside_* implies trend_* — not a contradiction
-    _COMPATIBLE_PAIRS: frozenset[tuple[str, str]] = frozenset({
-        ("outside_bull", "trend_bull"),
-        ("trend_bull", "outside_bull"),
-        ("outside_bear", "trend_bear"),
-        ("trend_bear", "outside_bear"),
-        ("inside", "doji"),
-        ("doji", "inside"),
-    })
+    _COMPATIBLE_PAIRS: frozenset[tuple[str, str]] = frozenset(
+        {
+            ("outside_bull", "trend_bull"),
+            ("trend_bull", "outside_bull"),
+            ("outside_bear", "trend_bear"),
+            ("trend_bear", "outside_bear"),
+            ("inside", "doji"),
+            ("doji", "inside"),
+        }
+    )
 
     def _near_threshold(seq: int) -> bool:
         bar = bars_by_seq.get(seq)
@@ -486,9 +487,7 @@ def validate_bar_by_bar_vs_features(
         seq = int(m.group(1))
         feat = features.get(seq)
         if feat is None:
-            errors.append(
-                f"bar_by_bar_summary[{i}].bar {bar_label} not in geometry feature table"
-            )
+            errors.append(f"bar_by_bar_summary[{i}].bar {bar_label} not in geometry feature table")
             continue
         declared = str(item.get("bar_type", "") or "").strip().lower()
         computed = str(feat.bar_type or "").strip().lower()
@@ -611,7 +610,8 @@ def validate_stage2_coherence(
                             logger.info(
                                 "validate_stage2_coherence: auto-injected node 2.3 "
                                 "(direction %r -> %r, model forgot to add it)",
-                                s1_dir, s2_dir,
+                                s1_dir,
+                                s2_dir,
                             )
                         else:
                             errors.append(
@@ -633,9 +633,8 @@ def validate_stage2_coherence(
             )
             if not _has_2_3_override:
                 needed_dir = "bearish" if order_dir == "做空" else "bullish"
-                conflicts = (
-                    (s1_dir == "bullish" and order_dir == "做空") or
-                    (s1_dir == "bearish" and order_dir == "做多")
+                conflicts = (s1_dir == "bullish" and order_dir == "做空") or (
+                    s1_dir == "bearish" and order_dir == "做多"
                 )
                 if conflicts:
                     # Auto-inject node 2.3 instead of hard-failing.
@@ -667,7 +666,8 @@ def validate_stage2_coherence(
                             logger.info(
                                 "validate_stage2_coherence: auto-injected node 2.3 "
                                 "for order_direction conflict (%r vs stage1 %r)",
-                                order_dir, s1_dir,
+                                order_dir,
+                                s1_dir,
                             )
                     else:
                         if s1_dir == "bullish" and order_dir == "做空":
@@ -691,9 +691,7 @@ def validate_stage2_coherence(
             )
         )
         errors.extend(
-            validate_duplicate_bar_ranges(
-                decision_trace, path_prefix="decision_trace", min_items=5
-            )
+            validate_duplicate_bar_ranges(decision_trace, path_prefix="decision_trace", min_items=5)
         )
         errors.extend(_validate_stage2_section9(stage2, decision_trace))
 
@@ -716,9 +714,7 @@ def _validate_stage2_section9(
     node_ids = [str(x.get("node_id", "")) for x in decision_trace if isinstance(x, dict)]
     has_section_9 = any(n.startswith("9.") for n in node_ids)
     if not has_section_9:
-        errors.append(
-            "placing an order requires at least one decision_trace node in §9 (9.x)"
-        )
+        errors.append("placing an order requires at least one decision_trace node in §9 (9.x)")
 
     idx_9 = next((i for i, n in enumerate(node_ids) if n.startswith("9.")), -1)
     idx_101 = next((i for i, n in enumerate(node_ids) if n == "10.1"), -1)
@@ -731,9 +727,7 @@ def _validate_stage2_section9(
         if isinstance(signal_bar, dict):
             quality = str(signal_bar.get("quality", "") or "").strip().lower()
             if quality in ("weak", "invalid") and not has_section_9:
-                errors.append(
-                    "weak/invalid signal_bar requires §9 decision_trace nodes"
-                )
+                errors.append("weak/invalid signal_bar requires §9 decision_trace nodes")
 
     return errors
 
@@ -759,8 +753,7 @@ def validate_incremental_stage1_coherence(
         bars = delta.get("new_closed_bars")
         if not isinstance(bars, list) or len(bars) != new_bar_count:
             errors.append(
-                f"incremental_delta.new_closed_bars must list exactly "
-                f"{new_bar_count} bar label(s)"
+                f"incremental_delta.new_closed_bars must list exactly {new_bar_count} bar label(s)"
             )
         summary = str(delta.get("summary", "") or "").strip()
         if len(summary) < 1:
@@ -768,9 +761,7 @@ def validate_incremental_stage1_coherence(
         changed = delta.get("changed_fields")
         if isinstance(changed, list) and previous_stage1 and not changed:
             for key in ("cycle_position", "direction"):
-                if str(stage1.get(key, "")).lower() != str(
-                    previous_stage1.get(key, "")
-                ).lower():
+                if str(stage1.get(key, "")).lower() != str(previous_stage1.get(key, "")).lower():
                     errors.append(
                         f"incremental_delta.changed_fields empty but {key} differs "
                         "from previous stage1"

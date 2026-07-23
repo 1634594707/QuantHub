@@ -1,14 +1,13 @@
-# -*- coding: utf-8 -*-
 """数据源工厂。
 
 按 market + name 创建对应 DataSource，支持 fallback 链。
 所有 source 调用经 CacheStore 透明缓存。
 """
+
 from __future__ import annotations
 
 import functools
 import logging
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -25,7 +24,7 @@ def _cached(fn):
     """装饰 get_kline/get_news/get_announcements，自动读写缓存。"""
 
     @functools.wraps(fn)
-    def wrapper(self: "DataSourceProxy", *args, **kwargs):
+    def wrapper(self: DataSourceProxy, *args, **kwargs):
         kind = fn.__name__
         cache: CacheStore = self._cache
         if cache is None:
@@ -56,15 +55,11 @@ def _cached(fn):
             result = fn(self, *args, **kwargs)
             try:
                 if kind == "get_news":
-                    payload = [
-                        {**d.__dict__, "ts": d.ts.isoformat()} for d in result
-                    ]
+                    payload = [{**d.__dict__, "ts": d.ts.isoformat()} for d in result]
                 else:
-                    payload = [
-                        {**d.__dict__, "ts": d.ts.isoformat()} for d in result
-                    ]
+                    payload = [{**d.__dict__, "ts": d.ts.isoformat()} for d in result]
                 cache.set_docs(kind, symbol, payload)
-            except Exception:  # noqa: BLE001
+            except Exception:
                 logger.debug("缓存写入失败 %s", kind, exc_info=True)
             return result
         return fn(self, *args, **kwargs)
@@ -75,8 +70,12 @@ def _cached(fn):
 class DataSourceProxy(DataSource):
     """数据源代理：包装真实 source，叠加缓存与 fallback。"""
 
-    def __init__(self, primary: DataSource, fallbacks: list[DataSource] | None = None,
-                 cache: CacheStore | None = None) -> None:
+    def __init__(
+        self,
+        primary: DataSource,
+        fallbacks: list[DataSource] | None = None,
+        cache: CacheStore | None = None,
+    ) -> None:
         self._primary = primary
         self._fallbacks = fallbacks or []
         self._cache = cache or CacheStore()
@@ -95,7 +94,7 @@ class DataSourceProxy(DataSource):
                 df = src.get_kline(symbol, interval, start, end, limit)
                 if df is not None and not df.empty:
                     return df
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 last_err = e
                 logger.warning("数据源 %s get_kline 失败，尝试 fallback: %s", src.name, e)
         if last_err:
@@ -110,7 +109,7 @@ class DataSourceProxy(DataSource):
                 news = src.get_news(symbol, limit)
                 if news:
                     return news
-            except Exception:  # noqa: BLE001
+            except Exception:
                 logger.warning("数据源 %s get_news 失败，尝试 fallback", src.name, exc_info=True)
         return []
 
@@ -122,8 +121,10 @@ class DataSourceProxy(DataSource):
                 anns = src.get_announcements(symbol, limit)
                 if anns:
                     return anns
-            except Exception:  # noqa: BLE001
-                logger.warning("数据源 %s get_announcements 失败，尝试 fallback", src.name, exc_info=True)
+            except Exception:
+                logger.warning(
+                    "数据源 %s get_announcements 失败，尝试 fallback", src.name, exc_info=True
+                )
         return []
 
 
@@ -135,8 +136,9 @@ def register_source(name: str, cls: type[DataSource]) -> None:
     _REGISTRY[name] = cls
 
 
-def _build_source(name: str, cfg: dict | None = None, market: str = "abstract",
-                  **kwargs: Any) -> DataSource:
+def _build_source(
+    name: str, cfg: dict | None = None, market: str = "abstract", **kwargs: Any
+) -> DataSource:
     """按名称构造数据源实例。
 
     Args:
@@ -150,16 +152,20 @@ def _build_source(name: str, cfg: dict | None = None, market: str = "abstract",
 
     if name == "akshare":
         from core.data_feed.akshare_source import AkshareSource
+
         return AkshareSource()
     if name == "eastmoney":
         from core.data_feed.eastmoney_source import EastmoneySource
+
         return EastmoneySource()
     if name == "okx":
         from core.data_feed.okx_source import OkxSource
+
         return OkxSource(**kwargs)
     if name == "local_parquet":
-        from core.data_feed.local_parquet import LocalParquetSource
         from core.config import get_repo_root
+        from core.data_feed.local_parquet import LocalParquetSource
+
         root = src_cfg.get("root", "data")
         root_p = Path(root)
         if not root_p.is_absolute():
@@ -193,6 +199,6 @@ def get_data_source(market: str = "a_shares", **kwargs: Any) -> DataSourceProxy:
     for fb in fallback_names:
         try:
             fallbacks.append(_build_source(fb, cfg=cfg, market=market))
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.warning("构建 fallback 数据源 %s 失败", fb, exc_info=True)
     return DataSourceProxy(primary, fallbacks)

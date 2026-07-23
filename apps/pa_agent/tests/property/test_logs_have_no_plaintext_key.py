@@ -2,6 +2,7 @@
 
 **Validates: Requirements 18.1**
 """
+
 from __future__ import annotations
 
 import logging
@@ -9,12 +10,11 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-from hypothesis import given, settings as h_settings
-from hypothesis import strategies as st
-
-from pa_agent.util.mask_secret import mask_secret
 import pa_agent.util.logging as logging_module
-
+from hypothesis import given
+from hypothesis import settings as h_settings
+from hypothesis import strategies as st
+from pa_agent.util.mask_secret import mask_secret
 
 # ── Strategy ──────────────────────────────────────────────────────────────────
 
@@ -60,7 +60,7 @@ def test_log_file_never_contains_plaintext_key(api_key: str) -> None:
         try:
             # Patch LOG_FILE_PATH so we write to a temp file, not the real log
             with patch.object(logging_module, "LOG_FILE_PATH", log_file):
-                logging_module._configured = False  # noqa: SLF001
+                logging_module._configured = False
                 _close_root_handlers()
                 logging_module.configure_logging(api_key=api_key)
 

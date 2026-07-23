@@ -2,6 +2,7 @@
 
 文档：https://www.pushplus.plus/doc/ （一键请求 POST /send）
 """
+
 from __future__ import annotations
 
 import logging
@@ -18,7 +19,7 @@ _PUSHPLUS_SEND_URL = "https://www.pushplus.plus/send"
 _REQUEST_TIMEOUT_S = 15
 
 
-def _pushplus_config_dict(settings: "Settings | None" = None) -> dict[str, Any]:
+def _pushplus_config_dict(settings: Settings | None = None) -> dict[str, Any]:
     if settings is not None:
         return settings.pushplus.model_dump()
     from pa_agent.config.paths import SETTINGS_JSON_PATH
@@ -27,7 +28,7 @@ def _pushplus_config_dict(settings: "Settings | None" = None) -> dict[str, Any]:
     return load_settings(SETTINGS_JSON_PATH).pushplus.model_dump()
 
 
-def resolve_pushplus_token(settings: "Settings | None" = None) -> str:
+def resolve_pushplus_token(settings: Settings | None = None) -> str:
     """Token from settings.pushplus.token, else env PUSHPLUS_TOKEN."""
     cfg = _pushplus_config_dict(settings)
     token = (cfg.get("token") or "").strip()
@@ -36,7 +37,7 @@ def resolve_pushplus_token(settings: "Settings | None" = None) -> str:
     return token
 
 
-def pushplus_is_active(settings: "Settings | None" = None) -> bool:
+def pushplus_is_active(settings: Settings | None = None) -> bool:
     """True only when PushPlus is enabled and a token is configured."""
     cfg = _pushplus_config_dict(settings)
     if not cfg.get("enabled", False):
@@ -49,7 +50,7 @@ def send_pushplus_raw(
     html_content: str,
     *,
     token: str | None = None,
-    settings: "Settings | None" = None,
+    settings: Settings | None = None,
 ) -> bool:
     """最底层的原始 PUSHPLUS 推送服务."""
     push_token = (token or resolve_pushplus_token(settings)).strip()
@@ -155,7 +156,7 @@ def send_order_signal(
     stage2_full: dict,
     symbol: str,
     timeframe: str,
-    settings: "Settings | None" = None,
+    settings: Settings | None = None,
 ) -> bool:
     """下单决策触发时向 PushPlus 推送 HTML 消息（与飞书并行，互不依赖）。"""
     if not pushplus_is_active(settings):

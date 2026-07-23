@@ -1,4 +1,5 @@
 """Parse East Money push2 quote payloads (五档/十档 + 逐笔)."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

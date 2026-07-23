@@ -3,6 +3,7 @@
 Extracted from decision_panel.py so that FutureTrendPanel can import them
 without creating a circular dependency.
 """
+
 from __future__ import annotations
 
 # ── Colour constants ──────────────────────────────────────────────────────────
@@ -18,6 +19,7 @@ _PREDICTION_UNPREDICTABLE_LABEL: str = "不可预测"
 
 
 # ── Formatting helpers ────────────────────────────────────────────────────────
+
 
 def _format_prediction_probs_line(probs: dict) -> str:
     """Format bullish/bearish/neutral probabilities as a single display line."""

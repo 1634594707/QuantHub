@@ -1,4 +1,5 @@
 """Tests for AI client factory routing."""
+
 from __future__ import annotations
 
 from pa_agent.ai.client_factory import create_ai_client

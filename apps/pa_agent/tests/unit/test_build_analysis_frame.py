@@ -1,4 +1,5 @@
 """Tests for analysis snapshots (closed bars only)."""
+
 from __future__ import annotations
 
 import time

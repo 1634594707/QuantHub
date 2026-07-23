@@ -1,4 +1,5 @@
 """5-metric summary card strip for the AI panel header."""
+
 from __future__ import annotations
 
 from PyQt6.QtCore import Qt
@@ -32,9 +33,7 @@ class _MetricCard(QFrame):
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
         self.setFrameShape(QFrame.Shape.NoFrame)
         self.setStyleSheet(
-            "background-color: #1c2128; "
-            "border: 1px solid #30363d; "
-            "border-radius: 6px;"
+            "background-color: #1c2128; border: 1px solid #30363d; border-radius: 6px;"
         )
 
         layout = QVBoxLayout(self)
@@ -79,9 +78,7 @@ class SummaryStrip(QWidget):
         super().__init__(parent)
         self.setObjectName("summaryStrip")
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
-        self.setStyleSheet(
-            "background-color: #161b22; border-bottom: 1px solid #30363d;"
-        )
+        self.setStyleSheet("background-color: #161b22; border-bottom: 1px solid #30363d;")
 
         self._layout = QGridLayout(self)
         self._layout.setContentsMargins(8, 6, 8, 6)
@@ -115,7 +112,7 @@ class SummaryStrip(QWidget):
         for card in self._cards:
             card.set_value("—")
 
-    def resizeEvent(self, event) -> None:  # noqa: N802
+    def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
         self._relayout()
 

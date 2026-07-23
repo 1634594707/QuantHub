@@ -2,6 +2,7 @@
 
 Reverse-engineered from ``quote.eastmoney.com/newstatic/build/vendor.js`` (2026-06).
 """
+
 from __future__ import annotations
 
 from pa_agent.data.eastmoney_field_enums import FIELDS_TEN_DEPTH

@@ -1,9 +1,9 @@
 """Gold default symbol / exchange normalization."""
+
 from __future__ import annotations
 
 from pa_agent.data.market_defaults import (
     GOLD_MT5_SYMBOL,
-    GOLD_TV_EXCHANGE,
     GOLD_TV_SYMBOL,
     ashare_tv_probe_order,
     infer_ashare_tv_exchange,
@@ -40,9 +40,7 @@ def test_tv_forex_auto_probe_tries_all_forex_presets():
     plan = tv_forex_auto_probe_plan("XAUUSD")
     exchanges = [ex for ex, _ in plan]
     assert exchanges == [
-        ex
-        for ex in TV_EXCHANGE_PRESETS
-        if ex and ex not in {"SSE", "SZSE", "HKEX"}
+        ex for ex in TV_EXCHANGE_PRESETS if ex and ex not in {"SSE", "SZSE", "HKEX"}
     ]
     assert ("OANDA", "XAUUSD") in plan
     assert ("TVC", "GOLD") in plan

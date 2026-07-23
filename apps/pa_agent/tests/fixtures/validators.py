@@ -1,4 +1,5 @@
 """Shared JsonValidator instances for unit/property tests."""
+
 from __future__ import annotations
 
 from pa_agent.ai.json_validator import JsonValidator

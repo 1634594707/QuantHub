@@ -1,4 +1,5 @@
 """GUI analysis mode presets for Stage 2 prompt construction."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -45,7 +46,7 @@ def get_analysis_mode(key: str) -> GuiAnalysisMode:
     return _MODE_BY_KEY[key]  # type: ignore[index]
 
 
-def apply_analysis_mode(settings: "Settings", key: str) -> GuiAnalysisMode:
+def apply_analysis_mode(settings: Settings, key: str) -> GuiAnalysisMode:
     """Apply *key* to in-memory settings used by the next GUI analysis."""
     mode = get_analysis_mode(key)
     # Store in settings if the field exists (graceful degradation)
@@ -54,7 +55,7 @@ def apply_analysis_mode(settings: "Settings", key: str) -> GuiAnalysisMode:
     return mode
 
 
-def infer_analysis_mode_key(settings: "Settings | None") -> str:
+def infer_analysis_mode_key(settings: Settings | None) -> str:
     """Best-effort mode match for current settings."""
     if settings is None:
         return "original"

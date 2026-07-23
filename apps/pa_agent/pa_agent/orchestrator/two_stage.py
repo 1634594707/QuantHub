@@ -18,6 +18,7 @@ On validation failure, ``validation_retry`` may append a feedback user turn and
 re-call the API (see ``ValidationSettings.retry_*``). Semantic / safety errors
 are not retried; immutable-field cheat detection rejects suspicious retries.
 """
+
 from __future__ import annotations
 
 # Legacy flag kept for tests/docs; retry is governed by ValidationSettings.
@@ -26,8 +27,9 @@ STAGE2_VALIDATION_AUTO_RETRY = False
 import copy
 import dataclasses
 import logging
+from collections.abc import Callable
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Callable, Optional
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from pa_agent.ai.deepseek_client import DeepSeekClient
@@ -38,8 +40,8 @@ if TYPE_CHECKING:
     from pa_agent.records.pending_writer import PendingWriter
 
 from pa_agent.ai.json_validator import Ok, ValidationError
-from pa_agent.orchestrator.validation_retry import validate_with_retry
 from pa_agent.data.base import KlineFrame
+from pa_agent.orchestrator.validation_retry import validate_with_retry
 from pa_agent.records.schema import AnalysisRecord, RecordMeta
 from pa_agent.util.threading import CancelToken, OrchestratorEvent
 from pa_agent.util.timefmt import now_local_ms
@@ -53,6 +55,7 @@ def _latency_ms_label(latency_ms: object) -> str:
         return f"{float(latency_ms):.0f}ms"
     except (TypeError, ValueError):
         return "?"
+
 
 # When the gateway buffers the full reply, emit pseudo-stream chunks to the UI.
 _FALLBACK_STREAM_CHUNK = 48
@@ -103,16 +106,16 @@ def _enrich_stage2_validation_message(err: ValidationError, reply: Any) -> str:
         return err.message or PROVIDER_QUOTA_USER_MESSAGE
     from pa_agent.ai.validation_messages import format_validation_errors
 
-    detail = format_validation_errors(
-        err.invalid_fields, missing_fields=err.missing_fields
-    )
+    detail = format_validation_errors(err.invalid_fields, missing_fields=err.missing_fields)
     content = (getattr(reply, "content", None) or "").strip()
     trunc = _json_truncation_hint(content, err)
     if trunc:
         usage = getattr(reply, "usage", None)
         completion = getattr(usage, "completion_tokens", 0) if usage else 0
         reasoning_len = len(getattr(reply, "reasoning_content", None) or "")
-        msg = f"{err.message}。{trunc} completion_tokens≈{completion}，思考区约 {reasoning_len} 字。"
+        msg = (
+            f"{err.message}。{trunc} completion_tokens≈{completion}，思考区约 {reasoning_len} 字。"
+        )
         return f"{msg}。{detail}" if detail else msg
     if err.category != "d" or (err.raw_text or "").strip():
         return f"{err.message}。{detail}" if detail else err.message
@@ -147,16 +150,16 @@ def _enrich_stage1_validation_message(err: ValidationError, reply: Any) -> str:
         return err.message or PROVIDER_QUOTA_USER_MESSAGE
     from pa_agent.ai.validation_messages import format_validation_errors
 
-    detail = format_validation_errors(
-        err.invalid_fields, missing_fields=err.missing_fields
-    )
+    detail = format_validation_errors(err.invalid_fields, missing_fields=err.missing_fields)
     content = (getattr(reply, "content", None) or "").strip()
     trunc = _json_truncation_hint(content, err)
     if trunc:
         usage = getattr(reply, "usage", None)
         completion = getattr(usage, "completion_tokens", 0) if usage else 0
         reasoning_len = len(getattr(reply, "reasoning_content", None) or "")
-        msg = f"{err.message}。{trunc} completion_tokens≈{completion}，思考区约 {reasoning_len} 字。"
+        msg = (
+            f"{err.message}。{trunc} completion_tokens≈{completion}，思考区约 {reasoning_len} 字。"
+        )
         return f"{msg}。{detail}" if detail else msg
     if err.category != "d" or (err.raw_text or "").strip():
         return f"{err.message}。{detail}" if detail else err.message
@@ -196,7 +199,7 @@ def _emit_buffered_stream(
 
 def _build_empty_record(
     frame: KlineFrame,
-    settings: Optional["Settings"],
+    settings: Settings | None,
 ) -> AnalysisRecord:
     """Build a partial AnalysisRecord with meta populated from the frame."""
     ts_ms = now_local_ms()
@@ -206,6 +209,7 @@ def _build_empty_record(
     ai_provider: dict[str, Any] = {}
     if settings is not None:
         from pa_agent.util.mask_secret import mask_secret
+
         p = settings.provider
         ai_provider = {
             "model": p.model,
@@ -262,19 +266,16 @@ def _build_empty_record(
 def _accumulate_usage(current: dict, reply_usage: Any) -> dict:
     """Merge an AIUsage object into the running usage_total dict."""
     result = dict(current)
-    result["prompt_tokens"] = (
-        result.get("prompt_tokens", 0) + getattr(reply_usage, "prompt_tokens", 0)
+    result["prompt_tokens"] = result.get("prompt_tokens", 0) + getattr(
+        reply_usage, "prompt_tokens", 0
     )
-    result["cached_prompt_tokens"] = (
-        result.get("cached_prompt_tokens", 0)
-        + getattr(reply_usage, "cached_prompt_tokens", 0)
+    result["cached_prompt_tokens"] = result.get("cached_prompt_tokens", 0) + getattr(
+        reply_usage, "cached_prompt_tokens", 0
     )
-    result["completion_tokens"] = (
-        result.get("completion_tokens", 0) + getattr(reply_usage, "completion_tokens", 0)
+    result["completion_tokens"] = result.get("completion_tokens", 0) + getattr(
+        reply_usage, "completion_tokens", 0
     )
-    result["total_tokens"] = (
-        result.get("total_tokens", 0) + getattr(reply_usage, "total_tokens", 0)
-    )
+    result["total_tokens"] = result.get("total_tokens", 0) + getattr(reply_usage, "total_tokens", 0)
     return result
 
 
@@ -311,13 +312,13 @@ class TwoStageOrchestrator:
 
     def __init__(
         self,
-        client: "DeepSeekClient",
-        assembler: "PromptAssembler",
+        client: DeepSeekClient,
+        assembler: PromptAssembler,
         router: Any,
-        validator: "JsonValidator",
-        pending_writer: "PendingWriter",
-        exp_reader: "ExperienceReader",
-        settings: Optional["Settings"] = None,
+        validator: JsonValidator,
+        pending_writer: PendingWriter,
+        exp_reader: ExperienceReader,
+        settings: Settings | None = None,
     ) -> None:
         self._client = client
         self._assembler = assembler
@@ -383,16 +384,19 @@ class TwoStageOrchestrator:
 
         # ── Step 2.5: Preflight data gate (before Stage1Started) ─────────────
         from pa_agent.ai.decision_nodes import check_preflight_data
+
         pf = check_preflight_data(frame)
         if not pf.ok:
-            record = record.model_copy(update={
-                "exception": {
-                    "type": "insufficient_data",
-                    "stage": "preflight",
-                    "failed_check": pf.failed_check,
-                    "message": pf.reason,
+            record = record.model_copy(
+                update={
+                    "exception": {
+                        "type": "insufficient_data",
+                        "stage": "preflight",
+                        "failed_check": pf.failed_check,
+                        "message": pf.reason,
+                    }
                 }
-            })
+            )
             self._pending_writer.save_partial(record, "insufficient_data")
             on_event(OrchestratorEvent.InsufficientData)
             return record
@@ -420,19 +424,23 @@ class TwoStageOrchestrator:
             messages_s1 = self._assembler.build_stage1(frame, analysis_mode=analysis_mode)
 
         # ── Step 5: Call AI for Stage 1 ───────────────────────────────────────
-        logger.debug("\n" + "="*80)
+        logger.debug("\n" + "=" * 80)
         logger.debug("【Stage 1 发送的完整 Prompt】")
-        logger.debug("="*80)
+        logger.debug("=" * 80)
         for msg in messages_s1:
             role = msg.get("role", "?").upper()
             content = msg.get("content", "")
             logger.debug("\n--- [%s] ---\n%s", role, content)
-        logger.debug("="*80 + "\n")
+        logger.debug("=" * 80 + "\n")
 
         # Notify conversation tab of the prompt being sent
         if on_stage_prompt is not None:
-            s1_system = next((m.get("content", "") for m in messages_s1 if m.get("role") == "system"), "")
-            s1_user = next((m.get("content", "") for m in messages_s1 if m.get("role") == "user"), "")
+            s1_system = next(
+                (m.get("content", "") for m in messages_s1 if m.get("role") == "system"), ""
+            )
+            s1_user = next(
+                (m.get("content", "") for m in messages_s1 if m.get("role") == "user"), ""
+            )
             on_stage_prompt("stage1", s1_system, s1_user)
 
         _thinking, _effort = self._thinking_params()
@@ -498,9 +506,9 @@ class TwoStageOrchestrator:
             return record
 
         # ── Step 7: Validate Stage 1 ──────────────────────────────────────────
-        logger.debug("\n" + "="*80)
+        logger.debug("\n" + "=" * 80)
         logger.debug("【Stage 1 AI 完整响应】")
-        logger.debug("="*80)
+        logger.debug("=" * 80)
         logger.debug(reply_s1.content)
         if reply_s1.reasoning_content:
             logger.debug("\n--- [思考过程] ---\n%s", reply_s1.reasoning_content)
@@ -510,7 +518,7 @@ class TwoStageOrchestrator:
             reply_s1.usage.completion_tokens,
             _latency_ms_label(reply_s1.latency_ms),
         )
-        logger.debug("="*80 + "\n")
+        logger.debug("=" * 80 + "\n")
 
         prev_s1: dict[str, Any] | None = None
         if previous_record is not None and int(incremental_new_bar_count or 0) > 0:
@@ -654,14 +662,15 @@ class TwoStageOrchestrator:
             if on_stage_prompt is not None:
                 on_stage_prompt("stage2", "", "（阶段一闸门未通过，跳过阶段二模型调用）")
             short_msg = (
-                f"阶段一 gate_result={gate_result}，程序已短路生成阶段二结果，"
-                "未向模型发起请求。\n"
+                f"阶段一 gate_result={gate_result}，程序已短路生成阶段二结果，未向模型发起请求。\n"
             )
             _emit_buffered_stream(short_msg, on_stage2_content)
 
             stage2_json = build_stage2_gate_wait_response(stage1_json)
             on_event(OrchestratorEvent.Stage2Done)
-            logger.info("next_bar_prediction direction=null probs=null/null/null unpredictable=true (gate short-circuit)")
+            logger.info(
+                "next_bar_prediction direction=null probs=null/null/null unpredictable=true (gate short-circuit)"
+            )
             usage_total = _accumulate_usage(record.usage_total, reply_s1.usage)
             record = record.model_copy(
                 update={
@@ -711,19 +720,23 @@ class TwoStageOrchestrator:
         )
 
         # ── Step 15: Call AI for Stage 2 ──────────────────────────────────────
-        logger.debug("\n" + "="*80)
+        logger.debug("\n" + "=" * 80)
         logger.debug("【Stage 2 发送的完整 Prompt】")
-        logger.debug("="*80)
+        logger.debug("=" * 80)
         for msg in messages_s2:
             role = msg.get("role", "?").upper()
             content = msg.get("content", "")
             logger.debug("\n--- [%s] ---\n%s", role, content)
-        logger.debug("="*80 + "\n")
+        logger.debug("=" * 80 + "\n")
 
         # Notify conversation tab of the prompt being sent
         if on_stage_prompt is not None:
-            s2_system = next((m.get("content", "") for m in messages_s2 if m.get("role") == "system"), "")
-            s2_user = next((m.get("content", "") for m in reversed(messages_s2) if m.get("role") == "user"), "")
+            s2_system = next(
+                (m.get("content", "") for m in messages_s2 if m.get("role") == "system"), ""
+            )
+            s2_user = next(
+                (m.get("content", "") for m in reversed(messages_s2) if m.get("role") == "user"), ""
+            )
             on_stage_prompt("stage2", s2_system, s2_user)
 
         s2_streamed_reasoning = False
@@ -808,9 +821,9 @@ class TwoStageOrchestrator:
             return record
 
         # ── Step 17: Validate Stage 2 ─────────────────────────────────────────
-        logger.debug("\n" + "="*80)
+        logger.debug("\n" + "=" * 80)
         logger.debug("【Stage 2 AI 完整响应】")
-        logger.debug("="*80)
+        logger.debug("=" * 80)
         logger.debug(reply_s2.content)
         if reply_s2.reasoning_content:
             logger.debug("\n--- [思考过程] ---\n%s", reply_s2.reasoning_content)
@@ -820,7 +833,7 @@ class TwoStageOrchestrator:
             reply_s2.usage.completion_tokens,
             _latency_ms_label(reply_s2.latency_ms),
         )
-        logger.debug("="*80 + "\n")
+        logger.debug("=" * 80 + "\n")
 
         s2_usage_calls: list[Any] = [getattr(reply_s2, "usage", None)]
 
@@ -925,7 +938,9 @@ class TwoStageOrchestrator:
             logger.info("next_bar_prediction omitted (feature disabled)")
         elif isinstance(_nb_pred, dict):
             if _nb_pred.get("unpredictable"):
-                logger.info("next_bar_prediction direction=null probs=null/null/null unpredictable=true")
+                logger.info(
+                    "next_bar_prediction direction=null probs=null/null/null unpredictable=true"
+                )
             else:
                 _probs = _nb_pred.get("probabilities") or {}
                 logger.info(
@@ -1004,9 +1019,7 @@ class TwoStageOrchestrator:
         stage_label: str,
     ) -> Any:
         """Call stream_chat; on connection error, switch to QClaw and retry once."""
-        original_model = (
-            self._settings.provider.model if self._settings is not None else ""
-        )
+        original_model = self._settings.provider.model if self._settings is not None else ""
         tried_qclaw = False
         tried_cursor = False
         tried_workbuddy = False
@@ -1034,18 +1047,14 @@ class TwoStageOrchestrator:
                         stage_label,
                         exc,
                     )
-                elif not tried_cursor and self._try_cursor_fallback(
-                    original_model=original_model
-                ):
+                elif not tried_cursor and self._try_cursor_fallback(original_model=original_model):
                     tried_cursor = True
                     logger.info(
                         "%s network error (%s); applied Cursor provider — retrying",
                         stage_label,
                         exc,
                     )
-                elif not tried_qclaw and self._try_qclaw_fallback(
-                    original_model=original_model
-                ):
+                elif not tried_qclaw and self._try_qclaw_fallback(original_model=original_model):
                     tried_qclaw = True
                     logger.info(
                         "%s network error (%s); applied QClaw provider — retrying",
@@ -1080,7 +1089,7 @@ class TwoStageOrchestrator:
         try:
             save_settings(self._settings, SETTINGS_JSON_PATH)
             update_api_key(self._settings.provider.api_key)
-        except Exception as save_exc:  # noqa: BLE001
+        except Exception as save_exc:
             logger.warning("QClaw fallback applied but settings save failed: %s", save_exc)
 
         logger.info(
@@ -1118,7 +1127,7 @@ class TwoStageOrchestrator:
         try:
             save_settings(self._settings, SETTINGS_JSON_PATH)
             update_api_key(self._settings.provider.api_key)
-        except Exception as save_exc:  # noqa: BLE001
+        except Exception as save_exc:
             logger.warning("Cursor fallback applied but settings save failed: %s", save_exc)
 
         logger.info(
@@ -1153,7 +1162,7 @@ class TwoStageOrchestrator:
         try:
             save_settings(self._settings, SETTINGS_JSON_PATH)
             update_api_key(self._settings.provider.api_key)
-        except Exception as save_exc:  # noqa: BLE001
+        except Exception as save_exc:
             logger.warning("WorkBuddy fallback applied but settings save failed: %s", save_exc)
 
         logger.info(

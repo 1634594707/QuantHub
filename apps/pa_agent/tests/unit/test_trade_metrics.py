@@ -1,4 +1,5 @@
 """Unit tests for trade_metrics helpers."""
+
 from __future__ import annotations
 
 from pa_agent.util.trade_metrics import (

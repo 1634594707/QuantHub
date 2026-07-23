@@ -8,24 +8,27 @@
 主力合约代码格式: 字母+0, 例如 RB0(螺纹钢)、AU0(黄金)、CU0(铜)、FU0(燃油)。
 AkShare 期货数据底层来自新浪财经，统一封装在国内期货接口中。
 """
+
 from __future__ import annotations
 
 import logging
 import os
 import re
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from pa_agent.data.base import DataSource, DataSourceTransientError, KlineBar, normalize_kline_bar
 from pa_agent.data.akshare_source import (
     _df_to_bars_asc as _ashare_df_to_bars_asc,
+)
+from pa_agent.data.akshare_source import (
     _merge_ohlcv,
     _normalize_ohlcv_df,
     _resample_rows_to_4h,
     _rows_to_kline_bars,
 )
+from pa_agent.data.base import DataSource, DataSourceTransientError, KlineBar
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +47,7 @@ _TF_MINUTE_PERIOD: dict[str, str] = {
     "1h": "60",
 }
 
+
 # 通用重采样: 将分钟线按 chunk_size 根合并为一根 (如 chunk_size=2 → 2h from 1h)
 def _resample_rows(rows_asc: list[dict[str, Any]], chunk_size: int) -> list[dict[str, Any]]:
     if not rows_asc or chunk_size <= 1:
@@ -58,6 +62,7 @@ def _resample_rows(rows_asc: list[dict[str, Any]], chunk_size: int) -> list[dict
     if chunk:
         buckets.append(_merge_ohlcv(chunk))
     return buckets
+
 
 # 支持的周期: 分钟线(1/5/15/30/60m) + 2h/4h(由1h重采样) + 日线
 _SUPPORTED_TIMEFRAMES: tuple[str, ...] = (
@@ -74,24 +79,88 @@ _SUPPORTED_TIMEFRAMES: tuple[str, ...] = (
 # 品种代码 -> 中文名称 (下拉框显示 "代码 中文名", subscribe 时自动提取代码)
 # 用户也可输入任意主力代码 (如 RB0/AU0/CU0) 或具体月份 (如 AO2501)
 _SYMBOL_NAMES: dict[str, str] = {
-    "V0": "PVC", "P0": "棕榈油", "B0": "豆二", "M0": "豆粕", "I0": "铁矿石",
-    "JD0": "鸡蛋", "L0": "塑料", "PP0": "聚丙烯", "FB0": "纤维板", "Y0": "豆油",
-    "C0": "玉米", "A0": "豆一", "J0": "焦炭", "JM0": "焦煤", "CS0": "淀粉",
-    "EG0": "乙二醇", "RR0": "粳米", "EB0": "苯乙烯", "PG0": "液化石油气", "LH0": "生猪",
-    "LG0": "原木", "BZ0": "纯苯",
-    "TA0": "PTA", "OI0": "菜油", "RS0": "菜籽", "RM0": "菜粕", "WH0": "强麦",
-    "JR0": "粳稻", "SR0": "白糖", "CF0": "棉花", "RI0": "早籼稻", "MA0": "甲醇",
-    "FG0": "玻璃", "LR0": "晚籼稻", "SF0": "硅铁", "SM0": "锰硅", "CY0": "棉纱",
-    "AP0": "苹果", "CJ0": "红枣", "UR0": "尿素", "SA0": "纯碱", "PF0": "短纤",
-    "PK0": "花生", "SH0": "烧碱", "PX0": "对二甲苯", "PR0": "瓶片", "PL0": "丙烯",
-    "FU0": "燃料油", "SC0": "原油", "AL0": "铝", "RU0": "天然橡胶", "ZN0": "沪锌",
-    "CU0": "铜", "AU0": "黄金", "RB0": "螺纹钢", "PB0": "铅", "AG0": "白银",
-    "BU0": "沥青", "HC0": "热轧卷板", "SN0": "锡", "NI0": "镍", "SP0": "纸浆",
-    "NR0": "20号胶", "SS0": "不锈钢", "LU0": "低硫燃料油", "BC0": "国际铜", "AO0": "氧化铝",
-    "BR0": "丁二烯橡胶", "EC0": "集运欧线", "AD0": "铸造铝合金", "OP0": "胶版印刷纸",
-    "IF0": "沪深300股指", "TF0": "5年期国债", "IH0": "上证50股指", "IC0": "中证500股指",
-    "TS0": "2年期国债", "IM0": "中证1000股指",
-    "SI0": "工业硅", "LC0": "碳酸锂", "PS0": "多晶硅", "PT0": "铂", "PD0": "钯",
+    "V0": "PVC",
+    "P0": "棕榈油",
+    "B0": "豆二",
+    "M0": "豆粕",
+    "I0": "铁矿石",
+    "JD0": "鸡蛋",
+    "L0": "塑料",
+    "PP0": "聚丙烯",
+    "FB0": "纤维板",
+    "Y0": "豆油",
+    "C0": "玉米",
+    "A0": "豆一",
+    "J0": "焦炭",
+    "JM0": "焦煤",
+    "CS0": "淀粉",
+    "EG0": "乙二醇",
+    "RR0": "粳米",
+    "EB0": "苯乙烯",
+    "PG0": "液化石油气",
+    "LH0": "生猪",
+    "LG0": "原木",
+    "BZ0": "纯苯",
+    "TA0": "PTA",
+    "OI0": "菜油",
+    "RS0": "菜籽",
+    "RM0": "菜粕",
+    "WH0": "强麦",
+    "JR0": "粳稻",
+    "SR0": "白糖",
+    "CF0": "棉花",
+    "RI0": "早籼稻",
+    "MA0": "甲醇",
+    "FG0": "玻璃",
+    "LR0": "晚籼稻",
+    "SF0": "硅铁",
+    "SM0": "锰硅",
+    "CY0": "棉纱",
+    "AP0": "苹果",
+    "CJ0": "红枣",
+    "UR0": "尿素",
+    "SA0": "纯碱",
+    "PF0": "短纤",
+    "PK0": "花生",
+    "SH0": "烧碱",
+    "PX0": "对二甲苯",
+    "PR0": "瓶片",
+    "PL0": "丙烯",
+    "FU0": "燃料油",
+    "SC0": "原油",
+    "AL0": "铝",
+    "RU0": "天然橡胶",
+    "ZN0": "沪锌",
+    "CU0": "铜",
+    "AU0": "黄金",
+    "RB0": "螺纹钢",
+    "PB0": "铅",
+    "AG0": "白银",
+    "BU0": "沥青",
+    "HC0": "热轧卷板",
+    "SN0": "锡",
+    "NI0": "镍",
+    "SP0": "纸浆",
+    "NR0": "20号胶",
+    "SS0": "不锈钢",
+    "LU0": "低硫燃料油",
+    "BC0": "国际铜",
+    "AO0": "氧化铝",
+    "BR0": "丁二烯橡胶",
+    "EC0": "集运欧线",
+    "AD0": "铸造铝合金",
+    "OP0": "胶版印刷纸",
+    "IF0": "沪深300股指",
+    "TF0": "5年期国债",
+    "IH0": "上证50股指",
+    "IC0": "中证500股指",
+    "TS0": "2年期国债",
+    "IM0": "中证1000股指",
+    "SI0": "工业硅",
+    "LC0": "碳酸锂",
+    "PS0": "多晶硅",
+    "PT0": "铂",
+    "PD0": "钯",
 }
 
 # 预设主力合约列表 (从 _SYMBOL_NAMES 生成)
@@ -190,6 +259,7 @@ def variety_prefix(main_code: str) -> str:
     m = re.match(r"^([A-Za-z]{1,3})0$", main_code)
     return m.group(1).upper() if m else main_code.strip().upper()
 
+
 # 期货代码正则:
 #   主力连续  → 1-3 个字母 + 0           (如 RB0, AU0, AO0)
 #   具体月份  → 1-3 个字母 + 3~4 位数字  (如 AO2501, RB2501, RB701)
@@ -265,9 +335,7 @@ class EastMoneyFuturesSource(DataSource):
         try:
             import akshare  # noqa: F401
         except ImportError as exc:
-            raise DataSourceTransientError(
-                "未安装 akshare, 请执行: pip install akshare"
-            ) from exc
+            raise DataSourceTransientError("未安装 akshare, 请执行: pip install akshare") from exc
         self._connected = True
         logger.info("EastMoneyFuturesSource connected")
 
@@ -399,15 +467,14 @@ class EastMoneyFuturesSource(DataSource):
 
         # 过滤掉时间戳远超当前时间的异常K线 (akshare 偶尔返回未来交易日的数据)
         from pa_agent.data.bar_close_wait import timeframe_to_seconds
+
         now_ms = int(_cn_now().timestamp() * 1000)
         _tf_s = timeframe_to_seconds(self._timeframe) or 900
         _max_ts = now_ms + _tf_s * 1000  # 容差一个周期 (forming bar 结束时间可能略晚于当前)
         rows_asc = [r for r in rows_asc if int(r.get("ts_open", 0)) <= _max_ts]
 
         if not rows_asc:
-            raise DataSourceTransientError(
-                f"未返回期货数据: {self._symbol} {self._timeframe}"
-            )
+            raise DataSourceTransientError(f"未返回期货数据: {self._symbol} {self._timeframe}")
 
         if _futures_session_open():
             self._apply_spot_to_forming(rows_asc)

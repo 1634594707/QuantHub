@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """StackVM 公式 DSL — 从 AlphaGPT/model_core 逐字移植。
 
 合并原 ``vm.py`` + ``ops.py`` + ``vocab.py`` 三件套，保持指令集与执行逻辑
@@ -11,6 +10,7 @@ torch 为重依赖：本模块在模块级 ``import torch``，但由 ``strategy.
 **懒加载**（仅在 produce/backtest 时才 import 本模块），故策略包导入不触发
 torch，避免未装 torch 时导入失败。
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -21,14 +21,17 @@ import torch
 # ===== 以下为原 ops.py 逐字移植（指令集定义） =====
 @torch.jit.script
 def _ts_delay(x: torch.Tensor, d: int) -> torch.Tensor:
-    if d == 0: return x
+    if d == 0:
+        return x
     pad = torch.zeros((x.shape[0], d), device=x.device)
     return torch.cat([pad, x[:, :-d]], dim=1)
+
 
 @torch.jit.script
 def _op_gate(condition: torch.Tensor, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
     mask = (condition > 0).float()
     return mask * x + (1.0 - mask) * y
+
 
 @torch.jit.script
 def _op_jump(x: torch.Tensor) -> torch.Tensor:
@@ -37,23 +40,25 @@ def _op_jump(x: torch.Tensor) -> torch.Tensor:
     z = (x - mean) / std
     return torch.relu(z - 3.0)
 
+
 @torch.jit.script
 def _op_decay(x: torch.Tensor) -> torch.Tensor:
     return x + 0.8 * _ts_delay(x, 1) + 0.6 * _ts_delay(x, 2)
 
+
 OPS_CONFIG = [
-    ('ADD', lambda x, y: x + y, 2),
-    ('SUB', lambda x, y: x - y, 2),
-    ('MUL', lambda x, y: x * y, 2),
-    ('DIV', lambda x, y: x / (y + 1e-6), 2),
-    ('NEG', lambda x: -x, 1),
-    ('ABS', torch.abs, 1),
-    ('SIGN', torch.sign, 1),
-    ('GATE', _op_gate, 3),
-    ('JUMP', _op_jump, 1),
-    ('DECAY', _op_decay, 1),
-    ('DELAY1', lambda x: _ts_delay(x, 1), 1),
-    ('MAX3', lambda x: torch.max(x, torch.max(_ts_delay(x,1), _ts_delay(x,2))), 1)
+    ("ADD", lambda x, y: x + y, 2),
+    ("SUB", lambda x, y: x - y, 2),
+    ("MUL", lambda x, y: x * y, 2),
+    ("DIV", lambda x, y: x / (y + 1e-6), 2),
+    ("NEG", lambda x: -x, 1),
+    ("ABS", torch.abs, 1),
+    ("SIGN", torch.sign, 1),
+    ("GATE", _op_gate, 3),
+    ("JUMP", _op_jump, 1),
+    ("DECAY", _op_decay, 1),
+    ("DELAY1", lambda x: _ts_delay(x, 1), 1),
+    ("MAX3", lambda x: torch.max(x, torch.max(_ts_delay(x, 1), _ts_delay(x, 2))), 1),
 ]
 
 
@@ -114,7 +119,8 @@ class StackVM:
                     stack.append(feat_tensor[:, token, :])
                 elif token in self.op_map:
                     arity = self.arity_map[token]
-                    if len(stack) < arity: return None
+                    if len(stack) < arity:
+                        return None
                     args = []
                     for _ in range(arity):
                         args.append(stack.pop())

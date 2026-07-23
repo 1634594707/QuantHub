@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """风控校验。
 
 实盘下单前强制风控：
@@ -9,6 +8,7 @@
 
 研究模式（dry-run）跳过风控，仅记录。
 """
+
 from __future__ import annotations
 
 import logging
@@ -26,11 +26,12 @@ class RiskError(Exception):
 @dataclass
 class RiskContext:
     """风控上下文（当前账户状态）。"""
+
     total_equity: float
-    position_value: float = 0.0           # 当前持仓总市值
-    symbol_position_value: float = 0.0    # 当前标的持仓市值
-    symbol_liquidity_usd: float | None = None   # 标的流动性（加密）
-    is_honeypot: bool | None = None       # 是否蜜罐（加密）
+    position_value: float = 0.0  # 当前持仓总市值
+    symbol_position_value: float = 0.0  # 当前标的持仓市值
+    symbol_liquidity_usd: float | None = None  # 标的流动性（加密）
+    is_honeypot: bool | None = None  # 是否蜜罐（加密）
 
 
 class RiskChecker:
@@ -57,7 +58,7 @@ class RiskChecker:
         new_symbol_value = ctx.symbol_position_value + order_value
         if new_symbol_value / ctx.total_equity > self.max_position_per_symbol:
             raise RiskError(
-                f"单标的仓位超限: {new_symbol_value/ctx.total_equity:.2%} > "
+                f"单标的仓位超限: {new_symbol_value / ctx.total_equity:.2%} > "
                 f"{self.max_position_per_symbol:.2%}"
             )
 
@@ -65,8 +66,7 @@ class RiskChecker:
         new_total = ctx.position_value + order_value
         if new_total / ctx.total_equity > self.max_total_exposure:
             raise RiskError(
-                f"总敞口超限: {new_total/ctx.total_equity:.2%} > "
-                f"{self.max_total_exposure:.2%}"
+                f"总敞口超限: {new_total / ctx.total_equity:.2%} > {self.max_total_exposure:.2%}"
             )
 
         # 流动性（加密）

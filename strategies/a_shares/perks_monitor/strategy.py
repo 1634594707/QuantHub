@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """A股股东回馈羊毛监控策略。
 
 从原 ``Python撸大A羊毛`` 项目的 ``announcement_monitor.py`` 下沉而来：
@@ -9,6 +8,7 @@
 
 命中股东回馈/羊毛公告即产出 ``Signal(direction="buy")``（利好）并推企微。
 """
+
 from __future__ import annotations
 
 import logging
@@ -30,43 +30,38 @@ logger = logging.getLogger(__name__)
 #   实际逐条清点为 27 个，此处逐字搬运，未增删、未猜测）
 PERKS_KEYWORDS: list[str] = [
     # ===== 核心关键词（高命中率）=====
-    '赠送',          # 赠送产品给股东 - 最核心
-    '回馈',          # 回馈股东活动 - 最核心
-    '股东福利',      # 股东福利活动
-    '股东节',        # 上市公司股东节(如英诺特)
-
+    "赠送",  # 赠送产品给股东 - 最核心
+    "回馈",  # 回馈股东活动 - 最核心
+    "股东福利",  # 股东福利活动
+    "股东节",  # 上市公司股东节(如英诺特)
     # ===== 产品相关 =====
-    '品鉴',          # 产品品鉴活动
-    '礼品',          # 礼品发放
-    '礼盒',          # 产品礼盒
-    '礼包',          # 大礼包
-    '体验',          # 产品体验活动
-    '试用',          # 免费试用
-    '样品',          # 样品发放
-
+    "品鉴",  # 产品品鉴活动
+    "礼品",  # 礼品发放
+    "礼盒",  # 产品礼盒
+    "礼包",  # 大礼包
+    "体验",  # 产品体验活动
+    "试用",  # 免费试用
+    "样品",  # 样品发放
     # ===== 感谢/致谢类 =====
-    '致谢',          # 致谢股东
-    '答谢',          # 答谢活动
-    '感恩',          # 感恩回馈/感恩节活动(如奥雅股份)
-    '感谢',          # 感谢股东支持
-
+    "致谢",  # 致谢股东
+    "答谢",  # 答谢活动
+    "感恩",  # 感恩回馈/感恩节活动(如奥雅股份)
+    "感谢",  # 感谢股东支持
     # ===== 福利/优惠类 =====
-    '福利',          # 福利发放
-    '优惠券',        # 优惠券领取
-    '折扣券',        # 折扣券
-    '专享价',        # 股东专享价格(如好想你)
-    '尊享',          # 尊享权益(如五芳斋"丰年五芳")
-    '免费',          # 免费领取/免票(如峨眉山A免门票)
-
+    "福利",  # 福利发放
+    "优惠券",  # 优惠券领取
+    "折扣券",  # 折扣券
+    "专享价",  # 股东专享价格(如好想你)
+    "尊享",  # 尊享权益(如五芳斋"丰年五芳")
+    "免费",  # 免费领取/免票(如峨眉山A免门票)
     # ===== 自愿性披露特征词 =====
-    '自愿性信息',   # 股东回馈公告通常以《关于XX活动的自愿性信息披露公告》形式发布
-    '实物分红',      # 媒体对股东回馈的称呼
-    '实物回馈',      # 同上
-    '宠股东',        # 媒体用语
-
+    "自愿性信息",  # 股东回馈公告通常以《关于XX活动的自愿性信息披露公告》形式发布
+    "实物分红",  # 媒体对股东回馈的称呼
+    "实物回馈",  # 同上
+    "宠股东",  # 媒体用语
     # ===== 特定场景 =====
-    '持股',          # "持股XX股以上可领取"
-    '登记日',        # 股权登记日相关
+    "持股",  # "持股XX股以上可领取"
+    "登记日",  # 股权登记日相关
 ]
 
 
@@ -76,10 +71,24 @@ PERKS_KEYWORDS: list[str] = [
 #   原注释称"共52只"，实际逐条清点为 47 只，此处逐字搬运，未增删）
 DEFAULT_STOCK_POOL: list[str] = [
     # ===== 原始18只 =====
-    "300908", "002382", "603101", "600054", "603716",
-    "002557", "600771", "836826", "605300", "300753",
-    "300997", "605081", "002646", "002069", "000620",
-    "000521", "002186", "002320",
+    "300908",
+    "002382",
+    "603101",
+    "600054",
+    "603716",
+    "002557",
+    "600771",
+    "836826",
+    "605300",
+    "300753",
+    "300997",
+    "605081",
+    "002646",
+    "002069",
+    "000620",
+    "000521",
+    "002186",
+    "002320",
     # ===== 文旅景区新增 =====
     "000888",  # 峨眉山A - 免门票+温泉滑雪
     "000978",  # 桂林旅游
@@ -146,12 +155,14 @@ def _build_detail_url(symbol: str, ann: Announcement) -> str:
     return ""
 
 
-@register_strategy(StrategyInfo(
-    name="perks_monitor",
-    market="a_shares",
-    live_capable=False,
-    description="上市公司股东回馈公告监控+企微推送",
-))
+@register_strategy(
+    StrategyInfo(
+        name="perks_monitor",
+        market="a_shares",
+        live_capable=False,
+        description="上市公司股东回馈公告监控+企微推送",
+    )
+)
 class PerksMonitorStrategy(StrategyBase):
     """股东回馈羊毛监控策略。
 
@@ -162,9 +173,7 @@ class PerksMonitorStrategy(StrategyBase):
     def __init__(self, config: dict | None = None) -> None:
         super().__init__(config=config)
         # 股票池：优先取 config.stock_pool，否则用 DEFAULT_STOCK_POOL
-        self._stock_pool: list[str] = list(
-            self.config.get("stock_pool") or DEFAULT_STOCK_POOL
-        )
+        self._stock_pool: list[str] = list(self.config.get("stock_pool") or DEFAULT_STOCK_POOL)
         # 单次拉取公告条数（原爬虫 page_size=100）
         self._limit: int = int(self.config.get("limit", 100))
 
@@ -174,7 +183,7 @@ class PerksMonitorStrategy(StrategyBase):
         try:
             ds = get_data_source("a_shares")
             return ds.get_announcements(symbol, limit=self._limit)
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.exception("获取公告失败: %s", symbol)
             return []
 
@@ -218,9 +227,9 @@ class PerksMonitorStrategy(StrategyBase):
             symbol=symbol,
             market="a_shares",
             timeframe="daily",
-            direction="buy",          # 股东回馈属利好
-            score=0.8,                # 利好强度（0~1）
-            confidence=0.7,           # 关键词命中置信度
+            direction="buy",  # 股东回馈属利好
+            score=0.8,  # 利好强度（0~1）
+            confidence=0.7,  # 关键词命中置信度
             source="perks_monitor",
             tags=["perks", "a_shares", "announcement"],
             ts=datetime.now(),
@@ -237,12 +246,7 @@ class PerksMonitorStrategy(StrategyBase):
         """通过 core.alert 推送企微告警（复用 Notifier，不重新实现推送）。"""
         url = _build_detail_url(symbol, ann)
         ann_ts = ann.ts.strftime("%Y-%m-%d") if ann.ts else ""
-        base = (
-            f"股票: {symbol}\n"
-            f"日期: {ann_ts}\n"
-            f"标题: {ann.title}\n"
-            f"命中关键词: {kw}"
-        )
+        base = f"股票: {symbol}\n日期: {ann_ts}\n标题: {ann.title}\n命中关键词: {kw}"
         content = f"{base}\n链接: {url}" if url else base
         msg = AlertMessage(
             title=f"股东回馈公告 [{symbol}]",
@@ -253,7 +257,7 @@ class PerksMonitorStrategy(StrategyBase):
         )
         try:
             get_notifier().send(msg)
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.exception("推送告警失败: %s %s", symbol, ann.title)
 
     # ---------------- 工具 ----------------
@@ -283,7 +287,7 @@ def scan_announcements(symbols=None, config: dict | None = None) -> list[Signal]
     try:
         mod_cfg = get_config("a_shares").get("modules", {}).get("perks_monitor", {})
         merged_cfg.update(mod_cfg)
-    except Exception:  # noqa: BLE001
+    except Exception:
         logger.warning("读取 perks_monitor 模块配置失败，使用默认", exc_info=True)
     if config:
         merged_cfg.update(config)

@@ -1,14 +1,13 @@
-# -*- coding: utf-8 -*-
 """dispatcher 主循环：信号汇聚 → 加权聚合 → 风控 → 路由。
 
 可被 apps/scheduler 定时调用，或作为常驻进程订阅信号总线。
 """
+
 from __future__ import annotations
 
 import logging
 from collections import defaultdict
 from datetime import datetime, timedelta
-from typing import Any
 
 from apps.dispatcher.risk import RiskChecker, RiskContext, RiskError
 from apps.dispatcher.router import OrderRouter
@@ -28,8 +27,7 @@ class Dispatcher:
         4. 风控校验 → 路由（dry-run 或实盘 CLI 确认）
     """
 
-    def __init__(self, aggregation_window_seconds: int = 300,
-                 score_threshold: float = 0.6) -> None:
+    def __init__(self, aggregation_window_seconds: int = 300, score_threshold: float = 0.6) -> None:
         cfg = get_config()
         self.weights: dict[str, float] = cfg.get("signals", {}).get("weights", {})
         self.window = timedelta(seconds=aggregation_window_seconds)
@@ -45,7 +43,9 @@ class Dispatcher:
         """信号到达回调：缓存。"""
         self._buffer[signal.symbol].append((signal, datetime.now()))
 
-    def flush(self, symbol: str | None = None, account_ctx: RiskContext | None = None) -> list[dict]:
+    def flush(
+        self, symbol: str | None = None, account_ctx: RiskContext | None = None
+    ) -> list[dict]:
         """聚合并路由。
 
         Args:
@@ -88,7 +88,9 @@ class Dispatcher:
                 direction_votes["sell"] += sig.confidence * w
 
         score = weighted_score / weight_sum if weight_sum > 0 else 0.0
-        direction = "buy" if direction_votes.get("buy", 0) > direction_votes.get("sell", 0) else "sell"
+        direction = (
+            "buy" if direction_votes.get("buy", 0) > direction_votes.get("sell", 0) else "sell"
+        )
         if max(direction_votes.values(), default=0) == 0:
             direction = "hold"
 
@@ -103,12 +105,18 @@ class Dispatcher:
 
     def _route(self, agg: dict, account_ctx: RiskContext | None) -> dict | None:
         from core.signals import Signal
+
         # 构造聚合 Signal
         sig = Signal(
-            symbol=agg["symbol"], market=agg["market"],
-            timeframe="agg", direction=agg["direction"],
-            score=agg["score"], confidence=agg["score"],
-            source="dispatcher", tags=agg["sources"], ts=agg["ts"],
+            symbol=agg["symbol"],
+            market=agg["market"],
+            timeframe="agg",
+            direction=agg["direction"],
+            score=agg["score"],
+            confidence=agg["score"],
+            source="dispatcher",
+            tags=agg["sources"],
+            ts=agg["ts"],
         )
         # 风控（实盘时）
         if not self._router.dry_run and account_ctx is not None:
@@ -128,6 +136,7 @@ class Dispatcher:
 def main() -> None:
     """CLI 入口：常驻订阅 + 定时 flush。"""
     import time
+
     logging.basicConfig(level=logging.INFO)
     logger.info("启动 dispatcher（dry_run=%s）", get_config().get("live_trading", False) is False)
     d = Dispatcher()

@@ -1,15 +1,15 @@
-# -*- coding: utf-8 -*-
 """统一 Signal 数据类与轻量总线。
 
 各策略 ``produce Signal``；dashboard / dispatcher ``consume``。
 """
+
 from __future__ import annotations
 
 import threading
 from collections import defaultdict
-from dataclasses import dataclass, field, asdict
+from collections.abc import Callable, Iterable
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
-from typing import Callable, Iterable
 
 
 @dataclass
@@ -18,16 +18,17 @@ class Signal:
 
     所有策略产出的信号都封装为 Signal，供 dispatcher 聚合与路由。
     """
+
     symbol: str
-    market: str                         # "a_shares" | "crypto"
-    timeframe: str                      # "daily" / "1h" / "4h" ...
-    direction: str                      # "buy" | "sell" | "hold"
-    score: float                        # 0~1，方向置信强度
-    confidence: float                   # 0~1，模型/规则置信度
-    source: str                         # 模块名（sentiment/supertrend/...）
+    market: str  # "a_shares" | "crypto"
+    timeframe: str  # "daily" / "1h" / "4h" ...
+    direction: str  # "buy" | "sell" | "hold"
+    score: float  # 0~1，方向置信强度
+    confidence: float  # 0~1，模型/规则置信度
+    source: str  # 模块名（sentiment/supertrend/...）
     tags: list[str] = field(default_factory=list)
     ts: datetime = field(default_factory=datetime.now)
-    meta: dict = field(default_factory=dict)   # 模块特有附加信息
+    meta: dict = field(default_factory=dict)  # 模块特有附加信息
 
     def __post_init__(self) -> None:
         if not 0.0 <= self.score <= 1.0:
@@ -71,16 +72,23 @@ class SignalBus:
     ) -> None:
         """订阅信号，可按 source/market/direction 过滤。"""
         with self._lock:
-            self._handlers.append((handler, {
-                "source": source, "market": market, "direction": direction,
-            }))
+            self._handlers.append(
+                (
+                    handler,
+                    {
+                        "source": source,
+                        "market": market,
+                        "direction": direction,
+                    },
+                )
+            )
 
     def publish(self, signal: Signal) -> None:
         """发布信号，匹配的订阅者被同步调用。"""
         with self._lock:
             self._history.append(signal)
             if len(self._history) > self._history_limit:
-                self._history = self._history[-self._history_limit:]
+                self._history = self._history[-self._history_limit :]
             handlers = list(self._handlers)
         for handler, flt in handlers:
             if flt["source"] and signal.source != flt["source"]:
@@ -91,8 +99,9 @@ class SignalBus:
                 continue
             try:
                 handler(signal)
-            except Exception:  # noqa: BLE001 - 订阅者异常不阻断总线
+            except Exception:
                 import logging
+
                 logging.getLogger(__name__).exception("信号订阅者执行失败: %s", handler)
 
     def history(

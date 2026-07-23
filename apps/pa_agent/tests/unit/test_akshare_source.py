@@ -1,4 +1,5 @@
 """Unit tests for AkShare data source helpers (no network)."""
+
 from __future__ import annotations
 
 from pa_agent.data.akshare_source import (

@@ -1,4 +1,5 @@
 """Unit tests for cycle display helpers."""
+
 from __future__ import annotations
 
 from pa_agent.ai.cycle_enums import format_cycle_with_direction, format_trend_label

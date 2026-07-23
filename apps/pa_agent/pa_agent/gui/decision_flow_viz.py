@@ -1,11 +1,20 @@
 """Decision flow visualization — branched sci-fi flowchart (gate + strategy path)."""
+
 from __future__ import annotations
 
 import math
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from PyQt6.QtCore import QEvent, QPointF, QRectF, Qt, QTimer
+from pa_agent.ai.decision_tree import (
+    _BRANCH_DISPLAY_ZH,
+    format_trace_answer,
+    get_node_branch_outcome,
+    merge_traces,
+    plain_trace_question,
+)
+from pa_agent.gui.theme import tokens as T
+from PyQt6.QtCore import QEvent, QPointF, QRectF, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import (
     QBrush,
     QColor,
@@ -27,16 +36,6 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from PyQt6.QtCore import pyqtSignal
-
-from pa_agent.ai.decision_tree import (
-    _BRANCH_DISPLAY_ZH,
-    format_trace_answer,
-    get_node_branch_outcome,
-    merge_traces,
-    plain_trace_question,
-)
-from pa_agent.gui.theme import tokens as T
 
 _OUTCOME_ZH = {
     "wait": "等待",
@@ -134,7 +133,7 @@ class _Placed:
 
 
 class _FlowScene(QGraphicsScene):
-    def drawBackground(self, painter: QPainter, rect: QRectF) -> None:  # noqa: N802
+    def drawBackground(self, painter: QPainter, rect: QRectF) -> None:
         global _ANIM_PHASE
         grad = QLinearGradient(rect.topLeft(), rect.bottomRight())
         grad.setColorAt(0, QColor("#020711"))
@@ -144,7 +143,12 @@ class _FlowScene(QGraphicsScene):
 
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         center = rect.center()
-        halo = QLinearGradient(center.x() - rect.width() * 0.45, center.y(), center.x() + rect.width() * 0.45, center.y())
+        halo = QLinearGradient(
+            center.x() - rect.width() * 0.45,
+            center.y(),
+            center.x() + rect.width() * 0.45,
+            center.y(),
+        )
         c0 = QColor(_NEON_BLUE)
         c0.setAlpha(0)
         c1 = QColor(_NEON_CYAN)
@@ -210,7 +214,7 @@ class _BranchEdge(QGraphicsObject):
         self._active = active
         self.setZValue(1)
 
-    def boundingRect(self) -> QRectF:  # noqa: N802
+    def boundingRect(self) -> QRectF:
         return QRectF(self._p0, self._p1).normalized().adjusted(-40, -24, 40, 24)
 
     def paint(self, painter: QPainter, _option: Any, _widget: Any = None) -> None:
@@ -306,7 +310,7 @@ class _PhaseBandItem(QGraphicsObject):
         self._title = title
         self.setZValue(2)
 
-    def boundingRect(self) -> QRectF:  # noqa: N802
+    def boundingRect(self) -> QRectF:
         return QRectF(-280, -16, 560, 32)
 
     def paint(self, painter: QPainter, _option: Any, _widget: Any = None) -> None:
@@ -357,15 +361,15 @@ class _DecisionNode(QGraphicsObject):
                 tip.append(f"AI覆盖理由：{self._override_reason}")
         self.setToolTip("\n".join(tip))
 
-    def boundingRect(self) -> QRectF:  # noqa: N802
+    def boundingRect(self) -> QRectF:
         pad = 18
         return QRectF(-_NODE_W / 2 - pad, -pad, _NODE_W + pad * 2, _NODE_H + pad * 2)
 
-    def hoverEnterEvent(self, _event: Any) -> None:  # noqa: N802
+    def hoverEnterEvent(self, _event: Any) -> None:
         self._hover = True
         self.update()
 
-    def hoverLeaveEvent(self, _event: Any) -> None:  # noqa: N802
+    def hoverLeaveEvent(self, _event: Any) -> None:
         self._hover = False
         self.update()
 
@@ -447,11 +451,7 @@ class _DecisionNode(QGraphicsObject):
         painter.setClipRect(question_rect)
         painter.drawText(
             question_rect,
-            int(
-                Qt.AlignmentFlag.AlignLeft
-                | Qt.AlignmentFlag.AlignTop
-                | Qt.TextFlag.TextWordWrap
-            ),
+            int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop | Qt.TextFlag.TextWordWrap),
             self._question,
         )
         painter.restore()
@@ -529,14 +529,10 @@ class _AltBranchNode(QGraphicsObject):
         self._node_id = node_id
         self.setZValue(3)
         self._title = "是" if branch == "yes" else "否"
-        self._title_color = QColor(
-            T.ACCENT_SUCCESS if branch == "yes" else T.ACCENT_DANGER
-        )
-        self.setToolTip(
-            f"§{node_id} · 若选「{self._title}」\n{self._outcome}"
-        )
+        self._title_color = QColor(T.ACCENT_SUCCESS if branch == "yes" else T.ACCENT_DANGER)
+        self.setToolTip(f"§{node_id} · 若选「{self._title}」\n{self._outcome}")
 
-    def boundingRect(self) -> QRectF:  # noqa: N802
+    def boundingRect(self) -> QRectF:
         return QRectF(-_STUB_W / 2 - 6, -6, _STUB_W + 12, _STUB_H + 12)
 
     def paint(self, painter: QPainter, _option: Any, _widget: Any = None) -> None:
@@ -583,7 +579,7 @@ class _TerminalNode(QGraphicsObject):
         self._color = QColor(_OUTCOME_COLOR.get(self._outcome, T.ACCENT_PRIMARY))
         self.setToolTip(f"§{self._nid} · {self._outcome_zh}\n{self._label}")
 
-    def boundingRect(self) -> QRectF:  # noqa: N802
+    def boundingRect(self) -> QRectF:
         return QRectF(-_TERMINAL_W / 2 - 8, -8, _TERMINAL_W + 16, _TERMINAL_H + 16)
 
     def paint(self, painter: QPainter, _option: Any, _widget: Any = None) -> None:
@@ -647,13 +643,14 @@ class _EmptyHint(QGraphicsObject):
         super().__init__()
         self._text = text
 
-    def boundingRect(self) -> QRectF:  # noqa: N802
+    def boundingRect(self) -> QRectF:
         return QRectF(-240, -40, 480, 80)
 
     def paint(self, painter: QPainter, _option: Any, _widget: Any = None) -> None:
         painter.setPen(QPen(QColor(T.TEXT_MUTED)))
         painter.setFont(_font_ui(13))
         painter.drawText(self.boundingRect(), int(Qt.AlignmentFlag.AlignCenter), self._text)
+
 
 def _layout_branched_path(
     merged: list[dict[str, Any]],
@@ -778,11 +775,11 @@ def _build_playback_path(placed: list[_Placed], *, total_steps: int) -> list[QPo
 class _DecisionFlowGraphicsView(QGraphicsView):
     """Graphics view that re-applies default zoom once the viewport has a real size."""
 
-    def __init__(self, scene: QGraphicsScene, owner: "DecisionFlowVizPanel") -> None:
+    def __init__(self, scene: QGraphicsScene, owner: DecisionFlowVizPanel) -> None:
         super().__init__(scene)
         self._owner = owner
 
-    def resizeEvent(self, event) -> None:  # noqa: ANN001, N802
+    def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
         if self._owner._needs_initial_refit:
             self._owner.schedule_refit_view()
@@ -829,9 +826,7 @@ class DecisionFlowVizPanel(QWidget):
 
         title = QLabel("决策路径可视化")
         title.setObjectName("toolbarTitle")
-        title.setStyleSheet(
-            "font-size: 15px; font-weight: 600; letter-spacing: 0.5px;"
-        )
+        title.setStyleSheet("font-size: 15px; font-weight: 600; letter-spacing: 0.5px;")
         self._fullscreen_btn = QPushButton("全屏推演")
         self._fullscreen_btn.setObjectName("decisionFlowFullscreenButton")
         self._fullscreen_btn.setStyleSheet(
@@ -852,9 +847,7 @@ class DecisionFlowVizPanel(QWidget):
         )
         sub.setObjectName("mutedLabel")
         sub.setWordWrap(True)
-        sub.setStyleSheet(
-            f"color: {T.TEXT_SECONDARY}; font-size: 12px; line-height: 1.45;"
-        )
+        sub.setStyleSheet(f"color: {T.TEXT_SECONDARY}; font-size: 12px; line-height: 1.45;")
 
         self._hud_label = QLabel("")
         self._hud_label.setTextFormat(Qt.TextFormat.RichText)
@@ -908,7 +901,7 @@ class DecisionFlowVizPanel(QWidget):
             return
         self.refit_view()
 
-    def showEvent(self, event: QShowEvent) -> None:  # noqa: N802
+    def showEvent(self, event: QShowEvent) -> None:
         super().showEvent(event)
         self.schedule_refit_view()
 
@@ -951,7 +944,7 @@ class DecisionFlowVizPanel(QWidget):
         pct = int(getattr(self._settings.general, "decision_flow_default_zoom_pct", 600))
         return max(0.25, pct / 100.0)
 
-    def eventFilter(self, obj: Any, event: QEvent) -> bool:  # noqa: N802
+    def eventFilter(self, obj: Any, event: QEvent) -> bool:
         if (
             self._play_active
             and obj is self._view.viewport()
@@ -999,7 +992,7 @@ class DecisionFlowVizPanel(QWidget):
             self.refit_view()
             self.playback_finished.emit()
 
-    def wheelEvent(self, event: Any) -> None:  # noqa: N802
+    def wheelEvent(self, event: Any) -> None:
         if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
             factor = math.pow(1.1, event.angleDelta().y() / 120.0)
             self._view.scale(factor, factor)
@@ -1039,28 +1032,15 @@ class DecisionFlowVizPanel(QWidget):
         gate_text = gate_result or ("short" if gate_shortcircuited else "ready")
         status_color = _OUTCOME_COLOR.get(outcome, _NEON_CYAN)
         self._hud_label.setText(
-            "<span style='color:{cyan}; font-weight:700;'>AI TACTICAL DECISION MATRIX</span>"
-            " &nbsp; <span style='color:{muted};'>|</span> &nbsp; "
-            "GATE <span style='color:{amber};'>{gate}</span>"
-            " &nbsp; <span style='color:{muted};'>|</span> &nbsp; "
-            "NODES <span style='color:{cyan};'>{nodes:02d}</span>"
-            " &nbsp; <span style='color:{muted};'>|</span> &nbsp; "
-            "G/D <span style='color:{violet};'>{gate_count}/{decision_count}</span>"
-            " &nbsp; <span style='color:{muted};'>|</span> &nbsp; "
-            "TERMINAL <span style='color:{status};'>§{terminal_id} {outcome}</span>"
-            .format(
-                cyan=_NEON_CYAN,
-                muted=T.TEXT_MUTED,
-                amber=_NEON_AMBER,
-                violet=_NEON_VIOLET,
-                status=status_color,
-                gate=gate_text.upper(),
-                nodes=node_count,
-                gate_count=gate_count,
-                decision_count=decision_count,
-                terminal_id=terminal_id,
-                outcome=outcome_zh,
-            )
+            f"<span style='color:{_NEON_CYAN}; font-weight:700;'>AI TACTICAL DECISION MATRIX</span>"
+            f" &nbsp; <span style='color:{T.TEXT_MUTED};'>|</span> &nbsp; "
+            f"GATE <span style='color:{_NEON_AMBER};'>{gate_text.upper()}</span>"
+            f" &nbsp; <span style='color:{T.TEXT_MUTED};'>|</span> &nbsp; "
+            f"NODES <span style='color:{_NEON_CYAN};'>{node_count:02d}</span>"
+            f" &nbsp; <span style='color:{T.TEXT_MUTED};'>|</span> &nbsp; "
+            f"G/D <span style='color:{_NEON_VIOLET};'>{gate_count}/{decision_count}</span>"
+            f" &nbsp; <span style='color:{T.TEXT_MUTED};'>|</span> &nbsp; "
+            f"TERMINAL <span style='color:{status_color};'>§{terminal_id} {outcome_zh}</span>"
         )
 
     def _open_fullscreen(self) -> None:
@@ -1128,9 +1108,7 @@ class DecisionFlowVizPanel(QWidget):
         rect = QRectF(-400, 0, 800, 280)
         self._scene.setSceneRect(rect)
         self._fit_scene(rect)
-        self._hud_label.setText(
-            f"<span style='color:#ffcf33'>⚠ 数据不足：{check_zh}</span>"
-        )
+        self._hud_label.setText(f"<span style='color:#ffcf33'>⚠ 数据不足：{check_zh}</span>")
 
     def set_trace(
         self,

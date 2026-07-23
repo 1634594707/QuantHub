@@ -6,13 +6,13 @@ File naming convention:
 
 Disk failures are logged and emitted to the event bus but never propagated.
 """
+
 from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Optional
 
 from pa_agent.records.schema import AnalysisRecord, FollowupTurn
 from pa_agent.util.mask_secret import mask_secret
@@ -24,7 +24,7 @@ def _default_logger() -> logging.Logger:
 
 def _ms_to_local_datetime(ms: int) -> datetime:
     """Convert epoch milliseconds to local datetime."""
-    return datetime.fromtimestamp(ms / 1000, tz=timezone.utc).astimezone()
+    return datetime.fromtimestamp(ms / 1000, tz=UTC).astimezone()
 
 
 def _build_basename(record: AnalysisRecord) -> str:
@@ -41,13 +41,14 @@ class PendingWriter:
 
     def __init__(
         self,
-        pending_dir: Optional[Path] = None,
+        pending_dir: Path | None = None,
         event_bus=None,
-        logger: Optional[logging.Logger] = None,
+        logger: logging.Logger | None = None,
         api_key: str = "",
     ) -> None:
         if pending_dir is None:
             from pa_agent.config.paths import RECORDS_PENDING_DIR
+
             pending_dir = RECORDS_PENDING_DIR
 
         self._pending_dir = pending_dir
@@ -82,7 +83,7 @@ class PendingWriter:
             from pa_agent.records.analysis_history import invalidate_latest_record_cache
 
             invalidate_latest_record_cache()
-        except Exception:  # noqa: BLE001
+        except Exception:
             pass
         return path
 
@@ -108,7 +109,7 @@ class PendingWriter:
             from pa_agent.records.analysis_history import invalidate_latest_record_cache
 
             invalidate_latest_record_cache()
-        except Exception:  # noqa: BLE001
+        except Exception:
             pass
         return path
 
@@ -163,13 +164,9 @@ class PendingWriter:
 
     def _handle_disk_error(self, exc: OSError, path: Path) -> None:
         """Log the error and optionally emit to the event bus."""
-        self._logger.error(
-            "PendingWriter: disk error writing %s: %s", path, exc
-        )
+        self._logger.error("PendingWriter: disk error writing %s: %s", path, exc)
         if self._event_bus is not None:
             try:
                 self._event_bus.emit("disk_error", {"path": str(path), "error": str(exc)})
-            except Exception as bus_exc:  # noqa: BLE001
-                self._logger.error(
-                    "PendingWriter: event_bus emit failed: %s", bus_exc
-                )
+            except Exception as bus_exc:
+                self._logger.error("PendingWriter: event_bus emit failed: %s", bus_exc)

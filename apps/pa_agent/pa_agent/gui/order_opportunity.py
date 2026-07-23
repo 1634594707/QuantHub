@@ -1,4 +1,5 @@
 """Detect stage-2 order opportunities and format alert text."""
+
 from __future__ import annotations
 
 import logging

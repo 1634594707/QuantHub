@@ -2,6 +2,7 @@
 
 Used by East Money, Baostock, and optional AkShare paths — not tied to AkShareSource.
 """
+
 from __future__ import annotations
 
 import re
@@ -211,9 +212,7 @@ def apply_session_quote_to_forming_row(
 
     if volume > 0:
         row["volume"] = (
-            quote_volume_lots_to_shares(volume, symbol=symbol)
-            if volume_lots
-            else float(volume)
+            quote_volume_lots_to_shares(volume, symbol=symbol) if volume_lots else float(volume)
         )
     if amount > 0:
         row["amount"] = float(amount)
@@ -307,8 +306,7 @@ def normalize_ohlcv_df(df: Any, *, time_col: str) -> Any:
     drop_cols = [
         c
         for c in out.columns
-        if str(c).strip() in ("时间", "日期", "date", "datetime", "time")
-        and c != time_col
+        if str(c).strip() in ("时间", "日期", "date", "datetime", "time") and c != time_col
     ]
     if drop_cols:
         out = out.drop(columns=drop_cols, errors="ignore")

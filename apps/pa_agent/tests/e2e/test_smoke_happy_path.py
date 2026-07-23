@@ -2,19 +2,18 @@
 
 Task 19.1
 """
+
 from __future__ import annotations
 
 import json
 from unittest.mock import MagicMock
 
 import pytest
-
+from pa_agent.ai.router import route_strategy_files
 from pa_agent.app_context import AppContext
+from tests.fixtures.ai_payloads import VALID_STAGE1, VALID_STAGE2_ORDER
 from tests.fixtures.kline_bars import make_newest_first_bars
 from tests.fixtures.validators import schema_test_validator
-from pa_agent.ai.router import route_strategy_files
-
-from tests.fixtures.ai_payloads import VALID_STAGE1, VALID_STAGE2_ORDER
 
 
 def _make_reply(content_dict: dict) -> MagicMock:
@@ -84,12 +83,8 @@ def test_happy_path_shows_trading_decision(qtbot, tmp_path):
 
     # DecisionPanel should show a trading decision (not 不下单)
     conclusion_text = window._decision_panel._conclusion_label.text()
-    assert "不下单" not in conclusion_text, (
-        f"Expected a trading decision, got: {conclusion_text!r}"
-    )
-    assert conclusion_text != "—", (
-        "DecisionPanel still shows default '—', expected a decision"
-    )
+    assert "不下单" not in conclusion_text, f"Expected a trading decision, got: {conclusion_text!r}"
+    assert conclusion_text != "—", "DecisionPanel still shows default '—', expected a decision"
 
     # PendingWriter.save_full should have been called
     pending_writer.save_full.assert_called_once()

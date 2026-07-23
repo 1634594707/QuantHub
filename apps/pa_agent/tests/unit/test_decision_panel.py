@@ -1,19 +1,19 @@
 """Unit tests for DecisionPanel next_bar_prediction rendering (T18)."""
+
 from __future__ import annotations
 
 import sys
 import time
 
 import pytest
-from hypothesis import given, settings as h_settings
+from hypothesis import given
+from hypothesis import settings as h_settings
 from hypothesis import strategies as st
-
+from pa_agent.gui.decision_panel import DecisionPanel
 from PyQt6.QtWidgets import QApplication
 
-from pa_agent.gui.decision_panel import DecisionPanel
-
-
 # ── QApplication fixture ─────────────────────────────────────────────────────
+
 
 @pytest.fixture(scope="module")
 def qapp():
@@ -33,6 +33,7 @@ def panel(qapp):
 
 
 # ── Helper ───────────────────────────────────────────────────────────────────
+
 
 def _valid_no_order() -> dict:
     """Minimal valid stage2 decision with 不下单."""
@@ -198,7 +199,7 @@ def test_panel_render_performance(panel: DecisionPanel):
     for _ in range(10):
         panel.set_decision(inner, diagnosis_summary=data.get("diagnosis_summary"))
     elapsed = (time.perf_counter() - start) / 10
-    assert elapsed < 0.05, f"set_decision took {elapsed*1000:.1f}ms per call"
+    assert elapsed < 0.05, f"set_decision took {elapsed * 1000:.1f}ms per call"
 
 
 # ── PBT: robust against garbage ──────────────────────────────────────────────
@@ -213,9 +214,13 @@ _garbage_prediction = st.fixed_dictionaries(
             st.text(max_size=10),
             st.dictionaries(st.text(max_size=10), st.one_of(st.integers(), st.text(), st.none())),
         ),
-        "reasoning": st.one_of(st.none(), st.text(max_size=100), st.integers(), st.lists(st.integers())),
+        "reasoning": st.one_of(
+            st.none(), st.text(max_size=100), st.integers(), st.lists(st.integers())
+        ),
         "unpredictable": st.one_of(st.booleans(), st.none(), st.integers(), st.text(max_size=5)),
-        "features_used": st.one_of(st.none(), st.integers(), st.lists(st.one_of(st.text(), st.integers()))),
+        "features_used": st.one_of(
+            st.none(), st.integers(), st.lists(st.one_of(st.text(), st.integers()))
+        ),
     },
 )
 

@@ -1,4 +1,5 @@
 """Background fetch of K-line snapshots (keeps UI thread off the network)."""
+
 from __future__ import annotations
 
 import logging
@@ -29,6 +30,6 @@ class SnapshotFetchWorker(QThread):
         try:
             bars = self._source.latest_snapshot(self._n_bars)
             self.bars_ready.emit(bars)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.warning("SnapshotFetchWorker failed: %s", exc)
             self.failed.emit(str(exc))

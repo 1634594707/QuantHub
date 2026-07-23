@@ -6,13 +6,15 @@ copy buttons, JSON export, and API-key masking.
 Design reference: design.md §B.11 (Tab3)
 Tasks: 16.1, 16.2, 16.3, 16.4
 """
+
 from __future__ import annotations
 
 import json
 import logging
-from pathlib import Path
-from typing import TYPE_CHECKING, Optional
 
+from pa_agent.config.paths import RECORDS_PENDING_DIR
+from pa_agent.util.mask_secret import mask_secret
+from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -25,10 +27,6 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from PyQt6.QtCore import Qt
-
-from pa_agent.util.mask_secret import mask_secret
-from pa_agent.config.paths import RECORDS_PENDING_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -248,9 +246,7 @@ class DebugWidget(QWidget):
         self._response_edit.setPlainText(
             self._mask(self._format_raw_response(turn.get("raw_response", {})))
         )
-        self._validation_edit.setPlainText(
-            self._mask(turn.get("validation_info", ""))
-        )
+        self._validation_edit.setPlainText(self._mask(turn.get("validation_info", "")))
 
     def _current_row(self) -> int:
         return self._list_widget.currentRow()
@@ -305,14 +301,17 @@ class DebugWidget(QWidget):
 
     def _copy_system(self) -> None:
         from PyQt6.QtWidgets import QApplication
+
         QApplication.clipboard().setText(self._system_edit.toPlainText())
 
     def _copy_user(self) -> None:
         from PyQt6.QtWidgets import QApplication
+
         QApplication.clipboard().setText(self._user_edit.toPlainText())
 
     def _copy_response(self) -> None:
         from PyQt6.QtWidgets import QApplication
+
         QApplication.clipboard().setText(self._response_edit.toPlainText())
 
     def _copy_debug_info(self) -> None:
@@ -320,7 +319,9 @@ class DebugWidget(QWidget):
 
         text = self.build_debug_bundle()
         if not text:
-            QMessageBox.information(self, "复制调试信息", "没有可复制的调试内容，请先完成一轮分析。")
+            QMessageBox.information(
+                self, "复制调试信息", "没有可复制的调试内容，请先完成一轮分析。"
+            )
             return
         QApplication.clipboard().setText(text)
         QMessageBox.information(
@@ -351,7 +352,6 @@ class DebugWidget(QWidget):
             )
             logger.info("Debug turn exported to %s", out_path)
             QMessageBox.information(self, "导出成功", f"已写入：\n{out_path}")
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.error("Failed to export debug turn: %s", exc)
             QMessageBox.critical(self, "导出失败", str(exc))
-

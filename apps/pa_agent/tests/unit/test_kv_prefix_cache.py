@@ -1,4 +1,5 @@
 """Unit tests for DeepSeek KV prefix-chain provider detection."""
+
 from __future__ import annotations
 
 from pa_agent.ai.deepseek_client import supports_kv_prefix_chain

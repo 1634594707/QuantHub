@@ -22,16 +22,17 @@
 获取 tenant_access_token：
     https://open.feishu.cn/document/server-docs/authentication-management/access-token/tenant_access_token_internal
 """
+
 from __future__ import annotations
 
 import base64
 import hashlib
 import hmac
 import logging
-import time
 import threading
+import time
 from pathlib import Path
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from pa_agent.config.settings import Settings
@@ -89,7 +90,7 @@ _token_cache = _TokenCache()
 
 
 # ── 配置加载 ──────────────────────────────────────────────────────────────────
-def _feishu_config_dict(settings: "Settings | None" = None) -> dict[str, Any]:
+def _feishu_config_dict(settings: Settings | None = None) -> dict[str, Any]:
     """Load Feishu settings from settings.json (or an in-memory Settings object)."""
     if settings is not None:
         return settings.feishu.model_dump()
@@ -106,9 +107,7 @@ def _gen_sign(secret: str, timestamp: int) -> str:
     签名字符串：timestamp + "\\n" + secret
     """
     string_to_sign = f"{timestamp}\n{secret}"
-    hmac_code = hmac.new(
-        string_to_sign.encode("utf-8"), digestmod=hashlib.sha256
-    ).digest()
+    hmac_code = hmac.new(string_to_sign.encode("utf-8"), digestmod=hashlib.sha256).digest()
     return base64.b64encode(hmac_code).decode("utf-8")
 
 
@@ -253,9 +252,7 @@ def _build_card(
     if watch_points:
         wp_lines = "\n".join(f"• {_fmt(w)}" for w in watch_points[:5])
         elements.append({"tag": "hr"})
-        elements.append(
-            {"tag": "markdown", "content": f"**👁 关注点**\n{wp_lines}"}
-        )
+        elements.append({"tag": "markdown", "content": f"**👁 关注点**\n{wp_lines}"})
 
     # K线图表
     if image_key:
@@ -297,7 +294,7 @@ def send_order_signal(
     symbol: str,
     timeframe: str,
     chart_image_path: str | Path | None = None,
-    settings: "Settings | None" = None,
+    settings: Settings | None = None,
 ) -> bool:
     """发送下单信号到飞书群.
 
@@ -339,9 +336,7 @@ def send_order_signal(
     try:
         import requests  # type: ignore[import]
     except ImportError:
-        logger.warning(
-            "飞书通知：requests 库未安装，请运行 pip install requests"
-        )
+        logger.warning("飞书通知：requests 库未安装，请运行 pip install requests")
         return False
 
     # ── 图片上传（可选）──────────────────────────────────────────────────────
@@ -356,8 +351,7 @@ def send_order_signal(
             logger.debug("飞书通知：图片文件不存在，跳过上传: %s", chart_image_path)
     elif chart_image_path and not (app_id and app_secret):
         logger.debug(
-            "飞书通知：chart_image_path 已设但 app_id/app_secret 未配置，"
-            "发送无图片的卡片。"
+            "飞书通知：chart_image_path 已设但 app_id/app_secret 未配置，发送无图片的卡片。"
         )
 
     # ── 构建消息体 ──────────────────────────────────────────────────────────

@@ -1,9 +1,8 @@
 """Unit tests for P0/P1 coherence validators."""
+
 from __future__ import annotations
 
 import json
-
-import pytest
 
 from pa_agent.ai.coherence_checks import (
     validate_bar_by_bar_vs_features,
@@ -12,9 +11,9 @@ from pa_agent.ai.coherence_checks import (
     validate_stage2_coherence,
 )
 from pa_agent.ai.json_validator import Ok
-from tests.fixtures.validators import schema_test_validator
 from pa_agent.data.base import IndicatorBundle, KlineBar, KlineFrame
 from tests.fixtures.gate_trace import make_bar_by_bar_summary, make_mandatory_gate_trace_proceed
+from tests.fixtures.validators import schema_test_validator
 
 
 def _frame(n: int = 5) -> KlineFrame:
@@ -70,22 +69,31 @@ def test_mandatory_gate_nodes_missing_on_proceed() -> None:
 def test_stage2_diagnosis_summary_must_match_stage1() -> None:
     s1 = _stage1_proceed()
     s2 = {
-        "decision": {"order_type": "不下单", "order_direction": None,
-                     "entry_price": None, "take_profit_price": None,
-                     "stop_loss_price": None, "reasoning": "x" * 40,
-                     "diagnosis_confidence": 1, "diagnosis_confidence_reasoning": "x",
-                     "trade_confidence": 1, "trade_confidence_reasoning": "x",
-                     "estimated_win_rate": None, "estimated_win_rate_reasoning": "x",
-                     "key_factors": [], "watch_points": [], "risk_assessment": "x",
-                     "invalidation_condition": "x"},
+        "decision": {
+            "order_type": "不下单",
+            "order_direction": None,
+            "entry_price": None,
+            "take_profit_price": None,
+            "stop_loss_price": None,
+            "reasoning": "x" * 40,
+            "diagnosis_confidence": 1,
+            "diagnosis_confidence_reasoning": "x",
+            "trade_confidence": 1,
+            "trade_confidence_reasoning": "x",
+            "estimated_win_rate": None,
+            "estimated_win_rate_reasoning": "x",
+            "key_factors": [],
+            "watch_points": [],
+            "risk_assessment": "x",
+            "invalidation_condition": "x",
+        },
         "diagnosis_summary": {
             "cycle_position": "trading_range",
             "direction": "bullish",
             "key_signals": [],
         },
         "decision_trace": [
-            {"node_id": "10.3", "question": "q", "answer": "否",
-             "reason": "r", "bar_range": "K1"},
+            {"node_id": "10.3", "question": "q", "answer": "否", "reason": "r", "bar_range": "K1"},
         ],
         "terminal": {"node_id": "10.3", "outcome": "wait", "label": "x"},
     }
@@ -182,9 +190,7 @@ def test_bar_type_mismatch_near_threshold_does_not_error_in_strict() -> None:
         snapshot_ts_local_ms=1,
         indicators=IndicatorBundle(ema20=(100.0,), atr14=(10.0,)),
     )
-    stage1 = {
-        "bar_by_bar_summary": [{"bar": "K1", "bar_type": "trend_bull", "reason": "x"}]
-    }
+    stage1 = {"bar_by_bar_summary": [{"bar": "K1", "bar_type": "trend_bull", "reason": "x"}]}
     # Program would likely classify as doji (body_ratio <= 0.25) or other; we tolerate mismatch.
     errs = validate_bar_by_bar_vs_features(stage1, kline_frame=frame, strict=True)
     assert errs == []
@@ -220,8 +226,6 @@ def test_structural_inside_outside_mismatch_still_errors_in_strict() -> None:
         snapshot_ts_local_ms=1,
         indicators=IndicatorBundle(ema20=(100.0, 100.0), atr14=(10.0, 10.0)),
     )
-    stage1 = {
-        "bar_by_bar_summary": [{"bar": "K1", "bar_type": "trend_bull", "reason": "x"}]
-    }
+    stage1 = {"bar_by_bar_summary": [{"bar": "K1", "bar_type": "trend_bull", "reason": "x"}]}
     errs = validate_bar_by_bar_vs_features(stage1, kline_frame=frame, strict=True)
     assert any("contradicts" in e for e in errs)

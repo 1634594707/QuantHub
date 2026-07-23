@@ -1,4 +1,5 @@
 """Threading utilities: CancelToken and OrchestratorEvent."""
+
 from __future__ import annotations
 
 import threading
@@ -30,6 +31,7 @@ class CancelToken:
 
 class OrchestratorEvent(Enum):
     """Events emitted by TwoStageOrchestrator during a submission."""
+
     Stage1Started = auto()
     Stage1Retry = auto()
     Stage1Done = auto()

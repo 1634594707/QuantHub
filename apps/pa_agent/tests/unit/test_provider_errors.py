@@ -1,4 +1,5 @@
 """Tests for provider quota (402) detection and retry policy."""
+
 from __future__ import annotations
 
 from pa_agent.ai.json_validator import JsonValidator, ValidationError

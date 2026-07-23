@@ -1,7 +1,8 @@
 """ToastOverlay — lightweight non-blocking notification overlay."""
+
 from __future__ import annotations
 
-from PyQt6.QtCore import QTimer, Qt
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import QLabel, QVBoxLayout, QWidget
 
 
@@ -43,9 +44,7 @@ class ToastOverlay(QWidget):
         self._layout = QVBoxLayout(self)
         self._layout.setContentsMargins(0, 0, 0, 0)
         self._layout.setSpacing(6)
-        self._layout.setAlignment(
-            Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight
-        )
+        self._layout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight)
 
         self._toasts: list[_ToastLabel] = []
         self.raise_()
@@ -70,7 +69,7 @@ class ToastOverlay(QWidget):
         if self.parent() is None:
             return
         parent = self.parent()
-        pw = parent.width()   # type: ignore[union-attr]
+        pw = parent.width()  # type: ignore[union-attr]
         ph = parent.height()  # type: ignore[union-attr]
         margin = 16
         w = min(320, pw - 2 * margin)

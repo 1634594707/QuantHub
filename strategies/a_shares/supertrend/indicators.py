@@ -1,10 +1,10 @@
-# -*- coding: utf-8 -*-
 """SuperTrend 指标 — TradingView Pine v4 移植（ATR 趋势跟踪）。
 
 从 trading-master/05-A_Stock_Trend/src/indicators.py 提取，保持原 ATR / band
 更新算法完全不变，仅适配 QuantHub 小写列名约定，并按规范输出:
     supertrend / final_upperband / final_lowerband / trend
 """
+
 from __future__ import annotations
 
 import numpy as np
@@ -57,9 +57,9 @@ def supertrend(
 
     # True Range
     prev_close = close.shift(1)
-    tr = pd.concat(
-        [high - low, (high - prev_close).abs(), (low - prev_close).abs()], axis=1
-    ).max(axis=1)
+    tr = pd.concat([high - low, (high - prev_close).abs(), (low - prev_close).abs()], axis=1).max(
+        axis=1
+    )
 
     # ATR（默认 Wilder：ewm alpha=1/period）
     if use_wilder_atr:
@@ -70,8 +70,8 @@ def supertrend(
     df["atr"] = atr
 
     n = len(df)
-    up_band = np.full(n, np.nan)   # 下轨候选（src - multiplier*atr）
-    dn_band = np.full(n, np.nan)   # 上轨候选（src + multiplier*atr）
+    up_band = np.full(n, np.nan)  # 下轨候选（src - multiplier*atr）
+    dn_band = np.full(n, np.nan)  # 上轨候选（src + multiplier*atr）
     trend = np.full(n, np.nan)
 
     src_arr = src.to_numpy()
@@ -105,8 +105,8 @@ def supertrend(
             trend[i] = prev_trend
 
     # 输出列（按规范命名）
-    df["final_lowerband"] = up_band   # 下轨（数值较低）
-    df["final_upperband"] = dn_band   # 上轨（数值较高）
+    df["final_lowerband"] = up_band  # 下轨（数值较低）
+    df["final_upperband"] = dn_band  # 上轨（数值较高）
     trend_series = pd.Series(trend, index=df.index)
     df["trend"] = trend_series
     # supertrend 线：多头取下轨，空头取上轨

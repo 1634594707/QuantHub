@@ -1,4 +1,5 @@
 """Tests for explicit 阳/阴 labels in K-line tables."""
+
 from __future__ import annotations
 
 import math

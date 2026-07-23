@@ -1,4 +1,5 @@
 """Tests for programmatic RR / trader-equation validation."""
+
 from __future__ import annotations
 
 import json
@@ -10,7 +11,6 @@ from pa_agent.util.trade_metrics import (
     passes_trader_equation,
     validate_order_trade_metrics,
 )
-
 from tests.fixtures.validators import schema_test_validator
 
 validator = schema_test_validator()
@@ -21,8 +21,26 @@ def _frame() -> KlineFrame:
         symbol="XAUUSD",
         timeframe="5m",
         bars=(
-            KlineBar(seq=1, ts_open=1.0, open=101.0, high=104.0, low=100.0, close=103.0, volume=1, closed=True),
-            KlineBar(seq=2, ts_open=0.0, open=100.0, high=102.0, low=98.0, close=101.0, volume=1, closed=True),
+            KlineBar(
+                seq=1,
+                ts_open=1.0,
+                open=101.0,
+                high=104.0,
+                low=100.0,
+                close=103.0,
+                volume=1,
+                closed=True,
+            ),
+            KlineBar(
+                seq=2,
+                ts_open=0.0,
+                open=100.0,
+                high=102.0,
+                low=98.0,
+                close=101.0,
+                volume=1,
+                closed=True,
+            ),
         ),
         indicators=IndicatorBundle(ema20=(100.0, 100.0), atr14=(2.0, 2.0)),
         snapshot_ts_local_ms=1,
@@ -227,9 +245,7 @@ def test_stage2_validator_coerces_bad_rr_to_no_order() -> None:
         ],
         "terminal": {"node_id": "11.1", "outcome": "trade", "label": "test"},
     }
-    result = validator.validate(
-        "stage2", json.dumps(obj), decision_stance="aggressive"
-    )
+    result = validator.validate("stage2", json.dumps(obj), decision_stance="aggressive")
     assert isinstance(result, Ok)
     assert result.obj["decision"]["order_type"] == "不下单"
     assert result.obj["decision_trace"][0]["answer"] == "否"
@@ -532,7 +548,5 @@ def test_planned_limit_allows_k1_wick_touch_entry() -> None:
             "freshness": "pending",
         }
     }
-    errors = validate_limit_order_k1_freshness(
-        decision, _frame(), bar_analysis=bar_analysis
-    )
+    errors = validate_limit_order_k1_freshness(decision, _frame(), bar_analysis=bar_analysis)
     assert not errors, errors

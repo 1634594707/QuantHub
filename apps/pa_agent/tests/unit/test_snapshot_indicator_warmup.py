@@ -1,4 +1,5 @@
 """End-to-end: analysis frame uses warmup buffer for EMA/ATR; features keep prev context."""
+
 from __future__ import annotations
 
 import math

@@ -1,10 +1,10 @@
 """Resolve TradingView exchange/symbol from Chinese or English names."""
+
 from __future__ import annotations
 
 import json
 import logging
 import re
-from pathlib import Path
 
 from pa_agent.config.paths import CONFIG_DIR
 
@@ -119,9 +119,7 @@ def _all_aliases() -> dict[str, tuple[str, str]]:
     if _aliases_cache is None:
         merged = dict(_BUILTIN_ALIASES)
         merged.update(_load_user_aliases())
-        _aliases_cache = {
-            _normalize_name_key(k): v for k, v in merged.items()
-        }
+        _aliases_cache = {_normalize_name_key(k): v for k, v in merged.items()}
     return _aliases_cache
 
 

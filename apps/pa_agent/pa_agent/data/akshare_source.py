@@ -3,13 +3,14 @@
 Primary APIs: East Money minute/daily history + spot snapshot for forming bars.
 Optional fallback: Baostock when env ``PA_AGENT_BAOSTOCK_FALLBACK=1`` (off by default).
 """
+
 from __future__ import annotations
 
 import logging
 import os
 import re
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -145,9 +146,7 @@ def _df_to_bars_asc(df: Any, *, time_col: str) -> list[dict[str, Any]]:
         lo = float(row["low"])
         c = float(row["close"])
         vol = float(row.get("volume", 0.0) or 0.0)
-        rows.append(
-            {"ts_open": ts, "open": o, "high": h, "low": lo, "close": c, "volume": vol}
-        )
+        rows.append({"ts_open": ts, "open": o, "high": h, "low": lo, "close": c, "volume": vol})
     return rows
 
 
@@ -181,8 +180,7 @@ def _normalize_ohlcv_df(df: Any, *, time_col: str) -> Any:
     drop_cols = [
         c
         for c in out.columns
-        if str(c).strip() in ("时间", "日期", "date", "datetime", "time")
-        and c != time_col
+        if str(c).strip() in ("时间", "日期", "date", "datetime", "time") and c != time_col
     ]
     if drop_cols:
         out = out.drop(columns=drop_cols, errors="ignore")
@@ -260,9 +258,7 @@ class AkShareSource(DataSource):
         try:
             import akshare  # noqa: F401
         except ImportError as exc:
-            raise DataSourceTransientError(
-                "未安装 akshare，请执行: pip install akshare"
-            ) from exc
+            raise DataSourceTransientError("未安装 akshare，请执行: pip install akshare") from exc
         self._baostock_ok = False
         if os.environ.get("PA_AGENT_BAOSTOCK_FALLBACK", "").strip() in ("1", "true", "yes"):
             try:
@@ -288,8 +284,7 @@ class AkShareSource(DataSource):
     def subscribe(self, symbol: str, timeframe: str) -> None:
         if timeframe not in _SUPPORTED_TIMEFRAMES:
             raise ValueError(
-                f"Unsupported timeframe: {timeframe!r}. "
-                f"Use one of {list(_SUPPORTED_TIMEFRAMES)}"
+                f"Unsupported timeframe: {timeframe!r}. Use one of {list(_SUPPORTED_TIMEFRAMES)}"
             )
         code = normalize_ashare_symbol(symbol)
         if not code:
@@ -323,9 +318,7 @@ class AkShareSource(DataSource):
             raise DataSourceTransientError(f"AkShare 拉取失败: {exc}") from exc
 
         if not rows_asc:
-            raise DataSourceTransientError(
-                f"AkShare 未返回数据: {self._symbol} {self._timeframe}"
-            )
+            raise DataSourceTransientError(f"AkShare 未返回数据: {self._symbol} {self._timeframe}")
 
         if _ashare_session_open():
             self._apply_spot_to_forming(rows_asc)
@@ -470,9 +463,7 @@ class AkShareSource(DataSource):
             return []
         return _df_to_bars_asc(norm.tail(n + 8), time_col="time")
 
-    def _fetch_history_baostock(
-        self, symbol: str, timeframe: str, n: int
-    ) -> list[dict[str, Any]]:
+    def _fetch_history_baostock(self, symbol: str, timeframe: str, n: int) -> list[dict[str, Any]]:
         import baostock as bs
 
         if is_index_symbol(symbol) and timeframe != "1d":
@@ -574,7 +565,6 @@ class AkShareSource(DataSource):
             logger.debug("AkShare spot fetch failed: %s", exc)
             return None
 
-
     def _baostock_login(self) -> None:
         if self._baostock_logged_in:
             return
@@ -592,7 +582,7 @@ class AkShareSource(DataSource):
             import baostock as bs
 
             bs.logout()
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.debug("Baostock logout: %s", exc)
         self._baostock_logged_in = False
 

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """AlphaGPT 因子 DSL + 链上执行策略 — QuantHub 迁移版。
 
 从 ``AlphaGPT/model_core`` + ``strategy_manager`` + ``execution`` 下沉为
@@ -13,6 +12,7 @@
 重依赖懒加载: torch / solana 在 produce / live 路径内才 import，
 确保 ``import strategies.crypto.alphagpt`` 在未装 torch 时也可成功。
 """
+
 from __future__ import annotations
 
 import json
@@ -33,12 +33,14 @@ logger = logging.getLogger(__name__)
 DEFAULT_SYMBOLS: list[str] = ["SOL/USDT", "BONK/USDT", "WIF/USDT"]
 
 
-@register_strategy(StrategyInfo(
-    name="alphagpt",
-    market="crypto",
-    live_capable=True,
-    description="AlphaGPT因子DSL+链上执行(实盘默认关)",
-))
+@register_strategy(
+    StrategyInfo(
+        name="alphagpt",
+        market="crypto",
+        live_capable=True,
+        description="AlphaGPT因子DSL+链上执行(实盘默认关)",
+    )
+)
 class AlphaGptStrategy(StrategyBase):
     """AlphaGPT 因子 DSL + 链上执行策略（实盘默认关闭）。"""
 
@@ -72,7 +74,7 @@ class AlphaGptStrategy(StrategyBase):
         if formulas is None:
             formulas = run_factor_search(klines_map, **kwargs)
 
-        import torch  # noqa: PLC0415 - 重依赖懒加载
+        import torch
 
         vm = StackVM()
         signals: list[Signal] = []
@@ -82,7 +84,7 @@ class AlphaGptStrategy(StrategyBase):
                 continue
             try:
                 feat = self._build_feat_tensor(torch, FeatureEngineer, df)
-            except Exception:  # noqa: BLE001 - 单标的失败不影响其余
+            except Exception:
                 logger.exception("alphagpt 特征构建失败: %s", symbol)
                 continue
 
@@ -128,16 +130,18 @@ class AlphaGptStrategy(StrategyBase):
         formulas: list[list[int]] | None = None,
         initial_capital: float = 10000.0,
         **kwargs: Any,
-    ) -> "BacktestResult":
+    ) -> BacktestResult:
         """事件驱动回测：on_bar 内按综合因子分方向买卖。"""
         if klines is None or klines.empty:
             from core.backtest.engine import BacktestResult
+
             return BacktestResult.empty(engine="event")
 
         # 懒加载重依赖
+        import torch
+
         from strategies.crypto.alphagpt.factors import FeatureEngineer
         from strategies.crypto.alphagpt.stack_vm import StackVM
-        import torch  # noqa: PLC0415 - 重依赖懒加载
 
         df = klines.sort_values("datetime").reset_index(drop=True)
         formulas = formulas or run_factor_search({"SYM": df}, **kwargs)
@@ -203,10 +207,11 @@ class AlphaGptStrategy(StrategyBase):
         # 实盘开启：先风控，再委托 execution 链上执行（solana 重依赖懒加载）
         try:
             from strategies.crypto.alphagpt.risk import check_order
+
             check_order(intent, **kwargs)
             # 真实签名由 execution 模块完成；此处仅记录拟执行 JSON
             logger.info("alphagpt live 委托 execution: %s", json.dumps(intent, ensure_ascii=False))
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.exception("alphagpt live_tick 执行失败")
             return {"dry_run": False, "intent": intent, "status": "error"}
         return {"dry_run": False, "intent": intent, "status": "submitted"}
@@ -219,6 +224,7 @@ class AlphaGptStrategy(StrategyBase):
 
         返回 ``FeatureEngineer.compute_features`` 的输出：[B=1, F=6, T]。
         """
+
         def _col(name: str, default: float) -> np.ndarray:
             if name in df.columns:
                 return df[name].astype(float).to_numpy()
@@ -265,8 +271,8 @@ def run_factor_search(
     from strategies.crypto.alphagpt.stack_vm import FORMULA_VOCAB
 
     # token: < feat_offset → 特征列；>= feat_offset → 算子
-    F = FORMULA_VOCAB.feature_count          # 6
-    off = FORMULA_VOCAB.operator_offset      # 6
+    F = FORMULA_VOCAB.feature_count  # 6
+    off = FORMULA_VOCAB.operator_offset  # 6
     # 特征索引（与 FEATURE_NAMES 顺序一致）
     RET, LIQ_SCORE, PRESSURE, FOMO, DEV, LOG_VOL = range(F)
     # 算子索引（与 OPS_CONFIG 顺序一致）

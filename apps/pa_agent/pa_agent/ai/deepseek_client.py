@@ -1,16 +1,16 @@
 """DeepSeek AI client (OpenAI-compatible API)."""
+
 from __future__ import annotations
 
 import logging
 import time
-from dataclasses import dataclass, field
-from typing import Any, Callable, TYPE_CHECKING
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from pa_agent.util.threading import CancelToken
 
-from pa_agent.config.settings import AIProviderSettings
-from pa_agent.util.mask_secret import mask_secret
 from pa_agent.ai.mimo_compat import (
     ReasoningCache,
     is_mimo_provider,
@@ -20,6 +20,8 @@ from pa_agent.ai.mimo_compat import (
     response_message_dict,
     store_reasoning_from_response,
 )
+from pa_agent.config.settings import AIProviderSettings
+from pa_agent.util.mask_secret import mask_secret
 
 try:
     from openai import OpenAI as _OpenAI  # type: ignore[import]
@@ -37,6 +39,7 @@ _MIMO_REASONING_CACHE = ReasoningCache()
 @dataclass
 class AIUsage:
     """Token usage from a single API call."""
+
     prompt_tokens: int = 0
     cached_prompt_tokens: int = 0
     completion_tokens: int = 0
@@ -62,9 +65,10 @@ class AIUsage:
 @dataclass
 class AIReply:
     """Structured response from a single AI API call."""
+
     content: str
     reasoning_content: str
-    raw: dict[str, Any]          # full raw response dict for debug tab
+    raw: dict[str, Any]  # full raw response dict for debug tab
     usage: AIUsage
     request_id: str
     latency_ms: float
@@ -364,9 +368,7 @@ def _resolve_thinking_params(
     if not _thinking:
         return {}, None
 
-    max_out = _completion_max_tokens(
-        settings, extra_body={}, effort=_effort
-    )
+    max_out = _completion_max_tokens(settings, extra_body={}, effort=_effort)
 
     if _is_packyapi(settings.base_url) and "claude" in model.lower():
         # Packy (e.g. claude-officially): budget_tokens only; reasoning_effort rejected.
@@ -423,7 +425,7 @@ class DeepSeekClient:
         thinking: bool | None = None,
         reasoning_effort: str | None = None,
         context_window: int | None = None,
-        cancel_token: "CancelToken | None" = None,
+        cancel_token: CancelToken | None = None,
         timeout_s: float = 600.0,
     ) -> AIReply:
         """Send *messages* to the DeepSeek API and return a structured reply.
@@ -443,9 +445,7 @@ class DeepSeekClient:
         if system_param:
             extra_body = {**extra_body, "system": system_param}
         _thinking_on = _thinking_enabled(extra_body, _effort)
-        _max_tokens = _completion_max_tokens(
-            self._settings, extra_body=extra_body, effort=_effort
-        )
+        _max_tokens = _completion_max_tokens(self._settings, extra_body=extra_body, effort=_effort)
 
         masked_key = mask_secret(self._settings.api_key)
         self._log.debug(
@@ -506,7 +506,11 @@ class DeepSeekClient:
             if details:
                 parts = []
                 for detail in details:
-                    t = detail.get("text") if isinstance(detail, dict) else getattr(detail, "text", None)
+                    t = (
+                        detail.get("text")
+                        if isinstance(detail, dict)
+                        else getattr(detail, "text", None)
+                    )
                     if t:
                         parts.append(t)
                 reasoning_content = "".join(parts)
@@ -548,7 +552,9 @@ class DeepSeekClient:
 
         self._log.debug(
             "DeepSeekClient.chat done: latency=%.0f ms tokens=%d/%d",
-            latency_ms, usage.prompt_tokens, usage.completion_tokens,
+            latency_ms,
+            usage.prompt_tokens,
+            usage.completion_tokens,
         )
 
         # Log KV-cache hit rate so operators can monitor savings.
@@ -580,7 +586,7 @@ class DeepSeekClient:
         on_content_token: Callable[[str], None] | None = None,
         thinking: bool | None = None,
         reasoning_effort: str | None = None,
-        cancel_token: "CancelToken | None" = None,
+        cancel_token: CancelToken | None = None,
         timeout_s: float = 600.0,
     ) -> AIReply:
         """Stream *messages* to the DeepSeek API, calling callbacks per token.
@@ -619,9 +625,7 @@ class DeepSeekClient:
         if system_param:
             extra_body = {**extra_body, "system": system_param}
         _thinking_on = _thinking_enabled(extra_body, _effort)
-        _max_tokens = _completion_max_tokens(
-            self._settings, extra_body=extra_body, effort=_effort
-        )
+        _max_tokens = _completion_max_tokens(self._settings, extra_body=extra_body, effort=_effort)
 
         self._log.info(
             "DeepSeekClient.stream_chat: model=%s thinking=%s reasoning_effort=%s "
@@ -711,7 +715,11 @@ class DeepSeekClient:
                     details = getattr(delta, "reasoning_details", None)
                     if details:
                         for detail in details:
-                            t = detail.get("text") if isinstance(detail, dict) else getattr(detail, "text", None)
+                            t = (
+                                detail.get("text")
+                                if isinstance(detail, dict)
+                                else getattr(detail, "text", None)
+                            )
                             if t:
                                 r = (r or "") + t
                 if r:

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """订单路由器。
 
 根据 signal.market + signal.source 路由到不同执行通道:
@@ -8,13 +7,13 @@
 
 默认 dry-run，仅输出拟下单 JSON。
 """
+
 from __future__ import annotations
 
 import json
 import logging
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
-from typing import Any
 
 from core.config import get_config
 from core.signals import Signal
@@ -25,12 +24,13 @@ logger = logging.getLogger(__name__)
 @dataclass
 class OrderIntent:
     """拟下单意图。"""
+
     symbol: str
     market: str
-    side: str                     # buy | sell
+    side: str  # buy | sell
     qty: float
     price: float | None = None
-    order_type: str = "limit"     # limit | market
+    order_type: str = "limit"  # limit | market
     notional: float | None = None
     source: str = ""
     ts: datetime = field(default_factory=datetime.now)
@@ -98,16 +98,17 @@ class OrderRouter:
 
     def _dry_run(self, intent: OrderIntent) -> None:
         logger.info("[DRY-RUN] 拟下单: %s", intent.to_dict())
-        print(json.dumps(intent.to_dict(), ensure_ascii=False, indent=2,
-                         default=str))
+        print(json.dumps(intent.to_dict(), ensure_ascii=False, indent=2, default=str))
 
     def _route_okx(self, intent: OrderIntent) -> None:
         from apps.dispatcher.confirm import cli_confirm
+
         if not cli_confirm(intent.summary()):
             logger.info("用户取消 OKX 下单: %s", intent.symbol)
             return
         try:
             from core.data_feed.okx_source import OkxSource
+
             cfg = get_config("crypto").get("modules", {}).get("okx_grid", {}).get("api", {})
             ex = OkxSource(
                 api_key=cfg.get("key"),
@@ -120,11 +121,12 @@ class OrderRouter:
             else:
                 ex.create_limit_order(symbol, intent.side, intent.qty, intent.price)
             logger.info("OKX 下单成功: %s", intent.symbol)
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.exception("OKX 下单失败: %s", intent.symbol)
 
     def _route_solana(self, intent: OrderIntent) -> None:
         from apps.dispatcher.confirm import cli_confirm
+
         if not cli_confirm(intent.summary()):
             logger.info("用户取消 Solana 下单: %s", intent.symbol)
             return

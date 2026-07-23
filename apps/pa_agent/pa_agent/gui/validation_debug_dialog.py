@@ -1,4 +1,5 @@
 """Modal dialog for validation / analysis failures (debug-friendly)."""
+
 from __future__ import annotations
 
 from PyQt6.QtWidgets import (

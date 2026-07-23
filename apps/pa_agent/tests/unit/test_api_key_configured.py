@@ -1,4 +1,5 @@
 """Tests for API key presence helper."""
+
 from __future__ import annotations
 
 from pa_agent.config.settings import Settings, provider_api_key_configured

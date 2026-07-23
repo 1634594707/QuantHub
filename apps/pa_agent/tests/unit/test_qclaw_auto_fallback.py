@@ -1,10 +1,10 @@
 """Tests for QClaw auto-fallback on network errors."""
+
 from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
 import openai
-
 from pa_agent.config.settings import Settings
 from pa_agent.orchestrator.two_stage import TwoStageOrchestrator
 from tests.fixtures.validators import schema_test_validator
@@ -18,9 +18,15 @@ def test_stream_chat_retries_after_qclaw_fallback() -> None:
     client = MagicMock()
     client.stream_chat.side_effect = [
         openai.APIConnectionError(request=MagicMock(), message="Connection error."),
-        MagicMock(content='{"gate_result":"wait"}', reasoning_content="", raw={}, usage=MagicMock(
-            prompt_tokens=1, completion_tokens=1, total_tokens=2, cached_prompt_tokens=0
-        ), latency_ms=1.0),
+        MagicMock(
+            content='{"gate_result":"wait"}',
+            reasoning_content="",
+            raw={},
+            usage=MagicMock(
+                prompt_tokens=1, completion_tokens=1, total_tokens=2, cached_prompt_tokens=0
+            ),
+            latency_ms=1.0,
+        ),
     ]
 
     orchestrator = TwoStageOrchestrator(
@@ -101,8 +107,6 @@ def test_qclaw_fallback_skipped_for_non_openclaw_model() -> None:
         settings=settings,
     )
 
-    with patch(
-        "pa_agent.ai.qclaw_connector.apply_qclaw_provider_to_settings"
-    ) as apply:
+    with patch("pa_agent.ai.qclaw_connector.apply_qclaw_provider_to_settings") as apply:
         assert not orchestrator._try_qclaw_fallback(original_model="deepseek-v4-pro")
         apply.assert_not_called()

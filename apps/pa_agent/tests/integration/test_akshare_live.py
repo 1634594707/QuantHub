@@ -1,10 +1,10 @@
 """Live AkShare smoke tests (network required). Baostock fallback disabled."""
+
 from __future__ import annotations
 
 import time
 
 import pytest
-
 from pa_agent.data.akshare_source import AkShareSource
 
 pytestmark = [pytest.mark.live, pytest.mark.integration]

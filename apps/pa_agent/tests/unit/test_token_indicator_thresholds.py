@@ -7,11 +7,10 @@ Task 15.5 — pytest-qt tests:
 
 Validates: Requirements R10.5, R15.4
 """
+
 from __future__ import annotations
 
 import pytest
-
-from PyQt6.QtWidgets import QProgressBar
 
 # Guard: skip entire module if PyQt6 display is unavailable
 pytest.importorskip("PyQt6.QtWidgets")
@@ -41,6 +40,7 @@ def _make_data(context_used: int, context_window: int = 1_000_000) -> dict:
 
 # ── Yellow threshold (80%) ────────────────────────────────────────────────────
 
+
 def test_progress_bar_yellow_at_80_pct(widget, monkeypatch):
     """Progress bar stylesheet should switch to yellow at exactly 80%."""
     # Patch QMessageBox.warning to prevent any dialog from blocking
@@ -52,9 +52,7 @@ def test_progress_bar_yellow_at_80_pct(widget, monkeypatch):
     widget.update_token_display(_make_data(800_000))  # 80%
 
     style = widget._progress_bar.styleSheet()
-    assert "e6b800" in style, (
-        f"Expected yellow (#e6b800) in stylesheet at 80%, got: {style!r}"
-    )
+    assert "e6b800" in style, f"Expected yellow (#e6b800) in stylesheet at 80%, got: {style!r}"
 
 
 def test_progress_bar_not_yellow_below_80_pct(widget, monkeypatch):
@@ -73,6 +71,7 @@ def test_progress_bar_not_yellow_below_80_pct(widget, monkeypatch):
 
 # ── Red threshold (95%) ───────────────────────────────────────────────────────
 
+
 def test_progress_bar_red_at_95_pct(widget, monkeypatch):
     """Progress bar stylesheet should switch to red at exactly 95%."""
     warning_calls: list = []
@@ -84,9 +83,7 @@ def test_progress_bar_red_at_95_pct(widget, monkeypatch):
     widget.update_token_display(_make_data(950_000))  # 95%
 
     style = widget._progress_bar.styleSheet()
-    assert "cc0000" in style, (
-        f"Expected red (#cc0000) in stylesheet at 95%, got: {style!r}"
-    )
+    assert "cc0000" in style, f"Expected red (#cc0000) in stylesheet at 95%, got: {style!r}"
 
 
 def test_qmessagebox_shown_once_at_95_pct(widget, monkeypatch):
@@ -121,6 +118,7 @@ def test_qmessagebox_not_shown_at_80_pct(widget, monkeypatch):
 
 # ── Red overrides yellow ──────────────────────────────────────────────────────
 
+
 def test_red_overrides_yellow(widget, monkeypatch):
     """When usage jumps from 80% to 95%, bar should be red (not yellow)."""
     monkeypatch.setattr(
@@ -137,6 +135,7 @@ def test_red_overrides_yellow(widget, monkeypatch):
 
 # ── Progress bar value ────────────────────────────────────────────────────────
 
+
 def test_progress_bar_value_matches_percentage(widget, monkeypatch):
     """Progress bar integer value should match the rounded percentage."""
     monkeypatch.setattr(
@@ -150,6 +149,7 @@ def test_progress_bar_value_matches_percentage(widget, monkeypatch):
 
 
 # ── Clear resets warning flag ─────────────────────────────────────────────────
+
 
 def test_clear_resets_red_warning_flag(widget, monkeypatch):
     """After clear(), the 95% warning should fire again on next update."""

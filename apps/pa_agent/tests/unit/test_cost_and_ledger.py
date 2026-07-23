@@ -1,7 +1,6 @@
 """Tests for SessionTokenLedger token thresholds (pricing removed)."""
-from __future__ import annotations
 
-import pytest
+from __future__ import annotations
 
 from pa_agent.ai.deepseek_client import AIUsage
 from pa_agent.ai.session_ledger import SessionTokenLedger

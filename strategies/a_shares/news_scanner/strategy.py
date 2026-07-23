@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """A股新闻情绪扫描策略。
 
 把原 ``trading-master/01-News_Sentiment_Scanner`` 下沉为 QuantHub 策略插件：
@@ -12,12 +11,13 @@
 
 原 ``scanner/sentiment.py`` 的 system prompt 与调用参数已提取为模块常量。
 """
+
 from __future__ import annotations
 
 import json
 import logging
 import re
-from typing import Any, Optional
+from typing import Any
 
 from core.config import get_config
 from core.data_feed import News, get_data_source
@@ -57,12 +57,14 @@ _BUY_THRESHOLD = 0.65
 _SELL_THRESHOLD = 0.35
 
 
-@register_strategy(StrategyInfo(
-    name="news_scanner",
-    market="a_shares",
-    live_capable=False,
-    description="新闻情绪扫描",
-))
+@register_strategy(
+    StrategyInfo(
+        name="news_scanner",
+        market="a_shares",
+        live_capable=False,
+        description="新闻情绪扫描",
+    )
+)
 class NewsScannerStrategy(StrategyBase):
     """新闻情绪扫描策略。
 
@@ -102,7 +104,7 @@ class NewsScannerStrategy(StrategyBase):
         # 复用统一 LLM 客户端（不重新实现 ai_client）
         try:
             self._llm = get_llm()
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.exception("LLM 客户端初始化失败，news_scanner 终止")
             return []
 
@@ -138,11 +140,11 @@ class NewsScannerStrategy(StrategyBase):
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _fetch_news(ds, symbol: Optional[str], limit: int) -> list[News]:
+    def _fetch_news(ds, symbol: str | None, limit: int) -> list[News]:
         """安全抓取新闻，失败返回空列表。"""
         try:
             return ds.get_news(symbol=symbol, limit=limit)
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.exception("获取新闻失败: %s", symbol)
             return []
 
@@ -151,7 +153,7 @@ class NewsScannerStrategy(StrategyBase):
         symbol: str,
         news_list: list[News],
         timeframe: str,
-    ) -> Optional[Signal]:
+    ) -> Signal | None:
         """聚合单标的/分组的新闻情绪 → 单个 Signal。"""
         if not news_list:
             return None
@@ -222,7 +224,7 @@ class NewsScannerStrategy(StrategyBase):
                 temperature=_LLM_TEMPERATURE,
                 max_tokens=_LLM_MAX_TOKENS,
             )
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.exception("LLM 情绪分析失败")
             return 0.0, "Neutral", ""
 

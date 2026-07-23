@@ -1,4 +1,5 @@
 """Unit tests for binary decision tree helpers."""
+
 from __future__ import annotations
 
 from pa_agent.ai.decision_tree import (
@@ -218,5 +219,6 @@ def test_gate_wait_prediction_passes_schema() -> None:
     }
     s2 = build_stage2_gate_wait_response(stage1)
     import json
+
     result = schema_test_validator().validate("stage2", json.dumps(s2, ensure_ascii=False))
     assert isinstance(result, Ok), f"Expected Ok, got {result}"

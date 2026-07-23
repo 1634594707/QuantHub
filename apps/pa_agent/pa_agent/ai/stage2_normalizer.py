@@ -1,4 +1,5 @@
 """Normalize common Stage 2 AI JSON variants before schema validation."""
+
 from __future__ import annotations
 
 import copy
@@ -94,10 +95,18 @@ _ENTRY_BAR_FRESHNESS_ALIASES: dict[str, str] = {
     "awaiting_trigger": "pending",
 }
 
-_BAR_TYPE_ENUM = frozenset({
-    "trend_bull", "trend_bear", "doji", "inside",
-    "outside_bull", "outside_bear", "flat", "other",
-})
+_BAR_TYPE_ENUM = frozenset(
+    {
+        "trend_bull",
+        "trend_bear",
+        "doji",
+        "inside",
+        "outside_bull",
+        "outside_bear",
+        "flat",
+        "other",
+    }
+)
 _ENTRY_BAR_FRESHNESS_ENUM = frozenset({"fresh", "pending", "stale", "invalid"})
 _ENTRY_BAR_STRENGTH_ENUM = frozenset({"strong", "weak", "not_triggered"})
 _SIGNAL_BAR_QUALITY_ENUM = frozenset({"strong", "medium", "weak", "invalid"})
@@ -131,28 +140,30 @@ _NO_ORDER_PRICE_FIELDS = (
     "entry_rule",
 )
 
-_DECISION_SUBFIELD_KEYS: frozenset[str] = frozenset({
-    "order_direction",
-    "order_type",
-    "entry_price",
-    "entry_basis_bar",
-    "entry_basis_extreme",
-    "entry_rule",
-    "take_profit_price",
-    "take_profit_price_2",
-    "stop_loss_price",
-    "reasoning",
-    "diagnosis_confidence",
-    "diagnosis_confidence_reasoning",
-    "trade_confidence",
-    "trade_confidence_reasoning",
-    "estimated_win_rate",
-    "estimated_win_rate_reasoning",
-    "key_factors",
-    "watch_points",
-    "risk_assessment",
-    "invalidation_condition",
-})
+_DECISION_SUBFIELD_KEYS: frozenset[str] = frozenset(
+    {
+        "order_direction",
+        "order_type",
+        "entry_price",
+        "entry_basis_bar",
+        "entry_basis_extreme",
+        "entry_rule",
+        "take_profit_price",
+        "take_profit_price_2",
+        "stop_loss_price",
+        "reasoning",
+        "diagnosis_confidence",
+        "diagnosis_confidence_reasoning",
+        "trade_confidence",
+        "trade_confidence_reasoning",
+        "estimated_win_rate",
+        "estimated_win_rate_reasoning",
+        "key_factors",
+        "watch_points",
+        "risk_assessment",
+        "invalidation_condition",
+    }
+)
 
 # Decision fields models sometimes nest under diagnosis_summary by mistake.
 _DECISION_FIELDS_FROM_DIAG_SUMMARY: tuple[str, ...] = (
@@ -166,14 +177,16 @@ _DECISION_FIELDS_FROM_DIAG_SUMMARY: tuple[str, ...] = (
 
 # Valid enum values for features_used in next_bar_prediction / next_cycle_prediction.
 # Must stay in sync with schemas.py _NEXT_BAR_PREDICTION / _NEXT_CYCLE_PREDICTION.
-_VALID_FEATURES_USED = frozenset({
-    "stage1_diagnosis",
-    "kline_features",
-    "analysis_history",
-    "experience_library",
-    "stage2_decision",
-    "previous_prediction_summary",
-})
+_VALID_FEATURES_USED = frozenset(
+    {
+        "stage1_diagnosis",
+        "kline_features",
+        "analysis_history",
+        "experience_library",
+        "stage2_decision",
+        "previous_prediction_summary",
+    }
+)
 
 
 def _strip_enum_suffix(raw: str) -> str:
@@ -305,9 +318,7 @@ def _normalize_stage2_bar_analysis_enums(
 def _normalize_second_entry(second_entry: dict[str, Any]) -> bool:
     """``type`` must be a string; models often emit null when ``is_second_entry`` is false."""
     raw_type = second_entry.get("type")
-    if raw_type is not None and not (
-        isinstance(raw_type, str) and not str(raw_type).strip()
-    ):
+    if raw_type is not None and not (isinstance(raw_type, str) and not str(raw_type).strip()):
         return False
     second_entry["type"] = "none"
     return True
@@ -382,16 +393,12 @@ def _normalize_stage2_enum_aliases(out: dict[str, Any]) -> bool:
     changed = False
     diag = out.get("diagnosis_summary")
     diag_direction = (
-        str(diag.get("direction", "")).strip()
-        if isinstance(diag, dict)
-        else ""
+        str(diag.get("direction", "")).strip() if isinstance(diag, dict) else ""
     ) or None
 
     decision = out.get("decision")
     order_type = (
-        str(decision.get("order_type", "")).strip()
-        if isinstance(decision, dict)
-        else None
+        str(decision.get("order_type", "")).strip() if isinstance(decision, dict) else None
     ) or None
     if isinstance(decision, dict):
         raw_dir = decision.get("order_direction")
@@ -404,9 +411,7 @@ def _normalize_stage2_enum_aliases(out: dict[str, Any]) -> bool:
     bar_analysis = out.get("bar_analysis")
     if isinstance(bar_analysis, dict):
         raw_ai = bar_analysis.get("always_in")
-        mapped_ai = _normalize_always_in_value(
-            raw_ai, diagnosis_direction=diag_direction
-        )
+        mapped_ai = _normalize_always_in_value(raw_ai, diagnosis_direction=diag_direction)
         if mapped_ai and mapped_ai != raw_ai:
             bar_analysis["always_in"] = mapped_ai
             logger.debug("always_in %r -> %r", raw_ai, mapped_ai)
@@ -415,9 +420,7 @@ def _normalize_stage2_enum_aliases(out: dict[str, Any]) -> bool:
     terminal = out.get("terminal")
     if isinstance(terminal, dict):
         raw_outcome = terminal.get("outcome")
-        mapped_outcome = _normalize_terminal_outcome_value(
-            raw_outcome, order_type=order_type
-        )
+        mapped_outcome = _normalize_terminal_outcome_value(raw_outcome, order_type=order_type)
         if mapped_outcome and mapped_outcome != raw_outcome:
             terminal["outcome"] = mapped_outcome
             logger.debug("terminal.outcome %r -> %r", raw_outcome, mapped_outcome)
@@ -436,9 +439,7 @@ def _order_type_from_decision_scalar(value: str) -> str | None:
     normalized = token.replace(" ", "_").replace("-", "_")
     if normalized in _ORDER_TYPE_ALIASES:
         return _ORDER_TYPE_ALIASES[normalized]
-    outcome = _TERMINAL_OUTCOME_ALIASES.get(token) or _TERMINAL_OUTCOME_ALIASES.get(
-        normalized
-    )
+    outcome = _TERMINAL_OUTCOME_ALIASES.get(token) or _TERMINAL_OUTCOME_ALIASES.get(normalized)
     if outcome in ("wait", "reject"):
         return "不下单"
     return None
@@ -562,8 +563,7 @@ def _ensure_decision_required_fields(
     text_defaults = {
         "reasoning": "基于阶段一诊断与当前K线结构的阶段二决策说明",
         "diagnosis_confidence_reasoning": (
-            str(s1.get("htf_context") or "").strip()[:500]
-            or "依据阶段一诊断与闸门结论"
+            str(s1.get("htf_context") or "").strip()[:500] or "依据阶段一诊断与闸门结论"
         ),
         "risk_assessment": "见 watch_points 与 invalidation_condition",
     }
@@ -578,9 +578,7 @@ def _ensure_decision_required_fields(
             decision["diagnosis_confidence"] = 50
         changed = True
     if decision.get("trade_confidence") is None:
-        decision["trade_confidence"] = (
-            0 if decision.get("order_type") == "不下单" else 50
-        )
+        decision["trade_confidence"] = 0 if decision.get("order_type") == "不下单" else 50
         changed = True
     if (
         not isinstance(decision.get("trade_confidence_reasoning"), str)
@@ -670,7 +668,16 @@ def _section14_violated(trace: Any) -> bool:
     violation.  This is a safety hatch — the prompt now clearly specifies answer=否 for
     the no-violation case, so future outputs should be correct.
     """
-    _DENIAL_PHRASES = ("未触犯", "未违反", "无触犯", "无违规", "通过扫描", "扫描通过", "无禁止", "未触发")
+    _DENIAL_PHRASES = (
+        "未触犯",
+        "未违反",
+        "无触犯",
+        "无违规",
+        "通过扫描",
+        "扫描通过",
+        "无禁止",
+        "未触发",
+    )
     if not isinstance(trace, list):
         return False
     for item in trace:
@@ -705,7 +712,10 @@ def _clear_decision_to_no_order(decision: dict[str, Any]) -> None:
     # When the breaker forces 不下单, provide valid defaults.
     if decision.get("trade_confidence") is None:
         decision["trade_confidence"] = 0
-    if not isinstance(decision.get("trade_confidence_reasoning"), str) or not decision["trade_confidence_reasoning"]:
+    if (
+        not isinstance(decision.get("trade_confidence_reasoning"), str)
+        or not decision["trade_confidence_reasoning"]
+    ):
         decision["trade_confidence_reasoning"] = "无入场计划，不存在交易信心"
 
 
@@ -738,11 +748,7 @@ def _coerce_decision_no_order(out: dict[str, Any]) -> bool:
     _normalize_order_type_aliases(decision)
 
     terminal = out.get("terminal")
-    outcome = (
-        str(terminal.get("outcome", "")).strip()
-        if isinstance(terminal, dict)
-        else ""
-    )
+    outcome = str(terminal.get("outcome", "")).strip() if isinstance(terminal, dict) else ""
     order_type = decision.get("order_type")
 
     if order_type not in _TRADE_ORDER_TYPES:
@@ -783,9 +789,7 @@ def _coerce_breakout_without_basis(out: dict[str, Any]) -> bool:
     decision["entry_basis_bar"] = None
     decision["entry_basis_extreme"] = None
     decision["entry_rule"] = None
-    logger.debug(
-        "breakout order missing entry_basis_*; coerced to 限价单"
-    )
+    logger.debug("breakout order missing entry_basis_*; coerced to 限价单")
     return True
 
 
@@ -847,8 +851,16 @@ def _normalize_market_order_entry_bar(
         return False
     # Market order fills on the latest closed bar; signal_bar stays older (K2+).
     entry_bar["bar"] = str(bar_analysis.get("last_closed_bar") or "K1").strip() or "K1"
-    raw_strength = str(entry_bar.get("strength") or signal_bar.get("quality") or "weak").strip().lower()
-    strength_map = {"strong": "strong", "medium": "weak", "weak": "weak", "low": "weak", "high": "strong"}
+    raw_strength = (
+        str(entry_bar.get("strength") or signal_bar.get("quality") or "weak").strip().lower()
+    )
+    strength_map = {
+        "strong": "strong",
+        "medium": "weak",
+        "weak": "weak",
+        "low": "weak",
+        "high": "strong",
+    }
     entry_bar["strength"] = strength_map.get(raw_strength, "weak")
     entry_bar["freshness"] = "fresh"
     entry_bar["follow_through"] = True
@@ -857,7 +869,9 @@ def _normalize_market_order_entry_bar(
     return True
 
 
-def _normalize_signal_entry_bar_chain(bar_analysis: dict[str, Any], decision: dict[str, Any]) -> bool:
+def _normalize_signal_entry_bar_chain(
+    bar_analysis: dict[str, Any], decision: dict[str, Any]
+) -> bool:
     """Signal K must be strictly older than entry K (larger seq); pending entry exempt."""
     if decision.get("order_type") not in _TRADE_ORDER_TYPES:
         return False
@@ -917,9 +931,7 @@ def _coerce_decision_when_trade_metrics_fail(
         decision,
         decision_stance=decision_stance,
         kline_frame=kline_frame,
-        bar_analysis=out.get("bar_analysis")
-        if isinstance(out.get("bar_analysis"), dict)
-        else None,
+        bar_analysis=out.get("bar_analysis") if isinstance(out.get("bar_analysis"), dict) else None,
     )
     if not metric_errors:
         return False
@@ -1020,11 +1032,15 @@ def _normalize_next_cycle_prediction(
     # 4. probabilities integer rounding, clamping, and sum normalization
     probs = prediction.get("probabilities")
     if not unpredictable and not isinstance(probs, dict):
-        cycle_guess = str(
-            prediction.get("cycle")
-            or (stage1_json or {}).get("cycle_position")
-            or "trading_range"
-        ).strip().lower()
+        cycle_guess = (
+            str(
+                prediction.get("cycle")
+                or (stage1_json or {}).get("cycle_position")
+                or "trading_range"
+            )
+            .strip()
+            .lower()
+        )
         prediction["probabilities"] = _default_cycle_probs(cycle_guess)
         probs = prediction["probabilities"]
         logger.debug(
@@ -1053,9 +1069,7 @@ def _normalize_next_cycle_prediction(
                 biggest = max(CYCLE_ORDER, key=lambda k: rescaled[k])
                 rescaled[biggest] = max(0, rescaled[biggest] + diff)
             normalized = rescaled
-            logger.debug(
-                "next_cycle_prediction probabilities rescaled (sum was %d -> 100)", total
-            )
+            logger.debug("next_cycle_prediction probabilities rescaled (sum was %d -> 100)", total)
 
         prediction["probabilities"] = normalized
 
@@ -1072,7 +1086,9 @@ def _normalize_next_cycle_prediction(
         if model_cycle != argmax_cycle:
             logger.debug(
                 "next_cycle_prediction cycle %r -> %r (argmax of %s)",
-                model_cycle, argmax_cycle, normalized,
+                model_cycle,
+                argmax_cycle,
+                normalized,
             )
             prediction["cycle"] = argmax_cycle
 
@@ -1091,10 +1107,18 @@ def _normalize_next_bar_prediction(prediction: dict[str, Any]) -> None:
     #     If probabilities has cycle-position keys (spike/broad_channel/etc.) instead of
     #     direction keys (bullish/bearish/neutral), the model confused the two fields.
     #     Wipe probabilities so the synthesize-from-direction fallback kicks in.
-    _CYCLE_KEYS = frozenset({
-        "spike", "micro_channel", "tight_channel", "normal_channel",
-        "broad_channel", "trending_tr", "trading_range", "extreme_tr",
-    })
+    _CYCLE_KEYS = frozenset(
+        {
+            "spike",
+            "micro_channel",
+            "tight_channel",
+            "normal_channel",
+            "broad_channel",
+            "trending_tr",
+            "trading_range",
+            "extreme_tr",
+        }
+    )
     _BAR_PROB_KEYS = frozenset({"bullish", "bearish", "neutral"})
     probs_raw = prediction.get("probabilities")
     if isinstance(probs_raw, dict):
@@ -1128,9 +1152,7 @@ def _normalize_next_bar_prediction(prediction: dict[str, Any]) -> None:
                     extracted[key] = 0
             if any(v > 0 for v in extracted.values()):
                 prediction["probabilities"] = extracted
-                logger.debug(
-                    "next_bar_prediction: extracted probabilities from 'scenarios' dict"
-                )
+                logger.debug("next_bar_prediction: extracted probabilities from 'scenarios' dict")
 
     # 1. unpredictable fallback
     unpredictable = bool(prediction.get("unpredictable", False))
@@ -1197,9 +1219,7 @@ def _normalize_next_bar_prediction(prediction: dict[str, Any]) -> None:
         analysis = prediction.get("analysis")
         if isinstance(analysis, str) and analysis:
             prediction["reasoning"] = analysis
-            logger.debug(
-                "next_bar_prediction: migrated 'analysis' field -> 'reasoning'"
-            )
+            logger.debug("next_bar_prediction: migrated 'analysis' field -> 'reasoning'")
 
     # 4. probabilities integer rounding (R3.1)
     probs = prediction.get("probabilities")
@@ -1224,9 +1244,7 @@ def _normalize_next_bar_prediction(prediction: dict[str, Any]) -> None:
                 biggest = max(bar_order, key=lambda k: rescaled[k])
                 rescaled[biggest] = max(0, rescaled[biggest] + diff)
             normalized = rescaled
-            logger.debug(
-                "next_bar_prediction probabilities rescaled (sum was %d -> 100)", total
-            )
+            logger.debug("next_bar_prediction probabilities rescaled (sum was %d -> 100)", total)
 
         prediction["probabilities"] = normalized
 
@@ -1245,7 +1263,10 @@ def _normalize_next_bar_prediction(prediction: dict[str, Any]) -> None:
                 logger.warning(
                     "next_bar_prediction direction=%r not in tied winners %s "
                     "(probs=%s); overriding to %r",
-                    model_direction, tied_winners, normalized, tied_winners[0],
+                    model_direction,
+                    tied_winners,
+                    normalized,
+                    tied_winners[0],
                 )
                 prediction["direction"] = tied_winners[0]
         else:
@@ -1254,7 +1275,9 @@ def _normalize_next_bar_prediction(prediction: dict[str, Any]) -> None:
             if model_direction != expected:
                 logger.debug(
                     "next_bar_prediction direction %r -> %r (argmax of %s)",
-                    model_direction, expected, normalized,
+                    model_direction,
+                    expected,
+                    normalized,
                 )
                 prediction["direction"] = expected
             # else: model direction matches argmax, no change needed
@@ -1263,9 +1286,15 @@ def _normalize_next_bar_prediction(prediction: dict[str, Any]) -> None:
     # 6. Strip extra keys not allowed by the schema (additionalProperties: false).
     #    This prevents schema validation failures caused by model adding creative fields
     #    like 'bar_type', 'key_levels', 'scenarios', 'confidence', 'analysis', etc.
-    _ALLOWED_KEYS = frozenset({
-        "direction", "probabilities", "reasoning", "unpredictable", "features_used",
-    })
+    _ALLOWED_KEYS = frozenset(
+        {
+            "direction",
+            "probabilities",
+            "reasoning",
+            "unpredictable",
+            "features_used",
+        }
+    )
     extra_keys = [k for k in list(prediction.keys()) if k not in _ALLOWED_KEYS]
     if extra_keys:
         for k in extra_keys:
@@ -1345,9 +1374,7 @@ def _repair_next_bar_prediction_shape(prediction: dict[str, Any]) -> bool:
             prediction["probabilities"] = probs
             prediction.pop("probability", None)
             changed = True
-            logger.debug(
-                "next_bar_prediction: migrated singular probability -> probabilities dict"
-            )
+            logger.debug("next_bar_prediction: migrated singular probability -> probabilities dict")
     return changed
 
 
@@ -1416,9 +1443,8 @@ def ensure_stage2_predictions(
             "direction": dom,
             "probabilities": probs,
             "unpredictable": False,
-            "reasoning": (
-                (reasoning[:400] + "…") if len(reasoning) > 400 else reasoning
-            ) or f"基于当前方向 {direction} 的参考预测{synth_note}",
+            "reasoning": ((reasoning[:400] + "…") if len(reasoning) > 400 else reasoning)
+            or f"基于当前方向 {direction} 的参考预测{synth_note}",
             "features_used": ["stage1_diagnosis", "stage2_decision"],
         }
         changed = True
@@ -1432,8 +1458,7 @@ def ensure_stage2_predictions(
             "probabilities": c_probs,
             "unpredictable": False,
             "reasoning": (
-                f"当前周期 {cycle}，方向 {direction}。"
-                f"下一周期概率为程序参考分布{synth_note}"
+                f"当前周期 {cycle}，方向 {direction}。下一周期概率为程序参考分布{synth_note}"
             ),
             "features_used": ["stage1_diagnosis", "stage2_decision"],
         }
@@ -1486,8 +1511,7 @@ def _fix_background_limit_trace(out: dict[str, Any]) -> bool:
                         "question": "背景驱动限价单评估（§9.0=否 时必须评估）",
                         "answer": "是",
                         "reason": (
-                            "程序校正：计划型限价单，周期/结构位支持挂限价，"
-                            "继续 §10 定三价。"
+                            "程序校正：计划型限价单，周期/结构位支持挂限价，继续 §10 定三价。"
                         ),
                         "skipped": False,
                         "bar_range": "K10-K1",
@@ -1596,8 +1620,9 @@ def normalize_stage2(
     if kline_frame is not None:
         try:
             from pa_agent.ai.decision_nodes import DecisionNodeEngine
+
             DecisionNodeEngine.apply_stage2(out, kline_frame, stage1_json)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.warning("DecisionNodeEngine.apply_stage2 failed: %s", exc)
     if _coerce_breakout_without_basis(out):
         logger.debug("Coerced breakout-without-basis to 限价单 after DecisionNodeEngine")
@@ -1619,7 +1644,10 @@ def normalize_stage2(
         # Patch to valid defaults.
         if decision.get("trade_confidence") is None:
             decision["trade_confidence"] = 0
-        if not isinstance(decision.get("trade_confidence_reasoning"), str) or not decision["trade_confidence_reasoning"]:
+        if (
+            not isinstance(decision.get("trade_confidence_reasoning"), str)
+            or not decision["trade_confidence_reasoning"]
+        ):
             decision["trade_confidence_reasoning"] = "无入场计划，不存在交易信心"
 
     bar_analysis = out.get("bar_analysis")
@@ -1768,13 +1796,9 @@ def normalize_stage2(
 
                 existing = str(decision.get("reasoning") or "")
                 if block_long:
-                    prefix = (
-                        "【程序守卫】next_cycle_prediction.direction=bearish：禁止做多；改为不下单。 "
-                    )
+                    prefix = "【程序守卫】next_cycle_prediction.direction=bearish：禁止做多；改为不下单。 "
                 else:
-                    prefix = (
-                        "【程序守卫】next_cycle_prediction.direction=bullish：禁止做空；改为不下单。 "
-                    )
+                    prefix = "【程序守卫】next_cycle_prediction.direction=bullish：禁止做空；改为不下单。 "
                 decision["reasoning"] = (prefix + existing)[:DECISION_REASONING_MAX_LEN]
 
                 terminal = dict(out.get("terminal") or {})
@@ -1789,7 +1813,7 @@ def normalize_stage2(
                 out = dict(out)
                 out["decision"] = decision
                 out["terminal"] = terminal
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.warning("prediction direction guard failed: %s", exc)
 
     if kline_frame is not None and stage1_json:
@@ -1806,7 +1830,7 @@ def normalize_stage2(
                 cooldown_bars=structure_flip_cooldown_bars,
             )
             out = apply_continuity_guard(out, ctx)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.warning("apply_continuity_guard failed: %s", exc)
 
     decision = out.get("decision")

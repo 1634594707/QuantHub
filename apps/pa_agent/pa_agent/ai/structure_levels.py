@@ -1,4 +1,5 @@
 """Deterministic support/resistance refresh for Stage 1 diagnosis."""
+
 from __future__ import annotations
 
 import logging

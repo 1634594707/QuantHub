@@ -1,4 +1,5 @@
 """Risk/reward and estimated win-rate helpers for trading decisions."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -215,9 +216,7 @@ def adjust_decision_stop_for_tp1_rr_cap(
 
         tick = infer_price_tick_from_frame(kline_frame)
 
-    new_sl = widen_stop_for_tp1_rr_cap(
-        entry, tp, sl, decision.get("order_direction"), tick=tick
-    )
+    new_sl = widen_stop_for_tp1_rr_cap(entry, tp, sl, decision.get("order_direction"), tick=tick)
     if new_sl is None or abs(new_sl - sl) < 1e-12:
         return False
     decision["stop_loss_price"] = new_sl
@@ -445,9 +444,7 @@ def validate_order_trade_metrics(
 
     win_rate = _parse_win_rate(decision.get("estimated_win_rate"))
     if win_rate is None:
-        errors.append(
-            "decision.estimated_win_rate: required integer 0–100 when placing an order"
-        )
+        errors.append("decision.estimated_win_rate: required integer 0–100 when placing an order")
     elif not passes_trader_equation(win_rate, risk, reward):
         ev = win_rate / 100.0 * reward - (1.0 - win_rate / 100.0) * risk
         errors.append(
@@ -458,9 +455,7 @@ def validate_order_trade_metrics(
 
     if kline_frame is not None:
         errors.extend(
-            validate_limit_order_k1_freshness(
-                decision, kline_frame, bar_analysis=bar_analysis
-            )
+            validate_limit_order_k1_freshness(decision, kline_frame, bar_analysis=bar_analysis)
         )
 
     errors.extend(validate_take_profit_2_geometry(decision))

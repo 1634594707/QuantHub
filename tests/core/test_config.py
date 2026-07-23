@@ -1,10 +1,14 @@
-# -*- coding: utf-8 -*-
 """core.config 单测。"""
+
 from __future__ import annotations
 
-import os
-
-from core.config import CONFIGS_DIR, get_config, get_repo_root, _deep_merge, _resolve_env_placeholders
+from core.config import (
+    CONFIGS_DIR,
+    _deep_merge,
+    _resolve_env_placeholders,
+    get_config,
+    get_repo_root,
+)
 
 
 def test_repo_root_exists():
@@ -19,7 +23,7 @@ def test_configs_dir_exists():
 def test_base_config_loads():
     cfg = get_config()
     assert "live_trading" in cfg
-    assert cfg["live_trading"] is False   # 默认研究模式
+    assert cfg["live_trading"] is False  # 默认研究模式
     assert cfg["schema_version"] == 1
 
 

@@ -1,8 +1,11 @@
 """通用设置对话框 — 包含交易决策、图表显示、分析行为等通用字段."""
+
 from __future__ import annotations
 
 from collections.abc import Callable
 
+from pa_agent.config.paths import SETTINGS_JSON_PATH
+from pa_agent.config.settings import Settings, save_settings
 from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -10,18 +13,13 @@ from PyQt6.QtWidgets import (
     QDialogButtonBox,
     QFormLayout,
     QGroupBox,
-    QHBoxLayout,
     QLineEdit,
-    QMessageBox,
     QPushButton,
     QScrollArea,
     QSpinBox,
     QVBoxLayout,
     QWidget,
 )
-
-from pa_agent.config.settings import Settings, save_settings
-from pa_agent.config.paths import SETTINGS_JSON_PATH
 
 
 class GeneralSettingsDialog(QDialog):
@@ -65,7 +63,9 @@ class GeneralSettingsDialog(QDialog):
         self._decision_stance_combo.addItem("保守", "conservative")
         self._decision_stance_combo.addItem("均衡（默认，比保守更愿意下单）", "balanced")
         self._decision_stance_combo.addItem("激进（比均衡更愿意下单）", "aggressive")
-        self._decision_stance_combo.addItem("极度激进（强制选方向与进场方式）", "extreme_aggressive")
+        self._decision_stance_combo.addItem(
+            "极度激进（强制选方向与进场方式）", "extreme_aggressive"
+        )
         self._decision_stance_combo.setToolTip(
             "仅影响阶段二交易决策倾向；保守与改版前一致。\n"
             "均衡、激进逐级提高下单意愿；极度激进在未触犯 §14 硬性禁止时\n"
@@ -186,8 +186,7 @@ class GeneralSettingsDialog(QDialog):
         form_layout.addWidget(flow_group)
 
         buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Save
-            | QDialogButtonBox.StandardButton.Cancel
+            QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
         )
         save_btn = buttons.button(QDialogButtonBox.StandardButton.Save)
         if save_btn:
@@ -211,9 +210,7 @@ class GeneralSettingsDialog(QDialog):
         if idx >= 0:
             self._decision_stance_combo.setCurrentIndex(idx)
         self._alert_on_order_check.blockSignals(True)
-        self._alert_on_order_check.setChecked(
-            bool(getattr(g, "alert_on_order_opportunity", True))
-        )
+        self._alert_on_order_check.setChecked(bool(getattr(g, "alert_on_order_opportunity", True)))
         self._alert_on_order_check.blockSignals(False)
         self._enable_next_bar_check.blockSignals(True)
         self._enable_next_bar_check.setChecked(
@@ -240,12 +237,8 @@ class GeneralSettingsDialog(QDialog):
         self._stream_font_spin.setValue(int(getattr(g, "stream_pane_font_pt", 11)))
         self._chart_seq_font_spin.setValue(int(getattr(g, "chart_seq_label_font_pt", 11)))
 
-        self._flow_auto_play_check.setChecked(
-            getattr(g, "decision_flow_auto_play", False)
-        )
-        self._flow_play_seconds_spin.setValue(
-            getattr(g, "decision_flow_play_seconds", 50)
-        )
+        self._flow_auto_play_check.setChecked(getattr(g, "decision_flow_auto_play", False))
+        self._flow_play_seconds_spin.setValue(getattr(g, "decision_flow_play_seconds", 50))
         self._flow_default_zoom_spin.setValue(
             int(getattr(g, "decision_flow_default_zoom_pct", 600))
         )
@@ -286,12 +279,15 @@ class GeneralSettingsDialog(QDialog):
         if not self._alert_on_order_check.isChecked():
             return
         from pa_agent.gui.order_opportunity import play_order_alert_sound
+
         play_order_alert_sound()
 
     def _on_enable_next_bar_changed(self, state: int) -> None:
         from PyQt6.QtCore import Qt as _Qt
+
         if state == _Qt.CheckState.Checked.value:
             from PyQt6.QtWidgets import QMessageBox as _MB
+
             _MB.information(
                 self,
                 "下根K线预期",

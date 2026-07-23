@@ -1,16 +1,21 @@
 """Pydantic settings models for PA Agent."""
+
 from __future__ import annotations
+
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 DecisionStance = Literal["conservative", "balanced", "aggressive", "extreme_aggressive"]
-DataSourceKind = Literal["mt5", "tradingview", "akshare", "eastmoney", "eastmoney_futures", "tushare"]
+DataSourceKind = Literal[
+    "mt5", "tradingview", "akshare", "eastmoney", "eastmoney_futures", "tushare"
+]
 NormalizationMode = Literal["strict", "lenient"]
 
 
 class AIProviderSettings(BaseModel):
     """AI provider connection and behaviour settings."""
+
     model_config = ConfigDict(extra="ignore")
 
     model: str = "openclaw_wb/deepseek-v4-flash"
@@ -24,6 +29,7 @@ class AIProviderSettings(BaseModel):
 
 class PromptSettings(BaseModel):
     """Prompt assembly tuning (accuracy-oriented defaults)."""
+
     model_config = ConfigDict(extra="ignore")
 
     #: When True, Stage 2 loads every strategy .txt (legacy/test behaviour).
@@ -36,6 +42,7 @@ class PromptSettings(BaseModel):
 
 class ValidationSettings(BaseModel):
     """Post-LLM validation behaviour."""
+
     model_config = ConfigDict(extra="ignore")
 
     normalization_mode: NormalizationMode = "lenient"
@@ -57,6 +64,7 @@ class ValidationSettings(BaseModel):
 
 class GeneralSettings(BaseModel):
     """UI and data-feed general settings."""
+
     model_config = ConfigDict(extra="ignore")
 
     analysis_bar_count: int = Field(default=100, ge=2, le=5000)
@@ -128,6 +136,7 @@ _FEISHU_CONFIG_KEYS = (
 
 class FeishuSettings(BaseModel):
     """Feishu bot notification settings (persisted in settings.json)."""
+
     model_config = ConfigDict(extra="ignore")
 
     enabled: bool = True
@@ -141,6 +150,7 @@ class FeishuSettings(BaseModel):
 
 class TushareSettings(BaseModel):
     """Tushare Pro data source settings (persisted in ignored settings.json)."""
+
     model_config = ConfigDict(extra="ignore")
 
     token: str = ""
@@ -148,6 +158,7 @@ class TushareSettings(BaseModel):
 
 class PushPlusSettings(BaseModel):
     """PushPlus notification settings (settings.json only; no GUI)."""
+
     model_config = ConfigDict(extra="ignore")
 
     enabled: bool = False
@@ -156,6 +167,7 @@ class PushPlusSettings(BaseModel):
 
 class Settings(BaseModel):
     """Root settings object persisted to config/settings.json."""
+
     model_config = ConfigDict(extra="ignore")
 
     provider: AIProviderSettings = Field(default_factory=AIProviderSettings)
@@ -214,7 +226,7 @@ def _migrate_legacy_feishu_json(raw: dict, settings_path: Path) -> bool:
     return migrated
 
 
-def load_settings(path: Path | None = None) -> "Settings":
+def load_settings(path: Path | None = None) -> Settings:
     """Load settings from *path* (default: SETTINGS_JSON_PATH).
 
     Returns default Settings and writes them to disk if the file is absent.
@@ -259,8 +271,7 @@ def load_settings(path: Path | None = None) -> "Settings":
         if not (os.environ.get("PUSHPLUS_TOKEN") or "").strip():
             settings.pushplus.enabled = False
             logger.info(
-                "PushPlus enabled but token empty — auto-disabled "
-                "(Feishu notifications unaffected)"
+                "PushPlus enabled but token empty — auto-disabled (Feishu notifications unaffected)"
             )
             dirty = True
     if dirty:
@@ -268,7 +279,7 @@ def load_settings(path: Path | None = None) -> "Settings":
     return settings
 
 
-def save_settings(settings: "Settings", path: Path | None = None) -> None:
+def save_settings(settings: Settings, path: Path | None = None) -> None:
     """Persist settings to *path* (default: SETTINGS_JSON_PATH)."""
     from pa_agent.config.paths import SETTINGS_JSON_PATH
 

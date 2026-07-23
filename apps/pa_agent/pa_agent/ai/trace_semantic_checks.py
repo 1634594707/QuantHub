@@ -1,4 +1,5 @@
 """Semantic validation for gate_trace / decision_trace (beyond schema/enums)."""
+
 from __future__ import annotations
 
 import logging
@@ -57,7 +58,9 @@ def _bar_seqs_from_range(bar_range: str) -> set[int]:
             logger.warning(
                 "bar_range=%r has reversed order (K%d-K%d); K1=newest, K{N}=older. "
                 "Auto-corrected but this may indicate model confusion.",
-                text, a, b,
+                text,
+                a,
+                b,
             )
         lo, hi = min(a, b), max(a, b)
         return set(range(lo, hi + 1))
@@ -177,8 +180,10 @@ def validate_trace_semantics(
         if nid and nid in node_questions:
             expected = node_questions[nid]
             question = str(item.get("question", "") or "").strip()
-            if question and expected and not _question_matches_tree(
-                expected, question, node_id=nid
+            if (
+                question
+                and expected
+                and not _question_matches_tree(expected, question, node_id=nid)
             ):
                 errors.append(
                     f"{path_prefix}[{i}].question: should match decision tree "
@@ -230,13 +235,10 @@ def validate_stage2_order_trace_semantics(stage2: dict[str, Any]) -> list[str]:
         and isinstance(item_90, dict)
         and str(item_90.get("answer", "") or "").strip() in ("否", "等待")
         and not (
-            isinstance(item_90p, dict)
-            and str(item_90p.get("answer", "") or "").strip() == "是"
+            isinstance(item_90p, dict) and str(item_90p.get("answer", "") or "").strip() == "是"
         )
     ):
-        errors.append(
-            "limit order with §9.0=否/等待 requires §9.0P=是 (background limit path)"
-        )
+        errors.append("limit order with §9.0=否/等待 requires §9.0P=是 (background limit path)")
 
     for required in ("10.1", "10.2", "10.3"):
         if required not in node_ids:

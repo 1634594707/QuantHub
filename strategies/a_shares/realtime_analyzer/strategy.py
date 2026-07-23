@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """实时 A 股分析器策略 — QuantHub 迁移版。
 
 把 ``trading-master/02-A-stock-realtime-analyzer`` 的实时分析能力下沉为
@@ -12,6 +11,7 @@
 
 实盘：默认关。即便开，本策略只产出研报，不主动下单。
 """
+
 from __future__ import annotations
 
 import datetime as dt
@@ -19,8 +19,9 @@ import json
 import logging
 from typing import Any
 
-from strategies import StrategyBase, StrategyInfo, register_strategy
 from core.signals import Signal
+from strategies import StrategyBase, StrategyInfo, register_strategy
+
 from .fetchers import (
     fetch_index_baseline,
     fetch_kline,
@@ -76,9 +77,14 @@ class RealtimeAnalyzerStrategy(StrategyBase):
         cfg = self.config.get("default_codes") or ["600519", "000001"]
         return parse_codes(",".join(cfg))
 
-    def produce(self, codes: Any = None, with_kline: bool = True,
-                kline_days: int = 60, with_indices: bool = True,
-                **kwargs) -> list[Signal]:
+    def produce(
+        self,
+        codes: Any = None,
+        with_kline: bool = True,
+        kline_days: int = 60,
+        with_indices: bool = True,
+        **kwargs,
+    ) -> list[Signal]:
         target = self.config.get("default_codes")
         codes = self._resolve_codes(codes or target)
         if not codes:
@@ -98,7 +104,7 @@ class RealtimeAnalyzerStrategy(StrategyBase):
             for c in codes:
                 try:
                     kline[c] = fetch_kline(c, days=kline_days)
-                except Exception as exc:  # noqa: BLE001
+                except Exception as exc:
                     kline[c] = {"error": str(exc)}
             market_data["kline"] = kline
 
@@ -132,22 +138,25 @@ class RealtimeAnalyzerStrategy(StrategyBase):
     def _build_report(self, market_data: dict) -> str | None:
         try:
             from core.llm import get_llm
+
             llm = get_llm()
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.warning("realtime_analyzer: LLM 不可用（%s），降级为快照报告", exc)
             return None
-        user_msg = "\n".join([
-            "## 分析请求",
-            f"- 时间戳：{market_data.get('timestamp')}",
-            f"- 分析标的：{', '.join(market_data.get('codes', []))}",
-            "",
-            "## 结构化市场数据（JSON）",
-            "```json",
-            json.dumps(market_data, ensure_ascii=False, indent=2),
-            "```",
-            "",
-            "请严格按照『分析报告结构』输出完整报告。",
-        ])
+        user_msg = "\n".join(
+            [
+                "## 分析请求",
+                f"- 时间戳：{market_data.get('timestamp')}",
+                f"- 分析标的：{', '.join(market_data.get('codes', []))}",
+                "",
+                "## 结构化市场数据（JSON）",
+                "```json",
+                json.dumps(market_data, ensure_ascii=False, indent=2),
+                "```",
+                "",
+                "请严格按照『分析报告结构』输出完整报告。",
+            ]
+        )
         try:
             resp = llm.chat.completions.create(
                 messages=[
@@ -158,7 +167,7 @@ class RealtimeAnalyzerStrategy(StrategyBase):
                 max_tokens=2000,
             )
             return resp.content
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.exception("realtime_analyzer: LLM 调用失败: %s", exc)
             return None
 
@@ -182,9 +191,10 @@ class RealtimeAnalyzerStrategy(StrategyBase):
                 )
         return "\n".join(lines)
 
-    def backtest(self, klines: Any = None, **kwargs) -> "BacktestResult":
+    def backtest(self, klines: Any = None, **kwargs) -> BacktestResult:
         """分析/研报工具，不参与回测 —— 返回「未实现」空结果（绝不 raise）。"""
         from core.backtest.engine import BacktestResult
+
         return BacktestResult.empty(engine="none")
 
     def live_tick(self, tick: Any = None, **kwargs) -> None:

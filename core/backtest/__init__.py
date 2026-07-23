@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """回测框架统一入口。
 
 提供三种回测引擎:
@@ -8,14 +7,19 @@
 
 统一绩效指标计算（绩效指标统一在 metrics 模块）。
 """
+
 from __future__ import annotations
 
+from core.backtest.engine import BacktestResult, BacktraderEngine, EventEngine
 from core.backtest.grid import GridBacktester, GridConfig, GridResult
-from core.backtest.engine import BacktraderEngine, EventEngine, BacktestResult
 from core.backtest.metrics import compute_metrics
 
 __all__ = [
-    "GridBacktester", "GridConfig", "GridResult",
-    "BacktraderEngine", "EventEngine", "BacktestResult",
+    "BacktestResult",
+    "BacktraderEngine",
+    "EventEngine",
+    "GridBacktester",
+    "GridConfig",
+    "GridResult",
     "compute_metrics",
 ]

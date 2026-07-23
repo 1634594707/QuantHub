@@ -4,28 +4,24 @@ Task 17.3 — pytest-qt + mock client.
 
 Validates: Requirements R3.2, R3.3, R3.5, R16.5
 """
+
 from __future__ import annotations
 
 import json
 import time
-from typing import Any
-from unittest.mock import MagicMock, call
+from unittest.mock import MagicMock
 
 import pytest
 
 # Guard: skip the whole module if PyQt6 is not available
 pytest.importorskip("PyQt6")
 
-from PyQt6.QtCore import QThread
-from PyQt6.QtWidgets import QApplication, QPlainTextEdit
 
 from pa_agent.app_context import AppContext
 from pa_agent.data.base import IndicatorBundle, KlineBar, KlineFrame
-from pa_agent.util.threading import CancelToken, OrchestratorEvent
-
+from pa_agent.util.threading import CancelToken
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
-
 from tests.fixtures.ai_payloads import VALID_STAGE1, VALID_STAGE2
 
 
@@ -73,6 +69,7 @@ def _make_reply(content_dict: dict) -> MagicMock:
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
+
 @pytest.fixture
 def pending_writer():
     return MagicMock()
@@ -97,6 +94,7 @@ def app_ctx(pending_writer, mock_data_source, tmp_path):
 
 # ── Tests ─────────────────────────────────────────────────────────────────────
 
+
 class TestSwitchMidAnalysis:
     """Verify that switching symbol/TF while stage-2 is in progress:
     - cancels the worker within 100 ms
@@ -104,9 +102,7 @@ class TestSwitchMidAnalysis:
     - disables the FreeChatSession (Tab2 input disabled)
     """
 
-    def test_worker_cancelled_within_100ms(
-        self, qtbot, app_ctx, pending_writer, mock_data_source
-    ):
+    def test_worker_cancelled_within_100ms(self, qtbot, app_ctx, pending_writer, mock_data_source):
         """Switching symbol while stage-2 is running cancels the worker quickly."""
         from pa_agent.gui.main_window import MainWindow
 
@@ -128,7 +124,7 @@ class TestSwitchMidAnalysis:
         mock_client = MagicMock()
         mock_client.stream_chat.side_effect = [
             _make_reply(VALID_STAGE1),  # stage1 returns immediately
-            slow_stage2_chat,           # stage2 blocks
+            slow_stage2_chat,  # stage2 blocks
         ]
 
         # Patch chat to use side_effect properly
@@ -145,8 +141,8 @@ class TestSwitchMidAnalysis:
         mock_client.stream_chat.side_effect = chat_dispatch
 
         # Wire up the orchestrator components
-        from tests.fixtures.validators import schema_test_validator
         from pa_agent.ai.router import route_strategy_files
+        from tests.fixtures.validators import schema_test_validator
 
         app_ctx.client = mock_client
         app_ctx.assembler = MagicMock()
@@ -207,14 +203,12 @@ class TestSwitchMidAnalysis:
         # Wait for worker to actually finish
         worker.wait(2000)
 
-    def test_save_partial_called_with_user_switched(
-        self, qtbot, app_ctx, pending_writer
-    ):
+    def test_save_partial_called_with_user_switched(self, qtbot, app_ctx, pending_writer):
         """save_partial must be called with reason='user_switched' on symbol switch."""
-        from pa_agent.gui.main_window import MainWindow, _AnalysisWorker
-        from tests.fixtures.validators import schema_test_validator
         from pa_agent.ai.router import route_strategy_files
+        from pa_agent.gui.main_window import MainWindow, _AnalysisWorker
         from pa_agent.orchestrator.two_stage import TwoStageOrchestrator
+        from tests.fixtures.validators import schema_test_validator
 
         stage2_started = __import__("threading").Event()
         call_count = [0]
@@ -279,9 +273,7 @@ class TestSwitchMidAnalysis:
         # "user_cancelled" (the orchestrator uses "user_cancelled" internally
         # when the cancel token is set; the window also calls save_partial
         # with "user_switched" as a belt-and-suspenders call)
-        assert pending_writer.save_partial.called, (
-            "pending_writer.save_partial was never called"
-        )
+        assert pending_writer.save_partial.called, "pending_writer.save_partial was never called"
 
         # Check that at least one call used "user_switched" or "user_cancelled"
         reasons = []
@@ -293,13 +285,10 @@ class TestSwitchMidAnalysis:
                 reasons.append(kwargs["reason"])
 
         assert any(r in ("user_switched", "user_cancelled") for r in reasons), (
-            f"Expected 'user_switched' or 'user_cancelled' in save_partial reasons, "
-            f"got: {reasons}"
+            f"Expected 'user_switched' or 'user_cancelled' in save_partial reasons, got: {reasons}"
         )
 
-    def test_free_chat_session_disabled_after_switch(
-        self, qtbot, app_ctx, pending_writer
-    ):
+    def test_free_chat_session_disabled_after_switch(self, qtbot, app_ctx, pending_writer):
         """FreeChatSession must be None and Tab2 input disabled after symbol switch."""
         from pa_agent.gui.main_window import MainWindow
 
@@ -321,14 +310,12 @@ class TestSwitchMidAnalysis:
         )
         assert not panel._send_btn.isEnabled()
 
-    def test_cancel_token_set_within_100ms(
-        self, qtbot, app_ctx, pending_writer
-    ):
+    def test_cancel_token_set_within_100ms(self, qtbot, app_ctx, pending_writer):
         """cancel_token.is_set() must become True within 100ms of triggering switch."""
-        from pa_agent.gui.main_window import MainWindow, _AnalysisWorker
-        from tests.fixtures.validators import schema_test_validator
         from pa_agent.ai.router import route_strategy_files
+        from pa_agent.gui.main_window import MainWindow, _AnalysisWorker
         from pa_agent.orchestrator.two_stage import TwoStageOrchestrator
+        from tests.fixtures.validators import schema_test_validator
 
         stage2_started = __import__("threading").Event()
         call_count = [0]
@@ -389,15 +376,11 @@ class TestSwitchMidAnalysis:
         elapsed_ms = (time.monotonic() - t0) * 1000
 
         # cancel_token must be set (it's set synchronously in on_symbol_or_tf_changed)
-        assert cancel_token.is_set(), (
-            "cancel_token was not set after on_symbol_or_tf_changed"
-        )
+        assert cancel_token.is_set(), "cancel_token was not set after on_symbol_or_tf_changed"
 
         # The cancel signal itself is set synchronously, well within 100ms
         # (the 5s wait is for the worker join, not the cancel signal)
-        assert elapsed_ms < 5500, (
-            f"Switch took {elapsed_ms:.0f}ms total (join timeout is 5000ms)"
-        )
+        assert elapsed_ms < 5500, f"Switch took {elapsed_ms:.0f}ms total (join timeout is 5000ms)"
 
         # Clean up
         worker.wait(2000)

@@ -1,4 +1,5 @@
 """Tests for build_analysis_frame when the buffer has no forming bar."""
+
 from __future__ import annotations
 
 from pa_agent.data.base import KlineBar

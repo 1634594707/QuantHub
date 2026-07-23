@@ -1,4 +1,5 @@
 """Trading decision stance profiles for Stage 2 prompt injection."""
+
 from __future__ import annotations
 
 from typing import Literal

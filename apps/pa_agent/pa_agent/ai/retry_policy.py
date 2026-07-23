@@ -1,7 +1,7 @@
 """Validation retry policy: which errors may retry and immutable field guards."""
+
 from __future__ import annotations
 
-import re
 from typing import Any, Literal
 
 StageName = Literal["stage1", "stage2"]
@@ -158,8 +158,10 @@ def detect_cheat(
             continue
         if stage == "stage1" and key == "direction" and _direction_change_justified(raw_after):
             continue
-        if stage == "stage1" and key == "cycle_position" and _changed_fields_justify(
-            raw_after, "cycle_position"
+        if (
+            stage == "stage1"
+            and key == "cycle_position"
+            and _changed_fields_justify(raw_after, "cycle_position")
         ):
             continue
         b = before.get(key)
@@ -180,8 +182,16 @@ def detect_cheat(
                 violations.append(f"gate_result: {br!r} → {ar!r}")
 
     if stage == "stage2":
-        bsum = before.get("diagnosis_summary") if isinstance(before.get("diagnosis_summary"), dict) else {}
-        asum = after.get("diagnosis_summary") if isinstance(after.get("diagnosis_summary"), dict) else {}
+        bsum = (
+            before.get("diagnosis_summary")
+            if isinstance(before.get("diagnosis_summary"), dict)
+            else {}
+        )
+        asum = (
+            after.get("diagnosis_summary")
+            if isinstance(after.get("diagnosis_summary"), dict)
+            else {}
+        )
         for key in IMMUTABLE_DIAG_SUMMARY:
             path = f"diagnosis_summary.{key}"
             if path in mentioned or key in mentioned:

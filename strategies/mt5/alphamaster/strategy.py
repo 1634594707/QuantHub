@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """AlphaMaster MT5 因子引擎适配器 — QuantHub 迁移版。
 
 从 ``AlphaMaster-main/model_core``（MT5FeatureEngineer + StackVM）下沉为
@@ -22,12 +21,11 @@ K 线数据：经 core.data_feed 的 LocalParquetSource 零拷贝读取
        token 列表，vocab 版本需匹配 model_core.vocab.FORMULA_VOCAB）。
     2. 缺省/无效时回退为内置启发式 MT5 公式（纯特征 token，见 run_factor_search）。
 """
+
 from __future__ import annotations
 
 import json
 import logging
-import math
-import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -46,9 +44,14 @@ ALPHAMASTER_ROOT = REPO_ROOT / "vendored" / "AlphaMaster-main"
 
 # 默认扫描品种（与 AlphaMaster TRAINABLE_SYMBOLS 对齐的子集，仅取已有本地数据的）
 DEFAULT_SYMBOLS: list[str] = [
-    "EURUSD", "USDJPY",
-    "XAUUSD", "XAGUSD",
-    "US30.cash", "US100.cash", "US500.cash", "US2000.cash",
+    "EURUSD",
+    "USDJPY",
+    "XAUUSD",
+    "XAGUSD",
+    "US30.cash",
+    "US100.cash",
+    "US500.cash",
+    "US2000.cash",
     "JP225.cash",
 ]
 
@@ -83,6 +86,7 @@ def compute_target_positions(factors) -> Any:
         经 tanh 压缩、并在 |pos| < MIN_TRADE_EXPOSURE 时置零的仓位张量。
     """
     import torch  # 懒加载
+
     pos = torch.tanh(factors)
     if MIN_TRADE_EXPOSURE > 0:
         pos = torch.where(
@@ -93,12 +97,14 @@ def compute_target_positions(factors) -> Any:
     return pos
 
 
-@register_strategy(StrategyInfo(
-    name="alphamaster",
-    market="mt5",
-    live_capable=True,
-    description="AlphaMaster MT5因子引擎(外汇/贵金属/股指, 实盘默认关)",
-))
+@register_strategy(
+    StrategyInfo(
+        name="alphamaster",
+        market="mt5",
+        live_capable=True,
+        description="AlphaMaster MT5因子引擎(外汇/贵金属/股指, 实盘默认关)",
+    )
+)
 class AlphaMasterStrategy(StrategyBase):
     """AlphaMaster MT5 因子引擎适配器（实盘默认关闭）。"""
 
@@ -132,6 +138,7 @@ class AlphaMasterStrategy(StrategyBase):
             formulas = self._load_formulas()
 
         import torch  # 懒加载重依赖
+
         _inject_alpha_master_root()
         from model_core.features import MT5FeatureEngineer
         from model_core.vm import StackVM
@@ -145,7 +152,7 @@ class AlphaMasterStrategy(StrategyBase):
             try:
                 raw_dict = self._df_to_raw_dict(df)
                 feat = MT5FeatureEngineer.compute_features(raw_dict)  # [1, 65, T]
-            except Exception:  # noqa: BLE001 - 单标的失败不影响其余
+            except Exception:
                 logger.exception("alphamaster 特征构建失败: %s", symbol)
                 continue
 
@@ -154,13 +161,13 @@ class AlphaMasterStrategy(StrategyBase):
             for formula in formulas:
                 try:
                     res = vm.execute(formula, feat)
-                except Exception:  # noqa: BLE001
+                except Exception:
                     continue
                 if res is None:
                     continue
                 try:
                     scores.append(float(res[0, -1].item()))
-                except Exception:  # noqa: BLE001
+                except Exception:
                     continue
             if not scores:
                 continue
@@ -196,16 +203,17 @@ class AlphaMasterStrategy(StrategyBase):
     def _load_klines(self, symbols: list[str], timeframe: str) -> dict[str, pd.DataFrame]:
         """经 core.data_feed 的 LocalParquetSource 读取本地 MT5 K 线。"""
         from core.data_feed.factory import get_data_source
+
         try:
             src = get_data_source("mt5")
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.exception("alphamaster 无法构建 mt5 数据源")
             return {}
         out: dict[str, pd.DataFrame] = {}
         for sym in symbols:
             try:
                 df = src.get_kline(sym, timeframe, limit=5000)
-            except Exception:  # noqa: BLE001
+            except Exception:
                 logger.warning("alphamaster 读取 %s %s 失败", sym, timeframe)
                 continue
             if df is not None and not df.empty:
@@ -222,8 +230,11 @@ class AlphaMasterStrategy(StrategyBase):
         import torch  # 懒加载
 
         def _t1d(col: str) -> Any:
-            arr = df[col].astype(float).to_numpy() if col in df.columns \
+            arr = (
+                df[col].astype(float).to_numpy()
+                if col in df.columns
                 else np.zeros(len(df), dtype=float)
+            )
             return torch.tensor(arr, dtype=torch.float32).unsqueeze(0)
 
         return {
@@ -244,16 +255,25 @@ class AlphaMasterStrategy(StrategyBase):
                 with json_path.open("r", encoding="utf-8") as f:
                     data = json.load(f)
                 formula = data.get("formula") or data.get("formula_tokens")
-                if isinstance(formula, list) and formula and all(
-                    isinstance(t, int) for t in (formula[0] if isinstance(formula[0], list) else formula)
+                if (
+                    isinstance(formula, list)
+                    and formula
+                    and all(
+                        isinstance(t, int)
+                        for t in (formula[0] if isinstance(formula[0], list) else formula)
+                    )
                 ):
                     # 兼容 "formula": [tokens] 或 "formula": [[tokens], ...]
                     if isinstance(formula[0], list):
-                        logger.info("alphamaster 加载训练公式 %d 条（来自 %s）", len(formula), json_path.name)
+                        logger.info(
+                            "alphamaster 加载训练公式 %d 条（来自 %s）",
+                            len(formula),
+                            json_path.name,
+                        )
                         return [list(map(int, f)) for f in formula]
                     logger.info("alphamaster 加载训练公式 1 条（来自 %s）", json_path.name)
                     return [list(map(int, formula))]
-            except Exception:  # noqa: BLE001
+            except Exception:
                 logger.warning("alphamaster 读取 %s 失败，回退启发式公式", json_path.name)
         return run_factor_search()
 
@@ -265,17 +285,18 @@ class AlphaMasterStrategy(StrategyBase):
         formulas: list[list[int]] | None = None,
         initial_capital: float = 10000.0,
         **kwargs: Any,
-    ) -> "BacktestResult":
+    ) -> BacktestResult:
         """事件驱动回测：on_bar 内按综合因子分方向交易。"""
         if klines is None or klines.empty:
             from core.backtest.engine import BacktestResult
+
             return BacktestResult.empty(engine="event")
 
-        import torch  # 懒加载
         _inject_alpha_master_root()
-        from core.backtest.engine import EventContext, EventEngine
         from model_core.features import MT5FeatureEngineer
         from model_core.vm import StackVM
+
+        from core.backtest.engine import EventContext, EventEngine
 
         df = klines.sort_values("datetime").reset_index(drop=True)
         formulas = formulas or self._load_formulas()
@@ -288,13 +309,13 @@ class AlphaMasterStrategy(StrategyBase):
             for formula in formulas:
                 try:
                     res = vm.execute(formula, feat)
-                except Exception:  # noqa: BLE001
+                except Exception:
                     continue
                 if res is None:
                     continue
                 try:
                     bar_scores.append(float(res[0, i].item()))
-                except Exception:  # noqa: BLE001
+                except Exception:
                     continue
             per_bar.append(sum(bar_scores) / len(bar_scores) if bar_scores else 0.0)
 

@@ -1,5 +1,5 @@
-# -*- coding: utf-8 -*-
 """core.viz.html_report 单测。"""
+
 from __future__ import annotations
 
 from core.viz.html_report import HTMLReport, _md_to_html
@@ -44,9 +44,11 @@ def test_blocks_and_table():
 def test_chart_graceful_without_plotly(monkeypatch=None):
     """plotly 缺失时图表段不应让 to_html 崩溃。"""
     r = HTMLReport(title="no-plotly", theme="dark")
+
     # 伪造一个没有 to_html 的对象
     class FakeFig:
         pass
+
     r.add_chart(FakeFig(), title="X")
     h = r.to_html()
     _assert_basic(h)
@@ -59,11 +61,13 @@ def test_save_writes_file(tmp_path):
     r.add_paragraph("hello")
     p = r.save(str(tmp_path / "report.html"))
     from pathlib import Path
+
     assert Path(p).exists()
     assert "hello" in Path(p).read_text(encoding="utf-8")
 
 
 def test_unknown_theme_raises():
     import pytest
+
     with pytest.raises(ValueError):
         HTMLReport(theme="neon")

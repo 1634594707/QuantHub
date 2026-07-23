@@ -7,6 +7,7 @@ When an assistant message contains ``tool_calls`` but omits ``reasoning_content`
 the upstream API returns HTTP 400. Multi-turn conversations should also pass back
 historical ``reasoning_content`` for best results.
 """
+
 from __future__ import annotations
 
 import copy
@@ -211,9 +212,7 @@ def store_reasoning_from_response(
     tool_calls = response_message.get("tool_calls") or []
     if not reasoning or not tool_calls:
         return
-    tool_call_ids = [
-        str(tc.get("id", "")) for tc in tool_calls if isinstance(tc, dict)
-    ]
+    tool_call_ids = [str(tc.get("id", "")) for tc in tool_calls if isinstance(tc, dict)]
     assistant_index = len(request_messages)
     reasoning_cache.store(request_messages, assistant_index, tool_call_ids, reasoning)
 

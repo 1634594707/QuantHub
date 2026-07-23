@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """A 股实时快照抓取（无第三方依赖，纯 urlib）。
 
 移植自 ``trading-master/02-A-stock-realtime-analyzer`` 的 ``scripts/a_share_snapshot.py``：
@@ -8,9 +7,9 @@
 
 仅依赖标准库，离线环境会优雅降级（返回空列表 + 日志警告）。
 """
+
 from __future__ import annotations
 
-import datetime as dt
 import json
 import re
 import statistics
@@ -29,9 +28,9 @@ def _http_get_json(url: str, timeout: int = 15) -> dict:
 
 def normalize_code(code: str) -> str:
     c = code.strip().upper().replace(" ", "")
-    if c.startswith("SH") and len(c) == 8 and c[2:].isdigit():
-        c = c[2:]
-    elif c.startswith("SZ") and len(c) == 8 and c[2:].isdigit():
+    if (c.startswith("SH") and len(c) == 8 and c[2:].isdigit()) or (
+        c.startswith("SZ") and len(c) == 8 and c[2:].isdigit()
+    ):
         c = c[2:]
     if "." in c:
         left, right = c.split(".", 1)
@@ -59,8 +58,12 @@ def fetch_quotes(codes: list[str]) -> list[dict]:
         return []
     secids = [code_to_secid(c) for c in codes]
     fields = "f12,f14,f2,f3,f4,f5,f6,f7,f8,f9,f10,f15,f16,f17,f18"
-    url = EM_QUOTE_API + "?" + urllib.parse.urlencode(
-        {"fltt": "2", "invt": "2", "fields": fields, "secids": ",".join(secids)}
+    url = (
+        EM_QUOTE_API
+        + "?"
+        + urllib.parse.urlencode(
+            {"fltt": "2", "invt": "2", "fields": fields, "secids": ",".join(secids)}
+        )
     )
     try:
         obj = _http_get_json(url)
@@ -96,8 +99,12 @@ def fetch_quotes(codes: list[str]) -> list[dict]:
 def fetch_index_baseline() -> list[dict]:
     secids = ["1.000001", "0.399001", "0.399006"]
     fields = "f12,f14,f2,f3,f4,f15,f16,f17,f18,f104,f105,f6,f7"
-    url = EM_QUOTE_API + "?" + urllib.parse.urlencode(
-        {"fltt": "2", "invt": "2", "fields": fields, "secids": ",".join(secids)}
+    url = (
+        EM_QUOTE_API
+        + "?"
+        + urllib.parse.urlencode(
+            {"fltt": "2", "invt": "2", "fields": fields, "secids": ",".join(secids)}
+        )
     )
     try:
         obj = _http_get_json(url)
@@ -143,9 +150,7 @@ def _ret(vals: list[float], n: int) -> float | None:
 
 def fetch_kline(code6: str, days: int = 60) -> dict:
     symbol = code_to_tencent_symbol(code6)
-    url = TX_KLINE_API + "?" + urllib.parse.urlencode(
-        {"param": f"{symbol},day,,,{days},qfq"}
-    )
+    url = TX_KLINE_API + "?" + urllib.parse.urlencode({"param": f"{symbol},day,,,{days},qfq"})
     try:
         obj = _http_get_json(url)
     except Exception:
@@ -189,13 +194,17 @@ EM_SUGGEST_API = "https://searchapi.eastmoney.com/api/suggest/get"
 
 
 def search_stock_by_name(keyword: str, count: int = 8) -> list[tuple[str, str]]:
-    url = EM_SUGGEST_API + "?" + urllib.parse.urlencode(
-        {
-            "input": keyword,
-            "type": "14",
-            "token": "D43BF722C8E33BDC906FB84D85E326A8",
-            "count": count,
-        }
+    url = (
+        EM_SUGGEST_API
+        + "?"
+        + urllib.parse.urlencode(
+            {
+                "input": keyword,
+                "type": "14",
+                "token": "D43BF722C8E33BDC906FB84D85E326A8",
+                "count": count,
+            }
+        )
     )
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})

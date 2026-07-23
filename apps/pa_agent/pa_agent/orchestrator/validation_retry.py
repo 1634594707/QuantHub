@@ -1,9 +1,11 @@
 """Validate model output with optional continuation retry."""
+
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable, Literal
+from typing import Any, Literal
 
 from pa_agent.ai.json_validator import Ok, ValidationError, coalesce_model_json_text
 from pa_agent.ai.retry_feedback import build_retry_feedback, parse_previous_for_cheat

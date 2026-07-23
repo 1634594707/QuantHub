@@ -1,4 +1,5 @@
 """Tests for Cursor subscription routing via QClaw (model alias openclaw_cs)."""
+
 from __future__ import annotations
 
 from unittest.mock import patch
@@ -28,33 +29,37 @@ def test_resolve_cursor_gateway_model_preserves_sub_alias() -> None:
 
 
 def test_should_use_cursor_provider_when_base_url_matches_gateway() -> None:
-    with patch("pa_agent.ai.qclaw_connector.detect_qclaw", return_value=True):
-        with patch(
+    with (
+        patch("pa_agent.ai.qclaw_connector.detect_qclaw", return_value=True),
+        patch(
             "pa_agent.ai.qclaw_connector._get_qclaw_gateway_info",
             return_value=("127.0.0.1", 64257, "tok"),
-        ):
-            assert should_use_cursor_provider(
-                "openclaw_cs",
-                "http://127.0.0.1:64257/v1",
-            )
-            # Explicit model alias should always trigger Cursor auto-config on Save,
-            # regardless of a stale base_url the user typed.
-            assert should_use_cursor_provider(
-                "openclaw_cs",
-                "https://api.deepseek.com",
-            )
+        ),
+    ):
+        assert should_use_cursor_provider(
+            "openclaw_cs",
+            "http://127.0.0.1:64257/v1",
+        )
+        # Explicit model alias should always trigger Cursor auto-config on Save,
+        # regardless of a stale base_url the user typed.
+        assert should_use_cursor_provider(
+            "openclaw_cs",
+            "https://api.deepseek.com",
+        )
 
 
 def test_openclaw_cs_never_selects_qclaw_or_workbuddy_on_stale_bases() -> None:
     stale_qclaw = "http://127.0.0.1:58579/v1"
     stale_copilot = "https://copilot.tencent.com/v2"
-    with patch("pa_agent.ai.qclaw_connector.detect_qclaw", return_value=True):
-        with patch(
+    with (
+        patch("pa_agent.ai.qclaw_connector.detect_qclaw", return_value=True),
+        patch(
             "pa_agent.ai.qclaw_connector._get_qclaw_gateway_info",
             return_value=("127.0.0.1", 58579, "tok"),
-        ):
-            assert not should_use_qclaw_provider("openclaw_cs", stale_qclaw)
-            assert should_use_cursor_provider("openclaw_cs", stale_qclaw)
+        ),
+    ):
+        assert not should_use_qclaw_provider("openclaw_cs", stale_qclaw)
+        assert should_use_cursor_provider("openclaw_cs", stale_qclaw)
     with patch("pa_agent.ai.workbuddy_connector.detect_workbuddy", return_value=True):
         assert not should_use_workbuddy_provider("openclaw_cs", stale_copilot)
         assert should_use_cursor_provider("openclaw_cs")
@@ -67,27 +72,29 @@ def test_apply_cursor_provider_forces_openclaw_cs_model() -> None:
     settings.provider.model = "openclaw_cs"
     settings.provider.base_url = "http://127.0.0.1:1/v1"
 
-    with patch(
-        "pa_agent.ai.qclaw_connector.qclaw_provider_settings",
-        return_value=type(
-            "P",
-            (),
-            {
-                "model": "openclaw_cs",
-                "base_url": "http://127.0.0.1:58579/v1",
-                "api_key": "tok",
-                "thinking": True,
-                "reasoning_effort": "max",
-                "context_window": 2_000_000,
-            },
-        )(),
+    with (
+        patch(
+            "pa_agent.ai.qclaw_connector.qclaw_provider_settings",
+            return_value=type(
+                "P",
+                (),
+                {
+                    "model": "openclaw_cs",
+                    "base_url": "http://127.0.0.1:58579/v1",
+                    "api_key": "tok",
+                    "thinking": True,
+                    "reasoning_effort": "max",
+                    "context_window": 2_000_000,
+                },
+            )(),
+        ),
+        patch("pa_agent.ai.qclaw_connector.detect_qclaw", return_value=True),
+        patch(
+            "pa_agent.ai.qclaw_connector.qclaw_health_check_base",
+            return_value=(True, "ok"),
+        ),
     ):
-        with patch("pa_agent.ai.qclaw_connector.detect_qclaw", return_value=True):
-            with patch(
-                "pa_agent.ai.qclaw_connector.qclaw_health_check_base",
-                return_value=(True, "ok"),
-            ):
-                err = apply_cursor_provider_to_settings(settings)
+        err = apply_cursor_provider_to_settings(settings)
 
     # Bare openclaw_cs is ambiguous; user must supply agentId.
     assert err is not None

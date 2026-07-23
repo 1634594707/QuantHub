@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """价格行为两阶段 LLM 分析策略 — QuantHub 迁移版。
 
 把原 ``PA_Agent`` 下沉为 QuantHub 的 strategies/ai_analysis/pa_agent 策略模块:
@@ -11,11 +10,12 @@
 注意: ``StrategyInfo.market`` 用 "ai_analysis"（策略分类归属），但产出的
 ``Signal.market`` 根据实际分析标的决定（"a_shares" 或 "crypto"）。
 """
+
 from __future__ import annotations
 
 import logging
 import math
-from typing import Any, Optional
+from typing import Any
 
 from core.config import get_config
 from core.data_feed import Interval, get_data_source
@@ -47,9 +47,7 @@ def _resolve_interval(timeframe: str) -> Interval:
     """把对外 timeframe 字符串映射为 data_feed 的 Interval 枚举。"""
     tf = str(timeframe).lower()
     if tf not in _TIMEFRAME_TO_INTERVAL:
-        raise ValueError(
-            f"不支持的时间周期: {timeframe}（支持: {sorted(_TIMEFRAME_TO_INTERVAL)}）"
-        )
+        raise ValueError(f"不支持的时间周期: {timeframe}（支持: {sorted(_TIMEFRAME_TO_INTERVAL)}）")
     return _TIMEFRAME_TO_INTERVAL[tf]
 
 
@@ -71,12 +69,14 @@ def _resolve_market(symbol: str, market: str | None) -> str:
     return "a_shares"
 
 
-@register_strategy(StrategyInfo(
-    name="pa_agent",
-    market="ai_analysis",
-    live_capable=False,
-    description="价格行为两阶段LLM分析(Al Brooks)",
-))
+@register_strategy(
+    StrategyInfo(
+        name="pa_agent",
+        market="ai_analysis",
+        live_capable=False,
+        description="价格行为两阶段LLM分析(Al Brooks)",
+    )
+)
 class PaAgentStrategy(StrategyBase):
     """价格行为两阶段 LLM 分析策略。
 
@@ -118,7 +118,7 @@ class PaAgentStrategy(StrategyBase):
         try:
             ds = get_data_source(actual_market)
             klines = ds.get_kline(symbol, interval, limit=limit)
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.exception("获取 K 线失败: %s %s", symbol, interval)
             return []
         if klines is None or klines.empty:
@@ -147,7 +147,7 @@ class PaAgentStrategy(StrategyBase):
         symbol: str,
         market: str,
         timeframe: str,
-    ) -> Optional[Signal]:
+    ) -> Signal | None:
         """从两阶段分析结果解析为 Signal。
 
         解析规则（基于原 PA Agent 阶段二 schema）:
@@ -208,7 +208,8 @@ class PaAgentStrategy(StrategyBase):
         s1 = result.stage1_json or {}
         meta: dict[str, Any] = {
             "cycle_position": s1.get("cycle_position"),
-            "pa_direction": s1.get("direction") or (s2.get("diagnosis_summary") or {}).get("direction"),
+            "pa_direction": s1.get("direction")
+            or (s2.get("diagnosis_summary") or {}).get("direction"),
             "trend_stage": s1.get("trend_stage"),
             "gate_result": s1.get("gate_result"),
             "order_type": order_type,
@@ -282,7 +283,7 @@ def run_scheduled() -> None:
     """
     try:
         cfg = get_config("ai_analysis").get("modules", {}).get("pa_agent", {})
-    except Exception:  # noqa: BLE001 - 配置缺失时走默认
+    except Exception:
         cfg = {}
     symbols: list[str] = list(cfg.get("symbols", []) or [])
     if not symbols:
@@ -291,5 +292,5 @@ def run_scheduled() -> None:
     for sym in symbols:
         try:
             run_analysis(symbol=sym, timeframe=timeframe)
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.exception("PA 定时分析失败: %s", sym)

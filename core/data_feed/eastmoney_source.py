@@ -1,26 +1,24 @@
-# -*- coding: utf-8 -*-
 """东方财富数据源（A股）。
 
 直接调用东方财富 push2 接口，作为 akshare 的 fallback。
 复用 trading-master/04-stock-selector/data/eastmoney_api.py 的接口约定。
 """
+
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterable
 from datetime import datetime, timedelta
-from typing import Iterable
 
 import pandas as pd
 import requests
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from core.config import get_config
 from core.data_feed.base import (
     Announcement,
     DataSource,
     Interval,
-    Kline,
-    News,
 )
 
 logger = logging.getLogger(__name__)
@@ -120,19 +118,21 @@ class EastmoneySource(DataSource):
             if len(parts) < 7:
                 continue
             try:
-                rows.append({
-                    "symbol": symbol,
-                    "market": self.market,
-                    "interval": interval.value,
-                    "datetime": pd.to_datetime(parts[0]),
-                    "open": float(parts[1]),
-                    "close": float(parts[2]),
-                    "high": float(parts[3]),
-                    "low": float(parts[4]),
-                    "volume": float(parts[5]),
-                    "amount": float(parts[6]) if len(parts) > 6 else None,
-                    "turnover": float(parts[10]) if len(parts) > 10 else None,
-                })
+                rows.append(
+                    {
+                        "symbol": symbol,
+                        "market": self.market,
+                        "interval": interval.value,
+                        "datetime": pd.to_datetime(parts[0]),
+                        "open": float(parts[1]),
+                        "close": float(parts[2]),
+                        "high": float(parts[3]),
+                        "low": float(parts[4]),
+                        "volume": float(parts[5]),
+                        "amount": float(parts[6]) if len(parts) > 6 else None,
+                        "turnover": float(parts[10]) if len(parts) > 10 else None,
+                    }
+                )
             except (ValueError, IndexError):
                 continue
         if not rows:
@@ -143,9 +143,13 @@ class EastmoneySource(DataSource):
         """东财公告接口（简化实现，如需更完整复用羊毛监控爬虫）。"""
         url = "https://np-anotice-stock.eastmoney.com/api/security/ann"
         params = {
-            "sr": "-1", "page_size": str(limit),
-            "page_index": "1", "ann_type": "A",
-            "stock_list": symbol, "f_node": "0", "s_node": "0",
+            "sr": "-1",
+            "page_size": str(limit),
+            "page_index": "1",
+            "ann_type": "A",
+            "stock_list": symbol,
+            "f_node": "0",
+            "s_node": "0",
         }
 
         @self._retryer()
@@ -163,11 +167,13 @@ class EastmoneySource(DataSource):
         for item in data.get("data", {}).get("list", [])[:limit]:
             ts = item.get("notice_date")
             ts_dt = pd.to_datetime(ts) if ts else datetime.now()
-            anns.append(Announcement(
-                symbol=symbol,
-                title=item.get("title", ""),
-                ts=ts_dt.to_pydatetime() if hasattr(ts_dt, "to_pydatetime") else ts_dt,
-                url=item.get("art_code"),
-                ann_type=item.get("columns_name"),
-            ))
+            anns.append(
+                Announcement(
+                    symbol=symbol,
+                    title=item.get("title", ""),
+                    ts=ts_dt.to_pydatetime() if hasattr(ts_dt, "to_pydatetime") else ts_dt,
+                    url=item.get("art_code"),
+                    ann_type=item.get("columns_name"),
+                )
+            )
         return anns

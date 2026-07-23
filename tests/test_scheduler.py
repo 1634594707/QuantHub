@@ -1,5 +1,5 @@
-# -*- coding: utf-8 -*-
 """apps.scheduler 定时任务构建测试。"""
+
 from __future__ import annotations
 
 from apps.scheduler import jobs
@@ -13,8 +13,12 @@ def test_enabled_strategies_scheduled():
     names = _names()
     # A股 6 个已启用模块全部进调度（含原先缺 cron 的 news_scanner/supertrend）
     for n in [
-        "a_shares_sentiment", "a_shares_selector", "a_shares_morning_brief",
-        "a_shares_perks_monitor", "a_shares_news_scanner", "a_shares_supertrend",
+        "a_shares_sentiment",
+        "a_shares_selector",
+        "a_shares_morning_brief",
+        "a_shares_perks_monitor",
+        "a_shares_news_scanner",
+        "a_shares_supertrend",
     ]:
         assert n in names, f"缺失调度任务: {n}"
     # ai_analysis / pa_agent 通过新建 configs/ai_analysis.yaml 进调度
@@ -32,6 +36,7 @@ def test_disabled_markets_not_scheduled():
 def test_custom_job_funcs_resolve():
     """自定义入口函数（含 pa_agent.run_scheduled）必须可动态导入。"""
     import importlib
+
     for job in jobs._build_jobs():
         fn = job["func_name"]
         if not fn.startswith("__run_strategy__:"):

@@ -1,4 +1,5 @@
 """Tests for demo record loading."""
+
 from __future__ import annotations
 
 import json

@@ -1,4 +1,5 @@
 """Normalize common Stage 1 AI JSON variants before schema validation."""
+
 from __future__ import annotations
 
 import copy
@@ -100,9 +101,9 @@ _CONTEXT_EFFECT_ALIASES: dict[str, str] = {
     "strengthen_bear": "strengthens_bear",
     "strengthens_bull": "strengthens_bull",
     "strengthens_bear": "strengthens_bear",
-    "strengthens_bulls": "strengthens_bull",   # AI typo: extra 's'
-    "strengthens_bears": "strengthens_bear",   # AI typo: extra 's'
-    "strengthens_bash": "strengthens_bear",    # AI typo: bash → bear
+    "strengthens_bulls": "strengthens_bull",  # AI typo: extra 's'
+    "strengthens_bears": "strengthens_bear",  # AI typo: extra 's'
+    "strengthens_bash": "strengthens_bear",  # AI typo: bash → bear
     "strengthen_bash": "strengthens_bear",
     "weakens_bull": "weakens_bull",
     "weakens_bear": "weakens_bear",
@@ -110,24 +111,49 @@ _CONTEXT_EFFECT_ALIASES: dict[str, str] = {
     "weaken_bear": "weakens_bear",
     "weakened_bull": "weakened_bull",
     "weakened_bear": "weakened_bear",
-    "weakens_bulls": "weakens_bull",           # AI typo: extra 's'
-    "weakens_bears": "weakens_bear",           # AI typo: extra 's'
+    "weakens_bulls": "weakens_bull",  # AI typo: extra 's'
+    "weakens_bears": "weakens_bear",  # AI typo: extra 's'
     "neutral": "neutral",
     "transition": "transition",
 }
 
-_BAR_TYPE_ENUM = frozenset({
-    "trend_bull", "trend_bear", "doji", "inside",
-    "outside_bull", "outside_bear", "flat", "other",
-})
-_VALID_BAR_ROLES = frozenset({
-    "structure", "signal", "entry", "confirmation", "noise", "trap", "climax", "test",
-})
+_BAR_TYPE_ENUM = frozenset(
+    {
+        "trend_bull",
+        "trend_bear",
+        "doji",
+        "inside",
+        "outside_bull",
+        "outside_bear",
+        "flat",
+        "other",
+    }
+)
+_VALID_BAR_ROLES = frozenset(
+    {
+        "structure",
+        "signal",
+        "entry",
+        "confirmation",
+        "noise",
+        "trap",
+        "climax",
+        "test",
+    }
+)
 
-_VALID_CONTEXT_EFFECTS = frozenset({
-    "strengthens_bull", "weakens_bull", "strengthens_bear", "weakens_bear",
-    "neutral", "transition", "weakened_bull", "weakened_bear",
-})
+_VALID_CONTEXT_EFFECTS = frozenset(
+    {
+        "strengthens_bull",
+        "weakens_bull",
+        "strengthens_bear",
+        "weakens_bear",
+        "neutral",
+        "transition",
+        "weakened_bull",
+        "weakened_bear",
+    }
+)
 
 _BAR_TYPE_ALIASES: dict[str, str] = {
     "ine": "inside",
@@ -503,26 +529,35 @@ def _pad_bar_by_bar_summary_to_minimum(
 #   (pattern_tag_to_rescue, fallback_cycle_position).
 # The fallback is the most natural host structure for that formation.
 _PATTERN_MISPLACED_AS_CYCLE: dict[str, tuple[str, str]] = {
-    "ascending_triangle":   ("ascending_triangle",   "trading_range"),
-    "descending_triangle":  ("descending_triangle",  "trading_range"),
+    "ascending_triangle": ("ascending_triangle", "trading_range"),
+    "descending_triangle": ("descending_triangle", "trading_range"),
     "symmetrical_triangle": ("symmetrical_triangle", "trading_range"),
-    "expanding_triangle":   ("expanding_triangle",   "trading_range"),
-    "wedge":                ("wedge",                "broad_channel"),
-    "double_top":           ("double_top_bottom",    "trading_range"),
-    "double_bottom":        ("double_top_bottom",    "trading_range"),
-    "double_top_bottom":    ("double_top_bottom",    "trading_range"),
-    "mtr":                  ("mtr",                  "broad_channel"),
-    "final_flag":           ("final_flag",           "broad_channel"),
-    "breakout_failure":     ("breakout_failure",     "trading_range"),
-    "failed_breakout":      ("breakout_failure",     "trading_range"),
-    "breakout_test":        ("breakout_test",        "trading_range"),
-    "barbwire":             ("barbwire",             "trading_range"),
+    "expanding_triangle": ("expanding_triangle", "trading_range"),
+    "wedge": ("wedge", "broad_channel"),
+    "double_top": ("double_top_bottom", "trading_range"),
+    "double_bottom": ("double_top_bottom", "trading_range"),
+    "double_top_bottom": ("double_top_bottom", "trading_range"),
+    "mtr": ("mtr", "broad_channel"),
+    "final_flag": ("final_flag", "broad_channel"),
+    "breakout_failure": ("breakout_failure", "trading_range"),
+    "failed_breakout": ("breakout_failure", "trading_range"),
+    "breakout_test": ("breakout_test", "trading_range"),
+    "barbwire": ("barbwire", "trading_range"),
 }
 
-_VALID_CYCLE_POSITIONS: frozenset[str] = frozenset([
-    "spike", "micro_channel", "tight_channel", "normal_channel", "broad_channel",
-    "trending_tr", "trading_range", "extreme_tr", "unknown",
-])
+_VALID_CYCLE_POSITIONS: frozenset[str] = frozenset(
+    [
+        "spike",
+        "micro_channel",
+        "tight_channel",
+        "normal_channel",
+        "broad_channel",
+        "trending_tr",
+        "trading_range",
+        "extreme_tr",
+        "unknown",
+    ]
+)
 
 
 def _rescue_pattern_from_cycle_position(out: dict[str, Any]) -> bool:
@@ -614,9 +649,7 @@ def _fill_incremental_delta(
 
     summary = str(delta.get("summary", "") or "").strip()
     if len(summary) < 1:
-        from_rw = _incremental_summary_from_risk_warning(
-            str(out.get("risk_warning", "") or "")
-        )
+        from_rw = _incremental_summary_from_risk_warning(str(out.get("risk_warning", "") or ""))
         if from_rw:
             delta["summary"] = from_rw
         else:
@@ -672,8 +705,9 @@ def normalize_stage1(
     if kline_frame is not None:
         try:
             from pa_agent.ai.decision_nodes import DecisionNodeEngine
+
             DecisionNodeEngine.apply_stage1(out, kline_frame)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.warning("DecisionNodeEngine.apply_stage1 failed: %s", exc)
 
     if "strategy_files_needed" not in out or out.get("strategy_files_needed") is None:
@@ -687,7 +721,7 @@ def normalize_stage1(
 
                 out["strategy_files_needed"] = route_strategy_files(out)
                 logger.debug("Filled strategy_files_needed from router")
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 logger.debug("router fallback for strategy_files_needed failed: %s", exc)
                 out.setdefault("strategy_files_needed", [])
     else:
@@ -702,7 +736,7 @@ def normalize_stage1(
             from pa_agent.ai.market_features import build_program_features_dict
 
             out["program_features"] = build_program_features_dict(kline_frame)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.warning("build_program_features_dict failed: %s", exc)
 
     ensure_detected_patterns_coherent(out, kline_frame=kline_frame)
@@ -738,7 +772,7 @@ def normalize_stage1(
             from pa_agent.ai.structure_levels import refresh_stage1_support_resistance
 
             refresh_stage1_support_resistance(out, kline_frame)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.warning("refresh_stage1_support_resistance failed: %s", exc)
 
     return out

@@ -1,4 +1,5 @@
 """Helpers to merge stage-2 JSON for UI panels."""
+
 from __future__ import annotations
 
 import copy

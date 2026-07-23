@@ -4,16 +4,15 @@ NFR1.1: Stage 2 latency overhead ≤ 15%
 NFR1.2: Prompt token delta ≤ 800
 NFR1.3: Panel render ≤ 50ms
 """
+
 from __future__ import annotations
 
 import sys
 import time
 from pathlib import Path
 
-import pytest
-
-from pa_agent.ai.prompt_assembler import PromptAssembler, _NEXT_BAR_PREDICTION_INSTRUCTION
-from pa_agent.data.base import KlineBar, KlineFrame, IndicatorBundle
+from pa_agent.ai.prompt_assembler import _NEXT_BAR_PREDICTION_INSTRUCTION, PromptAssembler
+from pa_agent.data.base import IndicatorBundle, KlineBar, KlineFrame
 
 
 def _make_frame(n: int = 50) -> KlineFrame:
@@ -76,6 +75,7 @@ def _make_assembler(tmp_path: Path) -> PromptAssembler:
 
 # ── NFR1.2: Prompt token delta ───────────────────────────────────────────────
 
+
 def test_prompt_token_delta_within_budget(tmp_path: Path):
     """_NEXT_BAR_PREDICTION_INSTRUCTION adds ≤ 800 tokens (≈ 3200 chars)."""
     instruction_len = len(_NEXT_BAR_PREDICTION_INSTRUCTION)
@@ -87,6 +87,7 @@ def test_prompt_token_delta_within_budget(tmp_path: Path):
 
 
 # ── NFR1.3: Panel render time ────────────────────────────────────────────────
+
 
 def test_panel_render_time():
     """set_decision with prediction must complete in ≤ 50ms."""
@@ -115,8 +116,14 @@ def test_panel_render_time():
             "risk_assessment": "t",
             "invalidation_condition": "t",
         },
-        "diagnosis_summary": {"cycle_position": "normal_channel", "direction": "bullish", "key_signals": []},
-        "decision_trace": [{"node_id": "10.3", "question": "q", "answer": "否", "reason": "r", "bar_range": "K1"}],
+        "diagnosis_summary": {
+            "cycle_position": "normal_channel",
+            "direction": "bullish",
+            "key_signals": [],
+        },
+        "decision_trace": [
+            {"node_id": "10.3", "question": "q", "answer": "否", "reason": "r", "bar_range": "K1"}
+        ],
         "terminal": {"node_id": "10.3", "outcome": "wait", "label": "test"},
         "next_bar_prediction": {
             "direction": "bullish",
@@ -136,16 +143,21 @@ def test_panel_render_time():
         panel.set_decision(decision)
     elapsed = (time.perf_counter() - start) / n
 
-    assert elapsed < 0.05, f"Panel render took {elapsed*1000:.1f}ms, exceeds 50ms budget"
+    assert elapsed < 0.05, f"Panel render took {elapsed * 1000:.1f}ms, exceeds 50ms budget"
 
 
 # ── NFR1.1: Stage 2 prompt assembly overhead ─────────────────────────────────
+
 
 def test_stage2_prompt_assembly_overhead(tmp_path: Path):
     """Stage 2 prompt assembly with prediction instruction must be ≤ 15% slower than without."""
     assembler = _make_assembler(tmp_path)
     frame = _make_frame()
-    stage1_json = {"cycle_position": "normal_channel", "direction": "bullish", "gate_result": "proceed"}
+    stage1_json = {
+        "cycle_position": "normal_channel",
+        "direction": "bullish",
+        "gate_result": "proceed",
+    }
 
     n = 10
     start = time.perf_counter()
@@ -155,4 +167,4 @@ def test_stage2_prompt_assembly_overhead(tmp_path: Path):
 
     # This is a rough sanity check — the instruction is just appended,
     # so overhead should be negligible (< 1ms)
-    assert elapsed < 1.0, f"Stage 2 prompt assembly took {elapsed*1000:.1f}ms per call"
+    assert elapsed < 1.0, f"Stage 2 prompt assembly took {elapsed * 1000:.1f}ms per call"

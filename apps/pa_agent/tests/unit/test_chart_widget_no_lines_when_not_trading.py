@@ -4,6 +4,7 @@ Task 14.7 — pytest-qt test.
 
 Validates: Requirements R9.4, R10.2
 """
+
 from __future__ import annotations
 
 import pytest
@@ -27,11 +28,7 @@ def _count_infinite_lines(plot_widget) -> int:
     """Count the number of InfiniteLine items currently in the plot."""
     import pyqtgraph as pg
 
-    return sum(
-        1
-        for item in plot_widget.getPlotItem().items
-        if isinstance(item, pg.InfiniteLine)
-    )
+    return sum(1 for item in plot_widget.getPlotItem().items if isinstance(item, pg.InfiniteLine))
 
 
 class TestNoLinesWhenNotTrading:
@@ -87,20 +84,22 @@ class TestNoLinesWhenNotTrading:
 
     def test_continuity_overlay_keeps_lines_on_wait_no_order(self, chart_widget):
         """不下单 + chart_overlay_active should still draw prior entry/TP/SL."""
-        chart_widget.set_decision({
-            "order_type": "不下单",
-            "order_direction": "做多",
-            "entry_price": 2640.0,
-            "take_profit_price": 2660.0,
-            "stop_loss_price": 2630.0,
-            "chart_overlay_active": True,
-            "reasoning": "延续等待上一轮限价方案。",
-        })
+        chart_widget.set_decision(
+            {
+                "order_type": "不下单",
+                "order_direction": "做多",
+                "entry_price": 2640.0,
+                "take_profit_price": 2660.0,
+                "stop_loss_price": 2630.0,
+                "chart_overlay_active": True,
+                "reasoning": "延续等待上一轮限价方案。",
+            }
+        )
         assert _count_infinite_lines(chart_widget) == 3
 
     def test_short_decision_shows_down_arrow(self, chart_widget, qtbot):
         """做空 decision draws a ▼ marker at the newest bar."""
-        from pa_agent.data.base import KlineBar, KlineFrame, IndicatorBundle
+        from pa_agent.data.base import IndicatorBundle, KlineBar, KlineFrame
 
         bars = tuple(
             KlineBar(
@@ -125,13 +124,15 @@ class TestNoLinesWhenNotTrading:
         chart_widget.set_frame(frame)
         qtbot.wait(100)
 
-        chart_widget.set_decision({
-            "order_type": "限价单",
-            "order_direction": "做空",
-            "entry_price": 2000.0,
-            "take_profit_price": 1980.0,
-            "stop_loss_price": 2010.0,
-        })
+        chart_widget.set_decision(
+            {
+                "order_type": "限价单",
+                "order_direction": "做空",
+                "entry_price": 2000.0,
+                "take_profit_price": 1980.0,
+                "stop_loss_price": 2010.0,
+            }
+        )
         qtbot.wait(100)
 
         assert len(chart_widget._direction_items) >= 1
@@ -156,13 +157,15 @@ class TestNoLinesWhenNotTrading:
 
     def test_clear_decision_overlay_keeps_lines_gone(self, chart_widget):
         """clear_decision_overlay() removes trade lines without requiring reset()."""
-        chart_widget.set_decision({
-            "order_type": "限价单",
-            "order_direction": "做多",
-            "entry_price": 1900.0,
-            "take_profit_price": 1920.0,
-            "stop_loss_price": 1880.0,
-        })
+        chart_widget.set_decision(
+            {
+                "order_type": "限价单",
+                "order_direction": "做多",
+                "entry_price": 1900.0,
+                "take_profit_price": 1920.0,
+                "stop_loss_price": 1880.0,
+            }
+        )
         chart_widget.clear_decision_overlay()
         assert _count_infinite_lines(chart_widget) == 0
         assert chart_widget._pending_decision is None

@@ -1,10 +1,11 @@
 """Tests for Stage 1 JSON normalization."""
+
 from __future__ import annotations
 
-from tests.fixtures.validators import schema_test_validator
 from pa_agent.ai.coherence_checks import validate_stage1_coherence
 from pa_agent.ai.stage1_normalizer import normalize_stage1
 from pa_agent.data.base import IndicatorBundle, KlineBar, KlineFrame
+from tests.fixtures.validators import schema_test_validator
 from tests.integration.conftest import VALID_STAGE1
 
 
@@ -343,8 +344,15 @@ def test_pad_bar_by_bar_summary_when_model_only_sends_three_bars() -> None:
         ),
     )
     summary = [
-        {"bar": f"K{i}", "role": "structure", "bar_type": "doji", "context_effect": "neutral",
-         "follow_through": "no", "trapped_side": "none", "reason": f"棒K{i}"}
+        {
+            "bar": f"K{i}",
+            "role": "structure",
+            "bar_type": "doji",
+            "context_effect": "neutral",
+            "follow_through": "no",
+            "trapped_side": "none",
+            "reason": f"棒K{i}",
+        }
         for i in (3, 2, 1)
     ]
     out = normalize_stage1({"bar_by_bar_summary": summary}, kline_frame=frame)
@@ -373,8 +381,17 @@ def test_fill_incremental_delta_from_risk_warning() -> None:
             "gate_result": "proceed",
             "risk_warning": "相对上一轮：新增K1突破，方向由中性转偏多。",
             "gate_trace": [{"node_id": "0.1", "answer": "是", "reason": "x", "bar_range": "K1"}],
-            "bar_by_bar_summary": [{"bar": "K1", "role": "structure", "bar_type": "doji",
-                "context_effect": "neutral", "follow_through": "no", "trapped_side": "none", "reason": "x"}],
+            "bar_by_bar_summary": [
+                {
+                    "bar": "K1",
+                    "role": "structure",
+                    "bar_type": "doji",
+                    "context_effect": "neutral",
+                    "follow_through": "no",
+                    "trapped_side": "none",
+                    "reason": "x",
+                }
+            ],
         },
         incremental_new_bar_count=1,
         incremental_previous_stage1=prev,
@@ -434,6 +451,7 @@ def test_normalizes_breakout_test_role_and_strengthens_bash_typo() -> None:
 
 
 # ── Rescue: pattern name mis-placed in cycle_position ─────────────────────────
+
 
 def test_rescue_descending_triangle_from_cycle_position() -> None:
     """Regression: model outputs cycle_position='descending_triangle' instead of

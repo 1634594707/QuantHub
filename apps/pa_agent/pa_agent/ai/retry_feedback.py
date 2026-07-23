@@ -1,10 +1,10 @@
 """Build structured retry user messages from ValidationError."""
+
 from __future__ import annotations
 
 import json
 from typing import Any, Literal
 
-from pa_agent.ai.retry_policy import StageName, extract_feedback_targets
 from pa_agent.ai.validation_messages import format_validation_errors
 
 StageLit = Literal["stage1", "stage2"]
@@ -51,7 +51,7 @@ def _geometry_excerpt(frame: Any, limit: int = 8) -> str:
         for f in feats:
             lines.append(f"  K{f.seq}: {f.bar_type}")
         return "\n".join(lines)
-    except Exception:  # noqa: BLE001
+    except Exception:
         return ""
 
 
@@ -122,9 +122,7 @@ def build_retry_feedback(
             "方向信息写在 `branch`（如 bullish / bearish / neutral）。"
         )
 
-    if stage == "stage1" and any(
-        "bar_by_bar_summary" in inv and "role" in inv for inv in invalid
-    ):
+    if stage == "stage1" and any("bar_by_bar_summary" in inv and "role" in inv for inv in invalid):
         lines.append("")
         lines.append("**bar_by_bar_summary.role 枚举提示：**")
         lines.append(
@@ -161,9 +159,7 @@ def build_retry_feedback(
             "细节放在 decision_trace §10.3 或 key_factors。"
         )
 
-    if stage == "stage2" and any(
-        "decision_trace" in inv and "answer" in inv for inv in invalid
-    ):
+    if stage == "stage2" and any("decision_trace" in inv and "answer" in inv for inv in invalid):
         lines.append("")
         lines.append("**decision_trace answer 枚举提示：**")
         lines.append(
@@ -195,9 +191,7 @@ def build_retry_feedback(
 
     if category == "d":
         if not (previous_raw or "").strip():
-            lines.append(
-                "⚠️ 上一轮正文 content 为空：请把 JSON 写在 content，不要只写在思考区。"
-            )
+            lines.append("⚠️ 上一轮正文 content 为空：请把 JSON 写在 content，不要只写在思考区。")
         if stage == "stage2":
             lines.append(
                 "⚠️ 禁止输出英文说明、Markdown 表格/摘要、「修改完成」「已写入文件」等对话文字；"

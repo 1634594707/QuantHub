@@ -1,4 +1,5 @@
 """Infer minimum price increment from K-line OHLC precision."""
+
 from __future__ import annotations
 
 import re

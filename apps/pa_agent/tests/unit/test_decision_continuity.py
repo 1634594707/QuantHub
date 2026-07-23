@@ -1,7 +1,8 @@
 """Tests for decision continuity (flip cooldown, neutral+AIS, guard)."""
+
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from pa_agent.ai.decision_continuity import (
     apply_continuity_guard,
@@ -15,12 +16,12 @@ from pa_agent.ai.decision_continuity import (
     order_direction_sign,
     render_continuity_prompt_block,
 )
-from pa_agent.data.base import KlineBar, KlineFrame, IndicatorBundle
+from pa_agent.data.base import IndicatorBundle, KlineBar, KlineFrame
 
 
 def _ms(iso: str) -> int:
     # Treat local ISO as UTC in tests; only deltas matter.
-    dt = datetime.strptime(iso, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+    dt = datetime.strptime(iso, "%Y-%m-%d %H:%M:%S").replace(tzinfo=UTC)
     return int(dt.timestamp() * 1000)
 
 

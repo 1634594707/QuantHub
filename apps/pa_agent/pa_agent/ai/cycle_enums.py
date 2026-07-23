@@ -2,6 +2,7 @@
 
 Used by: prompt assembler, JSON schema, stage2 normalizer, JSON validator, and GUI panels.
 """
+
 from __future__ import annotations
 
 # ── Cycle enum order (used for argmax tie-breaking — first wins) ──────────────
@@ -42,12 +43,11 @@ _DIRECTION_PREFIX_ZH: dict[str, str] = {
 }
 
 # Range-style cycles: structure is sideways; direction refines the bias.
-RANGE_DISPLAY_CYCLES: frozenset[str] = frozenset(
-    {"trading_range", "extreme_tr", "trending_tr"}
-)
+RANGE_DISPLAY_CYCLES: frozenset[str] = frozenset({"trading_range", "extreme_tr", "trending_tr"})
 
 
 # ── Public helpers ────────────────────────────────────────────────────────────
+
 
 def format_cycle_position(raw: str) -> str:
     """Return the Chinese display text for a cycle enum value.

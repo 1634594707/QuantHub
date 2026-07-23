@@ -1,10 +1,10 @@
-# -*- coding: utf-8 -*-
 """SuperTrend 趋势跟踪策略 — QuantHub 迁移版。
 
 从 trading-master/05-A_Stock_Trend 下沉为 strategies/a_shares/supertrend:
     - produce(): 用 core.data_feed 拉取 K 线 → 计算 SuperTrend → 产出 Signal
     - backtest(): 用 core.backtest.EventEngine 事件驱动回测
 """
+
 from __future__ import annotations
 
 import logging
@@ -44,9 +44,7 @@ def _resolve_interval(timeframe: str) -> Interval:
     """把对外 timeframe 字符串映射为 data_feed 的 Interval 枚举。"""
     tf = str(timeframe).lower()
     if tf not in _TIMEFRAME_TO_INTERVAL:
-        raise ValueError(
-            f"不支持的时间周期: {timeframe}（支持: {sorted(_TIMEFRAME_TO_INTERVAL)}）"
-        )
+        raise ValueError(f"不支持的时间周期: {timeframe}（支持: {sorted(_TIMEFRAME_TO_INTERVAL)}）")
     return _TIMEFRAME_TO_INTERVAL[tf]
 
 
@@ -60,12 +58,14 @@ def _is_nan(x: Any) -> bool:
         return False
 
 
-@register_strategy(StrategyInfo(
-    name="supertrend",
-    market="a_shares",
-    live_capable=False,
-    description="SuperTrend 趋势跟踪策略",
-))
+@register_strategy(
+    StrategyInfo(
+        name="supertrend",
+        market="a_shares",
+        live_capable=False,
+        description="SuperTrend 趋势跟踪策略",
+    )
+)
 class SuperTrendStrategy(StrategyBase):
     """SuperTrend 趋势跟踪策略。"""
 
@@ -92,7 +92,7 @@ class SuperTrendStrategy(StrategyBase):
         for symbol in symbols:
             try:
                 klines = source.get_kline(symbol, interval, limit=limit)
-            except Exception:  # noqa: BLE001 - 单标的数据失败不影响其余
+            except Exception:
                 logger.exception("获取 K 线失败: %s %s", symbol, interval)
                 continue
             if klines is None or klines.empty:
@@ -101,7 +101,7 @@ class SuperTrendStrategy(StrategyBase):
 
             try:
                 df = st_ind.supertrend(klines, period=period, multiplier=multiplier)
-            except Exception:  # noqa: BLE001
+            except Exception:
                 logger.exception("SuperTrend 计算失败: %s", symbol)
                 continue
 
@@ -113,8 +113,11 @@ class SuperTrendStrategy(StrategyBase):
 
     @staticmethod
     def _signal_from_df(
-        df: pd.DataFrame, symbol: str, timeframe: str,
-        period: int, multiplier: float,
+        df: pd.DataFrame,
+        symbol: str,
+        timeframe: str,
+        period: int,
+        multiplier: float,
     ) -> Signal | None:
         """从最新一根 K 线的 SuperTrend 状态构造 Signal。"""
         if df.empty or "trend" not in df.columns:
@@ -172,7 +175,7 @@ class SuperTrendStrategy(StrategyBase):
         multiplier: float = 3.0,
         initial_capital: float = 100000.0,
         **kwargs: Any,
-    ) -> "BacktestResult":
+    ) -> BacktestResult:
         """事件驱动回测：on_bar 内按 SuperTrend 翻转信号买卖。"""
         if klines is None or klines.empty:
             return BacktestResult.empty(engine="event")
@@ -181,7 +184,9 @@ class SuperTrendStrategy(StrategyBase):
         df = st_ind.supertrend(df, period=period, multiplier=multiplier)
 
         buy_flags = df["buy_signal"].tolist() if "buy_signal" in df.columns else [False] * len(df)
-        sell_flags = df["sell_signal"].tolist() if "sell_signal" in df.columns else [False] * len(df)
+        sell_flags = (
+            df["sell_signal"].tolist() if "sell_signal" in df.columns else [False] * len(df)
+        )
 
         # 顺序游标：EventEngine 按 datetime 升序逐 bar 调用 on_bar
         state = {"i": 0}
@@ -222,6 +227,9 @@ def run_scan(
     """便捷扫描入口：实例化 SuperTrendStrategy 并产出信号。"""
     strategy = SuperTrendStrategy(config={"enabled": True})
     return strategy.produce(
-        symbols=symbols, timeframe=timeframe,
-        period=period, multiplier=multiplier, **kwargs,
+        symbols=symbols,
+        timeframe=timeframe,
+        period=period,
+        multiplier=multiplier,
+        **kwargs,
     )

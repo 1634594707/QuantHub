@@ -1,5 +1,5 @@
-# -*- coding: utf-8 -*-
 """core.backtest 单测。"""
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta
@@ -7,8 +7,8 @@ from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
 
-from core.backtest.grid import GridBacktester, GridConfig
 from core.backtest.engine import EventEngine
+from core.backtest.grid import GridBacktester, GridConfig
 from core.backtest.metrics import compute_metrics
 
 
@@ -18,11 +18,16 @@ def _make_klines(n=100, base=100.0):
     np.random.seed(42)
     # 在 base 上下 10% 震荡
     close = base * (1 + 0.1 * np.sin(np.linspace(0, 4 * np.pi, n)))
-    return pd.DataFrame({
-        "datetime": dates,
-        "open": close * 0.99, "high": close * 1.01,
-        "low": close * 0.98, "close": close, "volume": 1000.0,
-    })
+    return pd.DataFrame(
+        {
+            "datetime": dates,
+            "open": close * 0.99,
+            "high": close * 1.01,
+            "low": close * 0.98,
+            "close": close,
+            "volume": 1000.0,
+        }
+    )
 
 
 def test_grid_backtester_runs():
