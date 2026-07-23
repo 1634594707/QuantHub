@@ -1,3 +1,4 @@
+import { NavLink } from 'react-router-dom'
 import {
   IconGrid,
   IconSignal,
@@ -18,13 +19,13 @@ interface Props {
 
 const NAV = (strategyCount: number) => [
   { section: '分析' },
-  { key: 'overview', label: '概览', icon: IconGrid, active: true },
-  { key: 'signal', label: '信号', icon: IconSignal },
-  { key: 'backtest', label: '回测', icon: IconChart },
-  { key: 'strategy', label: '策略模块', icon: IconLayers, badge: String(strategyCount) },
+  { key: 'overview', label: '概览', icon: IconGrid, to: '/', end: true },
+  { key: 'signal', label: '信号', icon: IconSignal, to: '/signals' },
+  { key: 'backtest', label: '回测', icon: IconChart, to: '/backtest' },
+  { key: 'strategy', label: '策略模块', icon: IconLayers, to: '/strategies', badge: String(strategyCount) },
   { section: '工作台' },
-  { key: 'pa', label: 'PA 分析工作台', icon: IconActivity, badge: 'AI' },
-  { key: 'config', label: '配置', icon: IconCog },
+  { key: 'pa', label: 'PA 分析工作台', icon: IconActivity, to: '/pa', badge: 'AI' },
+  { key: 'config', label: '配置', icon: IconCog, to: '/config' },
 ]
 
 export default function Sidebar({
@@ -59,17 +60,18 @@ export default function Sidebar({
               {it.section}
             </div>
           ) : (
-            <button
+            <NavLink
               key={it.key}
-              className={`nav-item ${it.active ? 'active' : ''}`}
+              to={it.to}
+              end={it.end}
+              className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
               onClick={onNavigate}
-              aria-current={it.active ? 'page' : undefined}
               title={it.label}
             >
               <it.icon className="nav-icon" />
               <span className="nav-label">{it.label}</span>
               {it.badge && <span className="nav-badge">{it.badge}</span>}
-            </button>
+            </NavLink>
           ),
         )}
       </nav>

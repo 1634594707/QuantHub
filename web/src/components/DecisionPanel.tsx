@@ -155,8 +155,14 @@ function FutureBox({
   )
 }
 
-export default function DecisionPanel({ symbol = '600519' }: { symbol?: string }) {
-  const { data, loading, error, refetch } = useApi(() => api.analyzePa(symbol, '1h'), [symbol])
+export default function DecisionPanel({
+  symbol = '600519',
+  timeframe = '1h',
+}: {
+  symbol?: string
+  timeframe?: string
+}) {
+  const { data, loading, error, refetch } = useApi(() => api.analyzePa(symbol, timeframe), [symbol, timeframe])
   const d = useMemo(() => mapPaToDecision(data), [data])
   const isReal = !!data?.ok
 

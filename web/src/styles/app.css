@@ -198,6 +198,7 @@ button {
   text-align: left;
   font-size: var(--fs-14);
   font-weight: 500;
+  text-decoration: none;
   transition: background var(--t-fast), color var(--t-fast);
   position: relative;
 }
