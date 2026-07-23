@@ -6,6 +6,7 @@ import {
   IconCog,
   IconLayers,
   IconActivity,
+  IconHeart,
   IconChevron,
 } from './icons'
 
@@ -25,6 +26,7 @@ const NAV = (strategyCount: number) => [
   { key: 'strategy', label: '策略模块', icon: IconLayers, to: '/strategies', badge: String(strategyCount) },
   { section: '工作台' },
   { key: 'pa', label: 'PA 分析工作台', icon: IconActivity, to: '/pa', badge: 'AI' },
+  { key: 'sentiment', label: '情感分析', icon: IconHeart, to: '/sentiment' },
   { key: 'config', label: '配置', icon: IconCog, to: '/config' },
 ]
 
