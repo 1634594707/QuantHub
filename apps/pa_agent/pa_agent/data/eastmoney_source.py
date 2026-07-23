@@ -1,4 +1,5 @@
 """A-share K-line data via East Money (东方财富) built-in HTTP API."""
+
 from __future__ import annotations
 
 import logging
@@ -7,22 +8,35 @@ from datetime import timedelta
 from typing import Any
 
 from pa_agent.data.ashare_common import (
-    PRESET_SYMBOLS as _PRESET_SYMBOLS,
     ashare_head_bar_live as _ashare_head_bar_live,
+)
+from pa_agent.data.ashare_common import (
     ashare_session_open as _ashare_session_open,
+)
+from pa_agent.data.ashare_common import (
     ashare_trading_day as _ashare_trading_day,
+)
+from pa_agent.data.ashare_common import (
     cn_now as _cn_now,
+)
+from pa_agent.data.ashare_common import (
     ensure_today_forming_daily_bar,
-    index_symbol_for_api as _index_symbol_for_api,
     is_index_symbol,
-    merge_ohlcv as _merge_ohlcv,
     normalize_ashare_symbol,
+)
+from pa_agent.data.ashare_common import (
+    index_symbol_for_api as _index_symbol_for_api,
+)
+from pa_agent.data.ashare_common import (
     resample_rows_to_4h as _resample_rows_to_4h,
+)
+from pa_agent.data.ashare_common import (
     row_time_to_ts_ms as _row_time_to_ts_ms,
+)
+from pa_agent.data.ashare_common import (
     rows_to_kline_bars as _rows_to_kline_bars,
 )
 from pa_agent.data.base import DataSource, DataSourceTransientError, KlineBar
-from pa_agent.data.refresh_policy import snapshot_cache_ttl_s
 from pa_agent.data.eastmoney_baostock import (
     _BaostockSession,
     eastmoney_rolling_cap,
@@ -41,6 +55,7 @@ from pa_agent.data.eastmoney_client import (
     is_transient_http_error,
 )
 from pa_agent.data.kline_adjust import get_kline_adjust
+from pa_agent.data.refresh_policy import snapshot_cache_ttl_s
 
 logger = logging.getLogger(__name__)
 
@@ -133,8 +148,7 @@ class EastMoneySource(DataSource):
     def subscribe(self, symbol: str, timeframe: str) -> None:
         if timeframe not in _SUPPORTED_TIMEFRAMES:
             raise ValueError(
-                f"Unsupported timeframe: {timeframe!r}. "
-                f"Use one of {list(_SUPPORTED_TIMEFRAMES)}"
+                f"Unsupported timeframe: {timeframe!r}. Use one of {list(_SUPPORTED_TIMEFRAMES)}"
             )
         code = normalize_ashare_symbol(symbol)
         if not code:
@@ -184,9 +198,7 @@ class EastMoneySource(DataSource):
             raise DataSourceTransientError(f"东方财富拉取失败: {exc}") from exc
 
         if not rows_asc:
-            raise DataSourceTransientError(
-                f"东方财富未返回数据: {self._symbol} {self._timeframe}"
-            )
+            raise DataSourceTransientError(f"东方财富未返回数据: {self._symbol} {self._timeframe}")
 
         if self._timeframe == "1d" and _ashare_trading_day():
             from pa_agent.data.eastmoney_client import fetch_stock_order_book
@@ -209,9 +221,7 @@ class EastMoneySource(DataSource):
                 session_volume_lots=float(book.volume) if book else 0.0,
                 session_amount=float(book.amount) if book else 0.0,
             )
-        if self._timeframe == "1d" and _ashare_trading_day():
-            self._apply_spot_to_forming(rows_asc)
-        elif _ashare_session_open():
+        if (self._timeframe == "1d" and _ashare_trading_day()) or _ashare_session_open():
             self._apply_spot_to_forming(rows_asc)
 
         rows_newest = list(reversed(rows_asc[-fetch_n:]))
@@ -289,9 +299,7 @@ class EastMoneySource(DataSource):
 
         if timeframe in ("1w", "1M"):
             code = normalize_ashare_symbol(symbol)
-            raw = fetch_stock_period_recent(
-                code, timeframe=timeframe, n=n + 5, adjust=adjust
-            )
+            raw = fetch_stock_period_recent(code, timeframe=timeframe, n=n + 5, adjust=adjust)
             return _em_rows_to_bars_asc(raw)[-(n + 5) :]
 
         # A-share stocks: Baostock daily is faster and avoids East Money curl(56) drops.
@@ -309,9 +317,7 @@ class EastMoneySource(DataSource):
         start = (_cn_now() - timedelta(days=cal_days)).strftime("%Y%m%d")
         try:
             code = normalize_ashare_symbol(symbol)
-            raw = fetch_stock_daily(
-                code, start_date=start, end_date=end, adjust=adjust
-            )
+            raw = fetch_stock_daily(code, start_date=start, end_date=end, adjust=adjust)
             return _em_rows_to_bars_asc(raw)[-(n + 5) :]
         except EastMoneyTransientError as exc:
             raise DataSourceTransientError(
@@ -367,7 +373,7 @@ class EastMoneySource(DataSource):
 
         if daily:
             from pa_agent.data.ashare_common import apply_session_quote_to_forming_row
-            from pa_agent.data.eastmoney_client import fetch_stock_order_book, fetch_spot_price
+            from pa_agent.data.eastmoney_client import fetch_spot_price, fetch_stock_order_book
 
             book = fetch_stock_order_book(self._symbol)
             if book is not None and book.price > 0:

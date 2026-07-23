@@ -1,14 +1,24 @@
 # QuantHub 统一 pre-commit 质量门禁
 # 安装：uv run pre-commit install  （需先 git init）
 # 依赖：uv sync --extra dev
+#
+# 说明：ruff 钩子直接调用 venv 内已锁定的 ruff（uv run ruff），
+# 不再从 GitHub 拉取独立 pre-commit 环境，版本由 uv.lock 统一保证，
+# 也避免在无回收站的环境里触发删除拦截。
 repos:
   # --- 代码风格与静态检查（统一 ruff 配置见 pyproject.toml [tool.ruff]）---
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.5.7
+  - repo: local
     hooks:
       - id: ruff
-        args: [--fix]
+        name: ruff (lint + autofix)
+        entry: uv run ruff check --fix --exit-non-zero-on-fix
+        language: system
+        types: [python]
       - id: ruff-format
+        name: ruff (format check)
+        entry: uv run ruff format --check
+        language: system
+        types: [python]
 
   # --- 密钥 / 敏感文件拦截（源自 PA_Agent 上游实践，已强化）---
   - repo: local
