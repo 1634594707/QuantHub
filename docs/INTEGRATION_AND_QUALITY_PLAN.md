@@ -43,14 +43,21 @@
 ### 2.2 已落地（本次）
 - `apps/pa_agent/` 成员：复制上游 `pa_agent/`（引擎+GUI）、`run.py`、`config/`（示例）、`tests/`、`docs/`，及上游的 `Makefile/README/CONTRIBUTING/SECURITY`。
 - 成员 `pyproject.toml`：基础库常装；重依赖拆为可选组 `pa-agent-desktop` / `pa-agent-data` / `pa-agent-win32`（默认不装）。
+- **【前端主基调】PA_Agent 的 PyQt6 桌面应用即整合后产品的旗舰前端**。已在成员 `pyproject.toml` 注册控制台入口 `quanthub-desktop = "pa_agent.main:main"`，`uv sync` 后可直接 `uv run quanthub-desktop` 启动；其暗色主题 / 决策树 / K线 / 分析快照 / 案例库的交互范式，作为整个产品（含 Web 配套视图）的设计基调。
 - `apps/pa_agent/__main__.py` 入口 + `__init__.py` 说明；已登记进根 `pyproject.toml` 的 workspace members。
 - 根 `.gitignore` 追加 PA_Agent 运行时（真实 `settings.json` / `logs/` / `records/` / `experience/` 等）。
 
-### 2.3 启动方式
+### 2.3 启动方式（PA_Agent 桌面 = 旗舰前端）
 ```powershell
-uv sync --extra pa-agent-desktop          # 安装 PyQt6 等（仅桌面端需要）
-uv run python apps/pa_agent/run.py        # 或：uv run python -m apps.pa_agent
+# 旗舰前端（PyQt6 桌面，需本地有显示环境 + Windows 推荐）
+uv sync --extra pa-agent-desktop
+uv run quanthub-desktop                    # 控制台入口，等价于 uv run python -m apps.pa_agent
+
+# Web 配套视图（Streamlit 看板，浏览器可预览）
+uv sync --extra dashboard
+uv run streamlit run apps/dashboard/app.py
 ```
+> 注：PyQt6 桌面应用无法在 headless 沙箱渲染；在本地 Windows（带显示器）环境运行旗舰前端。其视觉/交互设计已定为产品前端主基调。
 
 ### 2.4 后续 Phase（看板双轨 + 引擎统一）
 - **P-A 看板增强**：把 PA_Agent 高价值视图移植进现有 Streamlit 看板（`apps/dashboard`）——
