@@ -1,0 +1,13 @@
+[build-system]
+requires = ["hatchling>=1.21"]
+build-backend = "hatchling.build"
+
+[project]
+name = "quanthub-supertrend"
+version = "0.1.0"
+description = "A股 SuperTrend 趋势跟踪策略"
+requires-python = ">=3.11,<3.13"
+dependencies = ["quanthub-core", "pandas>=2.2", "numpy>=1.26"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]

@@ -1,0 +1,17 @@
+# AI 分析市场专属配置（PA_Agent 价格行为分析，只分析不下单）
+# 继承 base.yaml，叠加本市场项
+
+market: "ai_analysis"
+
+# ===== AI 分析策略模块开关 =====
+modules:
+  pa_agent:
+    enabled: true                       # 仅分析，不产生实盘订单（StrategyInfo.live_capable=False）
+    cron: "0 19 * * 1-5"              # 每个交易日 19:00 收盘后分析
+    timeframe: "1h"                    # 默认分析周期
+    # 定时遍历的标的（A股 + 加密各示例；按需扩充）
+    symbols:
+      - "000001"
+      - "600519"
+      - "BTC-USDT"
+      - "ETH-USDT"

@@ -1,0 +1,25 @@
+[build-system]
+requires = ["hatchling>=1.21"]
+build-backend = "hatchling.build"
+
+[project]
+name = "quanthub-core"
+version = "0.1.0"
+description = "QuantHub 统一底座：data_feed / signals / alert / llm / backtest / viz"
+requires-python = ">=3.11,<3.13"
+license = { text = "AGPL-3.0-or-later" }
+dependencies = [
+    # 继承 root quanthub 依赖；此处仅列 core 额外所需
+    "tenacity>=8.2",
+    "pydantic>=2.7",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+data_feed = ["akshare>=1.16", "ccxt>=4.3"]
+llm = ["openai>=1.40", "tiktoken>=0.7", "jsonschema>=4.22"]
+backtest = ["backtrader>=1.9.78"]
+viz = ["streamlit>=1.32", "plotly>=5.20"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["quanthub_core"]

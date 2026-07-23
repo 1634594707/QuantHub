@@ -1,0 +1,50 @@
+# MT5 市场专属配置（外汇 · 贵金属 · 股指）
+# 继承 base.yaml，覆盖/扩展 MT5 相关项
+# 数据零拷贝复用 AlphaMaster-main 的 data/MT5_K线数据
+
+market: "mt5"
+
+data_sources:
+  primary: "local_parquet"                 # 离线优先：data/MT5_K线数据
+  fallback: []                             # 暂无在线 MT5 源；研究模式足够
+  local_parquet:
+    root: "data"
+    time_mode: "unix_seconds"              # MT5 parquet 的 time 为 unix 秒
+    groups:
+      mt5:                                 # data/MT5_K线数据/{symbol}_{TF}.parquet
+        subdir: "MT5_K线数据"
+        pattern: "{symbol}_{TF}.parquet"
+        symbol_norm: "symbol"              # 保留 .cash 后缀（如 US100.cash）
+        tf_map: { "1m": "M1", "5m": "M5", "15m": "M15", "30m": "M30", "1h": "H1", "4h": "H4", "1d": "D1", "1w": "W1" }
+        time_mode: "unix_seconds"
+
+# ===== MT5 策略模块开关（默认关闭实盘）=====
+modules:
+  alphamaster:
+    enabled: false                        # 研究模式开关（运行回测/产出信号）
+    live: false                           # 实盘开关（需 live_trading=true 且此处 true）
+    cron: "0 * * * *"                     # 每小时运行一次
+    timeframe: "1h"                      # 默认 K 线周期
+    symbols:                             # 候选品种（与本地数据对齐）
+      - "EURUSD"
+      - "USDJPY"
+      - "XAUUSD"
+      - "XAGUSD"
+      - "US30.cash"
+      - "US100.cash"
+      - "US500.cash"
+      - "US2000.cash"
+      - "JP225.cash"
+    # 训练产出的因子公式（best_mt5_strategy.json）放入模块目录：
+    #   strategies/mt5/alphamaster/best_mt5_strategy.json
+    # 缺失时自动回退内置启发式公式。
+    min_trade_exposure: 0.05             # |tanh(factor)| 阈值，低于视为空仓
+
+# ===== 风控（实盘时强制）=====
+# RiskChecker("mt5") 读取本块；MT5 非加密，关闭蜜罐检查
+risk:
+  max_position_per_symbol: 0.15          # 单品种最大仓位占比
+  max_total_exposure: 0.8               # 总敞口上限
+  min_liquidity_usd: 0                   # MT5 品种流动性充足，不强制
+  honeypot_check: false                   # 非加密资产，无需蜜罐
+  slippage_bps: 10                        # 外汇/贵金属点差较小

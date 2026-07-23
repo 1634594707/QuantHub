@@ -1,0 +1,303 @@
+{
+  "started_at": "2026-07-09 16:52:32",
+  "elapsed_sec": 5826.58,
+  "data_dir": "D:\\K线数据",
+  "timeframes": [
+    "1D",
+    "5m",
+    "15m",
+    "1H"
+  ],
+  "symbol_count": 167,
+  "jobs_total": 668,
+  "jobs_ok": 642,
+  "jobs_failed": 26,
+  "failures": [
+    {
+      "symbol": "GBPJPY",
+      "market": "Forex",
+      "timeframe": "1D",
+      "ok": false,
+      "message": "timeout after 180s (MT5 call likely hung)",
+      "file": null,
+      "bars": 0,
+      "added": 0,
+      "elapsed_sec": 180.04
+    },
+    {
+      "symbol": "GBPNZD",
+      "market": "Forex",
+      "timeframe": "1D",
+      "ok": false,
+      "message": "timeout after 180s (MT5 call likely hung)",
+      "file": null,
+      "bars": 0,
+      "added": 0,
+      "elapsed_sec": 180.03
+    },
+    {
+      "symbol": "GBPUSD",
+      "market": "Forex",
+      "timeframe": "1D",
+      "ok": false,
+      "message": "timeout after 180s (MT5 call likely hung)",
+      "file": null,
+      "bars": 0,
+      "added": 0,
+      "elapsed_sec": 180.03
+    },
+    {
+      "symbol": "MSFT",
+      "market": "USStock",
+      "timeframe": "1D",
+      "ok": false,
+      "message": "timeout after 180s (MT5 call likely hung)",
+      "file": null,
+      "bars": 0,
+      "added": 0,
+      "elapsed_sec": 180.05
+    },
+    {
+      "symbol": "NZDCHF",
+      "market": "Forex",
+      "timeframe": "1D",
+      "ok": false,
+      "message": "timeout after 180s (MT5 call likely hung)",
+      "file": null,
+      "bars": 0,
+      "added": 0,
+      "elapsed_sec": 180.04
+    },
+    {
+      "symbol": "NZDJPY",
+      "market": "Forex",
+      "timeframe": "1D",
+      "ok": false,
+      "message": "timeout after 180s (MT5 call likely hung)",
+      "file": null,
+      "bars": 0,
+      "added": 0,
+      "elapsed_sec": 180.06
+    },
+    {
+      "symbol": "NZDUSD",
+      "market": "Forex",
+      "timeframe": "1D",
+      "ok": false,
+      "message": "timeout after 180s (MT5 call likely hung)",
+      "file": null,
+      "bars": 0,
+      "added": 0,
+      "elapsed_sec": 180.03
+    },
+    {
+      "symbol": "USDCAD",
+      "market": "Forex",
+      "timeframe": "1D",
+      "ok": false,
+      "message": "{\"ok\": false, \"message\": \"MT5 未返回 USDCAD 1D 数据\", \"file\": \"USDCAD_D1.parquet\", \"mt5_symbol\": \"USDCAD\", \"added\": 0, \"bars\": 0}",
+      "file": null,
+      "bars": 0,
+      "added": 0,
+      "elapsed_sec": 110.02
+    },
+    {
+      "symbol": "USDCHF",
+      "market": "Forex",
+      "timeframe": "1D",
+      "ok": false,
+      "message": "{\"ok\": false, \"message\": \"MT5 未返回 USDCHF 1D 数据\", \"file\": \"USDCHF_D1.parquet\", \"mt5_symbol\": \"USDCHF\", \"added\": 0, \"bars\": 0}",
+      "file": null,
+      "bars": 0,
+      "added": 0,
+      "elapsed_sec": 46.45
+    },
+    {
+      "symbol": "V",
+      "market": "USStock",
+      "timeframe": "1D",
+      "ok": false,
+      "message": "{\"ok\": false, \"message\": \"MT5 未返回 V 1D 数据\", \"file\": \"V_D1.parquet\", \"mt5_symbol\": \"V\", \"added\": 0, \"bars\": 0}",
+      "file": null,
+      "bars": 0,
+      "added": 0,
+      "elapsed_sec": 32.42
+    },
+    {
+      "symbol": "VECUSD",
+      "market": "Crypto",
+      "timeframe": "1D",
+      "ok": false,
+      "message": "{\"ok\": false, \"message\": \"MT5 未返回 VECUSD 1D 数据\", \"file\": \"VECUSD_D1.parquet\", \"mt5_symbol\": \"VECUSD\", \"added\": 0, \"bars\": 0}",
+      "file": null,
+      "bars": 0,
+      "added": 0,
+      "elapsed_sec": 57.33
+    },
+    {
+      "symbol": "VOWG_p",
+      "market": "USStock",
+      "timeframe": "1D",
+      "ok": false,
+      "message": "{\"ok\": false, \"message\": \"MT5 未返回 VOWG_p 1D 数据\", \"file\": \"VOWG_P_D1.parquet\", \"mt5_symbol\": \"VOWG_p\", \"added\": 0, \"bars\": 0}",
+      "file": null,
+      "bars": 0,
+      "added": 0,
+      "elapsed_sec": 31.13
+    },
+    {
+      "symbol": "WHEAT.c",
+      "market": "Futures",
+      "timeframe": "1D",
+      "ok": false,
+      "message": "{\"ok\": false, \"message\": \"MT5 未返回 WHEAT.c 1D 数据\", \"file\": \"WHEAT.c_D1.parquet\", \"mt5_symbol\": \"WHEAT.c\", \"added\": 0, \"bars\": 0}",
+      "file": null,
+      "bars": 0,
+      "added": 0,
+      "elapsed_sec": 31.04
+    },
+    {
+      "symbol": "WMT",
+      "market": "USStock",
+      "timeframe": "1D",
+      "ok": false,
+      "message": "{\"ok\": false, \"message\": \"MT5 未返回 WMT 1D 数据\", \"file\": \"WMT_D1.parquet\", \"mt5_symbol\": \"WMT\", \"added\": 0, \"bars\": 0}",
+      "file": null,
+      "bars": 0,
+      "added": 0,
+      "elapsed_sec": 30.91
+    },
+    {
+      "symbol": "XAGAUD",
+      "market": "Forex",
+      "timeframe": "1D",
+      "ok": false,
+      "message": "{\"ok\": false, \"message\": \"MT5 未返回 XAGAUD 1D 数据\", \"file\": \"XAGAUD_D1.parquet\", \"mt5_symbol\": \"XAGAUD\", \"added\": 0, \"bars\": 0}",
+      "file": null,
+      "bars": 0,
+      "added": 0,
+      "elapsed_sec": 31.65
+    },
+    {
+      "symbol": "XAGUSD",
+      "market": "Forex",
+      "timeframe": "1D",
+      "ok": false,
+      "message": "{\"ok\": false, \"message\": \"MT5 未返回 XAGUSD 1D 数据\", \"file\": \"XAGUSD_D1.parquet\", \"mt5_symbol\": \"XAGUSD\", \"added\": 0, \"bars\": 0}",
+      "file": null,
+      "bars": 0,
+      "added": 0,
+      "elapsed_sec": 31.32
+    },
+    {
+      "symbol": "XAUAUD",
+      "market": "Forex",
+      "timeframe": "1D",
+      "ok": false,
+      "message": "{\"ok\": false, \"message\": \"MT5 未返回 XAUAUD 1D 数据\", \"file\": \"XAUAUD_D1.parquet\", \"mt5_symbol\": \"XAUAUD\", \"added\": 0, \"bars\": 0}",
+      "file": null,
+      "bars": 0,
+      "added": 0,
+      "elapsed_sec": 31.45
+    },
+    {
+      "symbol": "XAUEUR",
+      "market": "Forex",
+      "timeframe": "1D",
+      "ok": false,
+      "message": "{\"ok\": false, \"message\": \"MT5 未返回 XAUEUR 1D 数据\", \"file\": \"XAUEUR_D1.parquet\", \"mt5_symbol\": \"XAUEUR\", \"added\": 0, \"bars\": 0}",
+      "file": null,
+      "bars": 0,
+      "added": 0,
+      "elapsed_sec": 31.77
+    },
+    {
+      "symbol": "XLMUSD",
+      "market": "Crypto",
+      "timeframe": "1D",
+      "ok": false,
+      "message": "{\"ok\": false, \"message\": \"MT5 未返回 XLMUSD 1D 数据\", \"file\": \"XLMUSD_D1.parquet\", \"mt5_symbol\": \"XLMUSD\", \"added\": 0, \"bars\": 0}",
+      "file": null,
+      "bars": 0,
+      "added": 0,
+      "elapsed_sec": 30.92
+    },
+    {
+      "symbol": "XMRUSD",
+      "market": "Crypto",
+      "timeframe": "1D",
+      "ok": false,
+      "message": "{\"ok\": false, \"message\": \"MT5 未返回 XMRUSD 1D 数据\", \"file\": \"XMRUSD_D1.parquet\", \"mt5_symbol\": \"XMRUSD\", \"added\": 0, \"bars\": 0}",
+      "file": null,
+      "bars": 0,
+      "added": 0,
+      "elapsed_sec": 30.98
+    },
+    {
+      "symbol": "XOM",
+      "market": "USStock",
+      "timeframe": "1D",
+      "ok": false,
+      "message": "{\"ok\": false, \"message\": \"MT5 未返回 XOM 1D 数据\", \"file\": \"XOM_D1.parquet\", \"mt5_symbol\": \"XOM\", \"added\": 0, \"bars\": 0}",
+      "file": null,
+      "bars": 0,
+      "added": 0,
+      "elapsed_sec": 30.94
+    },
+    {
+      "symbol": "XPDUSD",
+      "market": "Forex",
+      "timeframe": "1D",
+      "ok": false,
+      "message": "{\"ok\": false, \"message\": \"MT5 未返回 XPDUSD 1D 数据\", \"file\": \"XPDUSD_D1.parquet\", \"mt5_symbol\": \"XPDUSD\", \"added\": 0, \"bars\": 0}",
+      "file": null,
+      "bars": 0,
+      "added": 0,
+      "elapsed_sec": 31.85
+    },
+    {
+      "symbol": "XRPUSD",
+      "market": "Crypto",
+      "timeframe": "1D",
+      "ok": false,
+      "message": "{\"ok\": false, \"message\": \"MT5 未返回 XRPUSD 1D 数据\", \"file\": \"XRPUSD_D1.parquet\", \"mt5_symbol\": \"XRPUSD\", \"added\": 0, \"bars\": 0}",
+      "file": null,
+      "bars": 0,
+      "added": 0,
+      "elapsed_sec": 31.0
+    },
+    {
+      "symbol": "XTZUSD",
+      "market": "Crypto",
+      "timeframe": "1D",
+      "ok": false,
+      "message": "{\"ok\": false, \"message\": \"MT5 未返回 XTZUSD 1D 数据\", \"file\": \"XTZUSD_D1.parquet\", \"mt5_symbol\": \"XTZUSD\", \"added\": 0, \"bars\": 0}",
+      "file": null,
+      "bars": 0,
+      "added": 0,
+      "elapsed_sec": 30.89
+    },
+    {
+      "symbol": "ZM",
+      "market": "USStock",
+      "timeframe": "1D",
+      "ok": false,
+      "message": "{\"ok\": false, \"message\": \"MT5 未返回 ZM 1D 数据\", \"file\": \"ZM_D1.parquet\", \"mt5_symbol\": \"ZM\", \"added\": 0, \"bars\": 0}",
+      "file": null,
+      "bars": 0,
+      "added": 0,
+      "elapsed_sec": 30.86
+    },
+    {
+      "symbol": "ZM",
+      "market": "USStock",
+      "timeframe": "5m",
+      "ok": false,
+      "message": "{\"ok\": false, \"message\": \"MT5 未返回 ZM 5m 数据\", \"file\": \"ZM_M5.parquet\", \"mt5_symbol\": \"ZM\", \"added\": 0, \"bars\": 0}",
+      "file": null,
+      "bars": 0,
+      "added": 0,
+      "elapsed_sec": 31.22
+    }
+  ]
+}

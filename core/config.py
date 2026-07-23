@@ -1,0 +1,124 @@
+# -*- coding: utf-8 -*-
+"""统一配置加载器。
+
+从 configs/*.yaml 加载并合并配置；支持 schema_version 升级钩子。
+所有模块通过 ``core.config.get_config()`` 获取单一配置对象，避免重复读取。
+"""
+from __future__ import annotations
+
+import os
+from copy import deepcopy
+from dataclasses import dataclass, field
+from functools import lru_cache
+from pathlib import Path
+from typing import Any
+
+import yaml
+
+# 仓库根目录（core/config.py 的上两级）
+REPO_ROOT = Path(__file__).resolve().parent.parent
+CONFIGS_DIR = REPO_ROOT / "configs"
+
+
+@dataclass
+class SchemaVersionError(Exception):
+    """配置 schema 版本不兼容时抛出。"""
+
+
+def _deep_merge(base: dict, override: dict) -> dict:
+    """递归合并 override 到 base，返回新 dict（不修改入参）。"""
+    result = deepcopy(base)
+    for key, val in override.items():
+        if key in result and isinstance(result[key], dict) and isinstance(val, dict):
+            result[key] = _deep_merge(result[key], val)
+        else:
+            result[key] = deepcopy(val)
+    return result
+
+
+def _resolve_env_placeholders(obj: Any) -> Any:
+    """递归把 ``*_env`` 字段替换为对应环境变量值（仅读，不写入仓库）。
+
+    约定：形如 ``{api_key_env: "FOO"}`` 的字段会被解析为环境变量 FOO 的值；
+    若环境变量不存在则置为 None，由调用方决定是否报错。
+    """
+    if isinstance(obj, dict):
+        out: dict[str, Any] = {}
+        for k, v in obj.items():
+            # 保留原 key（便于调试来源），同时暴露无后缀字段（值为环境变量内容）
+            out[k] = v
+            if k.endswith("_env") and isinstance(v, str):
+                field_name = k[: -len("_env")]
+                out[field_name] = os.environ.get(v)
+            else:
+                out[k] = _resolve_env_placeholders(v)
+        return out
+    if isinstance(obj, list):
+        return [_resolve_env_placeholders(x) for x in obj]
+    return obj
+
+
+def _migrate_schema(cfg: dict, current_schema: int) -> dict:
+    """配置升级钩子：根据 schema_version 做兼容性迁移。
+
+    当前 schema_version=1，无需迁移。
+    未来 schema 升级时在此处追加 if 分支，逐版本向上迁移。
+    """
+    if current_schema < 1:
+        raise SchemaVersionError(f"不支持的 schema_version: {current_schema}")
+    # 示例（未来启用）:
+    # if current_schema == 1:
+    #     cfg = _migrate_v1_to_v2(cfg)
+    #     current_schema = 2
+    return cfg
+
+
+@lru_cache(maxsize=1)
+def get_config(market: str | None = None) -> dict:
+    """加载并合并配置。
+
+    Args:
+        market: 可选，加载市场专属配置 ("a_shares" | "crypto")。
+                None 时仅返回 base 配置。
+
+    Returns:
+        合并后的配置 dict。base.yaml 为底，叠加市场 yaml。
+    """
+    base_path = CONFIGS_DIR / "base.yaml"
+    if not base_path.exists():
+        raise FileNotFoundError(f"未找到基础配置: {base_path}")
+
+    with base_path.open("r", encoding="utf-8") as f:
+        cfg = yaml.safe_load(f) or {}
+
+    if market:
+        market_path = CONFIGS_DIR / f"{market}.yaml"
+        if not market_path.exists():
+            raise FileNotFoundError(f"未找到市场配置: {market_path}")
+        with market_path.open("r", encoding="utf-8") as f:
+            market_cfg = yaml.safe_load(f) or {}
+        cfg = _deep_merge(cfg, market_cfg)
+
+    # schema 升级
+    schema_ver = int(cfg.get("schema_version", 1))
+    cfg = _migrate_schema(cfg, schema_ver)
+
+    # 解析环境变量占位符
+    cfg = _resolve_env_placeholders(cfg)
+
+    return cfg
+
+
+def get_repo_root() -> Path:
+    """返回仓库根目录 Path。"""
+    return REPO_ROOT
+
+
+def get_path(key: str, market: str | None = None) -> Path:
+    """读取 paths.<key> 并返回绝对路径（相对仓库根解析）。"""
+    cfg = get_config(market)
+    raw = cfg.get("paths", {}).get(key)
+    if raw is None:
+        raise KeyError(f"paths.{key} 不存在于配置")
+    p = Path(raw)
+    return p if p.is_absolute() else REPO_ROOT / p

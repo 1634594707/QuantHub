@@ -1,0 +1,13 @@
+[build-system]
+requires = ["hatchling>=1.21"]
+build-backend = "hatchling.build"
+
+[project]
+name = "quanthub-alphamaster"
+version = "0.1.0"
+description = "AlphaMaster MT5 因子引擎适配器（外汇/贵金属/股指）"
+requires-python = ">=3.11,<3.13"
+dependencies = ["quanthub-core", "torch>=2.0", "numpy>=1.26"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]

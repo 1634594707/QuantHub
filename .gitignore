@@ -1,0 +1,127 @@
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# ===== 虚拟环境 =====
+venv/
+.venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+okx_grid_master/venv/
+
+# ===== 测试与覆盖率 =====
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
+
+# ===== 类型检查 =====
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
+
+# ===== IDE =====
+.idea/
+.vscode/
+*.swp
+*.swo
+.codebuddy/
+.workbuddy/
+
+# ===== 运行时数据/日志 =====
+logs/
+*.log
+data/cache.sqlite3
+data/*.sqlite3
+data/*.sqlite3*
+data/*.db
+
+# ===== 大模型权重（FinBERT2 .safetensors 等）=====
+models/
+!models/.gitkeep
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.ckpt
+*.h5
+
+# ===== 密钥与环境变量 =====
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+secrets.json
+credentials.json
+
+# ===== 数据文件（CSV/Parquet 等大文件）=====
+*.parquet
+data/*.csv
+!data/.gitkeep
+
+# ===== 归档源项目（vendored/ 只读参考副本，不入仓）=====
+vendored/
+
+# ===== 压缩备份（data/*.zip / 归档/*.zip 等）=====
+*.zip
+
+# ===== 编译缓存 =====
+*.pyc
+
+# ===== 空文件夹占位（已收口，可删）=====
+新建文件夹/
+
+# ===== PA_Agent 桌面应用运行时（真实配置/日志/记录/案例库，不入仓）=====
+apps/pa_agent/config/settings.json
+apps/pa_agent/config/*.local.json
+apps/pa_agent/config/exception_state.json
+apps/pa_agent/config/secret.key
+apps/pa_agent/logs/
+apps/pa_agent/records/
+apps/pa_agent/trade_records/
+apps/pa_agent/experience/
+
+# ===== 历史归档 =====
+归档/
+
+# ===== OS =====
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ===== 临时文件 =====
+*.tmp
+*.bak
+*.orig
+tmp/
+temp/

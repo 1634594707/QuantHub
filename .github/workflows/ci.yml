@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Install (base + dev + dashboard + api)
+        run: uv sync --extra dev --extra dashboard --extra api
+
+      - name: Ruff lint
+        run: uv run ruff check .
+
+      - name: Ruff format check
+        run: uv run ruff format --check .
+
+      - name: Tests + coverage
+        run: uv run pytest tests/ -q --cov=core --cov=strategies --cov-report=term-missing
+
+  # PA_Agent 桌面应用：仅做导入/语法校验（PyQt GUI 在 Linux CI 上无法真正拉起窗口）
+  pa-agent-import:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - run: uv python install 3.11
+      - name: Install pa-agent (无 GUI 依赖，仅校验结构)
+        run: uv sync --extra dev
+      - name: Byte-compile desktop app (syntax check, 不导入 PyQt)
+        run: uv run python -m compileall -q apps/pa_agent/pa_agent apps/pa_agent/run.py

@@ -1,0 +1,13 @@
+[build-system]
+requires = ["hatchling>=1.21"]
+build-backend = "hatchling.build"
+
+[project]
+name = "quanthub-dispatcher"
+version = "0.1.0"
+description = "QuantHub 信号中枢 dispatcher"
+requires-python = ">=3.11,<3.13"
+dependencies = ["quanthub-core"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]

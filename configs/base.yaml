@@ -1,0 +1,93 @@
+# QuantHub 全局基础配置
+# 所有模块共享；市场专属配置见 a_shares.yaml / crypto.yaml
+
+# ===== 实盘总开关（默认研究模式）=====
+# live_trading: false 时，dispatcher 强制 dry-run，所有实盘模块禁用
+# 仅当此处 true 且具体模块 enable=true 且密钥环境变量存在时，才激活实盘
+live_trading: false
+
+# ===== 实盘二次确认（CLI 交互式）=====
+# 下单前在 CLI 终端要求人工输入确认码，避免误触发
+live_confirm:
+  enabled: true
+  mode: cli              # cli | web (当前实现: cli)
+  confirm_token: "CONFIRM"   # 用户需输入该字符串以确认
+  timeout_seconds: 60    # 超时自动取消
+
+# ===== 路径 =====
+paths:
+  cache_db: "data/cache.sqlite3"          # 统一 SQLite 缓存
+  models_dir: "models"                    # 大模型权重目录（gitignore）
+  logs_dir: "logs"
+  data_dir: "data"
+
+# ===== 数据层 =====
+data_feed:
+  cache:
+    enabled: true
+    ttl_hours: 12                         # 行情缓存 TTL
+    announcement_ttl_hours: 24
+  retry:
+    max_attempts: 4
+    backoff_base: 1.5                     # 指数退避基数（秒）
+    backoff_cap: 30
+
+# ===== 信号总线 =====
+signals:
+  # 多源打分加权聚合（各策略产出 Signal，dispatcher 按 source 加权）
+  weights:
+    sentiment: 0.25
+    supertrend: 0.30
+    pa_agent: 0.25
+    selector: 0.20
+    alphamaster: 0.20
+
+# ===== 告警 =====
+alert:
+  enabled: true
+  channels: []                            # 启用通道: wecom | webhook | telegram
+  wecom:
+    # 仅从环境变量读取，禁止写入仓库
+    webhook_url_env: "WECOM_WEBHOOK_URL"
+    mentioned_mobile_env: "WECOM_MENTIONED_MOBILE"   # 可选
+  webhook:
+    url_env: "ALERT_WEBHOOK_URL"
+  telegram:
+    bot_token_env: "TG_BOT_TOKEN"
+    chat_id_env: "TG_CHAT_ID"
+
+# ===== LLM =====
+llm:
+  provider: "deepseek"                    # deepseek | openai | local
+  deepseek:
+    api_key_env: "DEEPSEEK_API_KEY"
+    base_url: "https://api.deepseek.com"
+    model: "deepseek-chat"
+    timeout: 60
+    max_retries: 3
+  openai:
+    api_key_env: "OPENAI_API_KEY"
+    base_url: "https://api.openai.com/v1"
+    model: "gpt-4o-mini"
+    timeout: 60
+    max_retries: 3
+  local:
+    # 本地模型（如 FinBERT2 走 transformers 直加载，不经此客户端）
+    enabled: false
+
+# ===== 回测 =====
+backtest:
+  engine: "backtrader"                    # backtrader | grid | event
+  initial_capital: 100000
+  commission: 0.0003                      # A股费率示例
+  slippage: 0.0002
+
+# ===== 看板 =====
+dashboard:
+  auth: false                             # 无鉴权（本地使用）
+  host: "127.0.0.1"
+  port: 8501
+
+# ===== 版本与升级 =====
+version: "0.1.0"
+schema_version: 1                         # 配置 schema 版本，升级时递增

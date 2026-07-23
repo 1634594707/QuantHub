@@ -1,0 +1,17 @@
+{
+  "started_at": "2026-07-09 22:52:51",
+  "elapsed_sec": 52.26,
+  "data_dir": "D:\\K线数据",
+  "timeframes": [
+    "1D",
+    "5m",
+    "15m",
+    "1H"
+  ],
+  "symbol_count": 25,
+  "jobs_total": 26,
+  "jobs_ok": 26,
+  "jobs_failed": 0,
+  "failures": [],
+  "retry": true
+}

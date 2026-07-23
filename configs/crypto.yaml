@@ -1,0 +1,69 @@
+# 加密市场专属配置
+# 继承 base.yaml，覆盖/扩展加密相关项
+# 注意：实盘默认关闭，需显式 enable + 密钥环境变量
+
+market: "crypto"
+
+data_sources:
+  primary: "okx"                        # 在线 ccxt 优先
+  fallback: ["local_parquet"]           # 离线回测/研究用 data/OKX_K线数据 + MT5_K线数据
+  okx:
+    exchange: "okx"
+    rate_limit_ms: 100
+  local_parquet:
+    root: "data"
+    time_mode: "unix_seconds"
+    groups:
+      okx:                               # data/OKX_K线数据/{symbol}_{TF}.parquet
+        subdir: "OKX_K线数据"
+        pattern: "{symbol}_{TF}.parquet"
+        symbol_norm: "symbol"            # ADA/USDT → ADAUSDT
+        tf_map: { "1m": "M1", "5m": "M5", "15m": "M15", "30m": "M30", "1h": "H1", "4h": "H4", "1d": "D1", "1w": "W1" }
+        time_mode: "unix_seconds"
+      mt5:                               # data/MT5_K线数据/{symbol}_{TF}.parquet（供 AlphaMaster 因子引擎离线读取）
+        subdir: "MT5_K线数据"
+        pattern: "{symbol}_{TF}.parquet"
+        symbol_norm: "symbol"
+        tf_map: { "1m": "M1", "5m": "M5", "15m": "M15", "30m": "M30", "1h": "H1", "4h": "H4", "1d": "D1", "1w": "W1" }
+        time_mode: "unix_seconds"
+
+# ===== 加密策略模块开关（默认关闭实盘）=====
+modules:
+  okx_grid:
+    enabled: false                        # 研究模式开关（运行回测/选币）
+    live: false                           # 实盘开关（需 live_trading=true 且此处 true）
+    cron: "0 */4 * * *"                   # 每 4h 运行一次
+    selector:
+      top_n: 10
+      factors: ["momentum", "volatility", "liquidity"]
+    grid:
+      upper: 1.2
+      lower: 0.8
+      grids: 20
+      amount_per_grid: 100                # USDT
+    api:
+      key_env: "OKX_API_KEY"
+      secret_env: "OKX_API_SECRET"
+      passphrase_env: "OKX_PASSPHRASE"
+  alphagpt:
+    enabled: false
+    live: false
+    cron: "0 */6 * * *"                   # 每 6h 运行一次
+    chain: "solana"
+    rpc_env: "SOLANA_RPC_URL"
+    factors:
+      max_depth: 5
+      population: 50
+    risk:
+      max_position_pct: 0.1
+      honeypot_check: true
+    api:
+      private_key_env: "SOLANA_PRIVATE_KEY"
+
+# ===== 风控（实盘时强制）=====
+risk:
+  max_position_per_symbol: 0.15           # 单币最大仓位占比
+  max_total_exposure: 0.8
+  min_liquidity_usd: 50000
+  honeypot_check: true
+  slippage_bps: 50

@@ -1,0 +1,21 @@
+# QuantHub 统一 pre-commit 质量门禁
+# 安装：uv run pre-commit install  （需先 git init）
+# 依赖：uv sync --extra dev
+repos:
+  # --- 代码风格与静态检查（统一 ruff 配置见 pyproject.toml [tool.ruff]）---
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.5.7
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  # --- 密钥 / 敏感文件拦截（源自 PA_Agent 上游实践，已强化）---
+  - repo: local
+    hooks:
+      - id: block-secrets
+        name: block secrets / sensitive files
+        entry: bash tools/block_secrets.sh
+        language: system
+        pass_filenames: false
+        always_run: true

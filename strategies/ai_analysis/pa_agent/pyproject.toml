@@ -1,0 +1,18 @@
+[build-system]
+requires = ["hatchling>=1.21"]
+build-backend = "hatchling.build"
+
+[project]
+name = "quanthub-pa-agent"
+version = "0.1.0"
+description = "价格行为两阶段 LLM 分析（Al Brooks PA Agent 迁移版）"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    "quanthub-core",
+    "openai>=1.40",
+    "tiktoken>=0.7",
+    "jsonschema>=4.22",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]
