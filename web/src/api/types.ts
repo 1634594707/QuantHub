@@ -184,3 +184,13 @@ export interface WatchlistResp {
   ok: boolean
   items: WatchlistItem[]
 }
+
+// ---------- 配置（API Key 等） ----------
+
+export interface ApiKeyResp {
+  ok: boolean
+  configured: boolean
+  provider: string
+  key_env: string
+  masked: string | null
+}

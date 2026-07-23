@@ -6,6 +6,7 @@
 // （网关已放开 CORS，浏览器可跨端口直连）。
 
 import type {
+  ApiKeyResp,
   HealthResp,
   KlineResp,
   MarketBreadthResp,
@@ -77,4 +78,13 @@ export const api = {
   marketBreadth: () => getJSON<MarketBreadthResp>('/market/breadth'),
 
   watchlist: () => getJSON<WatchlistResp>('/market/watchlist'),
+
+  getApiKey: () => getJSON<ApiKeyResp>('/config/apikey'),
+
+  setApiKey: (apiKey: string) =>
+    getJSON<ApiKeyResp>('/config/apikey', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ api_key: apiKey }),
+    }),
 }

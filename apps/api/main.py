@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import inspect
 import logging
+import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -81,6 +82,12 @@ app.add_middleware(
 class RunRequest(BaseModel):
     params: dict[str, Any] = Field(
         default_factory=dict, description="透传给策略 produce() 的参数（如 codes/with_kline）"
+    )
+
+
+class ApiKeyRequest(BaseModel):
+    api_key: str = Field(
+        ..., min_length=1, description="LLM API Key（仅保存在本地 apps/api/.env，不入库）"
     )
 
 
@@ -509,6 +516,78 @@ def get_watchlist() -> dict[str, Any]:
             }
         )
     return {"ok": True, "items": items}
+
+
+# ---------------------------------------------------------------------------
+# 配置（本地密钥管理）
+# ---------------------------------------------------------------------------
+def _llm_key_env() -> str:
+    cfg = get_config()
+    provider = cfg.get("llm", {}).get("provider", "deepseek")
+    prov_cfg = cfg.get("llm", {}).get(provider, {})
+    return str(prov_cfg.get("api_key_env", "DEEPSEEK_API_KEY"))
+
+
+def _mask_key(key: str) -> str:
+    if len(key) <= 8:
+        return "****"
+    return f"{key[:4]}...{key[-4:]}"
+
+
+def _write_env(key: str, value: str) -> None:
+    """将 key=value 写入 apps/api/.env（更新或追加），不删除其他内容。"""
+    env_path = Path(__file__).resolve().parent / ".env"
+    lines: list[str] = []
+    if env_path.exists():
+        lines = env_path.read_text(encoding="utf-8").splitlines()
+    found = False
+    prefix = f"{key}="
+    for i, line in enumerate(lines):
+        if line.startswith(prefix):
+            lines[i] = f"{key}={value}"
+            found = True
+            break
+    if not found:
+        lines.append(f"{key}={value}")
+    env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+@app.get("/config/apikey")
+def get_api_key_status() -> dict[str, Any]:
+    """返回当前 LLM API Key 是否已配置（仅返回脱敏尾号）。"""
+    env_name = _llm_key_env()
+    val = os.environ.get(env_name)
+    return {
+        "ok": True,
+        "configured": bool(val),
+        "provider": get_config().get("llm", {}).get("provider", "deepseek"),
+        "key_env": env_name,
+        "masked": _mask_key(val) if val else None,
+    }
+
+
+@app.post("/config/apikey")
+def set_api_key(req: ApiKeyRequest) -> dict[str, Any]:
+    """保存 API Key 到本地 .env 并热重载 LLM 客户端（无需重启网关）。"""
+    from core.llm import _clients as _llm_clients
+
+    env_name = _llm_key_env()
+    key = req.api_key.strip()
+
+    _write_env(env_name, key)
+    os.environ[env_name] = key
+
+    # 清除缓存：LLM 客户端单例 + 配置 lru_cache，让下次 get_llm() 重新读取环境变量
+    _llm_clients.clear()
+    get_config.cache_clear()
+
+    return {
+        "ok": True,
+        "configured": True,
+        "provider": get_config().get("llm", {}).get("provider", "deepseek"),
+        "key_env": env_name,
+        "masked": _mask_key(key),
+    }
 
 
 @app.post("/signals/publish")
