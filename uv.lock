@@ -2363,6 +2363,7 @@ source = { editable = "apps/api" }
 dependencies = [
     { name = "fastapi" },
     { name = "pydantic" },
+    { name = "quanthub-apps-pa-agent" },
     { name = "quanthub-core" },
     { name = "uvicorn" },
 ]
@@ -2371,6 +2372,7 @@ dependencies = [
 requires-dist = [
     { name = "fastapi", specifier = ">=0.110" },
     { name = "pydantic", specifier = ">=2.7" },
+    { name = "quanthub-apps-pa-agent", editable = "apps/pa_agent" },
     { name = "quanthub-core", editable = "core" },
     { name = "uvicorn", specifier = ">=0.29" },
 ]

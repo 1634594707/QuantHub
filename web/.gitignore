@@ -1,0 +1,12 @@
+# 依赖与构建产物（不入库）
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Vite 配置由 vite.config.ts 生成，产物忽略
+vite.config.js
+vite.config.d.ts
+
+# 本地环境变量（密钥不走版本库）
+.env
+.env.*

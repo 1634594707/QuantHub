@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>QuantHub · 概览（像素稿）</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* ===== Tokens (与 design-system.md 一致) ===== */
+  :root, [data-theme="dark"] {
+    --bg-base:#0B1018; --bg-surface:#0F1620; --bg-elevated:#16202E; --bg-hover:#1B2735;
+    --border-subtle:rgba(255,255,255,.08); --border-strong:rgba(255,255,255,.16);
+    --text-primary:#E6EDF3; --text-secondary:#9AA7B5; --text-muted:#5C6B7A;
+    --accent:#5B8DEF; --accent-hover:#7AA2F7; --accent-soft:rgba(91,141,239,.14);
+    --up:#16C784; --down:#EA3943; --warning:#F5A623; --info:#5B8DEF;
+    --shadow-card:0 1px 2px rgba(0,0,0,.25),0 8px 24px rgba(0,0,0,.30);
+  }
+  [data-theme="light"] {
+    --bg-base:#F5F7FA; --bg-surface:#FFFFFF; --bg-elevated:#FFFFFF; --bg-hover:#EEF2F7;
+    --border-subtle:rgba(15,22,32,.08); --border-strong:rgba(15,22,32,.16);
+    --text-primary:#0F1620; --text-secondary:#4A5563; --text-muted:#8A97A6;
+    --accent:#2F6BDF; --accent-hover:#1F56C2; --accent-soft:rgba(47,107,223,.10);
+    --up:#0E9F6E; --down:#DC2626; --warning:#D97706; --info:#2F6BDF;
+    --shadow-card:0 1px 2px rgba(15,22,32,.06),0 8px 24px rgba(15,22,32,.10);
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html,body { height:100%; }
+  body {
+    font-family:'Plus Jakarta Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+    background:
+      radial-gradient(1200px 600px at 80% -10%, color-mix(in srgb,var(--accent) 8%,transparent), transparent 60%),
+      var(--bg-base);
+    color:var(--text-primary); font-size:14px; line-height:1.5;
+    -webkit-font-smoothing:antialiased; transition:background 200ms ease,color 200ms ease;
+  }
+  .mono { font-family:'JetBrains Mono',ui-monospace,monospace; font-variant-numeric:tabular-nums; }
+  .up { color:var(--up); } .down { color:var(--down); }
+  .muted { color:var(--text-muted); } .sec { color:var(--text-secondary); }
+  .app { display:grid; grid-template-columns:240px 1fr; height:100vh; transition:grid-template-columns 160ms cubic-bezier(.16,1,.3,1); }
+  .app.collapsed { grid-template-columns:64px 1fr; }
+
+  /* ===== Sidebar ===== */
+  .sidebar { background:var(--bg-surface); border-right:1px solid var(--border-subtle); display:flex; flex-direction:column; overflow:hidden; }
+  .brand { display:flex; align-items:center; gap:10px; padding:0 18px; height:56px; border-bottom:1px solid var(--border-subtle); }
+  .brand .logo { width:28px; height:28px; border-radius:8px; background:linear-gradient(135deg,var(--accent),#9B6BEF); display:flex; align-items:center; justify-content:center; font-weight:700; color:#fff; flex:none; }
+  .brand .name { font-weight:700; font-size:15px; letter-spacing:.2px; white-space:nowrap; }
+  .nav { padding:10px; flex:1; overflow-y:auto; }
+  .nav .group { font-size:11px; letter-spacing:.8px; text-transform:uppercase; color:var(--text-muted); padding:14px 10px 6px; white-space:nowrap; }
+  .nav a { display:flex; align-items:center; gap:12px; padding:9px 10px; border-radius:8px; color:var(--text-secondary); text-decoration:none; font-weight:500; position:relative; white-space:nowrap; transition:background 140ms ease,color 140ms ease; }
+  .nav a:hover { background:var(--bg-hover); color:var(--text-primary); }
+  .nav a.active { background:var(--accent-soft); color:var(--text-primary); }
+  .nav a.active::before { content:""; position:absolute; left:-10px; top:8px; bottom:8px; width:3px; border-radius:0 3px 3px 0; background:var(--accent); }
+  .nav a .ico { width:20px; height:20px; flex:none; display:flex; align-items:center; justify-content:center; }
+  .nav a .ico svg { width:18px; height:18px; stroke:currentColor; fill:none; stroke-width:1.8; }
+  .sidebar-foot { padding:10px; border-top:1px solid var(--border-subtle); display:flex; align-items:center; gap:10px; }
+  .avatar { width:32px; height:32px; border-radius:50%; background:var(--accent-soft); color:var(--accent); display:flex; align-items:center; justify-content:center; font-weight:700; flex:none; }
+  .app.collapsed .label, .app.collapsed .name, .app.collapsed .group { display:none; }
+  .app.collapsed .brand, .app.collapsed .sidebar-foot { justify-content:center; }
+
+  /* ===== Main ===== */
+  .main { display:flex; flex-direction:column; min-width:0; }
+  .topbar { height:56px; flex:none; display:flex; align-items:center; gap:16px; padding:0 24px; border-bottom:1px solid var(--border-subtle); background:color-mix(in srgb,var(--bg-surface) 72%,transparent); backdrop-filter:blur(10px); }
+  .topbar h1 { font-size:18px; font-weight:700; }
+  .topbar .sub { font-size:12px; color:var(--text-muted); font-weight:500; }
+  .topbar .spacer { flex:1; }
+  .search { display:flex; align-items:center; gap:8px; background:var(--bg-surface); border:1px solid var(--border-subtle); border-radius:9px; padding:7px 12px; width:240px; color:var(--text-muted); }
+  .search input { background:none; border:none; outline:none; color:var(--text-primary); font:inherit; width:100%; }
+  .pill { display:inline-flex; align-items:center; gap:7px; padding:6px 12px; border-radius:999px; background:var(--bg-surface); border:1px solid var(--border-subtle); font-size:12px; font-weight:600; }
+  .dot { width:7px; height:7px; border-radius:50%; background:var(--up); box-shadow:0 0 0 3px color-mix(in srgb,var(--up) 25%,transparent); }
+  .icon-btn { width:38px; height:38px; border-radius:9px; border:1px solid var(--border-subtle); background:var(--bg-surface); color:var(--text-secondary); display:flex; align-items:center; justify-content:center; cursor:pointer; transition:all 140ms ease; }
+  .icon-btn:hover { color:var(--text-primary); background:var(--bg-hover); border-color:var(--border-strong); }
+  .content { padding:24px; overflow-y:auto; display:flex; flex-direction:column; gap:16px; max-width:1440px; width:100%; margin:0 auto; }
+
+  /* ===== Card base ===== */
+  .card { background:var(--bg-surface); border:1px solid var(--border-subtle); border-radius:14px; box-shadow:var(--shadow-card); }
+  .card-head { display:flex; align-items:center; gap:12px; padding:14px 18px; border-bottom:1px solid var(--border-subtle); }
+  .card-head h3 { font-size:15px; font-weight:700; }
+  .card-head .spacer { flex:1; }
+  .card-body { padding:18px; }
+
+  /* ===== KPI ===== */
+  .kpis { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; }
+  .kpi { padding:16px 18px; display:flex; flex-direction:column; gap:10px; transition:transform 160ms cubic-bezier(.16,1,.3,1),box-shadow 160ms ease; }
+  .kpi:hover { transform:translateY(-2px); box-shadow:0 12px 32px rgba(0,0,0,.30); }
+  .kpi .top { display:flex; align-items:center; justify-content:space-between; }
+  .kpi .k-label { font-size:12px; color:var(--text-secondary); font-weight:600; }
+  .kpi .k-ico { width:30px; height:30px; border-radius:8px; display:flex; align-items:center; justify-content:center; background:var(--accent-soft); color:var(--accent); }
+  .kpi .k-ico svg { width:16px; height:16px; stroke:currentColor; fill:none; stroke-width:1.8; }
+  .kpi .k-val { font-size:26px; font-weight:700; letter-spacing:-.3px; }
+  .kpi .k-sub { font-size:12px; font-weight:600; display:flex; align-items:center; gap:5px; }
+
+  /* ===== Grid ===== */
+  .grid-2 { display:grid; grid-template-columns:1.6fr 1fr; gap:16px; align-items:start; }
+
+  /* ===== Chart ===== */
+  .tabs { display:flex; gap:4px; background:var(--bg-base); border:1px solid var(--border-subtle); border-radius:9px; padding:3px; }
+  .tabs button { border:none; background:none; color:var(--text-secondary); font:inherit; font-size:12px; font-weight:600; padding:5px 10px; border-radius:6px; cursor:pointer; transition:all 140ms ease; }
+  .tabs button.active { background:var(--accent); color:#fff; }
+  .btn-ghost { border:1px solid var(--border-subtle); background:var(--bg-surface); color:var(--text-secondary); font:inherit; font-size:12px; font-weight:600; padding:7px 12px; border-radius:8px; cursor:pointer; transition:all 140ms ease; }
+  .btn-ghost:hover { color:var(--text-primary); background:var(--bg-hover); }
+  .chart-wrap svg { width:100%; height:300px; display:block; }
+  .ohlc { display:flex; justify-content:space-between; margin-top:10px; font-size:12px; }
+
+  /* ===== Decision panel ===== */
+  .dec-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .dec-item { display:flex; flex-direction:column; gap:3px; padding:10px 12px; background:var(--bg-base); border:1px solid var(--border-subtle); border-radius:10px; }
+  .dec-item .d-k { font-size:11px; color:var(--text-muted); font-weight:600; }
+  .dec-item .d-v { font-size:14px; font-weight:600; }
+  .span2 { grid-column:span 2; }
+  .badge { display:inline-flex; align-items:center; gap:5px; padding:3px 9px; border-radius:999px; font-size:11px; font-weight:700; }
+  .badge.up { background:color-mix(in srgb,var(--up) 16%,transparent); color:var(--up); }
+  .badge.down { background:color-mix(in srgb,var(--down) 16%,transparent); color:var(--down); }
+  .badge.warn { background:color-mix(in srgb,var(--warning) 18%,transparent); color:var(--warning); }
+  .badge.info { background:var(--accent-soft); color:var(--accent); }
+  .badge.neutral { background:var(--bg-hover); color:var(--text-secondary); }
+  .reason { font-size:13px; color:var(--text-secondary); line-height:1.55; }
+
+  /* ===== Market breadth ===== */
+  .breadth-bar { display:flex; height:10px; border-radius:999px; overflow:hidden; background:var(--bg-hover); }
+  .breadth-bar > i { display:block; height:100%; }
+  .breadth-legend { display:flex; justify-content:space-between; margin-top:10px; font-size:12px; font-weight:600; }
+
+  /* ===== Watchlist ===== */
+  .wl-row { display:flex; align-items:center; gap:12px; padding:10px 4px; border-bottom:1px solid var(--border-subtle); }
+  .wl-row:last-child { border-bottom:none; }
+  .wl-sym { font-weight:600; font-size:13px; }
+  .wl-name { font-size:11px; color:var(--text-muted); }
+  .wl-spacer { flex:1; }
+  .wl-price { font-size:13px; font-weight:600; text-align:right; }
+  .wl-chg { font-size:12px; font-weight:600; text-align:right; min-width:56px; }
+
+  /* ===== Table ===== */
+  table { width:100%; border-collapse:collapse; }
+  th,td { text-align:left; padding:11px 14px; font-size:13px; }
+  th { color:var(--text-muted); font-weight:600; font-size:11px; letter-spacing:.4px; text-transform:uppercase; border-bottom:1px solid var(--border-subtle); }
+  tbody tr { border-bottom:1px solid var(--border-subtle); transition:background 120ms ease; }
+  tbody tr:hover { background:var(--bg-hover); }
+  td.num, th.num { text-align:right; }
+  .bar { height:6px; border-radius:999px; background:var(--bg-hover); overflow:hidden; min-width:80px; }
+  .bar > i { display:block; height:100%; background:var(--accent); border-radius:999px; }
+  .row-link { color:var(--accent); font-weight:600; cursor:pointer; }
+
+  .toggle-track { width:46px; height:26px; border-radius:999px; background:var(--bg-hover); border:1px solid var(--border-subtle); position:relative; cursor:pointer; transition:background 160ms ease; }
+  .toggle-track .knob { position:absolute; top:2px; left:2px; width:20px; height:20px; border-radius:50%; background:var(--accent); transition:transform 200ms cubic-bezier(.16,1,.3,1); display:flex; align-items:center; justify-content:center; font-size:11px; }
+  [data-theme="light"] .toggle-track .knob { transform:translateX(20px); }
+
+  @media (max-width:1023px){ .kpis{grid-template-columns:repeat(2,1fr);} .grid-2{grid-template-columns:1fr;} }
+  @media (max-width:639px){ .app{grid-template-columns:0 1fr;} .sidebar{position:fixed;z-index:20;height:100vh;width:240px;} .kpis{grid-template-columns:1fr;} .search{display:none;} }
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="brand"><div class="logo">Q</div><span class="name">QuantHub</span></div>
+    <nav class="nav">
+      <div class="group">主菜单</div>
+      <a href="#" class="nav-link active"><span class="ico"><svg viewBox="0 0 24 24"><path d="M3 13h8V3H3zM13 21h8v-10h-8zM13 3v6h8V3zM3 21h8v-4H3z"/></svg></span><span class="label">概览</span></a>
+      <a href="#" class="nav-link"><span class="ico"><svg viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8"/><path d="M21 7v6h-6"/></svg></span><span class="label">信号</span></a>
+      <a href="#" class="nav-link"><span class="ico"><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg></span><span class="label">回测</span></a>
+      <a href="#" class="nav-link"><span class="ico"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/></svg></span><span class="label">策略模块</span></a>
+      <a href="#" class="nav-link"><span class="ico"><svg viewBox="0 0 24 24"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/></svg></span><span class="label">PA 分析工作台</span></a>
+      <a href="#" class="nav-link"><span class="ico"><svg viewBox="0 0 24 24"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19 12a7 7 0 00-.1-1l2-1.6-2-3.4-2.4 1a7 7 0 00-1.7-1L14.5 3h-4l-.3 2.6a7 7 0 00-1.7 1l-2.4-1-2 3.4 2 1.6a7 7 0 000 2l-2 1.6 2 3.4 2.4-1a7 7 0 001.7 1l.3 2.4h4l.3-2.4a7 7 0 001.7-1l2.4 1 2-3.4-2-1.6c.1-.3.1-.7.1-1z"/></svg></span><span class="label">配置</span></a>
+    </nav>
+    <div class="sidebar-foot">
+      <div class="avatar">A</div>
+      <div class="label" style="display:flex;flex-direction:column;line-height:1.2"><span style="font-weight:600;font-size:13px">aplicity</span><span class="muted" style="font-size:11px">Pro 账户</span></div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main">
+    <header class="topbar">
+      <button class="icon-btn" id="collapseBtn" title="折叠侧边栏"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+      <div><h1>概览</h1></div>
+      <span class="sub">2026-07-23 · 周四</span>
+      <div class="spacer"></div>
+      <div class="search"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg><input placeholder="搜索标的 / 策略 / 信号" /></div>
+      <span class="pill"><span class="dot"></span>交易中 · A股</span>
+      <div class="toggle-track" id="themeToggle" title="切换暗/亮主题"><span class="knob" id="knob">🌙</span></div>
+      <button class="icon-btn" title="通知"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg></button>
+    </header>
+
+    <div class="content">
+      <!-- KPI row -->
+      <section class="kpis">
+        <div class="card kpi">
+          <div class="top"><span class="k-label">总资产 (CNY)</span><span class="k-ico"><svg viewBox="0 0 24 24"><path d="M3 12h18M3 12l4-4M3 12l4 4"/><circle cx="17" cy="12" r="3"/></svg></span></div>
+          <div class="k-val mono">1,284,560</div>
+          <div class="k-sub up">▲ 2.41% · 今日 +30,210</div>
+        </div>
+        <div class="card kpi">
+          <div class="top"><span class="k-label">当日收益</span><span class="k-ico"><svg viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8"/><path d="M21 7v6h-6"/></svg></span></div>
+          <div class="k-val mono up">+30,210</div>
+          <div class="k-sub up">▲ 2.41% vs 昨收</div>
+        </div>
+        <div class="card kpi">
+          <div class="top"><span class="k-label">持仓数</span><span class="k-ico"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/></svg></span></div>
+          <div class="k-val mono">12</div>
+          <div class="k-sub sec">3 盈利 / 9 亏损</div>
+        </div>
+        <div class="card kpi">
+          <div class="top"><span class="k-label">近 30 日胜率</span><span class="k-ico"><svg viewBox="0 0 24 24"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/></svg></span></div>
+          <div class="k-val mono">68.4%</div>
+          <div class="k-sub up">▲ 4.2pt 环比</div>
+        </div>
+      </section>
+
+      <!-- Main grid -->
+      <section class="grid-2">
+        <!-- Left column -->
+        <div style="display:flex;flex-direction:column;gap:16px;min-width:0">
+          <div class="card">
+            <div class="card-head">
+              <h3>沪深300指数 · 日线</h3>
+              <div class="spacer"></div>
+              <div class="tabs" id="tfTabs"><button>1m</button><button>5m</button><button>1h</button><button class="active">1d</button><button>1w</button></div>
+              <button class="btn-ghost">刷新</button>
+            </div>
+            <div class="card-body">
+              <div class="chart-wrap"><svg id="candleChart" viewBox="0 0 800 340" preserveAspectRatio="none"></svg></div>
+              <div class="ohlc mono sec"><span>开 3,512.4</span><span>高 3,548.9</span><span>低 3,498.1</span><span class="up">收 3,540.2 ▲1.18%</span></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><h3>持仓明细</h3><div class="spacer"></div><span class="badge neutral">12 条</span></div>
+            <div class="card-body" style="padding:0">
+              <table>
+                <thead><tr><th>标的</th><th>方向</th><th class="num">成本</th><th class="num">现价</th><th class="num">盈亏%</th><th class="num">胜率</th><th>信号</th><th></th></tr></thead>
+                <tbody>
+                  <tr><td><b>600519 贵州茅台</b></td><td><span class="badge up">多</span></td><td class="num mono">1,682.0</td><td class="num mono">1,724.5</td><td class="num mono up">+2.53%</td><td class="num"><div class="bar"><i style="width:71%"></i></div></td><td><span class="badge info">持有</span></td><td class="row-link">查看</td></tr>
+                  <tr><td><b>300750 宁德时代</b></td><td><span class="badge up">多</span></td><td class="num mono">198.4</td><td class="num mono">205.1</td><td class="num mono up">+3.38%</td><td class="num"><div class="bar"><i style="width:64%"></i></div></td><td><span class="badge warn">观望</span></td><td class="row-link">查看</td></tr>
+                  <tr><td><b>000858 五粮液</b></td><td><span class="badge down">空</span></td><td class="num mono">156.2</td><td class="num mono">153.0</td><td class="num mono up">+2.05%</td><td class="num"><div class="bar"><i style="width:58%"></i></div></td><td><span class="badge info">持有</span></td><td class="row-link">查看</td></tr>
+                  <tr><td><b>002594 比亚迪</b></td><td><span class="badge up">多</span></td><td class="num mono">242.8</td><td class="num mono">238.1</td><td class="num mono down">-1.94%</td><td class="num"><div class="bar"><i style="width:52%"></i></div></td><td><span class="badge down">减仓</span></td><td class="row-link">查看</td></tr>
+                  <tr><td><b>601318 中国平安</b></td><td><span class="badge up">多</span></td><td class="num mono">48.6</td><td class="num mono">49.9</td><td class="num mono up">+2.67%</td><td class="num"><div class="bar"><i style="width:66%"></i></div></td><td><span class="badge info">持有</span></td><td class="row-link">查看</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right column -->
+        <div style="display:flex;flex-direction:column;gap:16px;min-width:0">
+          <div class="card">
+            <div class="card-head"><h3>PA 决策面板</h3><div class="spacer"></div><span class="badge info">实时</span></div>
+            <div class="card-body">
+              <div class="dec-grid">
+                <div class="dec-item"><span class="d-k">趋势</span><span class="d-v">震荡上行</span></div>
+                <div class="dec-item"><span class="d-k">周期</span><span class="d-v">日线 · 主升</span></div>
+                <div class="dec-item"><span class="d-k">阶段</span><span class="d-v">突破回踩</span></div>
+                <div class="dec-item"><span class="d-k">方向</span><span class="d-v up">▲ 多头</span></div>
+                <div class="dec-item"><span class="d-k">双向置信度</span><span class="d-v">多 72% / 空 28%</span></div>
+                <div class="dec-item"><span class="d-k">盈亏比 R</span><span class="d-v up">2.6 : 1</span></div>
+                <div class="dec-item"><span class="d-k">止损</span><span class="d-v mono down">3,498.1</span></div>
+                <div class="dec-item"><span class="d-k">入场</span><span class="d-v mono">3,540.2</span></div>
+                <div class="dec-item"><span class="d-k">止盈</span><span class="d-v mono up">3,632.5</span></div>
+                <div class="dec-item"><span class="d-k">胜率</span><span class="d-v mono">68.4%</span></div>
+                <div class="dec-item span2"><span class="d-k">理由</span><span class="reason">量能温和放大，价格站上 20 日均线；决策树第 3 层「放量+均线多头」命中，建议轻仓试多，严格止损于前低。</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><h3>市场广度</h3><div class="spacer"></div><span class="badge neutral">全市场</span></div>
+            <div class="card-body">
+              <div class="breadth-bar">
+                <i style="width:62%;background:var(--up)"></i>
+                <i style="width:7%;background:var(--text-muted)"></i>
+                <i style="width:31%;background:var(--down)"></i>
+              </div>
+              <div class="breadth-legend">
+                <span class="up">▲ 涨 2,103</span>
+                <span class="muted">— 平 230</span>
+                <span class="down">▼ 跌 876</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><h3>关注列表</h3><div class="spacer"></div><span class="badge neutral">4</span></div>
+            <div class="card-body" style="padding-top:6px;padding-bottom:6px">
+              <div class="wl-row"><div><div class="wl-sym">600036</div><div class="wl-name">招商银行</div></div><div class="wl-spacer"></div><div><div class="wl-price mono">38.20</div><div class="wl-chg up">+1.32%</div></div></div>
+              <div class="wl-row"><div><div class="wl-sym">000001</div><div class="wl-name">平安银行</div></div><div class="wl-spacer"></div><div><div class="wl-price mono">11.05</div><div class="wl-chg down">-0.54%</div></div></div>
+              <div class="wl-row"><div><div class="wl-sym">300059</div><div class="wl-name">东方财富</div></div><div class="wl-spacer"></div><div><div class="wl-price mono">14.88</div><div class="wl-chg up">+2.06%</div></div></div>
+              <div class="wl-row"><div><div class="wl-sym">688981</div><div class="wl-name">中芯国际</div></div><div class="wl-spacer"></div><div><div class="wl-price mono">52.40</div><div class="wl-chg up">+0.77%</div></div></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script>
+  const root = document.documentElement;
+  const knob = document.getElementById('knob');
+  document.getElementById('themeToggle').addEventListener('click', () => {
+    const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    knob.textContent = next === 'dark' ? '🌙' : '☀️';
+  });
+  document.getElementById('collapseBtn').addEventListener('click', () => document.getElementById('app').classList.toggle('collapsed'));
+  document.querySelectorAll('.nav-link').forEach(a => a.addEventListener('click', e => { e.preventDefault(); document.querySelectorAll('.nav-link').forEach(x=>x.classList.remove('active')); a.classList.add('active'); }));
+  document.querySelectorAll('#tfTabs button').forEach(b => b.addEventListener('click', () => { document.querySelectorAll('#tfTabs button').forEach(x=>x.classList.remove('active')); b.classList.add('active'); draw(); }));
+
+  // Candlestick + volume generator
+  function draw() {
+    const svg = document.getElementById('candleChart');
+    const W=800,H=340, padL=8,padR=8,padT=14, volH=64, gap=10;
+    const candleH = H - padT - volH - gap - 8;
+    const n=46, plotW=W-padL-padR;
+    let price=3400+Math.random()*40, candles=[], vols=[];
+    for(let i=0;i<n;i++){ const open=price; const v=(Math.random()*0.012+0.004); const close=open*(1+(Math.random()-0.46)*v*2); const high=Math.max(open,close)*(1+Math.random()*0.006); const low=Math.min(open,close)*(1-Math.random()*0.006); const vol=Math.random()*0.7+0.3; candles.push({open,close,high,low}); vols.push(vol); price=close; }
+    const hi=Math.max(...candles.map(c=>c.high)), lo=Math.min(...candles.map(c=>c.low)), maxV=Math.max(...vols);
+    const yOf=p=>padT+(1-(p-lo)/(hi-lo))*candleH;
+    const cw=plotW/n, bw=Math.max(3,cw*0.6);
+    let s='';
+    for(let g=0;g<=4;g++){ const y=padT+candleH*g/4; s+=`<line x1="${padL}" y1="${y}" x2="${W-padR}" y2="${y}" stroke="var(--border-subtle)" stroke-width="1"/>`; }
+    candles.forEach((c,i)=>{ const x=padL+cw*i+cw/2; const up=c.close>=c.open; const col=up?'var(--up)':'var(--down)'; const yO=yOf(c.open),yC=yOf(c.close),yH=yOf(c.high),yL=yOf(c.low); const top=Math.min(yO,yC),bot=Math.max(yO,yC); s+=`<line x1="${x}" y1="${yH}" x2="${x}" y2="${yL}" stroke="${col}" stroke-width="1.2"/>`; s+=`<rect x="${x-bw/2}" y="${top}" width="${bw}" height="${Math.max(1.5,bot-top)}" fill="${col}" rx="1"/>`; });
+    const last=candles[n-1], ly=yOf(last.close), up=last.close>=last.open;
+    s+=`<line x1="${padL}" y1="${ly}" x2="${W-padR}" y2="${ly}" stroke="${up?'var(--up)':'var(--down)'}" stroke-width="1" stroke-dasharray="4 3" opacity="0.6"/>`;
+    s+=`<rect x="${W-padR-58}" y="${ly-9}" width="56" height="18" rx="4" fill="${up?'var(--up)':'var(--down)'}"/><text x="${W-padR-30}" y="${ly+4}" fill="#fff" font-size="11" font-family="JetBrains Mono,monospace" text-anchor="middle">${last.close.toFixed(1)}</text>`;
+    // volume
+    const vTop=padT+candleH+gap;
+    vols.forEach((v,i)=>{ const x=padL+cw*i+cw/2; const up=candles[i].close>=candles[i].open; const h=(v/maxV)*volH; s+=`<rect x="${x-bw/2}" y="${vTop+volH-h}" width="${bw}" height="${h}" fill="${up?'var(--up)':'var(--down)'}" opacity="0.5" rx="1"/>`; });
+    svg.innerHTML=s;
+  }
+  draw();
+</script>
+</body>
+</html>

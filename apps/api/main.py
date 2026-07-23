@@ -25,13 +25,21 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Any
 
+import pandas as pd
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from pa_agent.view_models import (
+    build_decision_tree_view,
+    build_decision_view,
+    build_future_trend_view,
+)
 from pydantic import BaseModel, Field
 
 from core.config import get_config
+from core.data_feed.factory import get_data_source
 from core.signals import Signal, get_bus
 from strategies import discover_and_register, get_strategy, list_strategies
+from strategies.ai_analysis.pa_agent.two_stage import run_two_stage
 
 logger = logging.getLogger(__name__)
 
@@ -194,11 +202,308 @@ def run_strategy(name: str, req: RunRequest) -> dict[str, Any]:
         return {"ok": False, "name": name, "error": str(exc), "signals": []}
 
 
+def _resolve_pa_market(symbol: str, market: str | None = None) -> str:
+    """为 PA 分析确定标的所属市场（与 PaAgentStrategy 逻辑一致）。"""
+    if market:
+        return market
+    s = (symbol or "").strip().upper()
+    if s.isdigit() and len(s) == 6:
+        return "a_shares"
+    if any(ch.isalpha() for ch in s) and ("-" in s or "/" in s or len(s) >= 6):
+        return "crypto"
+    return "a_shares"
+
+
+@app.post("/strategies/pa_agent/analyze")
+def analyze_pa(
+    symbol: str,
+    timeframe: str = "1h",
+    market: str | None = None,
+) -> dict[str, Any]:
+    """对单个标的执行完整 PA 两阶段分析，返回 view-model 渲染数据。
+
+    - 行情统一走 ``core.data_feed``
+    - 分析复用 ``strategies.ai_analysis.pa_agent.two_stage.run_two_stage``
+    - 视图渲染复用 ``pa_agent.view_models`` 共享层
+    - 失败时 ``ok=false`` 并附带错误信息，前端可降级到 mock
+    """
+    actual_market = _resolve_pa_market(symbol, market)
+    try:
+        ds = get_data_source(actual_market)
+        df = ds.get_kline(symbol, timeframe, limit=300)
+    except Exception as exc:
+        logger.exception("PA 分析取 K 线失败 %s/%s", actual_market, symbol)
+        return {
+            "ok": False,
+            "error": f"取 K 线失败: {exc}",
+            "symbol": symbol,
+            "timeframe": timeframe,
+            "market": actual_market,
+        }
+
+    if df is None or df.empty:
+        return {
+            "ok": False,
+            "error": "K 线为空",
+            "symbol": symbol,
+            "timeframe": timeframe,
+            "market": actual_market,
+        }
+
+    result = run_two_stage(symbol=symbol, timeframe=timeframe, klines=df)
+    if result.error and not result.stage2_json:
+        return {
+            "ok": False,
+            "error": result.error,
+            "symbol": symbol,
+            "timeframe": timeframe,
+            "market": actual_market,
+        }
+
+    s1 = result.stage1_json or {}
+    s2 = result.stage2_json or {}
+    decision = s2.get("decision") or {}
+    terminal = s2.get("terminal") or {}
+    gate_trace = s1.get("gate_trace", [])
+    decision_trace = s2.get("decision_trace", [])
+    gate_result = str(s1.get("gate_result", "proceed")).lower()
+    gate_shortcircuited = gate_result in ("wait", "unknown")
+
+    try:
+        decision_view = build_decision_view(
+            stage2_decision=decision,
+            stage1_diagnosis=s1,
+        )
+        future_view = build_future_trend_view(stage2_decision=s2)
+        tree_view = build_decision_tree_view(
+            gate_trace=gate_trace,
+            decision_trace=decision_trace,
+            terminal=terminal,
+            gate_result=s1.get("gate_result"),
+            gate_shortcircuited=gate_shortcircuited,
+        )
+    except Exception as exc:
+        logger.exception("PA view-model 渲染失败 %s", symbol)
+        return {
+            "ok": False,
+            "error": f"分析成功但视图渲染失败: {exc}",
+            "symbol": symbol,
+            "timeframe": timeframe,
+            "market": actual_market,
+        }
+
+    return {
+        "ok": True,
+        "symbol": symbol,
+        "timeframe": timeframe,
+        "market": actual_market,
+        "decision": decision_view,
+        "future": future_view,
+        "tree": tree_view,
+        "stage1": s1,
+        "stage2": s2,
+        "error": result.error,
+    }
+
+
 @app.get("/signals")
 def get_signals(limit: int = 50) -> dict[str, Any]:
     _ensure_discovered()
     history = get_bus().history(limit=limit)
     return {"count": len(history), "signals": [_signal_to_dict(s) for s in history]}
+
+
+# ---------------------------------------------------------------------------
+# 行情数据
+# ---------------------------------------------------------------------------
+@app.get("/data/kline")
+def get_kline(
+    symbol: str,
+    market: str = "a_shares",
+    interval: str = "1h",
+    limit: int = 240,
+) -> dict[str, Any]:
+    """返回指定标的的 K 线（OHLCV）。
+
+    - 经 ``core.data_feed`` 的统一数据源代理（本地 parquet 优先，在线源回退）。
+    - A股本地数据为 ordinal 时间编码，``datetime`` 为占位 NaT，故 ``t`` 用 ``bar_time``。
+    - 取数失败或为空时返回 ``ok:false`` / ``candles:[]``，供前端优雅降级到模拟数据。
+    """
+    try:
+        ds = get_data_source(market)
+        df = ds.get_kline(symbol, interval, limit=limit)
+    except Exception as exc:  # 数据源配置缺失等
+        logger.exception("K线获取失败 %s/%s", market, symbol)
+        return {
+            "ok": False,
+            "error": str(exc),
+            "symbol": symbol,
+            "interval": interval,
+            "candles": [],
+        }
+
+    if df is None or df.empty:
+        return {
+            "ok": True,
+            "source": "empty",
+            "symbol": symbol,
+            "interval": interval,
+            "candles": [],
+        }
+
+    candles: list[dict[str, Any]] = []
+    for _, row in df.iterrows():
+        dt = row.get("datetime")
+        if pd.notna(dt):
+            t = pd.Timestamp(dt).isoformat()
+        else:
+            t = str(int(row.get("bar_time", 0)))
+        candles.append(
+            {
+                "t": t,
+                "o": float(row["open"]),
+                "h": float(row["high"]),
+                "l": float(row["low"]),
+                "c": float(row["close"]),
+                "v": float(row["volume"]) if pd.notna(row.get("volume")) else 0.0,
+            }
+        )
+    return {
+        "ok": True,
+        "source": "local",
+        "symbol": symbol,
+        "interval": interval,
+        "count": len(candles),
+        "candles": candles,
+    }
+
+
+# ---------------------------------------------------------------------------
+# 组合与市场面板（静态配置 + 实时价格）
+# ---------------------------------------------------------------------------
+_HOLDINGS_CFG: list[dict[str, Any]] = [
+    {"code": "600519", "name": "贵州茅台", "shares": 100, "cost": 1650.0},
+    {"code": "300750", "name": "宁德时代", "shares": 800, "cost": 202.0},
+    {"code": "000858", "name": "五粮液", "shares": 500, "cost": 140.0},
+    {"code": "002594", "name": "比亚迪", "shares": 300, "cost": 250.0},
+    {"code": "601318", "name": "中国平安", "shares": 1200, "cost": 49.0},
+]
+
+_WATCHLIST_CFG: list[dict[str, Any]] = [
+    {"sym": "NVDA", "name": "英伟达", "market": "us"},
+    {"sym": "AVGO", "name": "博通", "market": "us"},
+    {"sym": "600036", "name": "招商银行", "market": "a_shares"},
+    {"sym": "BTC-USDT", "name": "比特币", "market": "crypto"},
+]
+
+
+def _latest_close(symbol: str, market: str, interval: str = "1h") -> float | None:
+    """从数据源取最新收盘价；失败返回 None。"""
+    try:
+        ds = get_data_source(market)
+        df = ds.get_kline(symbol, interval, limit=2)
+        if df is None or df.empty:
+            return None
+        return float(df["close"].iloc[-1])
+    except Exception:
+        return None
+
+
+@app.get("/portfolio")
+def get_portfolio() -> dict[str, Any]:
+    """返回账户概览与持仓明细（价格尽可能走实时数据源）。"""
+    holdings: list[dict[str, Any]] = []
+    total_value = 0.0
+    total_cost = 0.0
+    daily_pnl = 0.0
+
+    for cfg in _HOLDINGS_CFG:
+        code = cfg["code"]
+        price = _latest_close(code, "a_shares", "1h")
+        if price is None:
+            price = cfg["cost"]  # 无实时价时回退成本价
+        shares = cfg["shares"]
+        cost = cfg["cost"]
+        market_value = price * shares
+        cost_value = cost * shares
+        pnl = market_value - cost_value
+        chg_pct = ((price - cost) / cost) * 100 if cost else 0.0
+        total_value += market_value
+        total_cost += cost_value
+        daily_pnl += pnl
+        holdings.append(
+            {
+                "code": code,
+                "name": cfg["name"],
+                "price": round(price, 2),
+                "chgPct": round(chg_pct, 2),
+                "shares": shares,
+                "pnl": round(pnl, 2),
+                "winRate": round(min(99, max(1, 50 + chg_pct * 1.5)), 1),
+            }
+        )
+
+    total_pnl = total_value - total_cost
+    total_pnl_pct = (total_pnl / total_cost) * 100 if total_cost else 0.0
+    cash = 426_300.0
+    nav = total_value + cash
+    win_rate = round(sum(h["winRate"] for h in holdings) / len(holdings), 1) if holdings else 0.0
+
+    return {
+        "ok": True,
+        "summary": {
+            "nav": round(nav, 2),
+            "dailyPnl": round(daily_pnl, 2),
+            "dailyPnlPct": round(total_pnl_pct, 2),
+            "cash": round(cash, 2),
+            "winRate": win_rate,
+            "totalPositions": len(holdings),
+        },
+        "holdings": holdings,
+    }
+
+
+@app.get("/market/breadth")
+def get_market_breadth() -> dict[str, Any]:
+    """返回市场广度与行业涨跌（当前为基于静态分布的示例数据，可替换为 akshare 实时抓取）。"""
+    sectors = [
+        {"name": "半导体", "chgPct": 3.84},
+        {"name": "汽车整车", "chgPct": 2.61},
+        {"name": "通信设备", "chgPct": 1.92},
+        {"name": "白酒", "chgPct": -1.15},
+        {"name": "银行", "chgPct": -0.68},
+    ]
+    return {
+        "ok": True,
+        "up": 1842,
+        "flat": 213,
+        "down": 1396,
+        "sectors": sectors,
+    }
+
+
+@app.get("/market/watchlist")
+def get_watchlist() -> dict[str, Any]:
+    """返回关注列表（价格尽可能走实时数据源）。"""
+    items: list[dict[str, Any]] = []
+    for cfg in _WATCHLIST_CFG:
+        sym = cfg["sym"]
+        market = cfg.get("market", "a_shares")
+        interval = "1h" if market in ("a_shares", "crypto") else "1d"
+        price = _latest_close(sym, market, interval)
+        if price is None:
+            price = 0.0
+        items.append(
+            {
+                "sym": sym,
+                "name": cfg["name"],
+                "price": round(price, 2),
+                "chgPct": round(((price - price * 0.985) / (price * 0.985)) * 100, 2)
+                if price
+                else 0.0,
+            }
+        )
+    return {"ok": True, "items": items}
 
 
 @app.post("/signals/publish")

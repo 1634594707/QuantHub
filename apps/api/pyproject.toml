@@ -9,6 +9,7 @@ description = "QuantHub 统一 API 网关：单端口前端 / 企微 / 调度器
 requires-python = ">=3.11,<3.13"
 dependencies = [
     "quanthub-core",
+    "quanthub-apps-pa-agent",
     "fastapi>=0.110",
     "uvicorn>=0.29",
     "pydantic>=2.7",
@@ -16,6 +17,7 @@ dependencies = [
 
 [tool.uv.sources]
 quanthub-core = { workspace = true }
+quanthub-apps-pa-agent = { workspace = true }
 
 [tool.hatch.build.targets.wheel]
 packages = ["."]

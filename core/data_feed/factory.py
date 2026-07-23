@@ -34,14 +34,15 @@ def _cached(fn):
             symbol = args[0]
             interval = args[1] if len(args) > 1 else kwargs.get("interval")
             interval = Interval(interval).value if not isinstance(interval, str) else interval
+            limit = args[4] if len(args) > 4 else kwargs.get("limit", 500)
             date = cache_key_date()
-            hit = cache.get_kline(symbol, self.market, interval, date)
+            hit = cache.get_kline(symbol, self.market, interval, date, limit)
             if hit is not None and not hit.empty:
-                logger.debug("缓存命中 kline %s %s", symbol, interval)
+                logger.debug("缓存命中 kline %s %s limit=%s", symbol, interval, limit)
                 return hit
             df = fn(self, *args, **kwargs)
             if df is not None and not df.empty:
-                cache.set_kline(symbol, self.market, interval, date, df)
+                cache.set_kline(symbol, self.market, interval, date, df, limit)
             return df
 
         if kind in ("get_news", "get_announcements"):

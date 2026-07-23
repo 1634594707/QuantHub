@@ -94,11 +94,16 @@ class CacheStore:
         market: str,
         interval: str,
         date: str,
+        limit: int | None = None,
     ) -> pd.DataFrame | None:
-        """读单日 K 线缓存；过期或不存在返回 None。"""
+        """读单日 K 线缓存；过期或不存在返回 None。
+
+        ``limit`` 参与缓存键——不同条数请求必须独立缓存，否则短请求的
+        少量结果会被长请求误命中（历史脏数据即由此产生）。
+        """
         cfg = get_config().get("data_feed", {}).get("cache", {})
         ttl = cfg.get("ttl_hours", 12) * 3600
-        key = self._hash_key([symbol, market, interval, date])
+        key = self._hash_key([symbol, market, interval, date, str(limit or "")])
         conn = self._conn()
         row = conn.execute(
             "SELECT payload, created_at FROM kline_cache WHERE cache_key = ?",
@@ -124,10 +129,11 @@ class CacheStore:
         interval: str,
         date: str,
         df: pd.DataFrame,
+        limit: int | None = None,
     ) -> None:
         if df.empty:
             return
-        key = self._hash_key([symbol, market, interval, date])
+        key = self._hash_key([symbol, market, interval, date, str(limit or "")])
         payload = df.copy()
         if "datetime" in payload.columns:
             payload["datetime"] = payload["datetime"].astype(str)

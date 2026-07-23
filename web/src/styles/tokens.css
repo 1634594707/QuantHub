@@ -1,0 +1,131 @@
+/* ============================================================
+   QuantHub Design Tokens — UI Designer
+   暗色主基调 (#0B1018) + 亮色备用，双主题一键切换。
+   语义色：涨绿 / 跌红 在图表中恒定含义；文本用 *-ink 变体保证 WCAG AA。
+   ============================================================ */
+
+:root,
+[data-theme='dark'] {
+  /* 背景层级 */
+  --bg: #0b1018;
+  --bg-subtle: #0e151e;
+  --bg-elevated: #121a24;
+  --surface-hover: rgba(255, 255, 255, 0.04);
+  --surface-active: rgba(255, 255, 255, 0.07);
+
+  /* 边框 */
+  --border: #1c2733;
+  --border-strong: #283747;
+
+  /* 文本 */
+  --text-1: #e6edf3;
+  --text-2: #9fb0c0;
+  --text-3: #647488;
+
+  /* 品牌强调色 */
+  --accent: #2f81f7;
+  --accent-weak: rgba(47, 129, 247, 0.14);
+  --accent-strong: #5a9bff;
+
+  /* 语义色（图表 / 图形恒定） */
+  --up: #16c784;
+  --down: #ea3943;
+  --warn: #f0b429;
+  --info: #3b82f6;
+
+  /* 语义文本色（暗色下等同图形色，已满足对比度） */
+  --up-ink: #2bd99a;
+  --down-ink: #ff5b69;
+  --warn-ink: #f5c451;
+
+  /* 网格 / 分隔线 */
+  --grid-line: rgba(255, 255, 255, 0.06);
+  --divider: rgba(255, 255, 255, 0.08);
+
+  /* 阴影 */
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.28);
+  --shadow-pop: 0 12px 40px rgba(0, 0, 0, 0.55);
+
+  /* 滚动条 */
+  --scroll-thumb: rgba(255, 255, 255, 0.12);
+  color-scheme: dark;
+}
+
+[data-theme='light'] {
+  --bg: #f4f6f9;
+  --bg-subtle: #eef2f7;
+  --bg-elevated: #ffffff;
+  --surface-hover: rgba(11, 16, 24, 0.04);
+  --surface-active: rgba(11, 16, 24, 0.07);
+
+  --border: #e4e9f0;
+  --border-strong: #d2dae5;
+
+  --text-1: #0b1018;
+  --text-2: #51616f;
+  --text-3: #8a99a8;
+
+  --accent: #2563eb;
+  --accent-weak: rgba(37, 99, 235, 0.1);
+  --accent-strong: #1d4ed8;
+
+  --up: #16c784;
+  --down: #ea3943;
+  --warn: #f0b429;
+  --info: #2563eb;
+
+  /* 亮色下文本用更深的语义色以满足 AA 对比度 */
+  --up-ink: #0ca678;
+  --down-ink: #e03131;
+  --warn-ink: #b7791f;
+
+  --grid-line: rgba(11, 16, 24, 0.06);
+  --divider: rgba(11, 16, 24, 0.08);
+
+  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.06), 0 8px 24px rgba(16, 24, 40, 0.08);
+  --shadow-pop: 0 12px 40px rgba(16, 24, 40, 0.18);
+
+  --scroll-thumb: rgba(11, 16, 24, 0.16);
+  color-scheme: light;
+}
+
+/* ---------- 间距（4px 基准 / 8pt 网格） ---------- */
+:root {
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+  --sp-10: 40px;
+  --sp-12: 48px;
+
+  /* 圆角 */
+  --r-sm: 8px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-pill: 999px;
+
+  /* 字号 */
+  --fs-12: 12px;
+  --fs-13: 13px;
+  --fs-14: 14px;
+  --fs-15: 15px;
+  --fs-18: 18px;
+  --fs-22: 22px;
+  --fs-26: 26px;
+
+  /* 字体 */
+  --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+
+  /* 过渡 */
+  --t-fast: 150ms ease;
+  --t-norm: 250ms cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* 布局尺寸 */
+  --sidebar-w: 220px;
+  --sidebar-w-collapsed: 64px;
+  --topbar-h: 56px;
+}
