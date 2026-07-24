@@ -218,9 +218,9 @@ class AkshareSource(DataSource):
         data_text = _fetch()
         prefix = cb + "("
         if data_text.startswith(prefix):
-            data_json = _json.loads(data_text[len(prefix) : -1])
+            data_json = json.loads(data_text[len(prefix) : -1])
         else:
-            data_json = _json.loads(data_text)
+            data_json = json.loads(data_text)
         items = data_json.get("result", {}).get("cmsArticleWebOld", [])
 
         def _clean(text: str) -> str:

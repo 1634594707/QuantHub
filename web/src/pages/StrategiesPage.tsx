@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { api } from '../api/client'
 import { useApi } from '../api/useApi'
 import type { RunResp, SignalResp, StrategyInfo } from '../api/types'
@@ -25,6 +25,23 @@ const GROUPS: { key: MarketKey | 'all'; label: string }[] = [
   { key: 'other', label: '其他' },
 ]
 
+function defaultParams(name: string): Record<string, unknown> {
+  const map: Record<string, Record<string, unknown>> = {
+    sentiment: { symbols: ['300750'], news_limit: 10 },
+    selector: { universe: 'hs300', top_n: 5 },
+    supertrend: { symbols: ['600519'], timeframe: 'daily' },
+    realtime_analyzer: { symbols: ['600519'], with_kline: true, with_indices: true },
+    morning_brief: { symbols: ['600519', '000001'] },
+    perks_monitor: {},
+    news_scanner: {},
+    pa_agent: { symbol: '600519', timeframe: '1h' },
+    okx_grid: { symbol: 'BTC-USDT-SWAP' },
+    alphagpt: { symbol: 'BTC-USDT-SWAP' },
+    alphamaster: {},
+  }
+  return map[name] ?? {}
+}
+
 function directionColor(d: string) {
   if (d === 'buy' || d === '做多' || d === 'bullish') return 'var(--up-ink)'
   if (d === 'sell' || d === '做空' || d === 'bearish') return 'var(--down-ink)'
@@ -34,6 +51,7 @@ function directionColor(d: string) {
 export default function StrategiesPage() {
   const strategies = useApi(() => api.strategies(), [])
   const [selected, setSelected] = useState<StrategyInfo | null>(null)
+  const [params, setParams] = useState<Record<string, unknown>>({})
   const [runResult, setRunResult] = useState<RunResp | null>(null)
   const [running, setRunning] = useState(false)
   const [runError, setRunError] = useState('')
@@ -57,12 +75,19 @@ export default function StrategiesPage() {
     return grouped[filter].length > 0 ? [filter] : []
   }, [filter, grouped])
 
+  function openStrategy(st: StrategyInfo) {
+    setSelected(st)
+    setParams(defaultParams(st.name))
+    setRunResult(null)
+    setRunError('')
+  }
+
   async function handleRun(name: string) {
     setRunning(true)
     setRunError('')
     setRunResult(null)
     try {
-      const resp = await api.runStrategy(name)
+      const resp = await api.runStrategy(name, params)
       setRunResult(resp)
     } catch (err) {
       setRunError(err instanceof Error ? err.message : '运行失败')
@@ -166,7 +191,7 @@ export default function StrategiesPage() {
                 }}
               >
                 {grouped[key].map((st) => (
-                  <StrategyCard key={st.name} st={st} onClick={() => setSelected(st)} />
+                  <StrategyCard key={st.name} st={st} onClick={() => openStrategy(st)} />
                 ))}
               </div>
             </section>
@@ -248,6 +273,8 @@ export default function StrategiesPage() {
               {selected.description || '暂无描述'}
             </p>
 
+            <ParamsEditor name={selected.name} params={params} onChange={setParams} />
+
             <div>
               <button
                 className="period-tab"
@@ -291,6 +318,135 @@ export default function StrategiesPage() {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+function ParamsEditor({
+  name,
+  params,
+  onChange,
+}: {
+  name: string
+  params: Record<string, unknown>
+  onChange: (p: Record<string, unknown>) => void
+}) {
+  const [jsonText, setJsonText] = useState(() => JSON.stringify(params, null, 2))
+  const [jsonError, setJsonError] = useState('')
+
+  // 当切换策略时同步外部 params；用户编辑过程中不再反向覆盖
+  useEffect(() => {
+    setJsonText(JSON.stringify(params, null, 2))
+    setJsonError('')
+  }, [name])
+
+  if (name === 'sentiment') {
+    const symbols = Array.isArray(params.symbols) ? (params.symbols as string[]).join(', ') : ''
+    const newsLimit = typeof params.news_limit === 'number' ? params.news_limit : 10
+    return (
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 'var(--sp-3)',
+          padding: 'var(--sp-3)',
+          borderRadius: 'var(--r-md)',
+          border: '1px solid var(--border)',
+          background: 'var(--bg-subtle)',
+        }}
+      >
+        <div style={{ fontSize: 'var(--fs-14)', fontWeight: 600 }}>运行参数</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-1)' }}>
+          <label style={{ fontSize: 'var(--fs-12)', color: 'var(--text-2)' }}>股票代码（逗号分隔）</label>
+          <input
+            type="text"
+            value={symbols}
+            onChange={(e) => {
+              const codes = e.target.value
+                .split(/[,，]/)
+                .map((s) => s.trim())
+                .filter(Boolean)
+              onChange({ ...params, symbols: codes })
+            }}
+            style={{
+              padding: 'var(--sp-2)',
+              borderRadius: 'var(--r-sm)',
+              border: '1px solid var(--border)',
+              background: 'var(--bg-elevated)',
+              color: 'var(--text-1)',
+              fontSize: 'var(--fs-14)',
+            }}
+          />
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-1)' }}>
+          <label style={{ fontSize: 'var(--fs-12)', color: 'var(--text-2)' }}>新闻条数</label>
+          <input
+            type="number"
+            min={1}
+            max={100}
+            value={newsLimit}
+            onChange={(e) => {
+              const n = parseInt(e.target.value || '10', 10)
+              onChange({ ...params, news_limit: Number.isNaN(n) ? 10 : n })
+            }}
+            style={{
+              padding: 'var(--sp-2)',
+              borderRadius: 'var(--r-sm)',
+              border: '1px solid var(--border)',
+              background: 'var(--bg-elevated)',
+              color: 'var(--text-1)',
+              fontSize: 'var(--fs-14)',
+            }}
+          />
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 'var(--sp-2)',
+        padding: 'var(--sp-3)',
+        borderRadius: 'var(--r-md)',
+        border: '1px solid var(--border)',
+        background: 'var(--bg-subtle)',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span style={{ fontSize: 'var(--fs-14)', fontWeight: 600 }}>运行参数（JSON）</span>
+        {jsonError && <span style={{ fontSize: 'var(--fs-12)', color: 'var(--down-ink)' }}>{jsonError}</span>}
+      </div>
+      <textarea
+        value={jsonText}
+        onChange={(e) => {
+          setJsonText(e.target.value)
+          try {
+            const parsed = JSON.parse(e.target.value)
+            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+              onChange(parsed as Record<string, unknown>)
+              setJsonError('')
+            } else {
+              setJsonError('参数必须是对象')
+            }
+          } catch {
+            setJsonError('JSON 格式错误')
+          }
+        }}
+        rows={6}
+        style={{
+          padding: 'var(--sp-2)',
+          borderRadius: 'var(--r-sm)',
+          border: `1px solid ${jsonError ? 'var(--down-ink)' : 'var(--border)'}`,
+          background: 'var(--bg-elevated)',
+          color: 'var(--text-1)',
+          fontFamily: 'monospace',
+          fontSize: 'var(--fs-13)',
+          resize: 'vertical',
+        }}
+      />
     </div>
   )
 }
