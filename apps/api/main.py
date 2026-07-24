@@ -501,6 +501,7 @@ def get_portfolio() -> dict[str, Any]:
                 "code": code,
                 "name": cfg["name"],
                 "price": round(price, 2),
+                "cost": round(cost, 2),
                 "chgPct": round(chg_pct, 2),
                 "shares": shares,
                 "pnl": round(pnl, 2),
@@ -580,57 +581,58 @@ def get_market_breadth() -> dict[str, Any]:
     }
 
 
+def _quote_item(sym: str, market: str, name: str) -> dict[str, Any]:
+    """单个标的实时报价（复用 K 线/腾讯报价逻辑），返回统一 item 结构。
+
+    A股/美股经腾讯源取真实日线；加密货币在当前环境无可用数据源→available=false。
+    """
+    interval = "1d"
+    try:
+        ds = get_data_source(market)
+        df = ds.get_kline(sym, interval, limit=10)
+    except Exception:
+        df = None
+    if df is None or df.empty or "close" not in df.columns or pd.isna(df["close"].iloc[-1]):
+        return {
+            "sym": sym,
+            "name": name,
+            "market": market,
+            "price": None,
+            "chgPct": None,
+            "available": False,
+        }
+    closes = df["close"].dropna().tolist()
+    price = float(closes[-1])
+    if len(closes) >= 2:
+        prev = float(closes[-2])
+    else:
+        # 美股日线常只回 1 根，改用腾讯实时报价取昨收算真实涨跌
+        prev = _tencent_prev_close(sym, market)
+    chg = ((price - prev) / prev * 100) if prev else 0.0
+    return {
+        "sym": sym,
+        "name": name,
+        "market": market,
+        "price": round(price, 2),
+        "chgPct": round(chg, 2),
+        "available": True,
+    }
+
+
 @app.get("/market/watchlist")
 def get_watchlist() -> dict[str, Any]:
-    """返回关注列表（价格走实时数据源；无法接入的市场诚实标注 unavailable）。
-
-    - A股/美股经腾讯源取真实日线，涨跌幅由最近两根 K 线真实计算。
-    - 加密货币在当前环境无可用数据源（代理不放行 OKX），price 为 null、
-      available=false，前端展示“数据源不可用”，不再以 0.0 伪装。
-    """
-    items: list[dict[str, Any]] = []
-    for cfg in _WATCHLIST_CFG:
-        sym = cfg["sym"]
-        market = cfg.get("market", "a_shares")
-        # 统一取日线最新收盘（腾讯日线可穿透代理，A股/美股均真实）；
-        # 放大回看窗口确保至少两根 K 线以计算真实涨跌幅。
-        interval = "1d"
-        try:
-            ds = get_data_source(market)
-            df = ds.get_kline(sym, interval, limit=10)
-        except Exception:
-            df = None
-        if df is None or df.empty or "close" not in df.columns or pd.isna(df["close"].iloc[-1]):
-            items.append(
-                {
-                    "sym": sym,
-                    "name": cfg["name"],
-                    "market": market,
-                    "price": None,
-                    "chgPct": None,
-                    "available": False,
-                }
-            )
-            continue
-        closes = df["close"].dropna().tolist()
-        price = float(closes[-1])
-        if len(closes) >= 2:
-            prev = float(closes[-2])
-        else:
-            # 美股日线常只回 1 根，改用腾讯实时报价取昨收算真实涨跌
-            prev = _tencent_prev_close(sym, market)
-        chg = ((price - prev) / prev * 100) if prev else 0.0
-        items.append(
-            {
-                "sym": sym,
-                "name": cfg["name"],
-                "market": market,
-                "price": round(price, 2),
-                "chgPct": round(chg, 2),
-                "available": True,
-            }
-        )
+    """关注列表（价格走实时数据源；无法接入的市场诚实标注 available=false）。"""
+    items = [
+        _quote_item(cfg["sym"], cfg.get("market", "a_shares"), cfg["name"])
+        for cfg in _WATCHLIST_CFG
+    ]
     return {"ok": True, "items": items}
+
+
+@app.get("/market/quote")
+def get_quote(symbol: str, market: str = "a_shares") -> dict[str, Any]:
+    """单标的实时报价：A股/美股走腾讯源（真实日线），加密货币当前环境无源→available=false。"""
+    return _quote_item(symbol, market, symbol)
 
 
 # ---------------------------------------------------------------------------

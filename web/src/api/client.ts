@@ -12,6 +12,7 @@ import type {
   MarketBreadthResp,
   PaAnalyzeResp,
   PortfolioResp,
+  QuoteResp,
   RunResp,
   SignalsResp,
   StrategiesResp,
@@ -78,6 +79,11 @@ export const api = {
   marketBreadth: () => getJSON<MarketBreadthResp>('/market/breadth'),
 
   watchlist: () => getJSON<WatchlistResp>('/market/watchlist'),
+
+  quote: (symbol: string, market = 'a_shares') =>
+    getJSON<QuoteResp>(
+      `/market/quote?symbol=${encodeURIComponent(symbol)}&market=${encodeURIComponent(market)}`,
+    ),
 
   getApiKey: () => getJSON<ApiKeyResp>('/config/apikey'),
 

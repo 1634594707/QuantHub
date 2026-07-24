@@ -26,7 +26,7 @@ function summaryToKpis(s?: PortfolioSummary | null): Kpi[] {
       spark: genSpark(1, 12, s.dailyPnlPct >= 0),
     },
     {
-      label: '今日盈亏',
+      label: '浮动盈亏',
       value: (s.dailyPnl >= 0 ? '+' : '-') + Math.abs(s.dailyPnl).toLocaleString('en-US', { maximumFractionDigits: 0 }),
       unit: '¥',
       deltaAbs: (s.dailyPnlPct >= 0 ? '+' : '') + s.dailyPnlPct.toFixed(2) + '%',

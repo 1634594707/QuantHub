@@ -153,6 +153,8 @@ export interface PortfolioHolding {
   code: string
   name: string
   price: number
+  /** 持仓成本价（用于前端可编辑持仓的盈亏计算）。 */
+  cost: number
   chgPct: number
   shares: number
   pnl: number
@@ -191,6 +193,15 @@ export interface WatchlistItem {
 export interface WatchlistResp {
   ok: boolean
   items: WatchlistItem[]
+}
+
+/** 单标的实时报价（/market/quote）。 */
+export interface QuoteResp {
+  sym: string
+  market: string
+  price: number | null
+  chgPct: number | null
+  available: boolean
 }
 
 // ---------- 配置（API Key 等） ----------
