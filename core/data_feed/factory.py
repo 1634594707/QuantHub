@@ -95,6 +95,7 @@ class DataSourceProxy(DataSource):
             try:
                 df = src.get_kline(symbol, interval, start, end, limit)
                 if df is not None and not df.empty:
+                    df.attrs["_source"] = src.name
                     return df
             except Exception as e:
                 last_err = e
@@ -164,6 +165,10 @@ def _build_source(
         from core.data_feed.okx_source import OkxSource
 
         return OkxSource(**kwargs)
+    if name == "tencent":
+        from core.data_feed.tencent_source import TencentSource
+
+        return TencentSource()
     if name == "local_parquet":
         from core.config import get_repo_root
         from core.data_feed.local_parquet import LocalParquetSource

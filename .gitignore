@@ -125,3 +125,7 @@ desktop.ini
 *.orig
 tmp/
 temp/
+
+# ===== 截图测试产物（UI 预览/对比用，不入仓）=====
+web/screenshot-*.png
+screenshot-*.png

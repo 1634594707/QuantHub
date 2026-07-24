@@ -346,9 +346,10 @@ def get_kline(
 ) -> dict[str, Any]:
     """返回指定标的的 K 线（OHLCV）。
 
-    - 经 ``core.data_feed`` 的统一数据源代理（本地 parquet 优先，在线源回退）。
+    - 经 ``core.data_feed`` 的统一数据源代理（A股在线源优先，本地 parquet 回退）。
+    - 在线源失败/限频时回退本地 parquet；两者皆无数据时返回 ``ok:false`` / ``candles:[]``，
+      供前端优雅降级到模拟数据。
     - A股本地数据为 ordinal 时间编码，``datetime`` 为占位 NaT，故 ``t`` 用 ``bar_time``。
-    - 取数失败或为空时返回 ``ok:false`` / ``candles:[]``，供前端优雅降级到模拟数据。
     """
     try:
         ds = get_data_source(market)
@@ -391,7 +392,7 @@ def get_kline(
         )
     return {
         "ok": True,
-        "source": "local",
+        "source": df.attrs.get("_source", "local"),
         "symbol": symbol,
         "interval": interval,
         "count": len(candles),

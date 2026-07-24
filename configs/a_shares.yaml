@@ -5,10 +5,13 @@ market: "a_shares"
 
 # ===== A股数据源 =====
 data_sources:
-  # 本地 parquet 优先（offline-first，data/parquet/{stocks,indices}）
-  # 失败再回退到在线源（akshare/东财/腾讯/新浪）
-  primary: "local_parquet"
-  fallback: ["akshare", "eastmoney", "tencent", "sina"]
+  # 在线源优先：当前环境 akshare 经系统代理访问东财接口必失败（ProxyError），
+  # 腾讯接口可正常穿透代理，故以 tencent 为 primary 保证实时数据低延迟可用。
+  # akshare 保留为 fallback（如未来代理策略调整）；local_parquet 作离线最后兜底（会提示数据延迟）。
+  primary: "tencent"
+  fallback: ["akshare", "local_parquet"]
+  akshare: {}
+  tencent: {}
   local_parquet:
     root: "data"
     time_mode: "auto"                      # auto|unix_seconds|ordinal
@@ -27,11 +30,9 @@ data_sources:
         tf_map: { "5m": "5", "15m": "15", "1h": "60" }
         time_mode: "ordinal"
         warn: true                          # ⚠️ 实测 OHLC 为负/volume=int64 最小值，疑似损坏，谨慎使用
-  akshare: {}
+  # 注：eastmoney/sina 在当前环境经代理不可用，已从 fallback 移除，此处仅保留配置占位。
   eastmoney:
     push2_host: "push2.eastmoney.com"
-  tencent: {}
-  sina: {}
 
 # ===== 交易时间 =====
 trading_hours:

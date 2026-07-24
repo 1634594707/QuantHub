@@ -120,6 +120,10 @@ class CacheStore:
         df = pd.DataFrame(data)
         if "datetime" in df.columns:
             df["datetime"] = pd.to_datetime(df["datetime"])
+        # 还原真实数据来源（缓存写入时由 _src 列携带，避免 attrs 在 JSON 往返中丢失）
+        if "_src" in df.columns:
+            df.attrs["_source"] = df["_src"].iloc[0]
+            df.drop(columns=["_src"], inplace=True)
         return df
 
     def set_kline(
@@ -135,6 +139,11 @@ class CacheStore:
             return
         key = self._hash_key([symbol, market, interval, date, str(limit or "")])
         payload = df.copy()
+        # 持久化真实数据来源：pandas attrs 在 JSON 序列化中会丢失，
+        # 缓存命中后将无法还原来源标签，故以临时列携带、读出时还原。
+        src = payload.attrs.get("_source")
+        if src is not None:
+            payload["_src"] = src
         if "datetime" in payload.columns:
             payload["datetime"] = payload["datetime"].astype(str)
         conn = self._conn()

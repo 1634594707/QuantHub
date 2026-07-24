@@ -3,15 +3,15 @@ import { genCandles, type Candle } from '../data/mock'
 import { api } from '../api/client'
 import { useApi } from '../api/useApi'
 
-// UI 周期 → 后端 interval（A股本地 parquet 仅含 5m/15m/1h；1D/1W 暂无本地数据，回退 1h）
+// UI 周期 → 后端 interval（A股在线源支持 5m/15m/1h/daily/weekly）
 const PERIODS = ['5m', '15m', '1H', '1D', '1W'] as const
 type Period = (typeof PERIODS)[number]
 const INTERVAL_MAP: Record<Period, string> = {
   '5m': '5m',
   '15m': '15m',
   '1H': '1h',
-  '1D': '1h',
-  '1W': '1h',
+  '1D': '1d',
+  '1W': '1w',
 }
 const SEEDS: Record<string, number> = { '5m': 11, '15m': 23, '1H': 31, '1D': 42, '1W': 77 }
 const ZOOM_STEPS = [60, 45, 30, 20, 12]
@@ -28,6 +28,22 @@ function fmt(n: number) {
   return n.toLocaleString('en-US', { maximumFractionDigits: 2 })
 }
 
+function dataFreshness(
+  source: 'live' | 'offline' | 'mock',
+  candles: Candle[],
+): { stale: boolean; text: string } {
+  // 仅离线/模拟源需要提示滞后；实时源（腾讯/akshare）本身即最新行情
+  if (source === 'live' || !candles.length) return { stale: false, text: '' }
+  const last = candles[candles.length - 1]
+  const dt = Date.parse(last.t)
+  // ordinal 时间编码无法解析（如本地 parquet 回测数据）→ 直接提示非实时
+  if (Number.isNaN(dt)) return { stale: true, text: '离线数据，非实时' }
+  const diffMs = Date.now() - dt
+  const hours = Math.round(diffMs / 3600000)
+  if (hours < 24) return { stale: false, text: `更新于 ${hours} 小时前` }
+  return { stale: true, text: `数据已延迟 ${Math.floor(hours / 24)} 天` }
+}
+
 interface Props {
   symbol?: string
   market?: string
@@ -41,7 +57,7 @@ export default function KlineCard({
   onSymbolChange,
   onMarketChange,
 }: Props) {
-  const [period, setPeriod] = useState<Period>('1H')
+  const [period, setPeriod] = useState<Period>('1D')
   const [zoom, setZoom] = useState(2) // 0..4, 越大可见 K 线越少
   const [size, setSize] = useState({ w: 780 })
   const [inputSym, setInputSym] = useState(symbol)
@@ -56,13 +72,18 @@ export default function KlineCard({
     [period, symbol, market],
   )
 
-  const isReal = !!data?.ok && data.candles.length > 0
-  const source: 'local' | 'mock' = isReal ? 'local' : 'mock'
+  const isReal = !!data?.ok && data.candles.length > 0 && data.source !== 'empty'
+  // 如实分类数据来源：腾讯/akshare 才算实时；local_parquet 等离线源标为离线，避免伪装成实时
+  const isLive = data?.source === 'tencent' || data?.source === 'akshare'
+  const source: 'live' | 'offline' | 'mock' = isLive ? 'live' : isReal ? 'offline' : 'mock'
+  const hasData = data !== null
 
   const allCandles = useMemo<Candle[]>(() => {
     if (isReal) return data!.candles
-    return genCandles(240, SEEDS[period] ?? 42)
-  }, [isReal, data, period])
+    // 仅在后端失败/返回空时才降级到模拟数据；首次加载中显示骨架屏，避免一闪而过的假价格
+    if (!loading || hasData) return genCandles(240, SEEDS[period] ?? 42)
+    return []
+  }, [isReal, data, period, loading, hasData])
 
   // 容器宽度（响应式铺满）
   useEffect(() => {
@@ -79,6 +100,7 @@ export default function KlineCard({
     return () => ro.disconnect()
   }, [])
 
+  const emptyState = allCandles.length === 0
   const visibleCount = ZOOM_STEPS[zoom]
   const candles = useMemo(() => {
     if (allCandles.length <= visibleCount) return allCandles
@@ -89,6 +111,24 @@ export default function KlineCard({
     useMemo(() => {
       const W = size.w
       const n = candles.length
+      // 空态保护：加载中 / 无数据时返回占位对象，避免 Math.min(...[]) 与 candles[-1] 崩溃
+      if (n === 0) {
+        const zero: Candle = { t: '', o: 0, h: 0, l: 0, c: 0, v: 0 }
+        return {
+          wicks: [],
+          bodies: [],
+          vols: [],
+          gridY: [],
+          gridLabels: [],
+          last: zero,
+          change: 0,
+          pct: 0,
+          yOf: () => 0,
+          periodHigh: 0,
+          periodLow: 0,
+          W,
+        }
+      }
       const plotL = padL
       const plotR = W - padR
       const plotW = Math.max(1, plotR - plotL)
@@ -165,6 +205,7 @@ export default function KlineCard({
   const lastUp = last.c >= last.o
   const lastColor = lastUp ? 'var(--up)' : 'var(--down)'
   const yLast = yOf(last.c)
+  const freshness = useMemo(() => dataFreshness(source, allCandles), [source, allCandles])
 
   const onWheel = (e: React.WheelEvent) => {
     e.preventDefault()
@@ -174,57 +215,44 @@ export default function KlineCard({
 
   return (
     <div className="card">
-      <div className="card-head">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' }}>
-          <div className="card-title">
-            {symbol}
-            <span className="sub mono">{fmt(last.c)}</span>
-            <span className={lastUp ? 'up' : 'down'} style={{ fontWeight: 600, fontSize: 12 }}>
-              {lastUp ? '▲' : '▼'} {fmt(Math.abs(change))} ({pct >= 0 ? '+' : ''}
-              {pct.toFixed(2)}%)
-            </span>
-            <span className={`src-pill ${source === 'local' ? 'live' : 'mock'}`}>
-              {source === 'local' ? '实时' : '模拟'}
-            </span>
-            {loading && <span className="src-pill loading">加载中…</span>}
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' }}>
-            <input
-              value={inputSym}
-              onChange={(e) => setInputSym(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') onSymbolChange?.(inputSym.trim())
-              }}
-              placeholder="输入代码，回车切换"
-              style={{
-                padding: '4px 10px',
-                borderRadius: 'var(--r-sm)',
-                border: '1px solid var(--border)',
-                background: 'var(--bg-elevated)',
-                color: 'var(--text-1)',
-                fontSize: 'var(--fs-13)',
-                width: 160,
-              }}
-            />
-            <select
-              value={market}
-              onChange={(e) => onMarketChange?.(e.target.value as 'a_shares' | 'crypto' | 'us_stocks')}
-              style={{
-                padding: '4px 10px',
-                borderRadius: 'var(--r-sm)',
-                border: '1px solid var(--border)',
-                background: 'var(--bg-elevated)',
-                color: 'var(--text-1)',
-                fontSize: 'var(--fs-13)',
-              }}
-            >
-              <option value="a_shares">A股</option>
-              <option value="crypto">加密</option>
-              <option value="us_stocks">美股</option>
-            </select>
-          </div>
+      <div className="card-head kline-head">
+        <div className="kline-title">
+          <span className="sym">{symbol}</span>
+          <span className="price mono">{emptyState ? '--' : fmt(last.c)}</span>
+          <span className={lastUp ? 'up' : 'down'} style={{ fontWeight: 600, fontSize: 12 }}>
+            {emptyState
+              ? '—'
+              : `${lastUp ? '▲' : '▼'} ${fmt(Math.abs(change))} (${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%)`}
+          </span>
+          <span
+            className={`src-pill ${source === 'live' ? 'live' : source === 'offline' ? 'warn' : 'mock'}`}
+          >
+            {source === 'live' ? '实时' : source === 'offline' ? '离线' : '模拟'}
+          </span>
+          {freshness.stale && <span className="src-pill warn">{freshness.text}</span>}
+          {loading && <span className="src-pill loading">加载中…</span>}
         </div>
-        <div className="kline-toolbar">
+        <div className="kline-controls">
+          <input
+            className="kline-symbol-input"
+            value={inputSym}
+            onChange={(e) => setInputSym(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') onSymbolChange?.(inputSym.trim())
+            }}
+            placeholder="输入代码，回车切换"
+            aria-label="股票代码"
+          />
+          <select
+            className="kline-market-select"
+            value={market}
+            onChange={(e) => onMarketChange?.(e.target.value as 'a_shares' | 'crypto' | 'us_stocks')}
+            aria-label="市场"
+          >
+            <option value="a_shares">A股</option>
+            <option value="crypto">加密</option>
+            <option value="us_stocks">美股</option>
+          </select>
           <div className="zoom-btns" title="滚轮也可缩放">
             <button className="zoom-btn" onClick={() => setZoom((z) => Math.max(0, z - 1))} aria-label="缩小">
               −
@@ -250,12 +278,35 @@ export default function KlineCard({
       </div>
 
       <div className="kline-svg-wrap" ref={wrapRef} onWheel={onWheel}>
+        {loading && (
+          <div className="kline-overlay">
+            <div className="kline-skeleton" />
+          </div>
+        )}
+        {error && !loading && (
+          <div className="kline-overlay kline-overlay-err">
+            <div>
+              <div style={{ fontWeight: 600, marginBottom: 4 }}>后端连接失败</div>
+              <div className="muted" style={{ fontSize: 'var(--fs-12)' }}>
+                已降级为模拟数据展示
+              </div>
+            </div>
+          </div>
+        )}
+        {!loading && allCandles.length === 0 && (
+          <div className="kline-overlay">
+            <div className="muted" style={{ fontSize: 'var(--fs-13)' }}>
+              暂无 K 线数据
+            </div>
+          </div>
+        )}
         <svg
           className="kline-svg"
           viewBox={`0 0 ${W} ${H}`}
           preserveAspectRatio="xMidYMid meet"
           role="img"
           aria-label="K线图，可滚轮缩放"
+          style={{ opacity: loading ? 0.3 : 1, transition: 'opacity 200ms ease' }}
         >
           {gridY.map((y, i) => (
             <g key={i}>
@@ -305,23 +356,23 @@ export default function KlineCard({
       <div className="kline-meta">
         <div className="item">
           <span className="k">开</span>
-          <span className="v mono">{fmt(candles[0].o)}</span>
+          <span className="v mono">{emptyState ? '--' : fmt(candles[0].o)}</span>
         </div>
         <div className="item">
           <span className="k">高</span>
-          <span className="v mono up">{fmt(periodHigh)}</span>
+          <span className="v mono up">{emptyState ? '--' : fmt(periodHigh)}</span>
         </div>
         <div className="item">
           <span className="k">低</span>
-          <span className="v mono down">{fmt(periodLow)}</span>
+          <span className="v mono down">{emptyState ? '--' : fmt(periodLow)}</span>
         </div>
         <div className="item">
           <span className="k">收</span>
-          <span className="v mono">{fmt(last.c)}</span>
+          <span className="v mono">{emptyState ? '--' : fmt(last.c)}</span>
         </div>
         <div className="item">
           <span className="k">量</span>
-          <span className="v mono">{fmt(last.v)}</span>
+          <span className="v mono">{emptyState ? '--' : fmt(last.v)}</span>
         </div>
         <div className="item">
           <span className="k">可见K线</span>
