@@ -1,16 +1,22 @@
+import { useState } from 'react'
 import type { MarketBreadthResp } from '../api/types'
 import { BREADTH, SECTORS } from '../data/mock'
+
+const PREVIEW_COUNT = 5
 
 export default function MarketBreadth({
   data,
 }: {
   data?: MarketBreadthResp | null
 }) {
+  const [expanded, setExpanded] = useState(false)
   const b = data || BREADTH
   const sectors = data?.sectors || SECTORS
   const total = b.up + b.flat + b.down
   const pct = (v: number) => ((v / total) * 100).toFixed(1)
   const top = [...sectors].sort((a, c) => c.chgPct - a.chgPct)
+  const visible = expanded ? top : top.slice(0, PREVIEW_COUNT)
+  const hidden = top.length - PREVIEW_COUNT
 
   return (
     <div className="card">
@@ -40,7 +46,7 @@ export default function MarketBreadth({
         </div>
 
         <div className="breadth-sectors">
-          {top.map((s) => {
+          {visible.map((s) => {
             const up = s.chgPct >= 0
             return (
               <div className="breadth-sector" key={s.name}>
@@ -53,6 +59,16 @@ export default function MarketBreadth({
             )
           })}
         </div>
+
+        {hidden > 0 && (
+          <button
+            type="button"
+            className="breadth-toggle"
+            onClick={() => setExpanded((v) => !v)}
+          >
+            {expanded ? '收起行业' : `展开 ${hidden} 个行业`}
+          </button>
+        )}
       </div>
     </div>
   )
