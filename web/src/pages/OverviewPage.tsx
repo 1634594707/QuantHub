@@ -27,11 +27,11 @@ export default function OverviewPage() {
             onMarketChange={setMarket}
           />
           <HoldingsTable rows={portfolio.data?.holdings} />
+          <Watchlist items={watchlist.data?.items} />
+          <MarketBreadth data={breadth.data} />
         </div>
         <div className="col-right">
           <DecisionPanel symbol={symbol} />
-          <MarketBreadth data={breadth.data} />
-          <Watchlist items={watchlist.data?.items} />
         </div>
       </div>
     </>

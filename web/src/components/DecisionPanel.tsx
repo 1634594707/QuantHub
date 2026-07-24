@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import type { Decision, Direction } from '../data/mock'
 import { DECISION } from '../data/mock'
 import { api } from '../api/client'
@@ -160,6 +160,7 @@ export default function DecisionPanel({
   const d = useMemo(() => mapPaToDecision(data), [data])
   const isReal = !!data?.ok
   const dir = DIR_LABEL[d.direction]
+  const [tab, setTab] = useState<'overview' | 'deep'>('overview')
 
   return (
     <div className="card">
@@ -188,79 +189,103 @@ export default function DecisionPanel({
           </div>
         </div>
 
-        {/* 趋势诊断 */}
-        <div className="d-section">
-          <div className="d-section-title">趋势诊断</div>
-          <div className="d-metrics">
-            <div className="d-metric">
-              <span className="k">趋势</span>
-              <span className="v">{d.trend}</span>
-            </div>
-            <div className="d-metric">
-              <span className="k">周期</span>
-              <span className="v">{d.cycle}</span>
-            </div>
-            <div className="d-metric">
-              <span className="k">阶段</span>
-              <span className="v">{d.phase}</span>
-            </div>
-            <div className="d-metric">
-              <span className="k">双阶段置信</span>
-              <span className="v mono">{d.dualConfidence.stage1}% / {d.dualConfidence.stage2}%</span>
-            </div>
-          </div>
+        {/* 标签页 */}
+        <div className="d-tabs">
+          <button
+            type="button"
+            className={`d-tab ${tab === 'overview' ? 'active' : ''}`}
+            onClick={() => setTab('overview')}
+          >
+            概览
+          </button>
+          <button
+            type="button"
+            className={`d-tab ${tab === 'deep' ? 'active' : ''}`}
+            onClick={() => setTab('deep')}
+          >
+            深度
+          </button>
         </div>
 
-        {/* 交易计划 */}
-        <div className="d-section">
-          <div className="d-section-title">交易计划</div>
-          <div className="d-plan">
-            <div className="d-plan-item">
-              <span className="k">止损</span>
-              <span className="v mono down">{d.stop}</span>
-            </div>
-            <div className="d-plan-arrow">→</div>
-            <div className="d-plan-item">
-              <span className="k">目标</span>
-              <span className="v mono up">{d.target}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* 未来概率 */}
-        <div className="d-section">
-          <div className="d-section-title">未来走势概率</div>
-          <div className="d-probs">
-            <FutureBox title="下一根 K 线" {...d.nextBar} />
-            <FutureBox title="下一周期" {...d.nextCycle} />
-          </div>
-        </div>
-
-        {/* 决策门路径 */}
-        <div className="d-section">
-          <div className="d-section-title">决策门路径</div>
-          <div className="d-trace">
-            {d.gateTrace.map((g, idx) => (
-              <div className="d-trace-step" key={idx}>
-                <div className="d-trace-dot" />
-                {idx < d.gateTrace.length - 1 && <div className="d-trace-line" />}
-                <div className="d-trace-body">
-                  <span className="gate">{g.gate}</span>
-                  <span
-                    className={`res ${
-                      g.result === '通过' ? 'up' : g.result === '边缘' ? 'warn' : g.result === '不通过' ? 'down' : ''
-                    }`}
-                  >
-                    {g.result}
-                  </span>
+        {tab === 'overview' ? (
+          <>
+            {/* 趋势诊断 */}
+            <div className="d-section">
+              <div className="d-section-title">趋势诊断</div>
+              <div className="d-metrics">
+                <div className="d-metric">
+                  <span className="k">趋势</span>
+                  <span className="v">{d.trend}</span>
+                </div>
+                <div className="d-metric">
+                  <span className="k">周期</span>
+                  <span className="v">{d.cycle}</span>
+                </div>
+                <div className="d-metric">
+                  <span className="k">阶段</span>
+                  <span className="v">{d.phase}</span>
+                </div>
+                <div className="d-metric">
+                  <span className="k">双阶段置信</span>
+                  <span className="v mono">{d.dualConfidence.stage1}% / {d.dualConfidence.stage2}%</span>
                 </div>
               </div>
-            ))}
-          </div>
-        </div>
+            </div>
 
-        {/* 原因 */}
-        <div className="d-reason">{d.reason}</div>
+            {/* 交易计划 */}
+            <div className="d-section">
+              <div className="d-section-title">交易计划</div>
+              <div className="d-plan">
+                <div className="d-plan-item">
+                  <span className="k">止损</span>
+                  <span className="v mono down">{d.stop}</span>
+                </div>
+                <div className="d-plan-arrow">→</div>
+                <div className="d-plan-item">
+                  <span className="k">目标</span>
+                  <span className="v mono up">{d.target}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* 原因 */}
+            <div className="d-reason">{d.reason}</div>
+          </>
+        ) : (
+          <>
+            {/* 未来概率 */}
+            <div className="d-section">
+              <div className="d-section-title">未来走势概率</div>
+              <div className="d-probs">
+                <FutureBox title="下一根 K 线" {...d.nextBar} />
+                <FutureBox title="下一周期" {...d.nextCycle} />
+              </div>
+            </div>
+
+            {/* 决策门路径 */}
+            <div className="d-section">
+              <div className="d-section-title">决策门路径</div>
+              <div className="d-trace">
+                {d.gateTrace.map((g, idx) => (
+                  <div className="d-trace-step" key={idx}>
+                    <div className="d-trace-dot" />
+                    {idx < d.gateTrace.length - 1 && <div className="d-trace-line" />}
+                    <div className="d-trace-body">
+                      <span className="gate">{g.gate}</span>
+                      <span
+                        className={`res ${
+                          g.result === '通过' ? 'up' : g.result === '边缘' ? 'warn' : g.result === '不通过' ? 'down' : ''
+                        }`}
+                      >
+                        {g.result}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
 
         {!isReal && !loading && (
           <div className={`run-status ${error ? 'err' : 'ok'}`} role="status">

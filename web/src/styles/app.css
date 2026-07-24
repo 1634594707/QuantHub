@@ -1010,6 +1010,35 @@ table.tbl {
   color: var(--text-1);
 }
 
+/* 标签页 */
+.d-tabs {
+  display: flex;
+  gap: var(--sp-1);
+  background: var(--bg-subtle);
+  padding: 3px;
+  border-radius: var(--r-md);
+}
+.d-tab {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--text-3);
+  font-size: var(--fs-13);
+  font-weight: 500;
+  padding: 6px 10px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: all var(--t-fast);
+}
+.d-tab:hover {
+  color: var(--text-1);
+}
+.d-tab.active {
+  background: var(--bg-elevated);
+  color: var(--text-1);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
 /* 分节 */
 .d-section {
   display: flex;
