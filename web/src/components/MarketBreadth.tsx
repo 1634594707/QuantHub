@@ -17,8 +17,10 @@ export default function MarketBreadth({
       <div className="card-head">
         <div className="card-title">
           市场广度 <span className="sub">全市涨跌分布</span>
+          {b.sample && <span className="src-pill warn" style={{ marginLeft: 'var(--sp-2)' }}>样本</span>}
         </div>
       </div>
+      {b.note && <div className="breadth-note">{b.note}</div>}
       <div className="breadth">
         <div className="breadth-bar" role="img" aria-label={`上涨 ${b.up} 平 ${b.flat} 下跌 ${b.down}`}>
           <i style={{ width: pct(b.up) + '%', background: 'var(--up)' }} />

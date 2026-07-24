@@ -442,6 +442,15 @@ def _tencent_prev_close(symbol: str, market: str) -> float | None:
 
     返回 None 表示取不到。
     """
+    cur, prev = _tencent_quote(symbol, market)
+    return prev
+
+
+def _tencent_quote(symbol: str, market: str) -> tuple[float | None, float | None]:
+    """腾讯实时报价，返回 (当前价, 昨收)；失败返回 (None, None)。
+
+    腾讯 qt 格式（~ 分隔）：索引3=当前价，索引4=昨收。
+    """
     try:
         code = _to_tencent_code(symbol, market)
         r = requests.get(
@@ -455,15 +464,14 @@ def _tencent_prev_close(symbol: str, market: str) -> float | None:
         r.raise_for_status()
         m = re.search(r'="([^"]+)"', r.text)
         if not m:
-            return None
+            return (None, None)
         parts = m.group(1).split("~")
-        # 腾讯 qt 格式：索引3=当前价，索引4=昨收
         if len(parts) < 5:
-            return None
-        return float(parts[4])
+            return (None, None)
+        return (float(parts[3]), float(parts[4]))
     except Exception:
-        logger.exception("腾讯报价取昨收失败 %s/%s", market, symbol)
-        return None
+        logger.exception("腾讯报价失败 %s/%s", market, symbol)
+        return (None, None)
 
 
 @app.get("/portfolio")
@@ -520,21 +528,54 @@ def get_portfolio() -> dict[str, Any]:
     }
 
 
+# 市场广度样本篮子：覆盖主要行业的代表性成分（用于样本口径广度，非全市场）
+_BREADTH_BASKET: list[tuple[str, str]] = [
+    ("600519", "白酒"),
+    ("000858", "白酒"),
+    ("601318", "保险"),
+    ("600036", "银行"),
+    ("601012", "光伏"),
+    ("300750", "新能源"),
+    ("600276", "医药"),
+    ("000333", "家电"),
+    ("600900", "电力"),
+    ("002594", "汽车"),
+    ("688981", "半导体"),
+    ("600030", "券商"),
+]
+
+
 @app.get("/market/breadth")
 def get_market_breadth() -> dict[str, Any]:
-    """返回市场广度与行业涨跌（当前为基于静态分布的示例数据，可替换为 akshare 实时抓取）。"""
-    sectors = [
-        {"name": "半导体", "chgPct": 3.84},
-        {"name": "汽车整车", "chgPct": 2.61},
-        {"name": "通信设备", "chgPct": 1.92},
-        {"name": "白酒", "chgPct": -1.15},
-        {"name": "银行", "chgPct": -0.68},
-    ]
+    """市场广度（样本口径）。
+
+    全市场涨跌家数需 akshare/东财，当前环境代理不放行无法获取；此处用腾讯实时报价
+    取一篮子代表性成分（覆盖主要行业）真实计算涨跌分布，并明确标注 sample=true，
+    绝不伪装成全市场数据。
+    """
+    up = flat = down = 0
+    sector_chg: dict[str, list[float]] = {}
+    for code, sector in _BREADTH_BASKET:
+        cur, prev = _tencent_quote(code, "a_shares")
+        if cur is None or not prev:
+            continue
+        chg = (cur - prev) / prev * 100
+        if chg > 0.05:
+            up += 1
+        elif chg < -0.05:
+            down += 1
+        else:
+            flat += 1
+        sector_chg.setdefault(sector, []).append(chg)
+    sectors = [{"name": s, "chgPct": round(sum(v) / len(v), 2)} for s, v in sector_chg.items()]
+    sectors.sort(key=lambda x: x["chgPct"], reverse=True)
     return {
         "ok": True,
-        "up": 1842,
-        "flat": 213,
-        "down": 1396,
+        "sample": True,
+        "note": "样本广度：一篮子代表性成分（腾讯实时报价），非全市场涨跌家数",
+        "up": up,
+        "flat": flat,
+        "down": down,
         "sectors": sectors,
     }
 

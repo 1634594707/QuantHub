@@ -167,6 +167,9 @@ export interface PortfolioResp {
 
 export interface MarketBreadthResp {
   ok: boolean
+  /** 是否为样本口径（非全市场）；当前环境无法获取全市场涨跌家数时为 true。 */
+  sample?: boolean
+  note?: string
   up: number
   flat: number
   down: number

@@ -33,6 +33,9 @@ export interface Breadth {
   up: number
   flat: number
   down: number
+  /** 兼容 MarketBreadthResp：mock 数据仅作占位，非样本口径。 */
+  sample?: boolean
+  note?: string
 }
 
 export interface Watch {
