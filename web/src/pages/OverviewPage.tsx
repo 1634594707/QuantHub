@@ -6,19 +6,27 @@ import Watchlist from '../components/Watchlist'
 import HoldingsTable from '../components/HoldingsTable'
 import { api } from '../api/client'
 import { useApi } from '../api/useApi'
+import { useState } from 'react'
 
 export default function OverviewPage() {
   const portfolio = useApi(() => api.portfolio(), [])
   const breadth = useApi(() => api.marketBreadth(), [])
   const watchlist = useApi(() => api.watchlist(), [])
+  const [symbol, setSymbol] = useState('600519')
+  const [market, setMarket] = useState<'a_shares' | 'crypto' | 'us_stocks'>('a_shares')
 
   return (
     <>
       <KpiRow summary={portfolio.data?.summary} />
       <div className="grid-2">
-        <KlineCard symbol="600519" market="a_shares" />
+        <KlineCard
+          symbol={symbol}
+          market={market}
+          onSymbolChange={setSymbol}
+          onMarketChange={setMarket}
+        />
         <div className="col-right">
-          <DecisionPanel symbol="600519" />
+          <DecisionPanel symbol={symbol} />
           <MarketBreadth data={breadth.data} />
           <Watchlist items={watchlist.data?.items} />
         </div>

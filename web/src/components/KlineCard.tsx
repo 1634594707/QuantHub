@@ -31,13 +31,24 @@ function fmt(n: number) {
 interface Props {
   symbol?: string
   market?: string
+  onSymbolChange?: (s: string) => void
+  onMarketChange?: (m: 'a_shares' | 'crypto' | 'us_stocks') => void
 }
 
-export default function KlineCard({ symbol = '600519', market = 'a_shares' }: Props) {
+export default function KlineCard({
+  symbol = '600519',
+  market = 'a_shares',
+  onSymbolChange,
+  onMarketChange,
+}: Props) {
   const [period, setPeriod] = useState<Period>('1H')
   const [zoom, setZoom] = useState(2) // 0..4, 越大可见 K 线越少
   const [size, setSize] = useState({ w: 780 })
+  const [inputSym, setInputSym] = useState(symbol)
   const wrapRef = useRef<HTMLDivElement>(null)
+
+  // 外部 symbol 变化时同步输入框
+  useEffect(() => setInputSym(symbol), [symbol])
 
   // ── 真实数据接入：经统一 API 客户端取 K 线，失败/无数据自动降级到模拟 ──
   const { data, loading, error } = useApi(
@@ -164,17 +175,54 @@ export default function KlineCard({ symbol = '600519', market = 'a_shares' }: Pr
   return (
     <div className="card">
       <div className="card-head">
-        <div className="card-title">
-          {symbol}
-          <span className="sub mono">{fmt(last.c)}</span>
-          <span className={lastUp ? 'up' : 'down'} style={{ fontWeight: 600, fontSize: 12 }}>
-            {lastUp ? '▲' : '▼'} {fmt(Math.abs(change))} ({pct >= 0 ? '+' : ''}
-            {pct.toFixed(2)}%)
-          </span>
-          <span className={`src-pill ${source === 'local' ? 'live' : 'mock'}`}>
-            {source === 'local' ? '实时' : '模拟'}
-          </span>
-          {loading && <span className="src-pill loading">加载中…</span>}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' }}>
+          <div className="card-title">
+            {symbol}
+            <span className="sub mono">{fmt(last.c)}</span>
+            <span className={lastUp ? 'up' : 'down'} style={{ fontWeight: 600, fontSize: 12 }}>
+              {lastUp ? '▲' : '▼'} {fmt(Math.abs(change))} ({pct >= 0 ? '+' : ''}
+              {pct.toFixed(2)}%)
+            </span>
+            <span className={`src-pill ${source === 'local' ? 'live' : 'mock'}`}>
+              {source === 'local' ? '实时' : '模拟'}
+            </span>
+            {loading && <span className="src-pill loading">加载中…</span>}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' }}>
+            <input
+              value={inputSym}
+              onChange={(e) => setInputSym(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') onSymbolChange?.(inputSym.trim())
+              }}
+              placeholder="输入代码，回车切换"
+              style={{
+                padding: '4px 10px',
+                borderRadius: 'var(--r-sm)',
+                border: '1px solid var(--border)',
+                background: 'var(--bg-elevated)',
+                color: 'var(--text-1)',
+                fontSize: 'var(--fs-13)',
+                width: 160,
+              }}
+            />
+            <select
+              value={market}
+              onChange={(e) => onMarketChange?.(e.target.value as 'a_shares' | 'crypto' | 'us_stocks')}
+              style={{
+                padding: '4px 10px',
+                borderRadius: 'var(--r-sm)',
+                border: '1px solid var(--border)',
+                background: 'var(--bg-elevated)',
+                color: 'var(--text-1)',
+                fontSize: 'var(--fs-13)',
+              }}
+            >
+              <option value="a_shares">A股</option>
+              <option value="crypto">加密</option>
+              <option value="us_stocks">美股</option>
+            </select>
+          </div>
         </div>
         <div className="kline-toolbar">
           <div className="zoom-btns" title="滚轮也可缩放">
