@@ -658,6 +658,7 @@ button {
   width: 100%;
   height: 100%;
   display: block;
+  cursor: crosshair;
 }
 .kline-overlay {
   position: absolute;
@@ -723,6 +724,86 @@ button {
 .kline-meta .v {
   font-size: var(--fs-13);
   font-weight: 600;
+}
+
+/* ---------------- Kline Toolbar / Legend / Tooltip ---------------- */
+.kline-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-subtle);
+  flex-wrap: wrap;
+}
+.kline-legend {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+.kline-ma-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-2);
+  font-size: var(--fs-12);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--t-fast);
+}
+.kline-ma-toggle:hover {
+  border-color: var(--border-strong);
+  color: var(--text-1);
+}
+.kline-ma-toggle.on {
+  background: var(--accent-weak);
+  border-color: var(--accent-weak);
+  color: var(--accent-strong);
+}
+.kline-ma-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.kline-hint {
+  font-size: var(--fs-12);
+  color: var(--text-3);
+}
+.kline-tooltip {
+  position: absolute;
+  z-index: 5;
+  min-width: 130px;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-md);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-pop);
+  font-size: var(--fs-12);
+  color: var(--text-1);
+  pointer-events: none;
+}
+.kline-tooltip-head {
+  font-weight: 700;
+  margin-bottom: var(--sp-1);
+  padding-bottom: var(--sp-1);
+  border-bottom: 1px solid var(--divider);
+  color: var(--text-2);
+}
+.kline-tooltip-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  line-height: 1.6;
+}
+.kline-tooltip-row span:first-child {
+  color: var(--text-3);
 }
 
 /* ---------------- Holdings Table ---------------- */

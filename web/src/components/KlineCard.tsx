@@ -24,8 +24,37 @@ const priceH = 210
 const volTop = 228
 const volH = 62
 
+const MA_PERIODS = [
+  { key: 5, color: 'var(--ma-5)', label: 'MA5' },
+  { key: 10, color: 'var(--ma-10)', label: 'MA10' },
+  { key: 20, color: 'var(--ma-20)', label: 'MA20' },
+] as const
+
 function fmt(n: number) {
   return n.toLocaleString('en-US', { maximumFractionDigits: 2 })
+}
+
+function fmtTs(t: string) {
+  const d = Date.parse(t)
+  if (Number.isNaN(d)) return t
+  return new Date(d).toLocaleString('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+function computeMA(candles: Candle[], period: number): (number | null)[] {
+  const out: (number | null)[] = []
+  let sum = 0
+  for (let i = 0; i < candles.length; i++) {
+    sum += candles[i].c
+    if (i >= period) sum -= candles[i - period].c
+    if (i >= period - 1) out.push(sum / period)
+    else out.push(null)
+  }
+  return out
 }
 
 function dataFreshness(
@@ -62,6 +91,10 @@ export default function KlineCard({
   const [size, setSize] = useState({ w: 780 })
   const [inputSym, setInputSym] = useState(symbol)
   const wrapRef = useRef<HTMLDivElement>(null)
+
+  const [showMA, setShowMA] = useState({ 5: true, 10: true, 20: false })
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null)
+  const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null)
 
   // 外部 symbol 变化时同步输入框
   useEffect(() => setInputSym(symbol), [symbol])
@@ -107,7 +140,7 @@ export default function KlineCard({
     return allCandles.slice(allCandles.length - visibleCount)
   }, [allCandles, visibleCount])
 
-  const { wicks, bodies, vols, gridY, gridLabels, last, change, pct, yOf, periodHigh, periodLow, W } =
+  const { wicks, bodies, vols, gridY, gridLabels, last, change, pct, yOf, periodHigh, periodLow, W, cw, plotL, maLines, maSeries } =
     useMemo(() => {
       const W = size.w
       const n = candles.length
@@ -127,6 +160,10 @@ export default function KlineCard({
           periodHigh: 0,
           periodLow: 0,
           W,
+          cw: 0,
+          plotL: padL,
+          maLines: [],
+          maSeries: {} as Record<number, (number | null)[]>,
         }
       }
       const plotL = padL
@@ -199,8 +236,32 @@ export default function KlineCard({
       const pct = (change / first.c) * 100
       const periodHigh = Math.max(...candles.map((c) => c.h))
       const periodLow = Math.min(...candles.map((c) => c.l))
-      return { wicks, bodies, vols, gridY, gridLabels, last, change, pct, yOf, periodHigh, periodLow, W }
-    }, [candles, size.w])
+
+      // 在完整数据上计算 MA，再对齐到可见窗口，保证线条连续
+      const offset = allCandles.length - n
+      const maSeries: Record<number, (number | null)[]> = {}
+      const maLines = MA_PERIODS.map(({ key, color }) => {
+        maSeries[key] = computeMA(allCandles, key).slice(offset)
+        if (!showMA[key]) return null
+        const points = maSeries[key]
+          .map((v, i) => (v == null ? null : (`${plotL + cw * (i + 0.5)},${yOf(v)}` as const)))
+          .filter((s): s is `${number},${number}` => s !== null)
+        if (points.length < 2) return null
+        return (
+          <polyline
+            key={key}
+            points={points.join(' ')}
+            fill="none"
+            stroke={color}
+            strokeWidth={1.5}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        )
+      })
+
+      return { wicks, bodies, vols, gridY, gridLabels, last, change, pct, yOf, periodHigh, periodLow, W, cw, plotL, maLines, maSeries }
+    }, [candles, allCandles, size.w, showMA])
 
   const lastUp = last.c >= last.o
   const lastColor = lastUp ? 'var(--up)' : 'var(--down)'
@@ -212,6 +273,26 @@ export default function KlineCard({
     if (e.deltaY < 0) setZoom((z) => Math.min(ZOOM_STEPS.length - 1, z + 1))
     else setZoom((z) => Math.max(0, z - 1))
   }
+
+  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (!wrapRef.current || candles.length === 0) return
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const y = e.clientY - rect.top
+    const n = candles.length
+    const i = Math.min(n - 1, Math.max(0, Math.floor((x - plotL + cw / 2) / cw)))
+    setHoverIdx(i)
+    setMousePos({ x, y })
+  }
+
+  const handleMouseLeave = () => {
+    setHoverIdx(null)
+    setMousePos(null)
+  }
+
+  const hovered = hoverIdx != null ? candles[hoverIdx] : null
+  const hoverX = hoverIdx != null ? plotL + cw * (hoverIdx + 0.5) : 0
+  const hoverY = hovered ? yOf(hovered.c) : 0
 
   return (
     <div className="card">
@@ -277,6 +358,24 @@ export default function KlineCard({
         </div>
       </div>
 
+      <div className="kline-toolbar">
+        <div className="kline-legend">
+          {MA_PERIODS.map(({ key, color, label }) => (
+            <button
+              key={key}
+              type="button"
+              className={`kline-ma-toggle ${showMA[key] ? 'on' : ''}`}
+              onClick={() => setShowMA((s) => ({ ...s, [key]: !s[key] }))}
+              aria-pressed={showMA[key]}
+            >
+              <span className="kline-ma-dot" style={{ background: color }} />
+              {label}
+            </button>
+          ))}
+        </div>
+        <span className="kline-hint">滚轮缩放 · 悬停查看 OHLC 与均线</span>
+      </div>
+
       <div className="kline-svg-wrap" ref={wrapRef} onWheel={onWheel}>
         {loading && (
           <div className="kline-overlay">
@@ -307,6 +406,8 @@ export default function KlineCard({
           role="img"
           aria-label="K线图，可滚轮缩放"
           style={{ opacity: loading ? 0.3 : 1, transition: 'opacity 200ms ease' }}
+          onMouseMove={handleMouseMove}
+          onMouseLeave={handleMouseLeave}
         >
           {gridY.map((y, i) => (
             <g key={i}>
@@ -323,9 +424,44 @@ export default function KlineCard({
             </g>
           ))}
 
+          {maLines}
           {vols}
           {wicks}
           {bodies}
+
+          {/* 十字光标 */}
+          {hovered && (
+            <g className="kline-crosshair">
+              <line
+                x1={hoverX}
+                y1={padT}
+                x2={hoverX}
+                y2={volTop + volH}
+                stroke="var(--text-3)"
+                strokeWidth={1}
+                strokeDasharray="3 3"
+                opacity={0.55}
+              />
+              <line
+                x1={padL}
+                y1={hoverY}
+                x2={W - padR}
+                y2={hoverY}
+                stroke="var(--text-3)"
+                strokeWidth={1}
+                strokeDasharray="3 3"
+                opacity={0.55}
+              />
+              <circle
+                cx={hoverX}
+                cy={hoverY}
+                r={3.5}
+                fill={hovered.c >= hovered.o ? 'var(--up)' : 'var(--down)'}
+                stroke="#fff"
+                strokeWidth={1}
+              />
+            </g>
+          )}
 
           {/* 最新价标签 */}
           <line
@@ -351,6 +487,50 @@ export default function KlineCard({
             {fmt(last.c)}
           </text>
         </svg>
+
+        {/* 悬停提示框 */}
+        {hovered && mousePos && (
+          <div
+            className="kline-tooltip"
+            style={{
+              left: Math.max(8, Math.min(mousePos.x + 14, size.w - 150)),
+              top: Math.max(8, mousePos.y + 14),
+            }}
+          >
+            <div className="kline-tooltip-head">{fmtTs(hovered.t)}</div>
+            <div className="kline-tooltip-row">
+              <span>开</span>
+              <span className="mono">{fmt(hovered.o)}</span>
+            </div>
+            <div className="kline-tooltip-row">
+              <span>高</span>
+              <span className="mono">{fmt(hovered.h)}</span>
+            </div>
+            <div className="kline-tooltip-row">
+              <span>低</span>
+              <span className="mono">{fmt(hovered.l)}</span>
+            </div>
+            <div className="kline-tooltip-row">
+              <span>收</span>
+              <span className={`mono ${hovered.c >= hovered.o ? 'up' : 'down'}`}>{fmt(hovered.c)}</span>
+            </div>
+            <div className="kline-tooltip-row">
+              <span>量</span>
+              <span className="mono">{fmt(hovered.v)}</span>
+            </div>
+            {MA_PERIODS.map(({ key, color, label }) => {
+              const series = maSeries[key]
+              const v = hoverIdx != null ? series?.[hoverIdx] : null
+              if (v == null) return null
+              return (
+                <div key={key} className="kline-tooltip-row">
+                  <span style={{ color }}>{label}</span>
+                  <span className="mono">{fmt(v)}</span>
+                </div>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       <div className="kline-meta">
