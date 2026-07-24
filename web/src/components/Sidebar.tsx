@@ -23,7 +23,7 @@ const NAV = (strategyCount: number) => [
   { key: 'overview', label: '概览', icon: IconGrid, to: '/', end: true },
   { key: 'signal', label: '信号', icon: IconSignal, to: '/signals' },
   { key: 'backtest', label: '回测', icon: IconChart, to: '/backtest' },
-  { key: 'strategy', label: '策略模块', icon: IconLayers, to: '/strategies', badge: String(strategyCount) },
+  { key: 'strategy', label: '策略模块', icon: IconLayers, to: '/strategies' },
   { section: '工作台' },
   { key: 'pa', label: 'PA 分析工作台', icon: IconActivity, to: '/pa', badge: 'AI' },
   { key: 'sentiment', label: '情感分析', icon: IconHeart, to: '/sentiment' },
