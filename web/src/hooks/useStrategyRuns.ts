@@ -1,29 +1,47 @@
-import { useCallback } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { api } from '../api/client'
 import { useLocalStorage } from './useLocalStorage'
 import { uid } from '../lib/uid'
-import type { RunResp } from '../api/types'
-
-export interface RunRecord {
-  id: string
-  name: string
-  params: Record<string, unknown>
-  result: RunResp
-  ts: string
-}
+import type { RunRecord, RunResp } from '../api/types'
 
 const KEY = 'qh.strategy.runs.v1'
 
-/** 本地持久化的策略运行历史（后端无此数据，仅用于前端回顾）。 */
+/** 策略运行历史：后端持久化为真源（跨设备），localStorage 仅作离线兜底（G2）。 */
 export function useStrategyRuns() {
-  const [runs, setRuns] = useLocalStorage<RunRecord[]>(KEY, [])
+  const [local, setLocal] = useLocalStorage<RunRecord[]>(KEY, [])
+  const [runs, setRuns] = useState<RunRecord[]>(local)
+  const didInit = useRef(false)
+
+  useEffect(() => {
+    if (didInit.current) return
+    didInit.current = true
+    api
+      .strategyRuns()
+      .then((r) => setRuns(r.runs))
+      .catch(() => setRuns(local))
+  }, [local])
+
+  useEffect(() => {
+    setLocal(runs)
+  }, [runs, setLocal])
 
   const addRun = useCallback(
-    (name: string, params: Record<string, unknown>, result: RunResp) => {
-      setRuns((prev) =>
-        [{ id: uid(), name, params, result, ts: new Date().toISOString() }, ...prev].slice(0, 200),
-      )
+    async (name: string, params: Record<string, unknown>, result: RunResp) => {
+      const rec: RunRecord = {
+        id: uid(),
+        name,
+        params,
+        result,
+        ts: Date.now() / 1000,
+      }
+      setRuns((prev) => [rec, ...prev].slice(0, 200))
+      try {
+        await api.saveRun(name, params, result)
+      } catch {
+        /* 后端不可用：保留本地 */
+      }
     },
-    [setRuns],
+    [],
   )
 
   const runsFor = useCallback(
@@ -31,12 +49,9 @@ export function useStrategyRuns() {
     [runs],
   )
 
-  const lastRun = useCallback(
-    (name: string) => runs.find((r) => r.name === name),
-    [runs],
-  )
+  const lastRun = useCallback((name: string) => runs.find((r) => r.name === name), [runs])
 
-  const clear = useCallback(() => setRuns([]), [setRuns])
+  const clear = useCallback(() => setRuns([]), [])
 
   return { runs, addRun, runsFor, lastRun, clear }
 }

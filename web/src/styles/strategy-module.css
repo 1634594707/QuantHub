@@ -641,3 +641,76 @@
   border-radius: 6px;
   padding: 0 6px;
 }
+
+.bus-hint.warn {
+  color: var(--down-ink);
+  border-color: color-mix(in srgb, var(--down) 35%, var(--border));
+  background: color-mix(in srgb, var(--down) 12%, transparent);
+}
+
+/* ---------------- 回测表单（G6：工作台内嵌真实回测） ---------------- */
+.bt-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-2);
+}
+.bt-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: var(--fs-13);
+  color: var(--text-2);
+}
+.bt-field .edit-input {
+  width: 100%;
+}
+.bt-equity {
+  margin-top: var(--sp-3);
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg-subtle);
+}
+.bt-equity-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin-top: var(--sp-2);
+}
+
+/* ---------------- 实盘状态（G5：诚实 paper 模式） ---------------- */
+.live-state {
+  margin: var(--sp-3) 0 0;
+  padding: var(--sp-3);
+  border-radius: var(--r-md);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  font-size: var(--fs-12);
+  line-height: 1.5;
+  color: var(--text-2);
+  overflow-x: auto;
+}
+
+/* ---------------- 组合管理：实盘切换（G7） ---------------- */
+.live-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+  font-size: var(--fs-13);
+  color: var(--text-1);
+}
+.live-toggle input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+
+/* ---------------- 板块签名：组合管理（靛蓝，避免与工作台蓝趋同） ---------------- */
+[data-board="portfolio"] {
+  --accent: #6366f1;
+  --accent-weak: rgba(99, 102, 241, 0.14);
+  --accent-strong: #818cf8;
+}

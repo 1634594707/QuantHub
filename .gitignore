@@ -65,6 +65,11 @@ data/*.sqlite3
 data/*.sqlite3*
 data/*.db
 
+# API 运行时 SQLite 持久化（策略预设/运行历史/组合配置）
+apps/api/store.db
+apps/api/store.db-shm
+apps/api/store.db-wal
+
 # ===== 大模型权重（FinBERT2 .safetensors 等）=====
 models/
 !models/.gitkeep

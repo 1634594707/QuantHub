@@ -219,17 +219,8 @@ class SentimentStrategy(StrategyBase):
                 ctx.sell(close, ctx.position, ts)
 
         result = engine.run(klines, on_bar)
-        return {
-            "engine": "event",
-            "symbol": symbol,
-            "sentiment_score": sentiment_score,
-            "direction": direction,
-            "metrics": result.metrics,
-            "final_equity": result.final_equity,
-            "total_return": result.total_return,
-            "max_drawdown": result.max_drawdown,
-            "trades": result.trades,
-        }
+        # 直接返回类型化 BacktestResult（含逐根 equity_curve），由 API 负责序列化。
+        return result
 
     def _fetch_symbol_score(self, symbol: str, news_limit: int) -> float:
         """抓取新闻并聚合出正向概率（回测用）。"""

@@ -5,11 +5,10 @@ import { ThemeProvider } from './theme/ThemeContext'
 import App from './App'
 import OverviewPage from './pages/OverviewPage'
 import SignalsPage from './pages/SignalsPage'
-import BacktestPage from './pages/BacktestPage'
 import StrategiesPage from './pages/StrategiesPage'
 import PaAnalysisPage from './pages/PaAnalysisPage'
-import SentimentPage from './pages/SentimentPage'
 import StrategyDetailPage from './pages/StrategyDetailPage'
+import PortfolioPage from './pages/PortfolioPage'
 import ConfigPage from './pages/ConfigPage'
 import './styles/tokens.css'
 import './styles/app.css'
@@ -22,11 +21,11 @@ const router = createBrowserRouter([
     children: [
       { index: true, element: <OverviewPage /> },
       { path: 'signals', element: <SignalsPage /> },
-      { path: 'backtest', element: <BacktestPage /> },
+      // 回测 / 情感分析 已整合进策略工作台（G6 / 重叠清理），不再独立路由
       { path: 'strategies', element: <StrategiesPage /> },
       { path: 'strategies/:name', element: <StrategyDetailPage /> },
       { path: 'pa', element: <PaAnalysisPage /> },
-      { path: 'sentiment', element: <SentimentPage /> },
+      { path: 'portfolio', element: <PortfolioPage /> },
       { path: 'config', element: <ConfigPage /> },
     ],
   },

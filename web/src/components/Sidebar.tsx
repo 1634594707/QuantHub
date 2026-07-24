@@ -41,7 +41,8 @@ const NAV = (strategyList: StrategyInfo[]): NavEntry[] => [
   { section: '分析' },
   { key: 'overview', label: '概览', icon: IconGrid, to: '/', end: true },
   { key: 'signal', label: '信号', icon: IconSignal, to: '/signals' },
-  { key: 'backtest', label: '回测', icon: IconChart, to: '/backtest' },
+  // 回测：已整合进策略工作台「回测」Tab（G6），不再独立重复页面
+  { key: 'backtest', label: '回测', icon: IconChart, to: '/strategies/supertrend?tab=backtest' },
   {
     key: 'strategy',
     label: '策略模块',
@@ -55,7 +56,9 @@ const NAV = (strategyList: StrategyInfo[]): NavEntry[] => [
   },
   { section: '工作台' },
   { key: 'pa', label: 'PA 分析工作台', icon: IconActivity, to: '/pa' },
-  { key: 'sentiment', label: '情感分析', icon: IconHeart, to: '/sentiment' },
+  // 情感分析：本就是策略模块中的一个策略（name=sentiment），直接进其工作台（消除重复页）
+  { key: 'sentiment', label: '情感分析', icon: IconHeart, to: '/strategies/sentiment' },
+  { key: 'portfolio', label: '组合管理', icon: IconLayers, to: '/portfolio' },
   { key: 'config', label: '配置', icon: IconCog, to: '/config' },
 ]
 

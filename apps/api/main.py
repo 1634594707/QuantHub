@@ -47,6 +47,8 @@ from core.signals import Signal, get_bus
 from strategies import discover_and_register, get_strategy, list_strategies
 from strategies.ai_analysis.pa_agent.two_stage import run_two_stage
 
+from . import store
+
 # 加载 apps/api/.env（含 DEEPSEEK_API_KEY 等密钥）；文件缺失时静默跳过
 load_dotenv(Path(__file__).resolve().parent / ".env")
 
@@ -106,6 +108,36 @@ class PublishRequest(BaseModel):
     meta: dict[str, Any] = Field(default_factory=dict)
 
 
+# G2 预设 / 运行持久化
+class PresetRequest(BaseModel):
+    name: str = Field(min_length=1, description="预设名")
+    params: dict[str, Any] = Field(default_factory=dict)
+
+
+class RunRecordRequest(BaseModel):
+    params: dict[str, Any] = Field(default_factory=dict)
+    result: dict[str, Any] = Field(default_factory=dict)
+
+
+# G6 回测
+class BacktestRequest(BaseModel):
+    symbol: str
+    market: str = "a_shares"
+    interval: str = "1d"
+    limit: int = 300
+    initial_capital: float = 100000.0
+    params: dict[str, Any] = Field(default_factory=dict)
+
+
+# G7 组合配置
+class AllocRequest(BaseModel):
+    strategy: str
+    weight: float = Field(default=0.0, ge=0.0, le=1.0)
+    symbol: str | None = None
+    live: bool = False
+    note: str | None = None
+
+
 # ---------------------------------------------------------------------------
 # 工具
 # ---------------------------------------------------------------------------
@@ -129,6 +161,105 @@ def _signal_to_dict(sig: Any) -> dict[str, Any]:
             "ts": getattr(sig, "ts", None),
         }
     return dict(sig)
+
+
+def _equity_from_trades(trades: list[dict], initial: float) -> list[dict]:
+    """从成交记录推导权益曲线（回测可视化用）。无 pnl 字段时返回空。"""
+    pts: list[dict] = []
+    eq = float(initial)
+    for t in trades:
+        if not isinstance(t, dict):
+            continue
+        pnl = t.get("pnl")
+        if pnl is None:
+            continue
+        eq += float(pnl)
+        ts = t.get("exit_time") or t.get("time") or t.get("ts")
+        pts.append({"t": str(ts) if ts is not None else None, "equity": round(eq, 2)})
+    return pts
+
+
+def _pair_round_trips(fills: list[Any], commission: float = 0.0003) -> list[dict]:
+    """把回测引擎的逐笔成交（buy/sell fills）配对成平仓回合，供前端交易表展示。
+
+    EventEngine 的 trades 是原始开/平成交，缺 entry/exit/pnl；这里用 FIFO 配对
+    还原成可渲染的回合，保证交易表不会全显示「—」/0.00。
+    """
+    open_lots: list[dict] = []  # {price, qty, time}
+    trips: list[dict] = []
+    for f in fills:
+        if not isinstance(f, dict):
+            continue
+        side = str(f.get("side", "")).lower()
+        try:
+            price = float(f.get("price") or 0)
+            qty = float(f.get("qty") or 0)
+        except (TypeError, ValueError):
+            continue
+        ts = f.get("datetime")
+        if side in ("buy", "long", "open"):
+            open_lots.append({"price": price, "qty": qty, "time": ts})
+        elif side in ("sell", "short", "close") and qty > 0 and open_lots:
+            remaining = qty
+            while remaining > 1e-9 and open_lots:
+                lot = open_lots[0]
+                matched = min(lot["qty"], remaining)
+                cost = matched * lot["price"] * (1 + commission)
+                proceeds = matched * price * (1 - commission)
+                pnl = proceeds - cost
+                ret = (price / lot["price"] - 1) * 100 if lot["price"] else 0.0
+                trips.append(
+                    {
+                        "entry_time": str(lot["time"]) if lot["time"] is not None else None,
+                        "exit_time": str(ts) if ts is not None else None,
+                        "pnl": round(pnl, 2),
+                        "return_pct": round(ret, 2),
+                        "qty": round(matched, 4),
+                    }
+                )
+                lot["qty"] -= matched
+                remaining -= matched
+                if lot["qty"] <= 1e-9:
+                    open_lots.pop(0)
+    return trips
+
+
+def _equity_from_result(raw: Any, initial: float) -> list[dict]:
+    """权益曲线：优先取回测引擎自带的逐根权益序列（含持仓中），缺失时回退成交重建。"""
+    curve = None
+    if hasattr(raw, "equity_curve"):
+        curve = raw.equity_curve
+    elif isinstance(raw, dict):
+        curve = raw.get("equity_curve")
+    if isinstance(curve, pd.DataFrame) and not curve.empty and "equity" in curve.columns:
+        df = curve.reset_index(drop=True)
+        # 抽稀：点数过多时均匀降采样，避免 SVG polyline 过大
+        step = max(1, len(df) // 600)
+        pts: list[dict] = []
+        for i in range(0, len(df), step):
+            row = df.iloc[i]
+            ts = row.get("datetime")
+            pts.append(
+                {
+                    "t": str(ts) if ts is not None else None,
+                    "equity": round(float(row["equity"]), 2),
+                }
+            )
+        # 始终保留末点，保证曲线完整收口
+        if pts and step > 1 and (len(df) - 1) % step != 0:
+            row = df.iloc[-1]
+            ts = row.get("datetime")
+            pts.append(
+                {
+                    "t": str(ts) if ts is not None else None,
+                    "equity": round(float(row["equity"]), 2),
+                }
+            )
+        return pts
+    return _equity_from_trades(
+        [t if isinstance(t, dict) else vars(t) for t in (getattr(raw, "trades", []) or [])],
+        initial,
+    )
 
 
 def _call_produce(strategy: Any, params: dict[str, Any]) -> list[Any]:
@@ -192,6 +323,18 @@ def get_strategies() -> dict[str, Any]:
     return {"count": len(out), "strategies": out}
 
 
+@app.get("/strategies/presets")
+def get_all_presets() -> dict[str, Any]:
+    """全部策略预设，按 strategy 分组（前端 forStrategy 同步读取用）。"""
+    return {"presets": store.list_presets()}
+
+
+@app.get("/strategies/runs")
+def get_all_runs() -> dict[str, Any]:
+    """全部运行历史（前端 runsFor 同步过滤用）。"""
+    return {"runs": store.list_runs()}
+
+
 @app.get("/strategies/{name}")
 def get_strategy_info(name: str) -> dict[str, Any]:
     _ensure_discovered()
@@ -220,10 +363,14 @@ def run_strategy(name: str, req: RunRequest) -> dict[str, Any]:
     try:
         raw = _call_produce(strategy, req.params)
         signals = [_signal_to_dict(s) for s in raw]
-        return {"ok": True, "name": name, "count": len(signals), "signals": signals}
+        result = {"ok": True, "name": name, "count": len(signals), "signals": signals}
+        store.add_run(name, req.params, result)
+        return result
     except Exception as exc:  # 单策略失败不影响网关
         logger.exception("策略 %s 运行失败", name)
-        return {"ok": False, "name": name, "error": str(exc), "signals": []}
+        result = {"ok": False, "name": name, "error": str(exc), "signals": []}
+        store.add_run(name, req.params, result)
+        return result
 
 
 def _resolve_pa_market(symbol: str, market: str | None = None) -> str:
@@ -339,6 +486,180 @@ def get_signals(
     # 让工作台「信号」Tab 与信号中心共用同一数据源（消除双源割裂）。
     history = get_bus().history(limit=limit, source=source, market=market)
     return {"count": len(history), "signals": [_signal_to_dict(s) for s in history]}
+
+
+# ---------------------------------------------------------------------------
+# G2 策略预设 / 运行历史（后端持久化，跨设备）
+# ---------------------------------------------------------------------------
+@app.get("/strategies/{name}/presets")
+def get_presets(name: str) -> dict[str, Any]:
+    return {"presets": store.list_presets().get(name, [])}
+
+
+@app.post("/strategies/{name}/presets")
+def create_preset(name: str, req: PresetRequest) -> dict[str, Any]:
+    _ensure_discovered()
+    if name not in list_strategies():
+        raise HTTPException(status_code=404, detail=f"未知策略: {name}")
+    return {"ok": True, "preset": store.save_preset(name, req.name, req.params)}
+
+
+@app.delete("/strategies/{name}/presets/{pid}")
+def delete_preset_endpoint(name: str, pid: str) -> dict[str, Any]:
+    store.delete_preset(name, pid)
+    return {"ok": True}
+
+
+@app.post("/strategies/{name}/runs")
+def create_run(name: str, req: RunRecordRequest) -> dict[str, Any]:
+    return {"ok": True, "run": store.add_run(name, req.params, req.result)}
+
+
+# ---------------------------------------------------------------------------
+# G6 回测（接真实 StrategyBase.backtest，消除「假回测」重复页）
+# ---------------------------------------------------------------------------
+@app.post("/strategies/{name}/backtest")
+def backtest_strategy(name: str, req: BacktestRequest) -> dict[str, Any]:
+    _ensure_discovered()
+    ss = list_strategies()
+    if name not in ss:
+        raise HTTPException(status_code=404, detail=f"未知策略: {name}")
+    try:
+        strategy = get_strategy(name, config={"enabled": True})
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"策略实例化失败: {exc}") from exc
+    try:
+        ds = get_data_source(req.market)
+        klines = ds.get_kline(req.symbol, req.interval, limit=req.limit)
+    except Exception as exc:
+        logger.exception("回测取 K 线失败 %s/%s", req.market, req.symbol)
+        return {"ok": False, "error": f"取 K 线失败: {exc}", "symbol": req.symbol}
+    if klines is None or klines.empty:
+        return {"ok": False, "error": "K 线为空（回测需要历史数据）", "symbol": req.symbol}
+    try:
+        raw = strategy.backtest(klines, initial_capital=req.initial_capital, **req.params)
+    except Exception as exc:
+        logger.exception("策略 %s 回测失败", name)
+        return {"ok": False, "error": str(exc), "symbol": req.symbol}
+    # 归一化：兼容 BacktestResult 与 dict 两种返回
+    if hasattr(raw, "to_summary"):
+        summary = raw.to_summary()
+        trades = [t if isinstance(t, dict) else vars(t) for t in raw.trades]
+    else:
+        summary = {
+            "engine": raw.get("engine", "unknown"),
+            "final_equity": raw.get("final_equity", 0.0),
+            "total_return": raw.get("total_return", 0.0),
+            "max_drawdown": raw.get("max_drawdown", 0.0),
+            "metrics": raw.get("metrics", {}),
+            "n_trades": len(raw.get("trades", []) or []),
+        }
+        trades = raw.get("trades", []) or []
+    # 事件引擎的 trades 是逐笔成交（无 pnl/entry/exit），配对成平仓回合再展示
+    if trades and all(isinstance(t, dict) and "side" in t for t in trades):
+        paired = _pair_round_trips(trades)
+        summary = {**summary, "n_trades": len(paired)}
+        trades = paired
+    equity = _equity_from_result(raw, req.initial_capital)
+    return {
+        "ok": True,
+        "name": name,
+        "symbol": req.symbol,
+        "market": req.market,
+        "summary": summary,
+        "trades": trades,
+        "equity": equity,
+    }
+
+
+# ---------------------------------------------------------------------------
+# G7 组合管理（配置 + 聚合概览），命名空间 /portfolio/manage 避免与持仓端点冲突
+# ---------------------------------------------------------------------------
+@app.get("/portfolio/manage")
+def get_portfolio_manage() -> dict[str, Any]:
+    allocs = store.list_allocs()
+    bus = get_bus().history(limit=200)
+    long_n = sum(1 for s in bus if s.direction in ("buy", "bullish"))
+    short_n = sum(1 for s in bus if s.direction in ("sell", "bearish"))
+    hold_n = len(bus) - long_n - short_n
+    total_w = sum(a["weight"] for a in allocs)
+    live_n = sum(1 for a in allocs if a["live"])
+    max_w = max((a["weight"] for a in allocs), default=0.0)
+    summary = {
+        "n_alloc": len(allocs),
+        "total_weight": round(total_w, 4),
+        "live_count": live_n,
+        "exposure": {
+            "long": long_n,
+            "short": short_n,
+            "hold": hold_n,
+            "total": len(bus),
+        },
+        "max_weight": round(max_w, 4),
+        "concentration": round(max_w / total_w, 4) if total_w > 0 else 0.0,
+    }
+    return {"allocations": allocs, "summary": summary}
+
+
+@app.post("/portfolio/manage/allocations")
+def create_alloc(req: AllocRequest) -> dict[str, Any]:
+    _ensure_discovered()
+    if req.strategy not in list_strategies():
+        raise HTTPException(status_code=404, detail=f"未知策略: {req.strategy}")
+    return {
+        "ok": True,
+        "alloc": store.save_alloc(req.strategy, req.weight, req.symbol, req.live, req.note),
+    }
+
+
+@app.delete("/portfolio/manage/allocations/{aid}")
+def delete_alloc_endpoint(aid: str) -> dict[str, Any]:
+    store.delete_alloc(aid)
+    return {"ok": True}
+
+
+@app.post("/portfolio/manage/allocations/{aid}/live")
+def set_alloc_live(aid: str, live: bool = False) -> dict[str, Any]:
+    store.update_alloc_live(aid, live)
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# G5 实盘（诚实 paper 模式：无 broker 配置时 live_tick 为 no-op，不伪造成交）
+# ---------------------------------------------------------------------------
+@app.get("/strategies/{name}/live")
+def get_live_status(name: str) -> dict[str, Any]:
+    _ensure_discovered()
+    ss = list_strategies()
+    if name not in ss:
+        raise HTTPException(status_code=404, detail=f"未知策略: {name}")
+    return {
+        "name": name,
+        "live_capable": ss[name].live_capable,
+        "is_live": False,
+        "note": "实盘需要交易所/券商 API 配置；未配置时 live_tick 为 no-op（模拟态），不产生真实成交。",
+    }
+
+
+@app.post("/strategies/{name}/live/tick")
+def live_tick(name: str) -> dict[str, Any]:
+    _ensure_discovered()
+    ss = list_strategies()
+    if name not in ss:
+        raise HTTPException(status_code=404, detail=f"未知策略: {name}")
+    try:
+        strategy = get_strategy(name, config={"enabled": True})
+        out = strategy.live_tick()
+    except Exception as exc:
+        logger.exception("live_tick %s 失败", name)
+        return {"ok": False, "mode": "paper", "error": str(exc)}
+    return {
+        "ok": True,
+        "mode": "paper",
+        "live_capable": ss[name].live_capable,
+        "state": out,
+        "note": "模拟态：未连接 broker，不产生真实成交。",
+    }
 
 
 # ---------------------------------------------------------------------------

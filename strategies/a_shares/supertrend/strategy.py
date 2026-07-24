@@ -206,15 +206,9 @@ class SuperTrendStrategy(StrategyBase):
 
         engine = EventEngine(initial_capital=initial_capital)
         result = engine.run(df, on_bar)
-
-        return {
-            "engine": result.engine,
-            "metrics": result.metrics,
-            "final_equity": result.final_equity,
-            "total_return": result.total_return,
-            "max_drawdown": result.max_drawdown,
-            "trades": result.trades,
-        }
+        # 直接返回类型化 BacktestResult（含逐根 equity_curve），由 API 负责序列化。
+        # 单一来源，避免 dict 化时丢字段导致前端权益曲线为空。
+        return result
 
 
 def run_scan(

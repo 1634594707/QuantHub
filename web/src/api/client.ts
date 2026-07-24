@@ -7,12 +7,17 @@
 
 import type {
   ApiKeyResp,
+  BacktestResp,
   HealthResp,
   KlineResp,
+  LiveResp,
   MarketBreadthResp,
   PaAnalyzeResp,
+  PortfolioManageResp,
   PortfolioResp,
+  Preset,
   QuoteResp,
+  RunRecord,
   RunResp,
   SignalsResp,
   StrategiesResp,
@@ -88,6 +93,55 @@ export const api = {
     getJSON<QuoteResp>(
       `/market/quote?symbol=${encodeURIComponent(symbol)}&market=${encodeURIComponent(market)}`,
     ),
+
+  // ---- G2 预设 / 运行历史（后端持久化）----
+  strategyPresets: () => getJSON<{ presets: Record<string, Preset[]> }>('/strategies/presets'),
+  savePreset: (name: string, presetName: string, params: Record<string, unknown>) =>
+    getJSON<{ ok: boolean; preset: Preset }>(`/strategies/${encodeURIComponent(name)}/presets`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: presetName, params }),
+    }),
+  deletePreset: (name: string, id: string) =>
+    getJSON<{ ok: boolean }>(`/strategies/${encodeURIComponent(name)}/presets/${id}`, {
+      method: 'DELETE',
+    }),
+  strategyRuns: () => getJSON<{ runs: RunRecord[] }>('/strategies/runs'),
+  saveRun: (name: string, params: Record<string, unknown>, result: RunResp) =>
+    getJSON<{ ok: boolean; run: RunRecord }>(`/strategies/${encodeURIComponent(name)}/runs`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ params, result }),
+    }),
+
+  // ---- G6 回测 ----
+  backtest: (name: string, payload: Record<string, unknown>) =>
+    getJSON<BacktestResp>(`/strategies/${encodeURIComponent(name)}/backtest`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }),
+
+  // ---- G7 组合管理 ----
+  portfolioManage: () => getJSON<PortfolioManageResp>('/portfolio/manage'),
+  saveAlloc: (payload: Record<string, unknown>) =>
+    getJSON<{ ok: boolean; alloc: unknown }>('/portfolio/manage/allocations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }),
+  deleteAlloc: (id: string) =>
+    getJSON<{ ok: boolean }>(`/portfolio/manage/allocations/${id}`, { method: 'DELETE' }),
+  setAllocLive: (id: string, live: boolean) =>
+    getJSON<{ ok: boolean }>(`/portfolio/manage/allocations/${id}/live?live=${live}`, {
+      method: 'POST',
+    }),
+
+  // ---- G5 实盘（paper）----
+  liveStatus: (name: string) =>
+    getJSON<LiveResp>(`/strategies/${encodeURIComponent(name)}/live`),
+  liveTick: (name: string) =>
+    getJSON<LiveResp>(`/strategies/${encodeURIComponent(name)}/live/tick`, { method: 'POST' }),
 
   getApiKey: () => getJSON<ApiKeyResp>('/config/apikey'),
 

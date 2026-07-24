@@ -191,7 +191,7 @@ function StrategyCard({
   onRun,
 }: {
   st: StrategyInfo
-  last?: { result: { ok: boolean; count: number; error?: string }; ts: string }
+  last?: { result: { ok: boolean; count: number; error?: string }; ts: number }
   running: boolean
   onClick: () => void
   onRun: (e: React.MouseEvent) => void

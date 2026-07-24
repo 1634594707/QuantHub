@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { api } from '../api/client'
 import { useApi } from '../api/useApi'
-import type { RunResp, SignalResp } from '../api/types'
+import type { BacktestResp, LiveResp, RunResp, SignalResp } from '../api/types'
 import {
   defaultParams,
   marketBadge,
@@ -17,7 +17,7 @@ import { useSignals } from '../hooks/useSignals'
 import { matchDir } from '../lib/signal-utils'
 import { formatRelativeTime } from '../lib/time'
 
-type Tab = 'overview' | 'params' | 'run' | 'history' | 'signals'
+type Tab = 'overview' | 'params' | 'run' | 'history' | 'signals' | 'backtest' | 'live'
 
 function paramsPreview(params: Record<string, unknown>) {
   return Object.entries(params)
@@ -93,8 +93,34 @@ function SignalResults({ signals }: { signals: SignalResp[] }) {
   )
 }
 
+/** 权益曲线（纯 SVG，零依赖）。points 为 {t, equity} 序列。 */
+function EquityCurve({ points, initial }: { points: Array<{ t: string | null; equity: number }>; initial: number }) {
+  const W = 720
+  const H = 200
+  const pad = 24
+  if (points.length < 2) return null
+  const eqs = points.map((p) => p.equity)
+  const min = Math.min(initial, ...eqs)
+  const max = Math.max(initial, ...eqs)
+  const span = max - min || 1
+  const stepX = (W - pad * 2) / (points.length - 1)
+  const y = (v: number) => H - pad - ((v - min) / span) * (H - pad * 2)
+  const x = (i: number) => pad + i * stepX
+  const d = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(p.equity).toFixed(1)}`).join(' ')
+  const baseY = y(initial)
+  const lastUp = points[points.length - 1].equity >= initial
+  const stroke = lastUp ? 'var(--up-ink)' : 'var(--down-ink)'
+  return (
+    <svg className="bt-equity-svg" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" role="img" aria-label="权益曲线">
+      <line x1={pad} y1={baseY} x2={W - pad} y2={baseY} stroke="var(--border)" strokeDasharray="3 3" />
+      <path d={d} fill="none" stroke={stroke} strokeWidth={2} />
+    </svg>
+  )
+}
+
 export default function StrategyDetailPage() {
   const { name } = useParams<{ name: string }>()
+  const [searchParams] = useSearchParams()
   const strategies = useApi(() => api.strategies(), [])
   const strategy = strategies.data?.strategies.find((s) => s.name === name)
 
@@ -111,7 +137,61 @@ export default function StrategyDetailPage() {
   const [runError, setRunError] = useState('')
   const [presetName, setPresetName] = useState('')
   const [loadedPreset, setLoadedPreset] = useState('')
-  const [tab, setTab] = useState<Tab>('overview')
+
+  // ?tab= 直达（侧栏「回测工作台」可跳 /strategies/supertrend?tab=backtest）
+  const initialTab = (searchParams.get('tab') as Tab | null) || 'overview'
+  const [tab, setTab] = useState<Tab>(initialTab)
+
+  // ---- G6 回测 ----
+  const [btSymbol, setBtSymbol] = useState('600519')
+  const [btMarket, setBtMarket] = useState('a_shares')
+  const [btInterval, setBtInterval] = useState('1d')
+  const [btLimit, setBtLimit] = useState(300)
+  const [btCapital, setBtCapital] = useState(100000)
+  const [btResult, setBtResult] = useState<BacktestResp | null>(null)
+  const [btRunning, setBtRunning] = useState(false)
+  const [btError, setBtError] = useState('')
+
+  async function handleBacktest() {
+    if (!name) return
+    setBtRunning(true)
+    setBtError('')
+    setBtResult(null)
+    try {
+      const resp = await api.backtest(name, {
+        symbol: btSymbol,
+        market: btMarket,
+        interval: btInterval,
+        limit: btLimit,
+        initial_capital: btCapital,
+      })
+      setBtResult(resp)
+    } catch (err) {
+      setBtError(err instanceof Error ? err.message : '回测失败')
+    } finally {
+      setBtRunning(false)
+    }
+  }
+
+  // ---- G5 实盘（paper）----
+  const liveInfo = useApi(() => (name ? api.liveStatus(name) : Promise.resolve(null)), [name])
+  const [liveState, setLiveState] = useState<unknown>(null)
+  const [liveRunning, setLiveRunning] = useState(false)
+  const [liveError, setLiveError] = useState('')
+
+  async function handleLiveTick() {
+    if (!name) return
+    setLiveRunning(true)
+    setLiveError('')
+    try {
+      const resp = await api.liveTick(name)
+      setLiveState(resp.state ?? null)
+    } catch (err) {
+      setLiveError(err instanceof Error ? err.message : '实盘 tick 失败')
+    } finally {
+      setLiveRunning(false)
+    }
+  }
 
   const lastOkRun = useMemo(
     () => history.find((h) => h.result.ok && h.result.signals.length > 0),
@@ -174,8 +254,10 @@ export default function StrategyDetailPage() {
     { key: 'overview', label: '概览' },
     { key: 'params', label: '参数' },
     { key: 'run', label: '运行' },
+    { key: 'backtest', label: '回测' },
     { key: 'history', label: '历史' },
     { key: 'signals', label: '信号' },
+    { key: 'live', label: '实盘' },
   ]
 
   return (
@@ -426,6 +508,189 @@ export default function StrategyDetailPage() {
           </>
         )}
 
+        {/* 回测（G6：接真实 backtest()，替代原重复的「假回测」页） */}
+        {tab === 'backtest' && (
+          <>
+            <div className="detail-section">
+              <div className="detail-section-title">回测设置</div>
+              <div className="bt-form">
+                <label className="bt-field">
+                  <span>标的</span>
+                  <input
+                    className="edit-input"
+                    value={btSymbol}
+                    onChange={(e) => setBtSymbol(e.target.value)}
+                  />
+                </label>
+                <label className="bt-field">
+                  <span>市场</span>
+                  <select
+                    className="edit-input"
+                    value={btMarket}
+                    onChange={(e) => setBtMarket(e.target.value)}
+                  >
+                    <option value="a_shares">A股</option>
+                    <option value="us_stocks">美股</option>
+                    <option value="crypto">加密</option>
+                  </select>
+                </label>
+                <label className="bt-field">
+                  <span>周期</span>
+                  <select
+                    className="edit-input"
+                    value={btInterval}
+                    onChange={(e) => setBtInterval(e.target.value)}
+                  >
+                    <option value="1d">日线</option>
+                    <option value="1h">1小时</option>
+                    <option value="4h">4小时</option>
+                  </select>
+                </label>
+                <label className="bt-field">
+                  <span>K线数</span>
+                  <input
+                    className="edit-input"
+                    type="number"
+                    value={btLimit}
+                    onChange={(e) => setBtLimit(Number(e.target.value) || 300)}
+                  />
+                </label>
+                <label className="bt-field">
+                  <span>初始资金</span>
+                  <input
+                    className="edit-input"
+                    type="number"
+                    value={btCapital}
+                    onChange={(e) => setBtCapital(Number(e.target.value) || 100000)}
+                  />
+                </label>
+              </div>
+              <div className="detail-actions">
+                <button
+                  className="period-tab"
+                  onClick={handleBacktest}
+                  disabled={btRunning || !btSymbol.trim()}
+                  style={{ background: 'var(--accent)', color: '#fff' }}
+                >
+                  {btRunning ? '回测中…' : '运行回测'}
+                </button>
+              </div>
+              {btError && <div className="run-error">{btError}</div>}
+            </div>
+
+            {btResult && (
+              <div className="detail-section">
+                <div className="detail-section-title">回测结果</div>
+                {!btResult.ok ? (
+                  <div className="run-error">{btResult.error || '回测失败'}</div>
+                ) : (
+                  <>
+                    <div className="overview-stats">
+                      <div className="stat-tile">
+                        <span className="k">引擎</span>
+                        <span className="v mono">{btResult.summary?.engine ?? '—'}</span>
+                      </div>
+                      <div className="stat-tile">
+                        <span className="k">收益率</span>
+                        <span
+                          className="v mono"
+                          style={{
+                            color:
+                              (btResult.summary?.total_return ?? 0) >= 0
+                                ? 'var(--up-ink)'
+                                : 'var(--down-ink)',
+                          }}
+                        >
+                          {((btResult.summary?.total_return ?? 0) * 100).toFixed(2)}%
+                        </span>
+                      </div>
+                      <div className="stat-tile">
+                        <span className="k">最大回撤</span>
+                        <span className="v mono" style={{ color: 'var(--down-ink)' }}>
+                          {((btResult.summary?.max_drawdown ?? 0) * 100).toFixed(2)}%
+                        </span>
+                      </div>
+                      <div className="stat-tile">
+                        <span className="k">成交数</span>
+                        <span className="v mono">{btResult.summary?.n_trades ?? 0}</span>
+                      </div>
+                      <div className="stat-tile">
+                        <span className="k">夏普</span>
+                        <span className="v mono">
+                          {btResult.summary?.metrics?.sharpe?.toFixed(2) ?? '—'}
+                        </span>
+                      </div>
+                      <div className="stat-tile">
+                        <span className="k">胜率</span>
+                        <span className="v mono">
+                          {btResult.summary?.metrics?.win_rate != null
+                            ? `${(btResult.summary.metrics.win_rate * 100).toFixed(1)}%`
+                            : '—'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {btResult.equity.length > 1 && (
+                      <div className="bt-equity">
+                        <div className="detail-section-title">权益曲线</div>
+                        <EquityCurve points={btResult.equity} initial={btCapital} />
+                      </div>
+                    )}
+
+                    <div className="detail-section-title" style={{ marginTop: 'var(--sp-3)' }}>
+                      成交明细
+                    </div>
+                    {btResult.trades.length > 0 ? (
+                      <div className="table-wrap">
+                        <table className="tbl">
+                          <thead>
+                            <tr>
+                              <th>#</th>
+                              <th>开仓</th>
+                              <th>平仓</th>
+                              <th>盈亏</th>
+                              <th>收益%</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {btResult.trades.slice(0, 50).map((t, i) => {
+                              const pnl = Number(t.pnl ?? 0)
+                              const ret = Number(t.return_pct ?? t.ret_pct ?? 0)
+                              return (
+                                <tr key={i}>
+                                  <td className="mono">{i + 1}</td>
+                                  <td className="mono">{String(t.entry_time ?? t.entry ?? '—')}</td>
+                                  <td className="mono">{String(t.exit_time ?? t.exit ?? '—')}</td>
+                                  <td
+                                    className="mono"
+                                    style={{ color: pnl >= 0 ? 'var(--up-ink)' : 'var(--down-ink)' }}
+                                  >
+                                    {pnl.toFixed(2)}
+                                  </td>
+                                  <td
+                                    className="mono"
+                                    style={{ color: ret >= 0 ? 'var(--up-ink)' : 'var(--down-ink)' }}
+                                  >
+                                    {ret.toFixed(2)}%
+                                  </td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="muted" style={{ fontSize: 'var(--fs-13)' }}>
+                        该回测未返回逐笔成交（策略 backtest() 未产出 trades）。
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </>
+        )}
+
         {/* 历史 */}
         {tab === 'history' && (
           <div className="detail-section">
@@ -484,6 +749,47 @@ export default function StrategyDetailPage() {
               </>
             ) : (
               <div className="empty-hint">请先在「运行」页运行策略以生成信号。</div>
+            )}
+          </div>
+        )}
+
+        {/* 实盘（G5：诚实 paper 模式，无 broker 配置不产生真实成交） */}
+        {tab === 'live' && (
+          <div className="detail-section">
+            <div className="detail-section-title">实盘状态</div>
+            {liveInfo.loading ? (
+              <div className="muted">加载中…</div>
+            ) : (
+              <>
+                <div className="overview-stats">
+                  <div className="stat-tile">
+                    <span className="k">实盘能力</span>
+                    <span className="v">{liveInfo.data?.live_capable ? '可实盘' : '回测/分析'}</span>
+                  </div>
+                  <div className="stat-tile">
+                    <span className="k">当前模式</span>
+                    <span className="v mono">{liveInfo.data?.is_live ? 'LIVE' : 'PAPER'}</span>
+                  </div>
+                </div>
+                <div className="bus-hint warn">
+                  {liveInfo.data?.note ||
+                    '实盘需要交易所/券商 API 配置；未配置时 live_tick 为 no-op（模拟态），不产生真实成交。'}
+                </div>
+                <div className="detail-actions">
+                  <button
+                    className="period-tab"
+                    onClick={handleLiveTick}
+                    disabled={liveRunning}
+                    style={{ background: 'var(--accent)', color: '#fff' }}
+                  >
+                    {liveRunning ? 'Tick 中…' : '模拟一次 Tick'}
+                  </button>
+                </div>
+                {liveError && <div className="run-error">{liveError}</div>}
+                {liveState != null && (
+                  <pre className="live-state">{JSON.stringify(liveState, null, 2)}</pre>
+                )}
+              </>
             )}
           </div>
         )}

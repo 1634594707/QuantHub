@@ -66,6 +66,72 @@ export interface RunResp {
   error?: string
 }
 
+// ---- G2 预设 / 运行历史（后端持久化）----
+export interface Preset {
+  id: string
+  name: string
+  params: Record<string, unknown>
+}
+
+export interface RunRecord {
+  id: string
+  name: string
+  params: Record<string, unknown>
+  result: RunResp
+  ts: number // epoch seconds
+}
+
+// ---- G6 回测 ----
+export interface BacktestResp {
+  ok: boolean
+  name: string
+  symbol: string
+  market: string
+  error?: string
+  summary?: {
+    engine: string
+    final_equity: number
+    total_return: number
+    max_drawdown: number
+    metrics: Record<string, number>
+    n_trades: number
+  }
+  trades: Array<Record<string, unknown>>
+  equity: Array<{ t: string | null; equity: number }>
+}
+
+// ---- G7 组合管理 ----
+export interface PortfolioManageResp {
+  allocations: Array<{
+    id: string
+    strategy: string
+    weight: number
+    symbol: string | null
+    live: boolean
+    note: string | null
+  }>
+  summary: {
+    n_alloc: number
+    total_weight: number
+    live_count: number
+    exposure: { long: number; short: number; hold: number; total: number }
+    max_weight: number
+    concentration: number
+  }
+}
+
+// ---- G5 实盘（paper）----
+export interface LiveResp {
+  ok?: boolean
+  name: string
+  live_capable: boolean
+  is_live?: boolean
+  mode?: string
+  state?: unknown
+  note?: string
+  error?: string
+}
+
 // ---------- PA 分析视图模型（来自 pa_agent.view_models） ----------
 
 export interface PaAnalyzeResp {
