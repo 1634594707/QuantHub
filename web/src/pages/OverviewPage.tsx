@@ -19,19 +19,21 @@ export default function OverviewPage() {
     <>
       <KpiRow summary={portfolio.data?.summary} />
       <div className="grid-2">
-        <KlineCard
-          symbol={symbol}
-          market={market}
-          onSymbolChange={setSymbol}
-          onMarketChange={setMarket}
-        />
+        <div className="col-left">
+          <KlineCard
+            symbol={symbol}
+            market={market}
+            onSymbolChange={setSymbol}
+            onMarketChange={setMarket}
+          />
+          <HoldingsTable rows={portfolio.data?.holdings} />
+        </div>
         <div className="col-right">
           <DecisionPanel symbol={symbol} />
           <MarketBreadth data={breadth.data} />
           <Watchlist items={watchlist.data?.items} />
         </div>
       </div>
-      <HoldingsTable rows={portfolio.data?.holdings} />
     </>
   )
 }

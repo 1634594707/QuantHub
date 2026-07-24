@@ -5,7 +5,11 @@ import { api } from '../api/client'
 import { useApi } from '../api/useApi'
 import type { DecisionView, FutureTrendView, PaAnalyzeResp } from '../api/types'
 
-const DIR_LABEL: Record<Direction, string> = { long: '看多 · 做多', short: '看空 · 做空', hold: '观望' }
+const DIR_LABEL: Record<Direction, { title: string; sub: string }> = {
+  long: { title: '看多 · 建议做多', sub: '趋势向上，风险可控' },
+  short: { title: '看空 · 建议做空', sub: '趋势承压，谨慎参与' },
+  hold: { title: '观望', sub: '信号不明确，等待确认' },
+}
 
 function parseDirection(raw: string | null | undefined): Direction {
   const s = (raw || '').trim().toLowerCase()
@@ -91,23 +95,23 @@ function mapPaToDecision(resp: PaAnalyzeResp | null): Decision {
   }
 }
 
+function probColor(label: string): string {
+  const bullish = ['上涨', '继续上涨', '主升', '突破', '走强', '反弹']
+  const bearish = ['下跌', '回调', '见顶', '走弱', '回落', '下跌']
+  if (bullish.some((k) => label.includes(k))) return 'var(--up)'
+  if (bearish.some((k) => label.includes(k))) return 'var(--down)'
+  return 'var(--text-3)'
+}
+
 function probBar(label: string, prob: number, i: number) {
+  const color = i === 0 ? probColor(label) : 'var(--text-3)'
   return (
-    <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
-      <span style={{ width: 68, color: 'var(--text-2)' }}>{label}</span>
-      <div style={{ flex: 1, height: 6, borderRadius: 999, background: 'var(--bg-elevated)', overflow: 'hidden' }}>
-        <div
-          style={{
-            width: `${(prob * 100).toFixed(0)}%`,
-            height: '100%',
-            borderRadius: 999,
-            background: i === 0 ? 'var(--accent)' : 'var(--text-3)',
-          }}
-        />
+    <div key={label} className="d-prob-row">
+      <span className="d-prob-label">{label}</span>
+      <div className="d-prob-track">
+        <div className="d-prob-fill" style={{ width: `${(prob * 100).toFixed(0)}%`, background: color }} />
       </div>
-      <span className="mono" style={{ width: 34, textAlign: 'right', fontWeight: 600 }}>
-        {(prob * 100).toFixed(0)}%
-      </span>
+      <span className="d-prob-value mono">{(prob * 100).toFixed(0)}%</span>
     </div>
   )
 }
@@ -124,30 +128,20 @@ function FutureBox({
   remainder?: number
 }) {
   return (
-    <div className="d-cell">
-      <div className="k" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        {title}
-        <span
-          style={{
-            fontSize: 11,
-            padding: '2px 6px',
-            borderRadius: 999,
-            background: predictable ? 'rgba(22,199,132,0.12)' : 'var(--accent-weak)',
-            color: predictable ? 'var(--up-ink)' : 'var(--accent-strong)',
-          }}
-        >
+    <div className="d-prob-card">
+      <div className="d-prob-head">
+        <span className="d-prob-title">{title}</span>
+        <span className={`d-prob-badge ${predictable ? 'on' : 'off'}`}>
           {predictable ? '可预测' : '不可预测'}
         </span>
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
+      <div className="d-prob-list">
         {top3.map((t, i) => probBar(t.label, t.prob, i))}
-        {remainder != null && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
-            <span style={{ width: 68, color: 'var(--text-3)' }}>其他</span>
-            <span style={{ flex: 1 }} />
-            <span className="mono" style={{ width: 34, textAlign: 'right', color: 'var(--text-3)' }}>
-              {(remainder * 100).toFixed(0)}%
-            </span>
+        {remainder != null && remainder > 0.001 && (
+          <div className="d-prob-row">
+            <span className="d-prob-label muted">其他</span>
+            <div className="d-prob-track" />
+            <span className="d-prob-value mono muted">{(remainder * 100).toFixed(0)}%</span>
           </div>
         )}
       </div>
@@ -165,74 +159,107 @@ export default function DecisionPanel({
   const { data, loading, error, refetch } = useApi(() => api.analyzePa(symbol, timeframe), [symbol, timeframe])
   const d = useMemo(() => mapPaToDecision(data), [data])
   const isReal = !!data?.ok
+  const dir = DIR_LABEL[d.direction]
 
   return (
     <div className="card">
       <div className="card-head">
-        <div className="card-title">
-          PA 决策面板 <span className="sub">AI · 二阶段推理</span>
-        </div>
-        <button
-          className="run-btn"
-          onClick={refetch}
-          disabled={loading}
-          title={`对 ${symbol} 运行 PA 分析`}
-        >
+        <div className="card-title">PA 决策面板</div>
+        <button className="run-btn" onClick={refetch} disabled={loading} title={`对 ${symbol} 运行 PA 分析`}>
           {loading ? '分析中…' : '运行 PA 分析'}
         </button>
       </div>
       <div className="decision">
-        <span className={`dir-pill ${d.direction}`}>{DIR_LABEL[d.direction]}</span>
-
-        <div className="d-grid">
-          <div className="d-cell">
-            <div className="k">趋势</div>
-            <div className="v">{d.trend}</div>
+        {/* 大方向牌 */}
+        <div className={`d-verdict ${d.direction}`}>
+          <div className="d-verdict-main">
+            <span className={`dir-pill ${d.direction}`}>{dir.title}</span>
+            <div className="d-verdict-sub">{dir.sub}</div>
           </div>
-          <div className="d-cell">
-            <div className="k">周期</div>
-            <div className="v">{d.cycle}</div>
-          </div>
-          <div className="d-cell">
-            <div className="k">阶段</div>
-            <div className="v">{d.phase}</div>
-          </div>
-          <div className="d-cell">
-            <div className="k">Stage1 / Stage2 置信度</div>
-            <div className="v mono">
-              {d.dualConfidence.stage1}% / {d.dualConfidence.stage2}%
+          <div className="d-verdict-stats">
+            <div className="d-verdict-stat">
+              <span className="k">胜率</span>
+              <span className="v mono">{d.winRate}%</span>
             </div>
-          </div>
-          <div className="d-cell">
-            <div className="k">止损 / 目标</div>
-            <div className="v mono down">
-              {d.stop} / <span className="up">{d.target}</span>
-            </div>
-          </div>
-          <div className="d-cell">
-            <div className="k">盈亏比 · 胜率</div>
-            <div className="v mono">
-              {d.riskReward} · {d.winRate}%
+            <div className="d-verdict-stat">
+              <span className="k">盈亏比</span>
+              <span className="v mono">{d.riskReward}:1</span>
             </div>
           </div>
         </div>
 
-        <div className="d-subsection">未来走势概率分布</div>
-        <div className="d-future">
-          <FutureBox title="下一根 K 线" {...d.nextBar} />
-          <FutureBox title="下一周期" {...d.nextCycle} />
-        </div>
-
-        <div className="d-subsection">决策门路径</div>
-        <div className="d-trace">
-          {d.gateTrace.map((g, idx) => (
-            <div className="d-trace-row" key={idx}>
-              <span className="gate">{g.gate}</span>
-              <span className={`res ${g.result === '通过' ? 'up' : g.result === '边缘' ? 'warn' : ''}`}>{g.result}</span>
+        {/* 趋势诊断 */}
+        <div className="d-section">
+          <div className="d-section-title">趋势诊断</div>
+          <div className="d-metrics">
+            <div className="d-metric">
+              <span className="k">趋势</span>
+              <span className="v">{d.trend}</span>
             </div>
-          ))}
+            <div className="d-metric">
+              <span className="k">周期</span>
+              <span className="v">{d.cycle}</span>
+            </div>
+            <div className="d-metric">
+              <span className="k">阶段</span>
+              <span className="v">{d.phase}</span>
+            </div>
+            <div className="d-metric">
+              <span className="k">双阶段置信</span>
+              <span className="v mono">{d.dualConfidence.stage1}% / {d.dualConfidence.stage2}%</span>
+            </div>
+          </div>
         </div>
 
+        {/* 交易计划 */}
+        <div className="d-section">
+          <div className="d-section-title">交易计划</div>
+          <div className="d-plan">
+            <div className="d-plan-item">
+              <span className="k">止损</span>
+              <span className="v mono down">{d.stop}</span>
+            </div>
+            <div className="d-plan-arrow">→</div>
+            <div className="d-plan-item">
+              <span className="k">目标</span>
+              <span className="v mono up">{d.target}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* 未来概率 */}
+        <div className="d-section">
+          <div className="d-section-title">未来走势概率</div>
+          <div className="d-probs">
+            <FutureBox title="下一根 K 线" {...d.nextBar} />
+            <FutureBox title="下一周期" {...d.nextCycle} />
+          </div>
+        </div>
+
+        {/* 决策门路径 */}
+        <div className="d-section">
+          <div className="d-section-title">决策门路径</div>
+          <div className="d-trace">
+            {d.gateTrace.map((g, idx) => (
+              <div className="d-trace-step" key={idx}>
+                <div className="d-trace-dot" />
+                {idx < d.gateTrace.length - 1 && <div className="d-trace-line" />}
+                <div className="d-trace-body">
+                  <span className="gate">{g.gate}</span>
+                  <span
+                    className={`res ${
+                      g.result === '通过' ? 'up' : g.result === '边缘' ? 'warn' : g.result === '不通过' ? 'down' : ''
+                    }`}
+                  >
+                    {g.result}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* 原因 */}
         <div className="d-reason">{d.reason}</div>
 
         {!isReal && !loading && (

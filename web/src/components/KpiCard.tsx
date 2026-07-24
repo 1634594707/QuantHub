@@ -14,8 +14,19 @@ function Sparkline({ data, up }: { data: number[]; up: boolean }) {
     })
     .join(' ')
   const color = up ? 'var(--up)' : 'var(--down)'
+  const fillColor = up ? 'var(--up)' : 'var(--down)'
   return (
     <svg className="spark" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none">
+      <defs>
+        <linearGradient id={`sparkFill-${up ? 'up' : 'down'}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={fillColor} stopOpacity="0.25" />
+          <stop offset="100%" stopColor={fillColor} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <polygon
+        points={`0,${h} ${pts} ${w},${h}`}
+        fill={`url(#sparkFill-${up ? 'up' : 'down'})`}
+      />
       <polyline points={pts} fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" />
     </svg>
   )
@@ -33,10 +44,6 @@ export default function KpiCard({ item }: { item: Kpi }) {
       <div className="kpi-foot">
         <span className={`delta ${up ? 'up' : 'down'}`}>
           {up ? '▲' : '▼'} {item.deltaAbs}
-        </span>
-        <span className={up ? 'up' : 'down'} style={{ fontWeight: 600 }}>
-          {up ? '+' : ''}
-          {item.deltaPct.toFixed(2)}%
         </span>
         <Sparkline data={item.spark} up={up} />
       </div>

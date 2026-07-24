@@ -3,6 +3,19 @@ import type { Holding } from '../data/mock'
 import { HOLDINGS } from '../data/mock'
 
 const fmt = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 2 })
+const fmtInt = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 0 })
+
+function WinRateBar({ value }: { value: number }) {
+  const pct = Math.min(100, Math.max(0, value))
+  return (
+    <div className="winrate">
+      <span className="winrate-value">{value}%</span>
+      <div className="winrate-track">
+        <div className="winrate-fill" style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  )
+}
 
 export default function HoldingsTable({ rows }: { rows?: PortfolioHolding[] | Holding[] }) {
   const data = rows && rows.length > 0 ? rows : HOLDINGS
@@ -15,24 +28,26 @@ export default function HoldingsTable({ rows }: { rows?: PortfolioHolding[] | Ho
         <button className="link-btn">全部持仓 →</button>
       </div>
       <div className="table-wrap">
-        <table className="tbl">
+        <table className="tbl holdings-tbl">
           <thead>
             <tr>
-              <th>标的</th>
-              <th>最新价</th>
-              <th>涨跌幅</th>
-              <th>持仓</th>
-              <th>浮动盈亏</th>
-              <th>胜率</th>
+              <th className="col-name">标的</th>
+              <th className="col-num">最新价</th>
+              <th className="col-num">涨跌幅</th>
+              <th className="col-num">持仓</th>
+              <th className="col-num">市值</th>
+              <th className="col-num">浮动盈亏</th>
+              <th className="col-win">胜率</th>
             </tr>
           </thead>
           <tbody>
             {data.map((r) => {
               const up = r.chgPct >= 0
               const pnlUp = r.pnl >= 0
+              const mkt = r.price * r.shares
               return (
                 <tr key={r.code}>
-                  <td>
+                  <td className="col-name">
                     <div className="sym">
                       <div className="sym-badge">{r.name.slice(0, 1)}</div>
                       <div>
@@ -41,21 +56,19 @@ export default function HoldingsTable({ rows }: { rows?: PortfolioHolding[] | Ho
                       </div>
                     </div>
                   </td>
-                  <td className="mono">{fmt(r.price)}</td>
-                  <td className={`mono ${up ? 'up' : 'down'}`} style={{ fontWeight: 600 }}>
+                  <td className="col-num mono">{fmt(r.price)}</td>
+                  <td className={`col-num mono chg ${up ? 'up' : 'down'}`}>
                     {up ? '+' : ''}
                     {r.chgPct.toFixed(2)}%
                   </td>
-                  <td className="mono">{r.shares.toLocaleString('en-US')}</td>
-                  <td className={`mono ${pnlUp ? 'up' : 'down'}`} style={{ fontWeight: 600 }}>
+                  <td className="col-num mono">{fmtInt(r.shares)}</td>
+                  <td className="col-num mono">{fmtInt(mkt)}</td>
+                  <td className={`col-num mono pnl ${pnlUp ? 'up' : 'down'}`}>
                     {pnlUp ? '+' : '-'}
                     {fmt(Math.abs(r.pnl))}
                   </td>
-                  <td className="mono">
-                    {r.winRate}%
-                    <span className="winbar">
-                      <i style={{ width: `${Math.min(100, Math.max(0, r.winRate))}%` }} />
-                    </span>
+                  <td className="col-win">
+                    <WinRateBar value={r.winRate} />
                   </td>
                 </tr>
               )

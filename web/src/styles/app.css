@@ -509,8 +509,10 @@ button {
 .kpi-foot {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: var(--sp-2);
   font-size: var(--fs-12);
+  margin-top: auto;
 }
 .delta {
   display: inline-flex;
@@ -520,6 +522,7 @@ button {
   padding: 2px 7px;
   border-radius: var(--r-pill);
   font-size: var(--fs-12);
+  white-space: nowrap;
 }
 .delta.up {
   background: rgba(22, 199, 132, 0.12);
@@ -530,19 +533,22 @@ button {
 .spark {
   width: 64px;
   height: 26px;
+  flex-shrink: 0;
+  opacity: 0.85;
 }
 
 /* ---------------- Overview Grid ---------------- */
 .grid-2 {
   display: grid;
-  grid-template-columns: 1fr 340px;
+  grid-template-columns: 1fr 360px;
   gap: var(--sp-5);
   align-items: start;
 }
+.col-left,
 .col-right {
   display: flex;
   flex-direction: column;
-  gap: var(--sp-4);
+  gap: var(--sp-5);
 }
 
 /* ---------------- Kline Card ---------------- */
@@ -808,22 +814,24 @@ button {
 
 /* ---------------- Holdings Table ---------------- */
 .table-wrap {
-  padding: var(--sp-2) var(--sp-3) var(--sp-3);
+  padding: var(--sp-2) 0 var(--sp-3) 0;
   overflow-x: auto;
 }
 table.tbl {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   font-size: var(--fs-13);
 }
 .tbl th {
   text-align: right;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--text-3);
-  padding: var(--sp-2) var(--sp-3);
+  padding: 10px var(--sp-3);
   border-bottom: 1px solid var(--border);
   white-space: nowrap;
   font-size: var(--fs-12);
+  letter-spacing: 0.2px;
 }
 .tbl th:first-child,
 .tbl td:first-child {
@@ -831,9 +839,10 @@ table.tbl {
 }
 .tbl td {
   text-align: right;
-  padding: var(--sp-2) var(--sp-3);
+  padding: 12px var(--sp-3);
   border-bottom: 1px solid var(--divider);
   white-space: nowrap;
+  vertical-align: middle;
 }
 .tbl tbody tr {
   transition: background var(--t-fast);
@@ -841,46 +850,76 @@ table.tbl {
 .tbl tbody tr:hover {
   background: var(--surface-hover);
 }
+.tbl tbody tr:last-child td {
+  border-bottom: none;
+}
+.tbl .col-name {
+  width: 22%;
+  min-width: 160px;
+}
+.tbl .col-num {
+  width: 11%;
+  min-width: 90px;
+}
+.tbl .col-win {
+  width: 110px;
+  min-width: 110px;
+}
+.tbl .chg,
+.tbl .pnl {
+  font-weight: 700;
+}
 .sym {
   display: flex;
   align-items: center;
   gap: var(--sp-3);
 }
 .sym-badge {
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
-  background: var(--bg-subtle);
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: var(--bg-elevated);
   display: grid;
   place-items: center;
   font-weight: 700;
   font-size: var(--fs-12);
   color: var(--text-1);
   border: 1px solid var(--border);
+  flex-shrink: 0;
 }
 .sym-name {
   font-weight: 600;
-  font-size: var(--fs-15);
+  font-size: var(--fs-14);
 }
 .sym-code {
   font-size: var(--fs-12);
   color: var(--text-3);
+  margin-top: 1px;
 }
-.winbar {
+.winrate {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+.winrate-value {
+  font-size: var(--fs-12);
+  font-weight: 600;
+  color: var(--text-1);
+  font-family: var(--font-mono);
+}
+.winrate-track {
   width: 72px;
-  height: 6px;
+  height: 5px;
   border-radius: var(--r-pill);
-  background: var(--bg-subtle);
+  background: var(--bg-elevated);
   overflow: hidden;
-  display: inline-block;
-  vertical-align: middle;
-  margin-left: var(--sp-2);
 }
-.winbar > i {
-  display: block;
+.winrate-fill {
   height: 100%;
-  background: var(--accent);
   border-radius: var(--r-pill);
+  background: linear-gradient(90deg, var(--accent-strong), var(--accent));
+  transition: width 400ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* ---------------- Decision Panel ---------------- */
@@ -888,7 +927,43 @@ table.tbl {
   padding: var(--sp-3);
   display: flex;
   flex-direction: column;
+  gap: var(--sp-4);
+}
+
+/* 大方向牌 */
+.d-verdict {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: var(--sp-3);
+  padding: var(--sp-4);
+  border-radius: var(--r-lg);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  position: relative;
+  overflow: hidden;
+}
+.d-verdict::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+}
+.d-verdict.long::before {
+  background: var(--up);
+}
+.d-verdict.short::before {
+  background: var(--down);
+}
+.d-verdict.hold::before {
+  background: var(--accent);
+}
+.d-verdict-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
 }
 .dir-pill {
   align-self: flex-start;
@@ -909,68 +984,239 @@ table.tbl {
   background: var(--accent-weak);
   color: var(--accent-strong);
 }
-.d-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--sp-2);
-}
-.d-cell {
-  background: var(--bg-subtle);
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-  padding: var(--sp-2) var(--sp-3);
-}
-.d-cell .k {
-  font-size: var(--fs-12);
-  color: var(--text-3);
-  margin-bottom: 2px;
-}
-.d-cell .v {
-  font-size: var(--fs-14);
-  font-weight: 600;
-}
-.d-reason {
+.d-verdict-sub {
   font-size: var(--fs-13);
   color: var(--text-2);
-  line-height: 1.55;
-  padding: var(--sp-3);
-  background: var(--bg-subtle);
-  border-radius: var(--r-md);
-  border-left: 3px solid var(--accent);
 }
-.d-subsection {
+.d-verdict-stats {
+  display: flex;
+  gap: var(--sp-3);
+  flex-shrink: 0;
+}
+.d-verdict-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  min-width: 52px;
+}
+.d-verdict-stat .k {
   font-size: var(--fs-12);
   color: var(--text-3);
-  font-weight: 600;
-  margin: 2px 0 -4px;
 }
+.d-verdict-stat .v {
+  font-size: var(--fs-15);
+  font-weight: 700;
+  color: var(--text-1);
+}
+
+/* 分节 */
+.d-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.d-section-title {
+  font-size: var(--fs-12);
+  font-weight: 600;
+  color: var(--text-3);
+  letter-spacing: 0.3px;
+}
+
+/* 指标网格 */
+.d-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--sp-2);
+}
+.d-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-md);
+  background: var(--bg-subtle);
+}
+.d-metric .k {
+  font-size: var(--fs-12);
+  color: var(--text-3);
+}
+.d-metric .v {
+  font-size: var(--fs-13);
+  font-weight: 600;
+  color: var(--text-1);
+  word-break: break-word;
+}
+
+/* 交易计划 */
+.d-plan {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+  border-radius: var(--r-md);
+  background: var(--bg-subtle);
+}
+.d-plan-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.d-plan-item .k {
+  font-size: var(--fs-12);
+  color: var(--text-3);
+}
+.d-plan-item .v {
+  font-size: var(--fs-18);
+  font-weight: 700;
+}
+.d-plan-arrow {
+  color: var(--text-3);
+  font-size: var(--fs-18);
+  padding: 0 var(--sp-1);
+}
+
+/* 概率分布 */
+.d-probs {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--sp-2);
+}
+.d-prob-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border-radius: var(--r-md);
+  background: var(--bg-subtle);
+}
+.d-prob-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+.d-prob-title {
+  font-size: var(--fs-13);
+  font-weight: 600;
+  color: var(--text-1);
+}
+.d-prob-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: var(--r-pill);
+}
+.d-prob-badge.on {
+  background: rgba(22, 199, 132, 0.12);
+  color: var(--up-ink);
+}
+.d-prob-badge.off {
+  background: var(--accent-weak);
+  color: var(--accent-strong);
+}
+.d-prob-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.d-prob-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-12);
+}
+.d-prob-label {
+  width: 64px;
+  color: var(--text-2);
+  flex-shrink: 0;
+}
+.d-prob-track {
+  flex: 1;
+  height: 6px;
+  border-radius: var(--r-pill);
+  background: var(--bg-elevated);
+  overflow: hidden;
+}
+.d-prob-fill {
+  height: 100%;
+  border-radius: var(--r-pill);
+  transition: width 400ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.d-prob-value {
+  width: 38px;
+  text-align: right;
+  font-weight: 600;
+  color: var(--text-1);
+  flex-shrink: 0;
+}
+
+/* 决策门时间线 */
 .d-trace {
   display: flex;
   flex-direction: column;
-  gap: var(--sp-1);
+  gap: 0;
+  padding-left: var(--sp-2);
 }
-.d-trace-row {
+.d-trace-step {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  position: relative;
+  padding: 7px 0;
+}
+.d-trace-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+  z-index: 1;
+  box-shadow: 0 0 0 3px var(--bg-subtle);
+}
+.d-trace-line {
+  position: absolute;
+  left: 3px;
+  top: 15px;
+  bottom: -8px;
+  width: 2px;
+  background: var(--border-strong);
+  z-index: 0;
+}
+.d-trace-body {
+  flex: 1;
   display: flex;
   align-items: center;
   justify-content: space-between;
   font-size: var(--fs-13);
-  padding: 5px var(--sp-2);
-  border-radius: var(--r-md);
-  background: var(--bg-subtle);
 }
-.d-trace-row .gate {
-  color: var(--text-3);
+.d-trace-body .gate {
+  color: var(--text-2);
 }
-.d-trace-row .res {
+.d-trace-body .res {
   font-weight: 600;
   color: var(--text-1);
 }
-.d-future {
-  display: flex;
-  gap: var(--sp-2);
+.d-trace-body .res.up {
+  color: var(--up-ink);
 }
-.d-future .d-cell {
-  flex: 1;
+.d-trace-body .res.down {
+  color: var(--down-ink);
+}
+.d-trace-body .res.warn {
+  color: var(--warn-ink);
+}
+
+/* 原因 */
+.d-reason {
+  font-size: var(--fs-13);
+  color: var(--text-2);
+  line-height: 1.65;
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--bg-subtle);
+  border-radius: var(--r-md);
+  border-left: 3px solid var(--accent);
 }
 
 /* ---------------- Market Breadth ---------------- */
