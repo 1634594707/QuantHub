@@ -155,10 +155,12 @@ class CacheStore:
         conn.commit()
 
     # ===== 文档缓存（新闻/公告）=====
-    def get_docs(self, kind: str, symbol: str | None) -> list[dict] | None:
+    def get_docs(
+        self, kind: str, symbol: str | None, limit: int | None = None
+    ) -> list[dict] | None:
         cfg = get_config().get("data_feed", {}).get("cache", {})
         ttl = cfg.get("announcement_ttl_hours", 24) * 3600
-        key = self._hash_key([kind, symbol or ""])
+        key = self._hash_key([kind, symbol or "", str(limit or "")])
         conn = self._conn()
         row = conn.execute(
             "SELECT payload, created_at FROM doc_cache WHERE cache_key = ?",
@@ -171,8 +173,10 @@ class CacheStore:
             return None
         return json.loads(payload)
 
-    def set_docs(self, kind: str, symbol: str | None, docs: list[dict]) -> None:
-        key = self._hash_key([kind, symbol or ""])
+    def set_docs(
+        self, kind: str, symbol: str | None, docs: list[dict], limit: int | None = None
+    ) -> None:
+        key = self._hash_key([kind, symbol or "", str(limit or "")])
         conn = self._conn()
         conn.execute(
             "INSERT OR REPLACE INTO doc_cache "

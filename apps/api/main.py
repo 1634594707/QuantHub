@@ -133,9 +133,18 @@ def _call_produce(strategy: Any, params: dict[str, Any]) -> list[Any]:
     try:
         sig = inspect.signature(strategy.produce)
         accept = set(sig.parameters.keys())
+        has_var_keyword = any(
+            p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()
+        )
     except (TypeError, ValueError):
         accept = set()
-    kwargs = {k: v for k, v in params.items() if k in accept} if accept else dict(params)
+        has_var_keyword = False
+
+    if has_var_keyword:
+        # 显式声明的参数优先匹配；其余全部透传给 **kwargs
+        kwargs = dict(params)
+    else:
+        kwargs = {k: v for k, v in params.items() if k in accept} if accept else dict(params)
     try:
         result = strategy.produce(**kwargs)
     except TypeError:

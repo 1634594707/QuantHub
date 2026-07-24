@@ -6,11 +6,13 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from collections.abc import Iterable
 from datetime import datetime, timedelta
 
 import pandas as pd
+import requests
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from core.config import get_config
@@ -141,7 +143,14 @@ class AkshareSource(DataSource):
         return df[[c for c in keep if c in df.columns]].reset_index(drop=True)
 
     def get_news(self, symbol: str | None = None, limit: int = 50) -> list[News]:
-        """获取财经新闻（akshare 财联社快讯）。"""
+        """获取财经新闻（优先按股票代码查东财个股新闻，否则回退全球快讯）。"""
+        if symbol:
+            try:
+                return self._fetch_stock_news_em(symbol, limit)
+            except Exception:
+                logger.warning(
+                    "akshare 个股新闻获取失败 %s，尝试 global 新闻", symbol, exc_info=True
+                )
 
         @self._retryer()
         def _fetch():
@@ -164,6 +173,84 @@ class AkshareSource(DataSource):
                     ts=ts.to_pydatetime() if hasattr(ts, "to_pydatetime") else ts,
                     source="eastmoney",
                     url=row.get("链接") or row.get("url"),
+                )
+            )
+        return news
+
+    def _fetch_stock_news_em(self, symbol: str, limit: int) -> list[News]:
+        """调用东方财富 search-api-web 获取个股新闻（绕过 akshare 的 pandas/arrow bug）。"""
+        url = "https://search-api-web.eastmoney.com/search/jsonp"
+        inner_param = {
+            "uid": "",
+            "keyword": symbol,
+            "type": ["cmsArticleWebOld"],
+            "client": "web",
+            "clientType": "web",
+            "clientVersion": "curr",
+            "param": {
+                "cmsArticleWebOld": {
+                    "searchScope": "default",
+                    "sort": "default",
+                    "pageIndex": 1,
+                    "pageSize": min(limit, 100),
+                    "preTag": "<em>",
+                    "postTag": "</em>",
+                }
+            },
+        }
+        cb = "jQuery35101792940631092459_1764599530165"
+        params = {
+            "cb": cb,
+            "param": json.dumps(inner_param, ensure_ascii=False),
+            "_": "1764599530176",
+        }
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Referer": f"https://so.eastmoney.com/news/s?keyword={symbol}",
+        }
+
+        @self._retryer()
+        def _fetch():
+            r = requests.get(url, params=params, headers=headers, timeout=15)
+            r.raise_for_status()
+            return r.text
+
+        data_text = _fetch()
+        prefix = cb + "("
+        if data_text.startswith(prefix):
+            data_json = _json.loads(data_text[len(prefix) : -1])
+        else:
+            data_json = _json.loads(data_text)
+        items = data_json.get("result", {}).get("cmsArticleWebOld", [])
+
+        def _clean(text: str) -> str:
+            return (
+                str(text or "")
+                .replace("<em>", "")
+                .replace("</em>", "")
+                .replace("\u3000", "")
+                .replace("\r\n", " ")
+                .replace("\r", " ")
+                .replace("\n", " ")
+                .strip()
+            )
+
+        news: list[News] = []
+        for it in items[:limit]:
+            ts_raw = it.get("date", datetime.now().isoformat())
+            try:
+                ts = pd.to_datetime(ts_raw).to_pydatetime()
+            except Exception:
+                ts = datetime.now()
+            news.append(
+                News(
+                    title=_clean(it.get("title", "")),
+                    content=_clean(it.get("content", "")),
+                    ts=ts,
+                    source=str(it.get("mediaName", "eastmoney")),
+                    url=f"http://finance.eastmoney.com/a/{it.get('code', '')}.html"
+                    if it.get("code")
+                    else None,
                 )
             )
         return news

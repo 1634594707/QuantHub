@@ -63,14 +63,20 @@ class SentimentStrategy(StrategyBase):
     # 信号产出
     # ------------------------------------------------------------------
 
-    def produce(self, symbols: list[str] | None = None, **kwargs: Any) -> list[Signal]:
+    def produce(
+        self,
+        symbols: list[str] | None = None,
+        news_limit: int = 50,
+        timeframe: str = "daily",
+        **kwargs: Any,
+    ) -> list[Signal]:
         """对给定股票列表抓取新闻并产出情绪信号。
 
         Args:
             symbols: 股票代码列表（如 ["000001", "600519"]）；为空时返回空列表
-            **kwargs:
-                news_limit: 每只股票最大新闻条数（默认 50）
-                timeframe: 信号周期（默认 "daily"）
+            news_limit: 每只股票最大新闻条数（默认 50）
+            timeframe: 信号周期（默认 "daily"）
+            **kwargs: 兼容旧调用（symbol_list 等）
         Returns:
             信号列表（已推入总线）
         """
@@ -79,8 +85,8 @@ class SentimentStrategy(StrategyBase):
             logger.debug("sentiment.produce 未提供 symbols，跳过")
             return []
 
-        news_limit = int(kwargs.get("news_limit", 50))
-        timeframe = str(kwargs.get("timeframe", "daily"))
+        news_limit = int(news_limit)
+        timeframe = str(timeframe)
         ds = get_data_source(_MARKET)
 
         signals: list[Signal] = []

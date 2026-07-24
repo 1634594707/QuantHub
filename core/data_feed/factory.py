@@ -47,19 +47,20 @@ def _cached(fn):
 
         if kind in ("get_news", "get_announcements"):
             symbol = args[0] if args else kwargs.get("symbol")
-            docs = cache.get_docs(kind, symbol)
-            if docs is not None:
+            limit = args[1] if len(args) > 1 else kwargs.get("limit", 50)
+            docs = cache.get_docs(kind, symbol, limit)
+            if docs:
                 # 重建对象
                 if kind == "get_news":
                     return [News(**d) for d in docs]
                 return [Announcement(**d) for d in docs]
             result = fn(self, *args, **kwargs)
+            # 空结果不入缓存：避免 primary 离线/失败时把空列表永久固化，导致 fallback 源无法被使用
+            if not result:
+                return result
             try:
-                if kind == "get_news":
-                    payload = [{**d.__dict__, "ts": d.ts.isoformat()} for d in result]
-                else:
-                    payload = [{**d.__dict__, "ts": d.ts.isoformat()} for d in result]
-                cache.set_docs(kind, symbol, payload)
+                payload = [{**d.__dict__, "ts": d.ts.isoformat()} for d in result]
+                cache.set_docs(kind, symbol, payload, limit)
             except Exception:
                 logger.debug("缓存写入失败 %s", kind, exc_info=True)
             return result
