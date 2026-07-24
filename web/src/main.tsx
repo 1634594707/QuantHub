@@ -9,6 +9,7 @@ import BacktestPage from './pages/BacktestPage'
 import StrategiesPage from './pages/StrategiesPage'
 import PaAnalysisPage from './pages/PaAnalysisPage'
 import SentimentPage from './pages/SentimentPage'
+import StrategyDetailPage from './pages/StrategyDetailPage'
 import ConfigPage from './pages/ConfigPage'
 import './styles/tokens.css'
 import './styles/app.css'
@@ -22,6 +23,7 @@ const router = createBrowserRouter([
       { path: 'signals', element: <SignalsPage /> },
       { path: 'backtest', element: <BacktestPage /> },
       { path: 'strategies', element: <StrategiesPage /> },
+      { path: 'strategies/:name', element: <StrategyDetailPage /> },
       { path: 'pa', element: <PaAnalysisPage /> },
       { path: 'sentiment', element: <SentimentPage /> },
       { path: 'config', element: <ConfigPage /> },
