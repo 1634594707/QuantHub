@@ -27,6 +27,7 @@ export default function App() {
         onToggleCollapse={() => setCollapsed((c) => !c)}
         onNavigate={() => setMobileOpen(false)}
         strategyCount={strategyCount}
+        strategyList={strategies.data?.strategies ?? []}
       />
       <div className="main">
         <Topbar

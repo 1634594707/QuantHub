@@ -266,6 +266,51 @@ button {
   min-width: 16px;
   text-align: center;
 }
+.nav-caret {
+  margin-left: auto;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  transition: transform var(--t-fast);
+}
+.nav-caret.open {
+  transform: rotate(90deg);
+}
+.nav-group {
+  display: flex;
+  flex-direction: column;
+}
+.nav-sub {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 2px 0 4px var(--sp-4);
+  padding-left: var(--sp-3);
+  border-left: 1px solid var(--border);
+}
+.nav-subitem {
+  padding: 7px var(--sp-3);
+  border-radius: var(--r-sm);
+  font-size: var(--fs-13);
+  color: var(--text-2);
+  text-decoration: none;
+  transition: background var(--t-fast), color var(--t-fast);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.nav-subitem:hover {
+  background: var(--surface-hover);
+  color: var(--text-1);
+}
+.nav-subitem.active {
+  color: var(--accent-strong);
+  background: var(--accent-weak);
+  font-weight: 600;
+}
 .sidebar-foot {
   padding: var(--sp-4);
   border-top: 1px solid var(--border);
