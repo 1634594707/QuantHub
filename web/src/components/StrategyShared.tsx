@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import type { RunResp, SignalResp, StrategyInfo } from '../api/types'
+import { dirBucket, directionColor } from '../lib/signal-utils'
 
 export type MarketKey = 'a_shares' | 'crypto' | 'us_stocks' | 'other'
 
@@ -114,11 +115,7 @@ export function paramFields(name: string): ParamField[] {
   }
 }
 
-export function directionColor(d: string) {
-  if (d === 'buy' || d === '做多' || d === 'bullish') return 'var(--up-ink)'
-  if (d === 'sell' || d === '做空' || d === 'bearish') return 'var(--down-ink)'
-  return 'var(--text-2)'
-}
+export { directionColor } from '../lib/signal-utils'
 
 function fieldControl(
   f: ParamField,
@@ -303,8 +300,8 @@ export function ParamsEditor({
 }
 
 export function summarize(signals: SignalResp[]) {
-  const buy = signals.filter((s) => s.direction === 'buy' || s.direction === 'bullish').length
-  const sell = signals.filter((s) => s.direction === 'sell' || s.direction === 'bearish').length
+  const buy = signals.filter((s) => dirBucket(s.direction) === 'buy').length
+  const sell = signals.filter((s) => dirBucket(s.direction) === 'sell').length
   const hold = signals.length - buy - sell
   const parts: string[] = []
   if (buy) parts.push('做多 ' + buy)

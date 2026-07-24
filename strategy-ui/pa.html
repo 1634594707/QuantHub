@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark" data-board="dossier">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>QuantHub · PA 分析工作台</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="design-system.css" />
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="sidebar-brand"><span class="logo">Q</span><span>QuantHub<small>Strategy OS</small></span></div>
+    <div class="nav-label">策略模块</div>
+    <nav class="nav">
+      <a class="nav-item" href="index.html"><span class="ico">◈</span><span class="txt">信息架构中枢</span></a>
+      <a class="nav-item" href="strategies.html"><span class="ico">▦</span><span class="txt">策略库</span></a>
+      <a class="nav-item" href="signals.html"><span class="ico">⚡</span><span class="txt">信号中心</span></a>
+      <a class="nav-item" href="backtest.html"><span class="ico">∿</span><span class="txt">回测工作台</span></a>
+      <a class="nav-item" href="portfolio.html"><span class="ico">◧</span><span class="txt">组合管理</span></a>
+      <a class="nav-item active" href="pa.html"><span class="ico">✶</span><span class="txt">PA 分析工作台</span></a>
+    </nav>
+    <div class="sidebar-foot">统一设计语言 · 6 板块独立签名<br/>UI Designer · 2026</div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div class="topbar-title">PA 分析工作台 <small>PA Workbench · 价格行为深度</small></div>
+      <div class="topbar-spacer"></div>
+      <button class="btn btn-sm">↻ 重新分析</button>
+      <div class="seg" role="group" aria-label="主题"><button data-theme-btn="dark">暗</button><button data-theme-btn="light">亮</button><button data-theme-btn="system">跟随</button></div>
+    </header>
+
+    <main class="content">
+      <section class="board-hero">
+        <span class="eyebrow">✶ 专属 · Deep Dive</span>
+        <h1>PA 分析工作台</h1>
+        <p>把 <span class="mono">pa_agent</span> 的两阶段分析变成可读的研究卷宗：决策、关键位、形态分节展开，叙述式呈现。这是深度内容的编辑型页面——不追求一眼扫完，而追求读得进去。</p>
+        <div class="hero-meta">
+          <div>标的<b>600519</b></div>
+          <div>周期<b>1h</b></div>
+          <div>结构<b>看涨</b></div>
+          <div>置信度<b>0.83</b></div>
+        </div>
+      </section>
+
+      <!-- 决策面板 -->
+      <div class="panel" style="margin-bottom:var(--sp-6)">
+        <div class="panel-head"><div class="panel-title">决策面板 <span class="sub">Verdict</span></div></div>
+        <div class="panel-body">
+          <div class="row wrap" style="gap:var(--sp-4);align-items:stretch">
+            <div style="flex:1;min-width:200px">
+              <div class="muted" style="font-size:var(--fs-12)">倾向</div>
+              <div style="font-size:var(--fs-26);font-weight:800" class="up-text">偏多 · 回踩做多</div>
+              <p class="muted" style="margin:var(--sp-2) 0 0;line-height:1.7">价格在上升结构中完成回踩，于需求区获得支撑，当前处于中继而非顶部，倾向沿着结构方向做多。</p>
+            </div>
+            <div style="width:1px;background:var(--divider)"></div>
+            <div style="min-width:180px" class="stack" style="gap:var(--sp-3)">
+              <div class="row" style="justify-content:space-between"><span class="muted">结构</span><b class="up-text">看涨</b></div>
+              <div class="row" style="justify-content:space-between"><span class="muted">关键阻力</span><b class="mono">1880.0</b></div>
+              <div class="row" style="justify-content:space-between"><span class="muted">关键支撑</span><b class="mono">1760.0</b></div>
+              <div class="row" style="justify-content:space-between"><span class="muted">失效位</span><b class="mono down-text">1720.0</b></div>
+              <div class="row" style="justify-content:space-between"><span class="muted">置信度</span><b class="mono">0.83</b></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid cols-2">
+        <!-- 左：分节卷宗 -->
+        <div class="stack">
+          <div class="dossier-section">
+            <h3>① 市场结构</h3>
+            <p>更高时间框架（4h / 日线）为上升趋势，本级别（1h）处于上涨后的旗形整理。整理未破坏结构，视为中继。形成次序：突破 → 回踩 → 缩量企稳。</p>
+          </div>
+          <div class="dossier-section">
+            <h3>② 关键位</h3>
+            <p>需求区位于 <span class="mono">1760–1780</span>，与前期突破缺口重合，提供强支撑；上方供给区 <span class="mono">1860–1880</span> 为第一目标。失效位设在需求区下方 <span class="mono">1720</span>，跌破则结构破坏。</p>
+          </div>
+          <div class="dossier-section">
+            <h3>③ 形态与信号</h3>
+            <p>出现看涨吞没 + 成交量萎缩后的放量阳线，符合"缩量回调、放量启动"的健康节奏。RSI 未进入超买，仍有空间。</p>
+          </div>
+          <div class="dossier-section">
+            <h3>④ 执行建议</h3>
+            <p>等待价格回到需求区附近出现止跌信号后分批介入，止损置于 <span class="mono">1720</span> 下方；第一目标 <span class="mono">1860</span>，第二目标 <span class="mono">1920</span>。风险回报比约 1:2.4。</p>
+          </div>
+        </div>
+
+        <!-- 右：形态卡 + 时间线 -->
+        <div class="stack">
+          <div class="panel">
+            <div class="panel-head"><div class="panel-title">形态识别</div></div>
+            <div class="panel-body stack">
+              <div class="row" style="justify-content:space-between"><span>看涨旗形</span><span class="badge badge-live">高置信</span></div>
+              <div class="row" style="justify-content:space-between"><span>需求区支撑</span><span class="badge badge-live">已验证</span></div>
+              <div class="row" style="justify-content:space-between"><span>成交量配合</span><span class="badge badge-muted">健康</span></div>
+              <div class="row" style="justify-content:space-between"><span>RSI 状态</span><span class="badge badge-muted">未超买</span></div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><div class="panel-title">分析时间线</div></div>
+            <div class="panel-body stack">
+              <div class="dossier-section" style="margin-bottom:var(--sp-3)"><h3 style="font-size:var(--fs-13)">阶段一 · 结构扫描</h3><p style="font-size:var(--fs-13)">识别趋势方向与关键位。</p></div>
+              <div class="dossier-section" style="margin-bottom:0"><h3 style="font-size:var(--fs-13)">阶段二 · 形态确认</h3><p style="font-size:var(--fs-13)">在关键位附近确认入场形态与失效位。</p></div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><div class="panel-title">关联</div></div>
+            <div class="panel-body row wrap" style="gap:var(--sp-2)">
+              <a class="chip" href="strategy-detail.html">pa_agent 策略 →</a>
+              <a class="chip" href="signals.html">信号中心 →</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+<script src="app.js"></script>
+</body>
+</html>

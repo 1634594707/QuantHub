@@ -13,6 +13,7 @@ import StrategyDetailPage from './pages/StrategyDetailPage'
 import ConfigPage from './pages/ConfigPage'
 import './styles/tokens.css'
 import './styles/app.css'
+import './styles/strategy-module.css'
 
 const router = createBrowserRouter([
   {

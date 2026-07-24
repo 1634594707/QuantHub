@@ -50,7 +50,11 @@ export const api = {
 
   strategies: () => getJSON<StrategiesResp>('/strategies'),
 
-  signals: (limit = 50) => getJSON<SignalsResp>(`/signals?limit=${limit}`),
+  signals: (limit = 50, source?: string) => {
+    const p = new URLSearchParams({ limit: String(limit) })
+    if (source) p.set('source', source)
+    return getJSON<SignalsResp>(`/signals?${p.toString()}`)
+  },
 
   kline: (symbol: string, market = 'a_shares', interval = '1h', limit = 240) =>
     getJSON<KlineResp>(

@@ -331,9 +331,13 @@ def analyze_pa(
 
 
 @app.get("/signals")
-def get_signals(limit: int = 50) -> dict[str, Any]:
+def get_signals(
+    limit: int = 50, source: str | None = None, market: str | None = None
+) -> dict[str, Any]:
     _ensure_discovered()
-    history = get_bus().history(limit=limit)
+    # 信号总线是进程内唯一信源；支持按 source（策略名）/ market 过滤，
+    # 让工作台「信号」Tab 与信号中心共用同一数据源（消除双源割裂）。
+    history = get_bus().history(limit=limit, source=source, market=market)
     return {"count": len(history), "signals": [_signal_to_dict(s) for s in history]}
 
 

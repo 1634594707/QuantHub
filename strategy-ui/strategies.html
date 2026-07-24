@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark" data-board="library">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>QuantHub · 策略库</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="design-system.css" />
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="sidebar-brand"><span class="logo">Q</span><span>QuantHub<small>Strategy OS</small></span></div>
+    <div class="nav-label">策略模块</div>
+    <nav class="nav">
+      <a class="nav-item" href="index.html"><span class="ico">◈</span><span class="txt">信息架构中枢</span></a>
+      <a class="nav-item active" href="strategies.html"><span class="ico">▦</span><span class="txt">策略库</span></a>
+      <a class="nav-item" href="signals.html"><span class="ico">⚡</span><span class="txt">信号中心</span></a>
+      <a class="nav-item" href="backtest.html"><span class="ico">∿</span><span class="txt">回测工作台</span></a>
+      <a class="nav-item" href="portfolio.html"><span class="ico">◧</span><span class="txt">组合管理</span></a>
+      <a class="nav-item" href="pa.html"><span class="ico">✶</span><span class="txt">PA 分析工作台</span></a>
+    </nav>
+    <div class="sidebar-foot">统一设计语言 · 6 板块独立签名<br/>UI Designer · 2026</div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div class="topbar-title">策略库 <small>Strategy Library · 发现与试跑</small></div>
+      <div class="topbar-spacer"></div>
+      <button class="btn btn-sm">↻ 刷新</button>
+      <div class="seg" role="group" aria-label="主题">
+        <button data-theme-btn="dark">暗</button><button data-theme-btn="light">亮</button><button data-theme-btn="system">跟随</button>
+      </div>
+    </header>
+
+    <main class="content">
+      <section class="board-hero">
+        <span class="eyebrow">▦ 发现 · Discovery</span>
+        <h1>策略库</h1>
+        <p>把"找策略"变成浏览体验。命令栏即时筛选，卡片网格自适应，悬停磁吸，每张卡带一条迷你趋势线，让你在进详情前就感知策略的状态与节奏。</p>
+        <div class="hero-meta">
+          <div>已注册<b>12</b></div>
+          <div>可实盘<b>4</b></div>
+          <div>本次运行<b>9</b></div>
+          <div>分组<b>3 市场</b></div>
+        </div>
+      </section>
+
+      <!-- 命令栏 -->
+      <div class="panel" style="margin-bottom:var(--sp-6)">
+        <div class="panel-body row wrap" style="gap:var(--sp-3)">
+          <input class="input mono" data-filter-search=".strat-card" placeholder="🔍 搜索名称 / 描述…" style="flex:1;min-width:220px" aria-label="搜索策略" />
+          <div class="seg" data-seg-group="market" role="group" aria-label="市场">
+            <button class="active" data-seg="all">全部</button>
+            <button data-seg="a_shares">A股</button>
+            <button data-seg="crypto">加密</button>
+            <button data-seg="us_stocks">美股</button>
+          </div>
+          <button class="toggle" role="switch" aria-checked="false" aria-label="仅可实盘" onclick="this.setAttribute('aria-checked', this.getAttribute('aria-checked')==='true'?'false':'true')"></button>
+          <span class="muted" style="font-size:var(--fs-12)">仅可实盘</span>
+          <select class="select" style="width:auto" aria-label="排序">
+            <option>默认排序</option><option>按名称</option><option>最近运行</option>
+          </select>
+          <div class="seg" data-seg-group="view" role="group" aria-label="视图">
+            <button class="active" data-seg="grid">▦ 网格</button>
+            <button data-seg="list">☰ 列表</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- A股 分组 -->
+      <div class="row" style="margin-bottom:var(--sp-3)"><h2 style="font-size:var(--fs-18);margin:0">A 股 <span class="badge badge-muted">7</span></h2></div>
+      <div class="grid grid-auto" data-view-target>
+        <!-- 卡 1 -->
+        <div class="strat-card" data-market="a_shares">
+          <div class="row wrap" style="gap:var(--sp-2)"><span class="badge badge-market">A股</span><span class="badge badge-live">可实盘</span></div>
+          <div class="name">supertrend · 超级趋势</div>
+          <div class="desc">基于 ATR 的趋势跟踪，日线判定多空，适合中线持仓的标的过滤。</div>
+          <svg class="spark" viewBox="0 0 200 38" preserveAspectRatio="none"><polyline points="0,30 30,26 60,28 90,18 120,20 150,10 180,12 200,6" fill="none" stroke="var(--up-ink)" stroke-width="2"/></svg>
+          <div class="foot"><span class="muted" style="font-size:var(--fs-12)">最近运行 2h 前 · 6 信号</span><button class="btn btn-sm btn-primary cta" data-run>⚡ 快速运行</button></div>
+        </div>
+        <!-- 卡 2 -->
+        <div class="strat-card" data-market="a_shares">
+          <div class="row wrap" style="gap:var(--sp-2)"><span class="badge badge-market">A股</span><span class="badge badge-live">可实盘</span></div>
+          <div class="name">selector · 选股器</div>
+          <div class="desc">在沪深300 / 中证500 中选 quant 因子得分最高的 N 只，输出候选池。</div>
+          <svg class="spark" viewBox="0 0 200 38" preserveAspectRatio="none"><polyline points="0,20 30,22 60,16 90,18 120,12 150,14 180,8 200,10" fill="none" stroke="var(--board-ink)" stroke-width="2"/></svg>
+          <div class="foot"><span class="muted" style="font-size:var(--fs-12)">最近运行 昨天 · 5 信号</span><button class="btn btn-sm btn-primary cta" data-run>⚡ 快速运行</button></div>
+        </div>
+        <!-- 卡 3 -->
+        <div class="strat-card" data-market="a_shares">
+          <div class="row wrap" style="gap:var(--sp-2)"><span class="badge badge-market">A股</span><span class="badge badge-muted">回测</span></div>
+          <div class="name">sentiment · 情绪面</div>
+          <div class="desc">聚合个股相关新闻，做情绪打分，输出偏多 / 偏空信号。</div>
+          <svg class="spark" viewBox="0 0 200 38" preserveAspectRatio="none"><polyline points="0,18 30,24 60,14 90,22 120,16 150,26 180,18 200,20" fill="none" stroke="var(--warn-ink)" stroke-width="2"/></svg>
+          <div class="foot"><span class="muted" style="font-size:var(--fs-12)">最近运行 3d 前 · 3 信号</span><button class="btn btn-sm btn-primary cta" data-run>⚡ 快速运行</button></div>
+        </div>
+        <!-- 卡 4 -->
+        <div class="strat-card" data-market="a_shares">
+          <div class="row wrap" style="gap:var(--sp-2)"><span class="badge badge-market">A股</span><span class="badge badge-live">可实盘</span></div>
+          <div class="name">realtime_analyzer · 实时解析</div>
+          <div class="desc">实时拉取分时与指数联动，做盘中强弱判定，适合盯盘场景。</div>
+          <svg class="spark" viewBox="0 0 200 38" preserveAspectRatio="none"><polyline points="0,28 30,20 60,22 90,14 120,16 150,9 180,11 200,7" fill="none" stroke="var(--up-ink)" stroke-width="2"/></svg>
+          <div class="foot"><span class="muted" style="font-size:var(--fs-12)">最近运行 12m 前 · 4 信号</span><button class="btn btn-sm btn-primary cta" data-run>⚡ 快速运行</button></div>
+        </div>
+        <!-- 卡 5 -->
+        <div class="strat-card" data-market="a_shares">
+          <div class="row wrap" style="gap:var(--sp-2)"><span class="badge badge-market">A股</span><span class="badge badge-muted">回测</span></div>
+          <div class="name">morning_brief · 早盘简报</div>
+          <div class="desc">开盘前汇总自选标的的关键事件与预期，生成简报式信号。</div>
+          <svg class="spark" viewBox="0 0 200 38" preserveAspectRatio="none"><polyline points="0,16 30,18 60,12 90,20 120,14 150,18 180,12 200,16" fill="none" stroke="var(--board-ink)" stroke-width="2"/></svg>
+          <div class="foot"><span class="muted" style="font-size:var(--fs-12)">最近运行 今天 · 2 信号</span><button class="btn btn-sm btn-primary cta" data-run>⚡ 快速运行</button></div>
+        </div>
+        <!-- 卡 6 -->
+        <div class="strat-card" data-market="a_shares">
+          <div class="row wrap" style="gap:var(--sp-2)"><span class="badge badge-market">A股</span><span class="badge badge-muted">回测</span></div>
+          <div class="name">news_scanner · 新闻扫描</div>
+          <div class="desc">全市场新闻流扫描，按影响力排序，捕捉突发行情线索。</div>
+          <svg class="spark" viewBox="0 0 200 38" preserveAspectRatio="none"><polyline points="0,22 30,16 60,24 90,12 120,22 150,14 180,20 200,12" fill="none" stroke="var(--warn-ink)" stroke-width="2"/></svg>
+          <div class="foot"><span class="muted" style="font-size:var(--fs-12)">最近运行 5h 前 · 8 信号</span><button class="btn btn-sm btn-primary cta" data-run>⚡ 快速运行</button></div>
+        </div>
+        <!-- 卡 7 -->
+        <div class="strat-card" data-market="a_shares">
+          <div class="row wrap" style="gap:var(--sp-2)"><span class="badge badge-market">A股</span><span class="badge badge-muted">回测</span></div>
+          <div class="name">perks_monitor · 权益监控</div>
+          <div class="desc">监控分红 / 回购 / 增减持等权益事件，输出事件型信号。</div>
+          <svg class="spark" viewBox="0 0 200 38" preserveAspectRatio="none"><polyline points="0,20 30,20 60,18 90,20 120,16 150,18 180,14 200,16" fill="none" stroke="var(--board-ink)" stroke-width="2"/></svg>
+          <div class="foot"><span class="muted" style="font-size:var(--fs-12)">最近运行 1d 前 · 1 信号</span><button class="btn btn-sm btn-primary cta" data-run>⚡ 快速运行</button></div>
+        </div>
+      </div>
+
+      <!-- 加密 分组 -->
+      <div class="row section-gap" style="margin-bottom:var(--sp-3)"><h2 style="font-size:var(--fs-18);margin:0">加密货币 <span class="badge badge-muted">5</span></h2><span class="chip" style="margin-left:var(--sp-2)">⚠ 代理环境无行情源 · 标"无行情"</span></div>
+      <div class="grid grid-auto">
+        <div class="strat-card" data-market="crypto">
+          <div class="row wrap" style="gap:var(--sp-2)"><span class="badge badge-market">加密</span><span class="badge badge-live">可实盘</span></div>
+          <div class="name">okx_grid · 网格交易</div>
+          <div class="desc">在 BTC-USDT-SWAP 上做区间网格，可切换纸面 / 实盘模式。</div>
+          <svg class="spark" viewBox="0 0 200 38" preserveAspectRatio="none"><polyline points="0,19 30,12 60,24 90,14 120,26 150,16 180,24 200,18" fill="none" stroke="var(--board-ink)" stroke-width="2"/></svg>
+          <div class="foot"><span class="muted" style="font-size:var(--fs-12)">无行情源</span><a class="btn btn-sm cta" href="strategy-detail.html">详情 →</a></div>
+        </div>
+        <div class="strat-card" data-market="crypto">
+          <div class="row wrap" style="gap:var(--sp-2)"><span class="badge badge-market">加密</span><span class="badge badge-muted">回测</span></div>
+          <div class="name">alphagpt · 阿尔法 GPT</div>
+          <div class="desc">基于 LLM 的跨资产叙事打分，输出主题型多空建议。</div>
+          <svg class="spark" viewBox="0 0 200 38" preserveAspectRatio="none"><polyline points="0,18 30,22 60,14 90,20 120,12 150,22 180,14 200,18" fill="none" stroke="var(--warn-ink)" stroke-width="2"/></svg>
+          <div class="foot"><span class="muted" style="font-size:var(--fs-12)">无行情源</span><a class="btn btn-sm cta" href="strategy-detail.html">详情 →</a></div>
+        </div>
+        <div class="strat-card" data-market="crypto">
+          <div class="row wrap" style="gap:var(--sp-2)"><span class="badge badge-market">加密</span><span class="badge badge-muted">回测</span></div>
+          <div class="name">alphamaster · 阿尔法大师</div>
+          <div class="desc">多因子合成的主策略，聚合其他子策略的置信度。</div>
+          <svg class="spark" viewBox="0 0 200 38" preserveAspectRatio="none"><polyline points="0,20 30,16 60,18 90,12 120,16 150,10 180,14 200,8" fill="none" stroke="var(--up-ink)" stroke-width="2"/></svg>
+          <div class="foot"><span class="muted" style="font-size:var(--fs-12)">无行情源</span><a class="btn btn-sm cta" href="strategy-detail.html">详情 →</a></div>
+        </div>
+        <div class="strat-card" data-market="crypto">
+          <div class="row wrap" style="gap:var(--sp-2)"><span class="badge badge-market">加密</span><span class="badge badge-live">可实盘</span></div>
+          <div class="name">pa_agent · PA 分析</div>
+          <div class="desc">两阶段价格行为分析，供 PA 工作台消费的深度视图。</div>
+          <svg class="spark" viewBox="0 0 200 38" preserveAspectRatio="none"><polyline points="0,16 30,20 60,12 90,18 120,10 150,16 180,12 200,14" fill="none" stroke="var(--board-ink)" stroke-width="2"/></svg>
+          <div class="foot"><span class="muted" style="font-size:var(--fs-12)">无行情源</span><a class="btn btn-sm cta" href="pa.html">PA →</a></div>
+        </div>
+        <div class="strat-card" data-market="crypto">
+          <div class="row wrap" style="gap:var(--sp-2)"><span class="badge badge-market">加密</span><span class="badge badge-muted">回测</span></div>
+          <div class="name">twd_resonance · 共振</div>
+          <div class="desc">多周期共振判定，输出低噪声的趋势确认信号。</div>
+          <svg class="spark" viewBox="0 0 200 38" preserveAspectRatio="none"><polyline points="0,22 30,18 60,20 90,14 120,18 150,12 180,16 200,10" fill="none" stroke="var(--up-ink)" stroke-width="2"/></svg>
+          <div class="foot"><span class="muted" style="font-size:var(--fs-12)">无行情源</span><a class="btn btn-sm cta" href="strategy-detail.html">详情 →</a></div>
+        </div>
+      </div>
+
+      <p class="muted section-gap" data-run-tip style="text-align:center;font-size:var(--fs-13)">点击「快速运行」即时反馈（原型态）· 真实环境走 <span class="mono">POST /strategies/{name}/run</span></p>
+    </main>
+  </div>
+</div>
+<script src="app.js"></script>
+</body>
+</html>

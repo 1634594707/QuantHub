@@ -1419,6 +1419,116 @@ select.edit-input {
   height: 22px;
 }
 
+/* ---------------- Strategy module ---------------- */
+.strategy-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-3);
+}
+.strategy-toolbar .toggle-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font-size: var(--fs-13);
+  color: var(--text-2);
+  cursor: pointer;
+  user-select: none;
+}
+.strategy-toolbar .toggle-label input[type='checkbox'] {
+  accent-color: var(--accent);
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+.strategy-group-title {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-2);
+  font-weight: 600;
+  font-size: var(--fs-14);
+  color: var(--text-1);
+}
+.strategy-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--sp-3);
+}
+.strategy-card {
+  padding: var(--sp-3);
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  background: var(--bg-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  min-height: 172px;
+}
+.strategy-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  border-color: var(--accent);
+}
+.strategy-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.strategy-card-title {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-weight: 700;
+  font-size: var(--fs-15);
+  color: var(--text-1);
+}
+.strategy-card-badge {
+  font-size: var(--fs-12);
+  padding: 2px 8px;
+  border-radius: var(--r-pill);
+}
+.strategy-card-badge.market {
+  background: var(--accent-weak);
+  color: var(--accent-strong);
+}
+.strategy-card-badge.live {
+  background: rgba(22, 199, 132, 0.14);
+  color: var(--up-ink);
+}
+.strategy-card-desc {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--fs-13);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: 58px;
+}
+.strategy-card-foot {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+.strategy-card-status {
+  font-size: var(--fs-12);
+}
+.strategy-card-status.ok {
+  color: var(--up-ink);
+}
+.strategy-card-status.err {
+  color: var(--down-ink);
+}
+.strategy-card-status.muted {
+  color: var(--text-3);
+}
+
 /* ---------------- Responsive ---------------- */
 @media (max-width: 1200px) {
   .search {

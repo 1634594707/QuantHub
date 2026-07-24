@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark" data-board="cockpit">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>QuantHub · 策略工作台 · supertrend</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="design-system.css" />
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="sidebar-brand"><span class="logo">Q</span><span>QuantHub<small>Strategy OS</small></span></div>
+    <div class="nav-label">策略模块</div>
+    <nav class="nav">
+      <a class="nav-item" href="index.html"><span class="ico">◈</span><span class="txt">信息架构中枢</span></a>
+      <a class="nav-item" href="strategies.html"><span class="ico">▦</span><span class="txt">策略库</span></a>
+      <a class="nav-item" href="signals.html"><span class="ico">⚡</span><span class="txt">信号中心</span></a>
+      <a class="nav-item" href="backtest.html"><span class="ico">∿</span><span class="txt">回测工作台</span></a>
+      <a class="nav-item" href="portfolio.html"><span class="ico">◧</span><span class="txt">组合管理</span></a>
+      <a class="nav-item" href="pa.html"><span class="ico">✶</span><span class="txt">PA 分析工作台</span></a>
+    </nav>
+    <div class="sidebar-foot">统一设计语言 · 6 板块独立签名<br/>UI Designer · 2026</div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div class="topbar-title">策略工作台 <small>Strategy Workspace · supertrend</small></div>
+      <div class="topbar-spacer"></div>
+      <button class="btn btn-sm">↻ 刷新</button>
+      <div class="seg" role="group" aria-label="主题"><button data-theme-btn="dark">暗</button><button data-theme-btn="light">亮</button><button data-theme-btn="system">跟随</button></div>
+    </header>
+
+    <main class="content">
+      <section class="board-hero" style="padding:var(--sp-6)">
+        <div class="row" style="gap:var(--sp-3)"><a href="strategies.html" class="btn btn-sm btn-ghost">← 返回</a><span class="badge badge-market">A股</span><span class="badge badge-live">可实盘</span></div>
+        <h1 style="font-size:clamp(20px,2.5vw,28px);margin-top:var(--sp-3)">supertrend · 超级趋势</h1>
+        <p style="margin-top:var(--sp-2)">基于 ATR 的趋势跟踪策略：在日线级别判定多空状态，过滤出处于强势趋势的标的。驾驶舱把"理解—配置—运行—复盘"收进同一个工作区。</p>
+        <div class="hero-meta">
+          <div>最近信号<b>6</b></div><div>成功率<b class="up-text">72%</b></div><div>平均分<b>0.81</b></div><div>运行次数<b>23</b></div>
+        </div>
+      </section>
+
+      <!-- Tabs -->
+      <div class="tabs" role="tablist">
+        <button class="tab active" data-tab="overview" data-tab-group="ws" role="tab">概览</button>
+        <button class="tab" data-tab="params" data-tab-group="ws" role="tab">参数</button>
+        <button class="tab" data-tab="run" data-tab-group="ws" role="tab">运行</button>
+        <button class="tab" data-tab="history" data-tab-group="ws" role="tab">历史</button>
+        <button class="tab" data-tab="signals" data-tab-group="ws" role="tab">信号</button>
+      </div>
+
+      <!-- 概览 -->
+      <section class="tab-panel active" data-tab-panel="overview" data-tab-group="ws">
+        <div class="grid cols-3">
+          <div class="kpi"><div class="label">最近信号数</div><div class="value">6</div><div class="delta up-text">▲ 较上次 +2</div></div>
+          <div class="kpi"><div class="label">命中率（做多盈利）</div><div class="value">72%</div><div class="delta up-text">▲ 近 10 次</div></div>
+          <div class="kpi"><div class="label">平均置信度</div><div class="value">0.78</div><div class="delta muted">— 稳定</div></div>
+        </div>
+        <div class="grid cols-2 section-gap">
+          <div class="panel">
+            <div class="panel-head"><div class="panel-title">方向分布</div></div>
+            <div class="panel-body">
+              <div class="donut-wrap">
+                <div class="donut" style="background:conic-gradient(var(--up) 0 60%, var(--down) 60% 82%, var(--text-3) 82% 100%)">
+                  <div class="center"><b>6</b><span>信号</span></div>
+                </div>
+                <div class="legend">
+                  <div class="li"><span class="sw" style="background:var(--up)"></span>做多 <span class="v">4</span></div>
+                  <div class="li"><span class="sw" style="background:var(--down)"></span>做空 <span class="v">2</span></div>
+                  <div class="li"><span class="sw" style="background:var(--text-3)"></span>观望 <span class="v">0</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><div class="panel-title">分数分布</div></div>
+            <div class="panel-body stack">
+              <div class="row"><span style="width:54px" class="muted">0.9+</span><div class="bar-track"><div class="bar-fill" style="width:33%"></div></div><span class="mono" style="width:30px;text-align:right">2</span></div>
+              <div class="row"><span style="width:54px" class="muted">0.8–0.9</span><div class="bar-track"><div class="bar-fill" style="width:50%"></div></div><span class="mono" style="width:30px;text-align:right">3</span></div>
+              <div class="row"><span style="width:54px" class="muted">0.7–0.8</span><div class="bar-track"><div class="bar-fill" style="width:17%"></div></div><span class="mono" style="width:30px;text-align:right">1</span></div>
+              <div class="row"><span style="width:54px" class="muted">&lt;0.7</span><div class="bar-track"><div class="bar-fill" style="width:0%"></div></div><span class="mono" style="width:30px;text-align:right">0</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="panel section-gap">
+          <div class="panel-head"><div class="panel-title">策略说明</div></div>
+          <div class="panel-body"><p class="muted" style="margin:0;line-height:1.8">超级趋势（Supertrend）以 ATR 乘以系数构造上下轨，价格突破上轨判多、跌破下轨判空。本实现叠加成交量过滤以降低震荡市噪音，并对涨停 / 停牌标的自动跳过。适合日线级别的中线持仓筛选，不建议用于分钟级高频。</p></div>
+        </div>
+      </section>
+
+      <!-- 参数 -->
+      <section class="tab-panel" data-tab-panel="params" data-tab-group="ws">
+        <div class="split">
+          <div class="stack">
+            <div class="panel">
+              <div class="panel-head"><div class="panel-title">运行参数</div></div>
+              <div class="panel-body stack">
+                <div class="field"><label>股票代码（逗号分隔）</label><input class="input mono" value="600519, 000001, 300750" /></div>
+                <div class="field"><label>周期</label>
+                  <select class="select"><option>日线</option><option>1小时</option><option>4小时</option></select>
+                </div>
+                <div class="field"><label>ATR 系数</label><input class="input mono" type="number" value="3" /></div>
+                <div class="field"><label>成交量过滤</label><button class="toggle" role="switch" aria-checked="true"></button></div>
+              </div>
+            </div>
+          </div>
+          <div class="stack">
+            <div class="panel">
+              <div class="panel-head"><div class="panel-title">参数预设</div><div class="panel-actions"><button class="btn btn-sm btn-primary">＋ 保存当前</button></div></div>
+              <div class="panel-body stack">
+                <div class="row" style="justify-content:space-between"><span>保守模式</span><div class="row" style="gap:var(--sp-2)"><button class="btn btn-sm">加载</button><button class="btn btn-sm btn-ghost">删除</button></div></div>
+                <div class="row" style="justify-content:space-between"><span>激进模式</span><div class="row" style="gap:var(--sp-2)"><button class="btn btn-sm">加载</button><button class="btn btn-sm btn-ghost">删除</button></div></div>
+                <div class="row" style="justify-content:space-between"><span>仅核心标的</span><div class="row" style="gap:var(--sp-2)"><button class="btn btn-sm">加载</button><button class="btn btn-sm btn-ghost">删除</button></div></div>
+              </div>
+            </div>
+            <div class="panel"><div class="panel-head"><div class="panel-title">JSON 兜底</div></div><div class="panel-body"><textarea class="input mono" rows="5" style="resize:vertical">{
+  "symbols": ["600519","000001"],
+  "timeframe": "daily",
+  "atr_mult": 3,
+  "vol_filter": true
+}</textarea></div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 运行 -->
+      <section class="tab-panel" data-tab-panel="run" data-tab-group="ws">
+        <div class="split">
+          <div class="panel">
+            <div class="panel-head"><div class="panel-title">本次运行参数</div></div>
+            <div class="panel-body stack">
+              <div class="field"><label>股票代码（逗号分隔）</label><input class="input mono" value="600519, 000001, 300750" /></div>
+              <div class="field"><label>周期</label><select class="select"><option>日线</option><option>1小时</option><option>4小时</option></select></div>
+              <button class="btn btn-primary" data-run data-run-tip-anchor>⚡ 运行策略</button>
+              <p class="muted" data-run-tip style="font-size:var(--fs-12);margin:0">尚未运行</p>
+            </div>
+          </div>
+          <div class="stack">
+            <div class="panel">
+              <div class="panel-head"><div class="panel-title">结果 · 信号统计</div></div>
+              <div class="panel-body">
+                <div class="donut-wrap">
+                  <div class="donut" style="background:conic-gradient(var(--up) 0 50%, var(--down) 50% 83%, var(--text-3) 83% 100%)"><div class="center"><b>6</b><span>信号</span></div></div>
+                  <div class="legend"><div class="li"><span class="sw" style="background:var(--up)"></span>做多 <span class="v">3</span></div><div class="li"><span class="sw" style="background:var(--down)"></span>做空 <span class="v">2</span></div><div class="li"><span class="sw" style="background:var(--text-3)"></span>观望 <span class="v">1</span></div></div>
+                </div>
+              </div>
+            </div>
+            <div class="panel">
+              <div class="panel-head"><div class="panel-title">信号明细</div><div class="panel-actions">
+                <select class="select" style="width:auto" data-filter-select=".sig-row" data-col="dir"><option value="">全部方向</option><option value="buy">做多</option><option value="sell">做空</option><option value="hold">观望</option></select>
+                <select class="select" style="width:auto"><option>按分数</option><option>按置信度</option><option>按时间</option></select>
+              </div></div>
+              <div class="panel-body stack">
+                <div class="sig-row" data-dir="buy"><div class="head"><span class="sym">600519</span><span class="dir dir-buy">BUY</span><span class="muted">日线 · supertrend</span><span class="score mono">0.92</span><span class="conf mono">91%</span></div><div class="detail"><p class="muted" style="margin:0">价格突破上轨且成交量放大，趋势确认。建议分批建仓，止损设于下轨。</p></div></div>
+                <div class="sig-row" data-dir="buy"><div class="head"><span class="sym">300750</span><span class="dir dir-buy">BUY</span><span class="muted">日线 · supertrend</span><span class="score mono">0.85</span><span class="conf mono">83%</span></div><div class="detail"><p class="muted" style="margin:0">多头排列，ATR 扩张，动能充足。</p></div></div>
+                <div class="sig-row" data-dir="sell"><div class="head"><span class="sym">000001</span><span class="dir dir-sell">SELL</span><span class="muted">日线 · supertrend</span><span class="score mono">0.74</span><span class="conf mono">71%</span></div><div class="detail"><p class="muted" style="margin:0">跌破下轨，短期趋势转弱，建议减仓。</p></div></div>
+                <div class="sig-row" data-dir="hold"><div class="head"><span class="sym">600036</span><span class="dir dir-hold">HOLD</span><span class="muted">日线 · supertrend</span><span class="score mono">0.61</span><span class="conf mono">60%</span></div><div class="detail"><p class="muted" style="margin:0">区间震荡，方向不明，观望为宜。</p></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 历史 -->
+      <section class="tab-panel" data-tab-panel="history" data-tab-group="ws">
+        <div class="stack">
+          <div class="panel"><div class="panel-body row wrap" style="justify-content:space-between;gap:var(--sp-3)"><div><div style="font-weight:800">运行 #23 · 今天 14:02</div><div class="muted" style="font-size:var(--fs-12)">参数：daily · atr 3 · 3 标的 → 6 信号</div></div><div class="row" style="gap:var(--sp-2)"><button class="btn btn-sm">恢复结果</button><button class="btn btn-sm btn-ghost">恢复参数</button></div></div></div>
+          <div class="panel"><div class="panel-body row wrap" style="justify-content:space-between;gap:var(--sp-3)"><div><div style="font-weight:800">运行 #22 · 昨天 09:30</div><div class="muted" style="font-size:var(--fs-12)">参数：daily · atr 3 · 3 标的 → 5 信号</div></div><div class="row" style="gap:var(--sp-2)"><button class="btn btn-sm">恢复结果</button><button class="btn btn-sm btn-ghost">恢复参数</button></div></div></div>
+          <div class="panel"><div class="panel-body row wrap" style="justify-content:space-between;gap:var(--sp-3)"><div><div style="font-weight:800">运行 #21 · 3 天前</div><div class="muted" style="font-size:var(--fs-12)">参数：4h · atr 2.5 · 2 标的 → 3 信号</div></div><div class="row" style="gap:var(--sp-2)"><button class="btn btn-sm">恢复结果</button><button class="btn btn-sm btn-ghost">恢复参数</button></div></div></div>
+        </div>
+      </section>
+
+      <!-- 信号 -->
+      <section class="tab-panel" data-tab-panel="signals" data-tab-group="ws">
+        <div class="row wrap section-gap" style="gap:var(--sp-3);margin-top:0">
+          <input class="input mono" data-filter-search=".sig-row" placeholder="🔍 筛选标的 / 来源…" style="flex:1;min-width:200px" />
+          <button class="btn btn-sm">⤓ 导出 CSV</button>
+        </div>
+        <div class="panel"><div class="panel-body stack">
+          <div class="sig-row" data-dir="buy"><div class="head"><span class="sym">600519</span><span class="dir dir-buy">BUY</span><span class="muted">日线 · supertrend</span><span class="score mono">0.92</span><span class="conf mono">91%</span></div><div class="detail"><p class="muted" style="margin:0">价格突破上轨且成交量放大。建议分批建仓。</p></div></div>
+          <div class="sig-row" data-dir="buy"><div class="head"><span class="sym">300750</span><span class="dir dir-buy">BUY</span><span class="muted">日线 · supertrend</span><span class="score mono">0.85</span><span class="conf mono">83%</span></div><div class="detail"><p class="muted" style="margin:0">多头排列，动能充足。</p></div></div>
+          <div class="sig-row" data-dir="sell"><div class="head"><span class="sym">000001</span><span class="dir dir-sell">SELL</span><span class="muted">日线 · supertrend</span><span class="score mono">0.74</span><span class="conf mono">71%</span></div><div class="detail"><p class="muted" style="margin:0">跌破下轨，短期趋势转弱。</p></div></div>
+        </div></div>
+      </section>
+    </main>
+  </div>
+</div>
+<script src="app.js"></script>
+</body>
+</html>

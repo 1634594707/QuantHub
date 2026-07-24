@@ -3,7 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
 import { useApi } from '../api/useApi'
 import type { StrategyInfo } from '../api/types'
-import { marketBadge, marketKey } from '../components/StrategyShared'
+import { useStrategyRuns } from '../hooks/useStrategyRuns'
+import { marketBadge, marketKey, defaultParams } from '../components/StrategyShared'
+import { formatRelativeTime } from '../lib/time'
 
 type MarketKey = 'a_shares' | 'crypto' | 'us_stocks' | 'other'
 
@@ -18,25 +20,64 @@ const GROUPS: { key: MarketKey | 'all'; label: string }[] = [
 export default function StrategiesPage() {
   const navigate = useNavigate()
   const strategies = useApi(() => api.strategies(), [])
+  const { lastRun, addRun } = useStrategyRuns()
   const [filter, setFilter] = useState<MarketKey | 'all'>('all')
+  const [liveOnly, setLiveOnly] = useState(false)
+  const [search, setSearch] = useState('')
+  const [sort, setSort] = useState<'default' | 'name' | 'recent'>('default')
+  const [running, setRunning] = useState<Set<string>>(new Set())
 
   const list = strategies.data?.strategies ?? []
 
-  const grouped = useMemo(() => {
+  const filtered = useMemo(() => {
+    let out = list
+    if (filter !== 'all') out = out.filter((st) => marketKey(st.market) === filter)
+    if (liveOnly) out = out.filter((st) => st.live_capable)
+    const q = search.trim().toLowerCase()
+    if (q) {
+      out = out.filter(
+        (st) =>
+          st.name.toLowerCase().includes(q) || st.description.toLowerCase().includes(q),
+      )
+    }
+    if (sort === 'name') return [...out].sort((a, b) => a.name.localeCompare(b.name))
+    if (sort === 'recent') {
+      return [...out].sort((a, b) => {
+        const ta = new Date(lastRun(a.name)?.ts ?? 0).getTime()
+        const tb = new Date(lastRun(b.name)?.ts ?? 0).getTime()
+        return tb - ta
+      })
+    }
+    return out
+  }, [list, filter, liveOnly, search, sort, lastRun])
+
+  const grouped = useMemo<Record<MarketKey | '', StrategyInfo[]>>(() => {
+    if (filter !== 'all' || search.trim()) return { '': filtered } as Record<MarketKey | '', StrategyInfo[]>
     const map: Record<MarketKey, StrategyInfo[]> = {
       a_shares: [],
       crypto: [],
       us_stocks: [],
       other: [],
     }
-    list.forEach((st) => map[marketKey(st.market)].push(st))
-    return map
-  }, [list])
+    filtered.forEach((st) => map[marketKey(st.market)].push(st))
+    return map as Record<MarketKey | '', StrategyInfo[]>
+  }, [filtered, filter, search])
 
-  const visibleGroups = useMemo(() => {
-    if (filter === 'all') return (Object.keys(grouped) as MarketKey[]).filter((k) => grouped[k].length > 0)
-    return grouped[filter].length > 0 ? [filter] : []
-  }, [filter, grouped])
+  async function handleQuickRun(e: React.MouseEvent, name: string) {
+    e.stopPropagation()
+    setRunning((prev) => new Set([...prev, name]))
+    try {
+      const params = defaultParams(name)
+      const resp = await api.runStrategy(name, params)
+      addRun(name, params, resp)
+    } finally {
+      setRunning((prev) => {
+        const n = new Set(prev)
+        n.delete(name)
+        return n
+      })
+    }
+  }
 
   return (
     <div className="card">
@@ -51,147 +92,141 @@ export default function StrategiesPage() {
       </div>
 
       <div style={{ padding: 'var(--sp-3)' }}>
-        <div
-          style={{
-            display: 'flex',
-            gap: 'var(--sp-2)',
-            marginBottom: 'var(--sp-3)',
-            flexWrap: 'wrap',
-          }}
-        >
-          {GROUPS.map((g) => {
-            const count = g.key === 'all' ? list.length : grouped[g.key].length
-            const active = filter === g.key
-            return (
-              <button
-                key={g.key}
-                onClick={() => setFilter(g.key)}
-                className="period-tab"
-                style={{
-                  background: active ? 'var(--accent)' : 'var(--bg-subtle)',
-                  color: active ? '#fff' : 'var(--text-1)',
-                  border: active ? '1px solid var(--accent)' : '1px solid var(--border)',
-                }}
-              >
-                {g.label}
-                <span
+        {/* 工具栏 */}
+        <div className="strategy-toolbar">
+          <input
+            className="edit-input"
+            style={{ minWidth: 180, maxWidth: 280 }}
+            placeholder="搜索策略名称或描述…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          <div style={{ display: 'flex', gap: 'var(--sp-2)', flexWrap: 'wrap' }}>
+            {GROUPS.map((g) => {
+              const count = g.key === 'all' ? list.length : list.filter((s) => marketKey(s.market) === g.key).length
+              const active = filter === g.key
+              return (
+                <button
+                  key={g.key}
+                  onClick={() => setFilter(g.key)}
+                  className="period-tab"
                   style={{
-                    marginLeft: '6px',
-                    opacity: 0.75,
-                    fontSize: 'var(--fs-12)',
+                    background: active ? 'var(--accent)' : 'var(--bg-subtle)',
+                    color: active ? '#fff' : 'var(--text-1)',
+                    border: active ? '1px solid var(--accent)' : '1px solid var(--border)',
                   }}
                 >
-                  {count}
-                </span>
-              </button>
-            )
-          })}
+                  {g.label}
+                  <span style={{ marginLeft: '6px', opacity: 0.75, fontSize: 'var(--fs-12)' }}>{count}</span>
+                </button>
+              )
+            })}
+          </div>
+          <div style={{ display: 'flex', gap: 'var(--sp-2)', alignItems: 'center', flexWrap: 'wrap' }}>
+            <label className="toggle-label">
+              <input
+                type="checkbox"
+                checked={liveOnly}
+                onChange={(e) => setLiveOnly(e.target.checked)}
+              />
+              仅可实盘
+            </label>
+            <select
+              className="edit-input"
+              style={{ width: 110, flex: '0 0 auto' }}
+              value={sort}
+              onChange={(e) => setSort(e.target.value as typeof sort)}
+            >
+              <option value="default">默认排序</option>
+              <option value="name">按名称</option>
+              <option value="recent">最近运行</option>
+            </select>
+          </div>
         </div>
 
-        {visibleGroups.length === 0 && (
+        {filtered.length === 0 && (
           <div className="muted" style={{ textAlign: 'center', padding: 'var(--sp-5)' }}>
-            {strategies.loading ? '加载中…' : '该分类下暂无策略'}
+            {strategies.loading ? '加载中…' : '没有匹配的策略'}
           </div>
         )}
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-4)' }}>
-          {visibleGroups.map((key) => (
-            <section key={key}>
-              {filter === 'all' && (
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 'var(--sp-2)',
-                    marginBottom: 'var(--sp-2)',
-                    fontWeight: 600,
-                    fontSize: 'var(--fs-14)',
-                    color: 'var(--text-1)',
-                  }}
-                >
-                  {GROUPS.find((g) => g.key === key)?.label}
-                  <span className="sub" style={{ fontWeight: 400 }}>
-                    {grouped[key].length} 个
-                  </span>
+          {(Object.keys(grouped) as (MarketKey | '')[])
+            .filter((k) => grouped[k].length > 0)
+            .map((key) => (
+              <section key={key || 'results'}>
+                {filter === 'all' && !search.trim() && (
+                  <div className="strategy-group-title">
+                    {GROUPS.find((g) => g.key === key)?.label}
+                    <span className="sub" style={{ fontWeight: 400 }}>
+                      {grouped[key].length} 个
+                    </span>
+                  </div>
+                )}
+                <div className="strategy-grid">
+                  {grouped[key].map((st) => (
+                    <StrategyCard
+                      key={st.name}
+                      st={st}
+                      last={lastRun(st.name)}
+                      running={running.has(st.name)}
+                      onClick={() => navigate(`/strategies/${st.name}`)}
+                      onRun={(e) => handleQuickRun(e, st.name)}
+                    />
+                  ))}
                 </div>
-              )}
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
-                  gap: 'var(--sp-3)',
-                }}
-              >
-                {grouped[key].map((st) => (
-                  <StrategyCard key={st.name} st={st} onClick={() => navigate(`/strategies/${st.name}`)} />
-                ))}
-              </div>
-            </section>
-          ))}
+              </section>
+            ))}
         </div>
       </div>
     </div>
   )
 }
 
-function StrategyCard({ st, onClick }: { st: StrategyInfo; onClick: () => void }) {
+function StrategyCard({
+  st,
+  last,
+  running,
+  onClick,
+  onRun,
+}: {
+  st: StrategyInfo
+  last?: { result: { ok: boolean; count: number; error?: string }; ts: string }
+  running: boolean
+  onClick: () => void
+  onRun: (e: React.MouseEvent) => void
+}) {
+  const recent = last
+    ? last.result.ok
+      ? `最近运行 ${last.result.count} 条信号 · ${formatRelativeTime(last.ts)}`
+      : `最近运行失败 · ${formatRelativeTime(last.ts)}`
+    : '未运行过'
+
   return (
-    <div
-      onClick={onClick}
-      style={{
-        padding: 'var(--sp-3)',
-        borderRadius: 'var(--r-md)',
-        border: '1px solid var(--border)',
-        background: 'var(--bg-subtle)',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 'var(--sp-2)',
-        cursor: 'pointer',
-        transition: 'transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease',
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.transform = 'translateY(-2px)'
-        e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.08)'
-        e.currentTarget.style.borderColor = 'var(--accent)'
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.transform = 'none'
-        e.currentTarget.style.boxShadow = 'none'
-        e.currentTarget.style.borderColor = 'var(--border)'
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' }}>
-        <span style={{ fontWeight: 700, fontSize: 'var(--fs-15)' }}>{st.name}</span>
-        <span
-          style={{
-            fontSize: 'var(--fs-12)',
-            padding: '2px 8px',
-            borderRadius: 'var(--r-pill)',
-            background: 'var(--accent-weak)',
-            color: 'var(--accent-strong)',
-          }}
-        >
-          {marketBadge(st.market)}
-        </span>
-        {st.live_capable && (
-          <span
-            style={{
-              fontSize: 'var(--fs-12)',
-              padding: '2px 8px',
-              borderRadius: 'var(--r-pill)',
-              background: 'rgba(22,199,132,0.14)',
-              color: 'var(--up-ink)',
-            }}
-          >
-            可实盘
-          </span>
-        )}
+    <div className="strategy-card" onClick={onClick}>
+      <div className="strategy-card-head">
+        <div className="strategy-card-title">
+          <span>{st.name}</span>
+          <span className="strategy-card-badge market">{marketBadge(st.market)}</span>
+          {st.live_capable && <span className="strategy-card-badge live">可实盘</span>}
+        </div>
       </div>
-      <p style={{ margin: 0, color: 'var(--text-2)', fontSize: 'var(--fs-13)', lineHeight: 1.5 }}>
-        {st.description || '暂无描述'}
-      </p>
-      <div style={{ marginTop: 'auto', paddingTop: 'var(--sp-2)', fontSize: 'var(--fs-12)', color: 'var(--accent)' }}>
-        点击查看详情与运行 →
+      <p className="strategy-card-desc">{st.description || '暂无描述'}</p>
+      <div className="strategy-card-foot">
+        <span className={`strategy-card-status ${last ? (last.result.ok ? 'ok' : 'err') : 'muted'}`}>
+          {recent}
+        </span>
+        <div style={{ display: 'flex', gap: 'var(--sp-2)', marginTop: 'auto', paddingTop: 'var(--sp-2)' }}>
+          <button
+            className="period-tab"
+            onClick={onRun}
+            disabled={running}
+            style={{ background: 'var(--accent)', color: '#fff' }}
+          >
+            {running ? '运行中…' : '快速运行'}
+          </button>
+          <button className="link-btn">详情 →</button>
+        </div>
       </div>
     </div>
   )

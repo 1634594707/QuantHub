@@ -1,0 +1,643 @@
+/* ============================================================
+   策略模块补充样式
+   作用域：策略详情（detail / preset / run / signal）与
+   信号中心（filters / agg / grouped / expand / viz）。
+   全部复用 tokens.css 双主题变量，保证 95% 一致的设计语言。
+   ============================================================ */
+
+/* ---------------- 策略详情：分区与布局 ---------------- */
+.detail-tabs {
+  padding: 0 var(--sp-3) var(--sp-2);
+}
+.detail-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  padding: var(--sp-3) var(--sp-3) var(--sp-4);
+}
+.detail-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.detail-section-title {
+  font-size: var(--fs-14);
+  font-weight: 600;
+  color: var(--text-1);
+}
+.detail-desc {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--fs-13);
+  line-height: 1.6;
+}
+.detail-grid {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: var(--sp-4);
+  align-items: start;
+}
+@media (max-width: 920px) {
+  .detail-grid { grid-template-columns: 1fr; }
+}
+.detail-left,
+.detail-right {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+.detail-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-top: var(--sp-2);
+  flex-wrap: wrap;
+}
+.run-error {
+  color: var(--down-ink);
+  font-size: var(--fs-13);
+}
+
+/* 概览统计网格 */
+.overview-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: var(--sp-2);
+}
+.stat-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg-subtle);
+}
+.stat-tile .k {
+  font-size: var(--fs-12);
+  color: var(--text-3);
+}
+.stat-tile .v {
+  font-size: var(--fs-18);
+  font-weight: 700;
+  line-height: 1.2;
+}
+.stat-tile .v.mono {
+  font-family: monospace;
+}
+
+/* 参数预设 */
+.preset-add {
+  display: flex;
+  gap: var(--sp-2);
+}
+.preset-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.preset-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg-subtle);
+}
+.preset-name {
+  font-weight: 600;
+  font-size: var(--fs-13);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.preset-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-shrink: 0;
+}
+
+/* 运行历史 */
+.run-history {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.run-record {
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+.run-record-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+.run-record-time {
+  font-size: var(--fs-12);
+  color: var(--text-2);
+}
+.run-record-status {
+  font-size: var(--fs-12);
+  font-weight: 600;
+}
+.run-record-status.ok {
+  color: var(--up-ink);
+}
+.run-record-status.err {
+  color: var(--down-ink);
+}
+.run-record-params {
+  font-size: var(--fs-12);
+  color: var(--text-3);
+  font-family: monospace;
+  word-break: break-all;
+}
+
+/* ---------------- 信号结果 / 可视化 ---------------- */
+.signal-result-head {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+.signal-result-summary {
+  font-size: var(--fs-13);
+  color: var(--text-2);
+}
+
+.signal-viz {
+  display: grid;
+  grid-template-columns: 132px 1fr;
+  gap: var(--sp-4);
+  align-items: center;
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg-subtle);
+}
+@media (max-width: 600px) {
+  .signal-viz {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+}
+.donut-wrap {
+  position: relative;
+  width: 128px;
+  height: 128px;
+}
+.donut {
+  width: 128px;
+  height: 128px;
+  border-radius: 50%;
+  position: relative;
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+.donut .center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.donut .center b {
+  font-size: var(--fs-22);
+  font-weight: 800;
+  line-height: 1;
+}
+.donut .center span {
+  font-size: var(--fs-11);
+  color: var(--text-3);
+  margin-top: 2px;
+}
+.donut-legend {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+.donut-legend .li {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-13);
+}
+.donut-legend .dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.donut-legend .cnt {
+  margin-left: auto;
+  font-weight: 700;
+  font-family: monospace;
+}
+
+.histo {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 120px;
+}
+.histo .bar {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  height: 100%;
+}
+.histo .bar .fill {
+  width: 100%;
+  border-radius: 4px 4px 0 0;
+  background: linear-gradient(180deg, var(--accent), var(--accent-strong));
+  min-height: 2px;
+  transition: height var(--t-fast);
+}
+.histo .bar .val {
+  font-size: var(--fs-11);
+  color: var(--text-3);
+  font-family: monospace;
+}
+.histo-axis {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--fs-11);
+  color: var(--text-3);
+  margin-top: 2px;
+}
+
+.signal-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  margin: var(--sp-3) 0;
+}
+.signal-filters {
+  display: flex;
+  gap: 4px;
+  background: var(--bg-subtle);
+  padding: 3px;
+  border-radius: var(--r-md);
+}
+.signal-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+/* ---------------- 信号中心：筛选 / 聚合 / 列表 ---------------- */
+.signals-layout {
+  display: grid;
+  grid-template-columns: 236px 1fr;
+  gap: var(--sp-4);
+  align-items: start;
+}
+@media (max-width: 880px) {
+  .signals-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.signals-filters {
+  position: sticky;
+  top: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--bg-subtle);
+}
+@media (max-width: 880px) {
+  .signals-filters {
+    position: static;
+  }
+}
+.filter-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.filter-label {
+  font-size: var(--fs-12);
+  color: var(--text-3);
+  font-weight: 600;
+}
+.filter-input,
+.filter-select {
+  padding: 6px 10px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-1);
+  font-size: var(--fs-13);
+  font-family: inherit;
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+}
+.filter-input:focus,
+.filter-select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-weak);
+}
+.seg {
+  display: flex;
+  gap: 4px;
+  background: var(--bg-elevated);
+  padding: 3px;
+  border-radius: var(--r-md);
+}
+.seg button {
+  flex: 1;
+  border: none;
+  background: none;
+  color: var(--text-2);
+  font-size: var(--fs-12);
+  font-weight: 600;
+  padding: 5px 0;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all var(--t-fast);
+}
+.seg button:hover {
+  color: var(--text-1);
+}
+.seg button.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.signals-agg {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-3);
+}
+.agg-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg-subtle);
+  min-width: 88px;
+}
+.agg-chip .k {
+  font-size: var(--fs-12);
+  color: var(--text-3);
+}
+.agg-chip .v {
+  font-size: var(--fs-18);
+  font-weight: 700;
+  font-family: monospace;
+}
+.agg-chip.long .v {
+  color: var(--up-ink);
+}
+.agg-chip.short .v {
+  color: var(--down-ink);
+}
+.agg-chip.accent .v {
+  color: var(--accent-strong);
+}
+
+.signals-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  margin-bottom: var(--sp-3);
+}
+
+.sig-row-expand {
+  cursor: pointer;
+}
+.sig-detail-cell {
+  padding: var(--sp-2) var(--sp-3) var(--sp-3);
+  background: var(--bg-subtle);
+}
+.sig-group {
+  margin-bottom: var(--sp-4);
+}
+.sig-group-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-2);
+}
+.sig-group-title {
+  font-weight: 700;
+  font-size: var(--fs-14);
+}
+.sig-group-count {
+  font-size: var(--fs-12);
+  color: var(--text-3);
+}
+.sig-group-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.empty-hint {
+  padding: var(--sp-6);
+  text-align: center;
+  color: var(--text-3);
+  font-size: var(--fs-13);
+  border: 1px dashed var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg-subtle);
+}
+
+/* ============================================================
+   板块签名：信号中心（琥珀） vs 策略工作台（蓝，沿用全局）
+   目的：打破两页在「信号可视化」子模块的视觉趋同，
+   让每个板块保留独有记忆点，同时架构上为迭代留余地。
+   ============================================================ */
+[data-board="signals"] {
+  --accent: #d97706;          /* 亮主题深琥珀，保证 AA 对比 */
+  --accent-weak: rgba(217, 119, 6, 0.14);
+  --accent-strong: #b45309;
+}
+[data-theme="dark"][data-board="signals"] {
+  --accent: #f59e0b;          /* 暗主题亮琥珀，深底上对比充足 */
+  --accent-weak: rgba(245, 158, 11, 0.16);
+  --accent-strong: #fbbf24;
+}
+/* 工作台保持蓝驾驶舱，显式锚定（如需微调在此覆盖） */
+[data-board="workbench"] {
+  --accent: #3b82f6;
+  --accent-weak: rgba(59, 130, 246, 0.14);
+  --accent-strong: #60a5fa;
+}
+
+/* —— 更新状态栏：表达「信号是流动的」，为实时/增量刷新预留空间 —— */
+.update-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  padding: var(--sp-2) 0 var(--sp-3);
+  font-size: var(--fs-13);
+  color: var(--text-2);
+}
+.ub-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-3);
+  flex: 0 0 auto;
+}
+.ub-dot[data-live="true"] {
+  background: var(--up);
+  animation: ubpulse 1.6s ease-in-out infinite;
+}
+@keyframes ubpulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.5); }
+  50% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+}
+.ub-text {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-1);
+}
+.ub-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  color: var(--text-1);
+  user-select: none;
+}
+.ub-toggle input {
+  accent-color: var(--accent);
+  width: 16px;
+  height: 16px;
+}
+.ub-note {
+  color: var(--text-3);
+  font-size: var(--fs-12);
+}
+
+/* —— 跨策略来源分布条形图（信号中心专属维度） —— */
+.source-bars {
+  margin-top: var(--sp-4);
+}
+.source-bars-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+}
+.src-row {
+  display: grid;
+  grid-template-columns: 150px 1fr 34px;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.src-name {
+  font-size: var(--fs-13);
+  color: var(--text-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.src-track {
+  height: 8px;
+  background: var(--bg-subtle);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.src-fill {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent-strong), var(--accent));
+  border-radius: 999px;
+  transition: width 300ms ease;
+}
+.src-cnt {
+  font-size: var(--fs-13);
+  color: var(--text-2);
+  text-align: right;
+}
+@media (max-width: 560px) {
+  .src-row {
+    grid-template-columns: 96px 1fr 28px;
+  }
+}
+
+/* ---------------- 参数预设区块（G1：消除半成品） ---------------- */
+.preset-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+}
+.preset-block .detail-section-title {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+}
+.preset-add .edit-input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* ---------------- 持久化边界提示（G2：声明浏览器本地范围） ---------------- */
+.local-hint {
+  display: inline-block;
+  font-size: var(--fs-12);
+  font-weight: 500;
+  color: var(--text-3);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 1px 10px;
+  white-space: nowrap;
+}
+.local-hint.ok {
+  color: var(--up-ink);
+  border-color: var(--up-weak, transparent);
+  background: color-mix(in srgb, var(--up) 12%, transparent);
+}
+
+/* ---------------- 统一信号源说明（G3：工作台与中心同源） ---------------- */
+.bus-hint {
+  font-size: var(--fs-12);
+  color: var(--text-3);
+  background: var(--accent-weak, transparent);
+  border: 1px solid var(--accent-weak, transparent);
+  border-radius: var(--r-md);
+  padding: var(--sp-2) var(--sp-3);
+  margin-bottom: var(--sp-2);
+}
+
+/* ---------------- 信号中心空态引导（G4：开箱即用） ---------------- */
+.empty-hint.onboarding {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+}
+.empty-hint.onboarding code {
+  font-family: monospace;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0 6px;
+}
