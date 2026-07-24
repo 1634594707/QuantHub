@@ -21,6 +21,7 @@ from __future__ import annotations
 import inspect
 import logging
 import os
+import re
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -28,6 +29,7 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
+import requests
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -40,6 +42,7 @@ from pydantic import BaseModel, Field
 
 from core.config import get_config
 from core.data_feed.factory import get_data_source
+from core.data_feed.tencent_source import _to_tencent_code
 from core.signals import Signal, get_bus
 from strategies import discover_and_register, get_strategy, list_strategies
 from strategies.ai_analysis.pa_agent.two_stage import run_two_stage
@@ -412,8 +415,8 @@ _HOLDINGS_CFG: list[dict[str, Any]] = [
 ]
 
 _WATCHLIST_CFG: list[dict[str, Any]] = [
-    {"sym": "NVDA", "name": "英伟达", "market": "us"},
-    {"sym": "AVGO", "name": "博通", "market": "us"},
+    {"sym": "NVDA", "name": "英伟达", "market": "us_stocks"},
+    {"sym": "AVGO", "name": "博通", "market": "us_stocks"},
     {"sym": "600036", "name": "招商银行", "market": "a_shares"},
     {"sym": "BTC-USDT", "name": "比特币", "market": "crypto"},
 ]
@@ -421,6 +424,9 @@ _WATCHLIST_CFG: list[dict[str, Any]] = [
 
 def _latest_close(symbol: str, market: str, interval: str = "1h") -> float | None:
     """从数据源取最新收盘价；失败返回 None。"""
+    # 腾讯源仅支持日/周线，非 A股统一取日线最新收盘
+    if market != "a_shares":
+        interval = "1d"
     try:
         ds = get_data_source(market)
         df = ds.get_kline(symbol, interval, limit=2)
@@ -428,6 +434,35 @@ def _latest_close(symbol: str, market: str, interval: str = "1h") -> float | Non
             return None
         return float(df["close"].iloc[-1])
     except Exception:
+        return None
+
+
+def _tencent_prev_close(symbol: str, market: str) -> float | None:
+    """腾讯实时报价取昨收（美股日线常只回 1 根，无法由 K 线算涨跌，改用报价接口）。
+
+    返回 None 表示取不到。
+    """
+    try:
+        code = _to_tencent_code(symbol, market)
+        r = requests.get(
+            f"https://qt.gtimg.cn/q={code}",
+            headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                "Referer": "https://quote.eastmoney.com/",
+            },
+            timeout=15,
+        )
+        r.raise_for_status()
+        m = re.search(r'="([^"]+)"', r.text)
+        if not m:
+            return None
+        parts = m.group(1).split("~")
+        # 腾讯 qt 格式：索引3=当前价，索引4=昨收
+        if len(parts) < 5:
+            return None
+        return float(parts[4])
+    except Exception:
+        logger.exception("腾讯报价取昨收失败 %s/%s", market, symbol)
         return None
 
 
@@ -506,23 +541,52 @@ def get_market_breadth() -> dict[str, Any]:
 
 @app.get("/market/watchlist")
 def get_watchlist() -> dict[str, Any]:
-    """返回关注列表（价格尽可能走实时数据源）。"""
+    """返回关注列表（价格走实时数据源；无法接入的市场诚实标注 unavailable）。
+
+    - A股/美股经腾讯源取真实日线，涨跌幅由最近两根 K 线真实计算。
+    - 加密货币在当前环境无可用数据源（代理不放行 OKX），price 为 null、
+      available=false，前端展示“数据源不可用”，不再以 0.0 伪装。
+    """
     items: list[dict[str, Any]] = []
     for cfg in _WATCHLIST_CFG:
         sym = cfg["sym"]
         market = cfg.get("market", "a_shares")
-        interval = "1h" if market in ("a_shares", "crypto") else "1d"
-        price = _latest_close(sym, market, interval)
-        if price is None:
-            price = 0.0
+        # 统一取日线最新收盘（腾讯日线可穿透代理，A股/美股均真实）；
+        # 放大回看窗口确保至少两根 K 线以计算真实涨跌幅。
+        interval = "1d"
+        try:
+            ds = get_data_source(market)
+            df = ds.get_kline(sym, interval, limit=10)
+        except Exception:
+            df = None
+        if df is None or df.empty or "close" not in df.columns or pd.isna(df["close"].iloc[-1]):
+            items.append(
+                {
+                    "sym": sym,
+                    "name": cfg["name"],
+                    "market": market,
+                    "price": None,
+                    "chgPct": None,
+                    "available": False,
+                }
+            )
+            continue
+        closes = df["close"].dropna().tolist()
+        price = float(closes[-1])
+        if len(closes) >= 2:
+            prev = float(closes[-2])
+        else:
+            # 美股日线常只回 1 根，改用腾讯实时报价取昨收算真实涨跌
+            prev = _tencent_prev_close(sym, market)
+        chg = ((price - prev) / prev * 100) if prev else 0.0
         items.append(
             {
                 "sym": sym,
                 "name": cfg["name"],
+                "market": market,
                 "price": round(price, 2),
-                "chgPct": round(((price - price * 0.985) / (price * 0.985)) * 100, 2)
-                if price
-                else 0.0,
+                "chgPct": round(chg, 2),
+                "available": True,
             }
         )
     return {"ok": True, "items": items}

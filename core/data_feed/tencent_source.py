@@ -24,9 +24,18 @@ _TENCENT_CODE_MAP = {
 }
 
 
-def _to_tencent_code(symbol: str) -> str:
-    """把 600519 / 000001 等转换为 sh600519 / sz000001。"""
+def _to_tencent_code(symbol: str, market: str = "a_shares") -> str:
+    """把标的转换为腾讯代码。
+
+    - A股: 600519 -> sh600519（60/68/69/51/50 开头用 sh，其余 sz）
+    - 美股: NVDA -> usNVDA
+    - 港股: 00700 -> hk00700
+    """
     s = symbol.strip().upper()
+    if market == "us_stocks":
+        return f"us{s}"
+    if market == "hk":
+        return f"hk{s}"
     if s.startswith(("SH", "SZ", "BJ")):
         return s.lower()
     # 主板/科创板/北交所简单规则
@@ -36,10 +45,12 @@ def _to_tencent_code(symbol: str) -> str:
 
 
 class TencentSource(DataSource):
-    """腾讯财经 A股数据源。"""
+    """腾讯财经数据源（A股/美股/港股日线，无需认证，可穿透本机代理）。"""
 
     name = "tencent"
-    market = "a_shares"
+
+    def __init__(self, market: str = "a_shares") -> None:
+        self.market = market
 
     def supported_intervals(self) -> Iterable[Interval]:
         return (Interval.DAILY, Interval.WEEKLY)
@@ -56,7 +67,7 @@ class TencentSource(DataSource):
         if interval not in (Interval.DAILY, Interval.WEEKLY):
             raise ValueError(f"腾讯数据源仅支持日线/周线: {interval}")
 
-        code = _to_tencent_code(symbol)
+        code = _to_tencent_code(symbol, self.market)
         end = end or datetime.now()
         start = start or (end - timedelta(days=limit * 2))
         start_str = start.strftime("%Y-%m-%d")

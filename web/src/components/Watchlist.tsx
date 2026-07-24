@@ -48,7 +48,20 @@ export default function Watchlist({ items }: { items?: WatchlistItem[] }) {
       </div>
       <div className="watch">
         {data.map((w) => {
-          const up = w.chgPct >= 0
+          if (w.available === false || w.price == null) {
+            return (
+              <div className="watch-item" key={w.sym}>
+                <div className="watch-left">
+                  <span className="watch-sym mono">{w.sym}</span>
+                  <span className="watch-price">{w.name}</span>
+                </div>
+                <div className="watch-right">
+                  <span className="watch-unavail">数据源不可用</span>
+                </div>
+              </div>
+            )
+          }
+          const up = (w.chgPct ?? 0) >= 0
           return (
             <div className="watch-item" key={w.sym}>
               <div className="watch-left">
@@ -63,7 +76,7 @@ export default function Watchlist({ items }: { items?: WatchlistItem[] }) {
                   </div>
                   <div className={`watch-chg ${up ? 'up' : 'down'}`}>
                     {up ? '+' : ''}
-                    {w.chgPct.toFixed(2)}%
+                    {(w.chgPct ?? 0).toFixed(2)}%
                   </div>
                 </div>
               </div>

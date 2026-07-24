@@ -168,7 +168,7 @@ def _build_source(
     if name == "tencent":
         from core.data_feed.tencent_source import TencentSource
 
-        return TencentSource()
+        return TencentSource(market=market)
     if name == "local_parquet":
         from core.config import get_repo_root
         from core.data_feed.local_parquet import LocalParquetSource

@@ -1,0 +1,23 @@
+# 美股市场专属配置
+# 继承 base.yaml，覆盖/扩展美股相关项
+# 环境说明：本机代理仅放行腾讯 web.ifzq.gtimg.cn（us 前缀可出美股日线），
+# akshare/东财经代理不可用，故美股 primary 用 tencent。
+
+market: "us_stocks"
+
+# ===== 美股数据源 =====
+data_sources:
+  # 腾讯 us 前缀行情可穿透代理，提供美股日/周线；分钟级不支持，回退 local_parquet（离线）。
+  primary: "tencent"
+  fallback: ["local_parquet"]
+  tencent: {}
+  local_parquet:
+    root: "data"
+    time_mode: "auto"
+    groups:
+      us_stocks:
+        subdir: "parquet/us"
+        pattern: "{code}_{tf}min.parquet"
+        symbol_norm: "code"
+        tf_map: { "5m": "5", "15m": "15", "1h": "60" }
+        time_mode: "ordinal"

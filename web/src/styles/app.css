@@ -977,6 +977,14 @@ table.tbl {
   font-size: var(--fs-13);
   min-width: 56px;
 }
+.watch-unavail {
+  font-size: var(--fs-12);
+  color: var(--text-3);
+  background: var(--bg-elevated);
+  border: 1px dashed var(--border);
+  padding: 3px 10px;
+  border-radius: var(--r-pill);
+}
 .watch-mini {
   width: 56px;
   height: 22px;

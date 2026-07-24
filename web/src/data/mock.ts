@@ -40,6 +40,8 @@ export interface Watch {
   name: string
   price: number
   chgPct: number
+  /** 兼容 WatchlistItem：mock 数据默认可用。 */
+  available?: boolean
 }
 
 export type Direction = 'long' | 'short' | 'hold'

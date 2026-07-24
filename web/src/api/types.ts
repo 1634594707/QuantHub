@@ -176,8 +176,13 @@ export interface MarketBreadthResp {
 export interface WatchlistItem {
   sym: string
   name: string
-  price: number
-  chgPct: number
+  /** 最新价；无法接入数据源时为 null（如加密货币在当前环境无可用源）。 */
+  price: number | null
+  /** 涨跌幅(%)；与 price 同为 null 时表示不可用。 */
+  chgPct: number | null
+  /** 数据源是否可用；false 时前端展示“数据源不可用”，不伪装成 0。 */
+  available?: boolean
+  market?: string
 }
 
 export interface WatchlistResp {
