@@ -15,12 +15,13 @@ from fastapi.testclient import TestClient
 from apps.api import database, store
 from apps.api.domains.alerts import service as alert_service
 from apps.api.domains.governance import repository as governance_repository
+from apps.api.domains.instrument import service as instrument_service
+from apps.api.domains.ledger import repository as ledger_repository
 from apps.api.domains.settings import service as settings_service
 from apps.api.domains.signals import service as signal_service
 from apps.api.domains.signals.schemas import PublishSignalRequest
 from apps.api.domains.simulation import service as simulation_service
 from apps.api.domains.simulation.schemas import SimulationFillCreate, SimulationOrderCreate
-from apps.api.domains.ledger import repository as ledger_repository
 from apps.api.domains.tasks import service as task_service
 from apps.api.domains.tasks.router import retry_task
 
@@ -148,6 +149,40 @@ class UnifiedEvaluationTests(TemporaryStoreTestCase):
         self.assertEqual(result["steps"]["market"]["status"], "succeeded")
         self.assertEqual(run["status"], "succeeded")
         self.assertEqual(run["summary"]["market"]["latest_price"], 101.0)
+        self.assertEqual(run["summary"]["market"]["quantitative"]["data_quality"], "不足")
+
+    def test_market_evaluation_persists_selected_methods_and_strategy_lenses(self) -> None:
+        task = self.create_running_evaluation("evaluation-quantitative", ["market"])
+        candles = [
+            {
+                "t": f"2026-05-{index + 1:02d}",
+                "o": 100.0 + index,
+                "h": 102.0 + index,
+                "l": 99.0 + index,
+                "c": 101.0 + index,
+                "v": 1000.0 + index * 10,
+            }
+            for index in range(30)
+        ]
+        request = {
+            "modules": ["market"],
+            "evaluation_profile": "quick",
+            "market_methods": ["trend", "drawdown"],
+            "strategy_lenses": ["risk_first"],
+        }
+        with patch(
+            "apps.api.domains.market.service.fetch_kline",
+            return_value={"ok": True, "source": "test", "candles": candles},
+        ):
+            result = task_service._run_evaluation(task, request)
+
+        run = store.get_research_run(result["research_run_id"])
+        quantitative = run["summary"]["market"]["quantitative"]
+        self.assertEqual(run["input"]["evaluation_profile"], "quick")
+        self.assertEqual(run["input"]["market_methods"], ["trend", "drawdown"])
+        self.assertEqual(quantitative["methods"], ["trend", "drawdown"])
+        self.assertEqual(quantitative["strategy_lenses"], ["risk_first"])
+        self.assertTrue(any(item["kind"] == "quantitative_evaluation" for item in run["evidence"]))
 
     def test_evaluation_is_partial_when_news_fails_after_market_succeeds(self) -> None:
         task = self.create_running_evaluation("evaluation-partial", ["market", "news"])
@@ -241,7 +276,11 @@ class UnifiedEvaluationTests(TemporaryStoreTestCase):
 
     def test_cancel_preserves_research_summary_and_marks_run_cancelled(self) -> None:
         run = store.create_research_run(
-            symbol="600519", market="a_shares", timeframe="1d", modules=["market", "news"], input_data={}
+            symbol="600519",
+            market="a_shares",
+            timeframe="1d",
+            modules=["market", "news"],
+            input_data={},
         )
         store.update_research_run(
             run["id"], {"status": "running", "summary": {"market": {"latest_price": 101.0}}}
@@ -269,7 +308,11 @@ class UnifiedEvaluationTests(TemporaryStoreTestCase):
 
     def test_retry_uses_failed_modules_and_existing_research_run(self) -> None:
         run = store.create_research_run(
-            symbol="600519", market="a_shares", timeframe="1d", modules=["market", "news"], input_data={}
+            symbol="600519",
+            market="a_shares",
+            timeframe="1d",
+            modules=["market", "news"],
+            input_data={},
         )
         task = self.create_running_evaluation("evaluation-retry", ["market", "news"])
         task = store.update_analysis_task(
@@ -296,24 +339,49 @@ class UnifiedEvaluationTests(TemporaryStoreTestCase):
         self.assertEqual(payload["research_run_id"], run["id"])
 
 
+class MultiMarketInstrumentSearchTests(TemporaryStoreTestCase):
+    def test_exact_us_symbol_is_resolved_and_filtered_by_market(self) -> None:
+        with patch(
+            "apps.api.domains.portfolio.service.tencent_quote_detail",
+            return_value=("NVIDIA", 120.0, 118.0),
+        ):
+            results = instrument_service.search("nvda", market="us_stocks")
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].instrument_id, "us_stocks:NVDA")
+        self.assertEqual(results[0].name, "NVIDIA")
+        self.assertEqual(instrument_service.search("NVDA", market="a_shares"), [])
+
+    def test_exact_crypto_pair_is_registered_without_remote_lookup(self) -> None:
+        results = instrument_service.search("btc-usdt", market="crypto")
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].instrument_id, "crypto:BTC-USDT")
+        self.assertEqual(results[0].asset_class, "crypto")
+
+
 class SignalSimulationLedgerTests(TemporaryStoreTestCase):
     def test_accepted_signal_converts_to_order_and_syncs_fill_to_ledger(self) -> None:
-        signal = signal_service.publish(PublishSignalRequest(
-            symbol="600519",
-            market="a_shares",
-            direction="buy",
-            score=0.8,
-            confidence=0.7,
-            source="workflow_test",
-            timeframe="1d",
-        ))
+        signal = signal_service.publish(
+            PublishSignalRequest(
+                symbol="600519",
+                market="a_shares",
+                direction="buy",
+                score=0.8,
+                confidence=0.7,
+                source="workflow_test",
+                timeframe="1d",
+            )
+        )
         accepted = signal_service.review(signal["id"], target="accepted", note="测试通过")
         self.assertEqual(accepted["status"], "accepted")
 
-        order = simulation_service.create_order(SimulationOrderCreate(
-            signal_id=signal["id"],
-            quantity=10,
-        ))
+        order = simulation_service.create_order(
+            SimulationOrderCreate(
+                signal_id=signal["id"],
+                quantity=10,
+            )
+        )
         converted = store.get_signal(signal["id"])
         self.assertEqual(converted["status"], "converted")
         self.assertEqual(converted["order_id"], order["id"])
@@ -458,7 +526,9 @@ class GovernanceTests(TemporaryStoreTestCase):
         active = governance_repository.set_user_active(user["id"], True)
         self.assertTrue(active["active"])
         self.assertIsNone(governance_repository.principal_by_token(token["token"]))
-        saved_token = next(item for item in governance_repository.list_tokens() if item["id"] == token["id"])
+        saved_token = next(
+            item for item in governance_repository.list_tokens() if item["id"] == token["id"]
+        )
         self.assertIsNotNone(saved_token["revoked_at"])
 
     def test_remote_auth_returns_401_and_403(self) -> None:
@@ -495,9 +565,13 @@ class NotificationSettingsTests(unittest.TestCase):
             "TG_CHAT_ID": "-1001234567890",
         }
         with (
-            patch.object(settings_service, "get_config", return_value={
-                "alert": {"enabled": True, "channels": ["wecom", "webhook", "telegram"]}
-            }),
+            patch.object(
+                settings_service,
+                "get_config",
+                return_value={
+                    "alert": {"enabled": True, "channels": ["wecom", "webhook", "telegram"]}
+                },
+            ),
             patch.object(
                 settings_service.repository,
                 "read_runtime_secret",
@@ -512,7 +586,9 @@ class NotificationSettingsTests(unittest.TestCase):
         self.assertTrue(status["enabled"])
         self.assertTrue(all(item["configured"] for item in status["channels"]))
         self.assertEqual(
-            next(item for item in status["channels"] if item["channel"] == "wecom")["fields"]["webhook_url"],
+            next(item for item in status["channels"] if item["channel"] == "wecom")["fields"][
+                "webhook_url"
+            ],
             "http...-key",
         )
 

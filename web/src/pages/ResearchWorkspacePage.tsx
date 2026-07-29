@@ -28,7 +28,13 @@ type View = (typeof VIEWS)[number]['key']
 
 const TIMEFRAMES = ['1h', '1d', '1w'] as const
 type WorkspaceTimeframe = (typeof TIMEFRAMES)[number]
-type WorkspaceMarket = 'a_shares' | 'crypto'
+type WorkspaceMarket = 'a_shares' | 'us_stocks' | 'crypto'
+
+const MARKET_LABELS: Record<WorkspaceMarket, string> = {
+  a_shares: 'A股',
+  us_stocks: '美股',
+  crypto: '虚拟货币',
+}
 
 const EVALUATION_STEP_LABELS: Record<string, string> = {
   prepare: '准备数据',
@@ -54,6 +60,12 @@ const MODULE_LABELS: Record<string, string> = {
   pa: '价格行为',
   ensemble: '多模型判断',
   market: '行情',
+}
+
+const EVALUATION_PROFILE_LABELS: Record<string, string> = {
+  quick: '快速筛查',
+  balanced: '均衡评估',
+  comprehensive: '全面评估',
 }
 
 function formatModules(modules: string[]) {
@@ -100,6 +112,15 @@ function buildReadableReport(run: ResearchRun) {
   const decision = asRecord(stage2?.decision)
   const summary = asRecord(run.summary)
   const marketSummary = asRecord(summary?.market)
+  const quantitative = asRecord(marketSummary?.quantitative)
+  const quantitativeMetrics = asRecord(quantitative?.metrics)
+  const dimensionMap = asRecord(quantitative?.dimensions)
+  const quantitativeDimensions = Object.values(dimensionMap ?? {})
+    .map(asRecord)
+    .filter((item): item is Record<string, unknown> => item !== null)
+  const quantitativeStrategies = Array.isArray(quantitative?.strategies)
+    ? quantitative.strategies.map(asRecord).filter((item): item is Record<string, unknown> => item !== null)
+    : []
   const ensemble = asRecord(summary?.ensemble)
   const consensus = asRecord(ensemble?.consensus)
   const news = asRecord(summary?.news)
@@ -142,6 +163,12 @@ function buildReadableReport(run: ResearchRun) {
       keyFactors.push(`${name}：${item.rationale}`)
     })
   }
+  if (keyFactors.length < 3) {
+    quantitativeDimensions.forEach((item) => {
+      if (keyFactors.length >= 3 || typeof item.evidence !== 'string' || !item.evidence.trim()) return
+      keyFactors.push(`${typeof item.label === 'string' ? item.label : '量化维度'}：${item.evidence}`)
+    })
+  }
   const watchPoints = Array.isArray(decision?.watch_points)
     ? decision.watch_points.filter((item): item is string => typeof item === 'string').slice(0, 3)
     : []
@@ -174,6 +201,20 @@ function buildReadableReport(run: ResearchRun) {
     disagreements,
     sourceDetails,
     risk: String(decision?.risk_assessment ?? '模型结果仅用于研究，不构成交易建议。'),
+    evaluationProfile: typeof run.input.evaluation_profile === 'string'
+      ? EVALUATION_PROFILE_LABELS[run.input.evaluation_profile] ?? run.input.evaluation_profile
+      : null,
+    quantitativeConfidence: typeof quantitative?.confidence === 'string' ? quantitative.confidence : null,
+    quantitativeDataQuality: typeof quantitative?.data_quality === 'string' ? quantitative.data_quality : null,
+    quantitativeMetrics: {
+      return20: asNumber(quantitativeMetrics?.return_20_pct),
+      volatility: asNumber(quantitativeMetrics?.annualized_volatility_pct),
+      drawdown: asNumber(quantitativeMetrics?.max_drawdown_pct),
+      rsi: asNumber(quantitativeMetrics?.rsi_14),
+    },
+    quantitativeDimensions,
+    quantitativeStrategies,
+    quantitativeDisagreement: quantitative?.has_strategy_disagreement === true,
   }
 }
 
@@ -587,7 +628,7 @@ export default function ResearchWorkspacePage() {
         context="研究 / 股票评估"
         title={symbol}
         metrics={[
-          { label: '市场', value: market === 'a_shares' ? 'A股' : '加密' },
+          { label: '市场', value: MARKET_LABELS[market] ?? market },
           { label: '关注周期', value: TIMEFRAME_LABELS[timeframe] },
           { label: '分析依据', value: activeRun ? `${activeRun.evidence_count} 条` : '等待首次分析' },
         ]}
@@ -596,7 +637,7 @@ export default function ResearchWorkspacePage() {
         <section className="evaluation-progress" aria-label="股票评估进度">
           <div className="evaluation-progress-head">
             <div>
-              <span>统一股票评估</span>
+              <span>统一标的评估</span>
               <strong>{evaluation ? STATUS_META[evaluation.status === 'succeeded' && evaluationResult.partial === true ? 'partial' : evaluation.status as ResearchStatus]?.label ?? evaluation.status : '正在读取任务'}</strong>
             </div>
             <div className="evaluation-progress-actions">
@@ -630,8 +671,8 @@ export default function ResearchWorkspacePage() {
         </section>
       )}
       <ContextBar items={[
-        { label: '股票代码', value: symbol, mono: true },
-        { label: '市场', value: market === 'a_shares' ? 'A股' : '加密' },
+        { label: '标的代码', value: symbol, mono: true },
+        { label: '市场', value: MARKET_LABELS[market] ?? market },
         { label: '关注周期', value: TIMEFRAME_LABELS[timeframe] },
         { label: '评估状态', value: activeRun ? STATUS_META[activeRun.status].label : '未开始' },
         { label: '更新时间', value: activeRun ? formatTime(activeRun.updated_at) : '—', mono: true },
@@ -644,12 +685,12 @@ export default function ResearchWorkspacePage() {
           }}
         >
           <label>
-            <span>股票代码</span>
+            <span>标的代码</span>
             <input
               value={symbolInput}
               onChange={(event) => setSymbolInput(event.target.value)}
               placeholder="600519"
-              aria-label="股票代码"
+              aria-label="标的代码"
             />
           </label>
           <label>
@@ -657,10 +698,11 @@ export default function ResearchWorkspacePage() {
             <select
               value={market}
               onChange={(event) => updateContext({ market: event.target.value as WorkspaceMarket })}
-              aria-label="股票市场"
+              aria-label="标的市场"
             >
               <option value="a_shares">A股</option>
-              <option value="crypto">加密</option>
+              <option value="us_stocks">美股</option>
+              <option value="crypto">虚拟货币</option>
             </select>
           </label>
           <div className="research-timeframes" role="group" aria-label="关注周期">
@@ -700,9 +742,7 @@ export default function ResearchWorkspacePage() {
               symbol={symbol}
               market={market}
               onSymbolChange={(next) => updateContext({ symbol: next })}
-              onMarketChange={(next) => {
-                if (next !== 'us_stocks') updateContext({ market: next })
-              }}
+              onMarketChange={(next) => updateContext({ market: next })}
             />
             <aside className="research-history-panel">
                     <div className="research-section-head">
@@ -734,9 +774,7 @@ export default function ResearchWorkspacePage() {
             symbol={symbol}
             market={market}
             onSymbolChange={(next) => updateContext({ symbol: next })}
-            onMarketChange={(next) => {
-              if (next !== 'us_stocks') updateContext({ market: next })
-            }}
+            onMarketChange={(next) => updateContext({ market: next })}
           />
         )}
         {view === 'news' && (
@@ -823,6 +861,44 @@ export default function ResearchWorkspacePage() {
                       <div><dt>行情来源</dt><dd>{readableReport.marketSource ?? '数据不足'}</dd></div>
                       <div><dt>新闻覆盖</dt><dd>{readableReport.newsStatus}</dd></div>
                     </dl>
+                    {readableReport.quantitativeDimensions.length > 0 && (
+                      <section className="research-quantitative" aria-labelledby="research-quantitative-title">
+                        <header>
+                          <div>
+                            <span>可解释量化评估</span>
+                            <h3 id="research-quantitative-title">{readableReport.evaluationProfile ?? '自定义评估'}</h3>
+                          </div>
+                          <p>数据质量 {readableReport.quantitativeDataQuality ?? '未知'} · 置信度 {readableReport.quantitativeConfidence ?? '未知'}</p>
+                        </header>
+                        <div className="research-quantitative-metrics">
+                          <span><small>20 期收益</small><b>{readableReport.quantitativeMetrics.return20 === null ? '—' : `${readableReport.quantitativeMetrics.return20 > 0 ? '+' : ''}${readableReport.quantitativeMetrics.return20.toFixed(2)}%`}</b></span>
+                          <span><small>年化波动</small><b>{readableReport.quantitativeMetrics.volatility === null ? '—' : `${readableReport.quantitativeMetrics.volatility.toFixed(2)}%`}</b></span>
+                          <span><small>最大回撤</small><b>{readableReport.quantitativeMetrics.drawdown === null ? '—' : `${readableReport.quantitativeMetrics.drawdown.toFixed(2)}%`}</b></span>
+                          <span><small>RSI(14)</small><b>{readableReport.quantitativeMetrics.rsi?.toFixed(1) ?? '—'}</b></span>
+                        </div>
+                        <div className="research-dimension-grid">
+                          {readableReport.quantitativeDimensions.map((dimension, index) => (
+                            <div key={`${String(dimension.label)}-${index}`}>
+                              <span>{String(dimension.label ?? '量化维度')}</span>
+                              <b>{String(dimension.signal ?? '数据不足')}</b>
+                              <small>{String(dimension.evidence ?? '暂无可用证据')}</small>
+                            </div>
+                          ))}
+                        </div>
+                        {readableReport.quantitativeStrategies.length > 0 && (
+                          <div className="research-strategy-views">
+                            {readableReport.quantitativeStrategies.map((strategy, index) => (
+                              <div key={`${String(strategy.key)}-${index}`}>
+                                <span>{String(strategy.label ?? '策略视角')}</span>
+                                <b>{String(strategy.stance ?? '数据不足')}</b>
+                                <small>{String(strategy.rationale ?? '暂无判断依据')} · 置信度 {String(strategy.confidence ?? '未知')}</small>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {readableReport.quantitativeDisagreement && <p className="research-strategy-disagreement">不同策略视角给出了不同约束，这是需要保留的判断分歧。</p>}
+                      </section>
+                    )}
                     <div className="research-report-levels" aria-label="模型关键价位">
                       <div><span>模型观察位</span><b>{readableReport.entry?.toLocaleString('zh-CN') ?? '—'}</b><small>不是买入价</small></div>
                       <div><span>判断失效位</span><b>{readableReport.invalidation?.toLocaleString('zh-CN') ?? '—'}</b><small>突破后重新评估</small></div>

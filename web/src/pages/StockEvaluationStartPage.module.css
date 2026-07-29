@@ -85,6 +85,18 @@
   font-size: var(--fs-caption);
 }
 
+.marketField {
+  display: grid;
+  gap: var(--sp-2);
+  margin-top: var(--sp-4);
+}
+
+.marketField > span {
+  color: var(--text-2);
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-semibold);
+}
+
 .searchForm {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -258,6 +270,96 @@
   line-height: 1.45;
 }
 
+.profileField {
+  display: grid;
+  gap: var(--sp-2);
+  margin-top: var(--sp-4);
+}
+
+.profileField > span,
+.strategyField legend {
+  color: var(--text-2);
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-semibold);
+}
+
+.profileField p {
+  min-height: 36px;
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--fs-caption);
+  line-height: 1.45;
+}
+
+.profileField .marketCapability {
+  min-height: 0;
+  padding-left: var(--sp-2);
+  border-left: 2px solid var(--warn);
+  color: var(--warn-ink);
+}
+
+.methodList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.methodList span {
+  padding: 3px 7px;
+  border: 1px solid var(--border);
+  background: var(--bg-subtle);
+  color: var(--text-2);
+  font-size: var(--fs-micro);
+}
+
+.strategyField {
+  min-width: 0;
+  margin: var(--sp-4) 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.strategyField legend {
+  margin-bottom: var(--sp-2);
+  padding: 0;
+}
+
+.strategyField > div {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border: 1px solid var(--border);
+}
+
+.strategyField label {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  gap: var(--sp-2);
+  align-items: start;
+  min-height: 66px;
+  padding: var(--sp-2);
+  border-right: 1px solid var(--divider);
+  cursor: pointer;
+}
+
+.strategyField label:last-child { border-right: 0; }
+.strategyField label:hover { background: var(--surface-hover); }
+
+.strategyField input {
+  width: 14px;
+  height: 14px;
+  margin: 2px 0 0;
+  accent-color: var(--accent);
+}
+
+.strategyField label > span {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.strategyField strong { color: var(--text-1); font-size: var(--fs-caption); }
+.strategyField small { color: var(--text-3); font-size: var(--fs-micro); line-height: 1.35; }
+
 .readiness {
   display: flex;
   flex-direction: column;
@@ -356,4 +458,7 @@
   .quickPickGroup > div { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .quickPickGroup button:nth-child(3n) { border-right: 1px solid var(--divider); }
   .quickPickGroup button:nth-child(2n) { border-right: 0; }
+  .strategyField > div { grid-template-columns: 1fr; }
+  .strategyField label { min-height: 54px; border-right: 0; border-bottom: 1px solid var(--divider); }
+  .strategyField label:last-child { border-bottom: 0; }
 }

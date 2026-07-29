@@ -58,20 +58,36 @@ def get(code: str, market: str) -> Instrument | None:
     return _row_to_instrument(row) if row else None
 
 
-def search(query: str, limit: int = 20) -> list[Instrument]:
+def search(query: str, limit: int = 20, market: str | None = None) -> list[Instrument]:
     """按代码或名称模糊搜索（大小写不敏感）。"""
     pattern = f"%{query.upper()}%"
     with store._lock, store._conn() as c:
-        rows = c.execute(
-            """SELECT * FROM instruments
-               WHERE UPPER(code) LIKE ? OR UPPER(name) LIKE ?
-               ORDER BY ts DESC LIMIT ?""",
-            (pattern, pattern, limit),
-        ).fetchall()
+        if market:
+            rows = c.execute(
+                """SELECT * FROM instruments
+                   WHERE market=? AND (UPPER(code) LIKE ? OR UPPER(name) LIKE ?)
+                   ORDER BY ts DESC LIMIT ?""",
+                (market, pattern, pattern, limit),
+            ).fetchall()
+        else:
+            rows = c.execute(
+                """SELECT * FROM instruments
+                   WHERE UPPER(code) LIKE ? OR UPPER(name) LIKE ?
+                   ORDER BY ts DESC LIMIT ?""",
+                (pattern, pattern, limit),
+            ).fetchall()
     return [_row_to_instrument(row) for row in rows]
 
 
-def list_all(limit: int = 200) -> list[Instrument]:
+def list_all(limit: int = 200, market: str | None = None) -> list[Instrument]:
     with store._lock, store._conn() as c:
-        rows = c.execute("SELECT * FROM instruments ORDER BY ts DESC LIMIT ?", (limit,)).fetchall()
+        if market:
+            rows = c.execute(
+                "SELECT * FROM instruments WHERE market=? ORDER BY ts DESC LIMIT ?",
+                (market, limit),
+            ).fetchall()
+        else:
+            rows = c.execute(
+                "SELECT * FROM instruments ORDER BY ts DESC LIMIT ?", (limit,)
+            ).fetchall()
     return [_row_to_instrument(row) for row in rows]

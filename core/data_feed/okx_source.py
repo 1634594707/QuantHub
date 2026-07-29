@@ -29,6 +29,19 @@ _INTERVAL_MAP = {
 }
 
 
+def to_ccxt_symbol(symbol: str) -> str:
+    """把常见币对代码统一为 CCXT 永续合约格式。"""
+    normalized = symbol.strip().upper()
+    if "/" in normalized:
+        base_quote, _, settlement = normalized.partition(":")
+        quote = base_quote.split("/", 1)[1]
+        return f"{base_quote}:{settlement or quote}"
+    if "-" in normalized:
+        base, quote = normalized.split("-", 1)
+        return f"{base}/{quote}:{quote}"
+    return f"{normalized}/USDT:USDT"
+
+
 class OkxSource(DataSource):
     """OKX 加密数据源（ccxt 实现）。"""
 
@@ -81,8 +94,7 @@ class OkxSource(DataSource):
             raise ValueError(f"okx 不支持周期: {interval}")
         tf = _INTERVAL_MAP[interval]
         # ccxt symbol 格式: BTC/USDT:USDT (永续)
-        if "/" not in symbol:
-            symbol = f"{symbol}/USDT:USDT"
+        symbol = to_ccxt_symbol(symbol)
 
         @self._retryer()
         def _fetch():

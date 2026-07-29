@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import logging
+import re
 
 from . import repository
 from .domain import Instrument, build_instrument, infer_market
@@ -56,7 +57,7 @@ def resolve(code: str, market: str | None = None, name_hint: str = "") -> Instru
             detail_name, _, _ = tencent_quote_detail(normalized, actual_market)
             if detail_name:
                 resolved_name = detail_name
-        except Exception:
+        except Exception:  # noqa: BLE001 - 名称回填失败必须降级到本地标的元数据
             logger.debug("腾讯报价解析名称失败 %s/%s", actual_market, normalized)
 
     # 3. 构建 + 持久化
@@ -74,11 +75,28 @@ def resolve(code: str, market: str | None = None, name_hint: str = "") -> Instru
     return instrument
 
 
-def search(query: str, limit: int = 20) -> list[Instrument]:
-    """搜索本地缓存的标的；查询为空时返回最近更新的列表。"""
+def _looks_like_exact_code(query: str, market: str) -> bool:
+    normalized = query.strip().upper()
+    if market == "a_shares":
+        return bool(re.fullmatch(r"\d{6}", normalized))
+    if market == "us_stocks":
+        return bool(re.fullmatch(r"[A-Z][A-Z0-9.-]{0,9}", normalized))
+    if market == "crypto":
+        return bool(re.fullmatch(r"[A-Z0-9]{2,15}(?:[-/][A-Z0-9]{2,15})?", normalized))
+    return False
+
+
+def search(query: str, limit: int = 20, market: str | None = None) -> list[Instrument]:
+    """按市场搜索本地标的；精确代码未登记时自动解析并缓存。"""
+    if market is not None and market not in SUPPORTED_MARKETS:
+        raise InstrumentResolutionError(f"不支持的市场: {market}")
     if not query or not query.strip():
-        return repository.list_all(limit=limit)
-    return repository.search(query.strip(), limit=limit)
+        return repository.list_all(limit=limit, market=market)
+    normalized = query.strip().upper()
+    matches = repository.search(normalized, limit=limit, market=market)
+    if matches or market is None or not _looks_like_exact_code(normalized, market):
+        return matches
+    return [resolve_strict(normalized, market)]
 
 
 def register(

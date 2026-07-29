@@ -149,7 +149,8 @@ export default function NewsPage({
               onChange={(event) => setMarket(event.target.value)}
               options={[
                 { value: 'a_shares', label: 'A股' },
-                { value: 'crypto', label: '加密' },
+                { value: 'us_stocks', label: '美股' },
+                { value: 'crypto', label: '虚拟货币' },
               ]}
             />
           </label>

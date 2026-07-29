@@ -102,6 +102,13 @@ def _run_analysis(task: dict) -> dict[str, Any]:
 
 
 def _run_evaluation(task: dict, request: dict[str, Any]) -> dict[str, Any]:
+    from apps.api.domains.evaluation.service import (
+        DEFAULT_METHODS,
+        DEFAULT_STRATEGY_LENSES,
+        VALID_METHODS,
+        VALID_STRATEGY_LENSES,
+        evaluate_market,
+    )
     from apps.api.domains.instrument import service as instrument_service
     from apps.api.domains.market.service import fetch_kline
     from apps.api.domains.research.service import (
@@ -117,6 +124,21 @@ def _run_evaluation(task: dict, request: dict[str, Any]) -> dict[str, Any]:
         if module in {"market", "news", "pa", "ensemble"}
     ]
     modules = list(dict.fromkeys(modules)) or ["market", "news", "pa", "ensemble"]
+    evaluation_profile = str(request.get("evaluation_profile", "balanced"))
+    if evaluation_profile not in {"quick", "balanced", "comprehensive"}:
+        evaluation_profile = "balanced"
+    requested_methods = request.get("market_methods", DEFAULT_METHODS)
+    if not isinstance(requested_methods, list):
+        requested_methods = list(DEFAULT_METHODS)
+    market_methods = list(
+        dict.fromkeys(method for method in requested_methods if method in VALID_METHODS)
+    ) or list(DEFAULT_METHODS)
+    requested_lenses = request.get("strategy_lenses", DEFAULT_STRATEGY_LENSES)
+    if not isinstance(requested_lenses, list):
+        requested_lenses = list(DEFAULT_STRATEGY_LENSES)
+    strategy_lenses = list(
+        dict.fromkeys(lens for lens in requested_lenses if lens in VALID_STRATEGY_LENSES)
+    ) or list(DEFAULT_STRATEGY_LENSES)
     instrument = instrument_service.resolve_strict(task["symbol"], task["market"])
     resume_run_id = request.get("research_run_id")
     run = store.get_research_run(str(resume_run_id)) if resume_run_id else None
@@ -126,7 +148,13 @@ def _run_evaluation(task: dict, request: dict[str, Any]) -> dict[str, Any]:
             market=instrument.market,
             timeframe=task["timeframe"],
             modules=modules,
-            input_data={"evaluation": True, "modules": modules},
+            input_data={
+                "evaluation": True,
+                "modules": modules,
+                "evaluation_profile": evaluation_profile,
+                "market_methods": market_methods,
+                "strategy_lenses": strategy_lenses,
+            },
             instrument_id=instrument.instrument_id,
         )
     run_id = str(run["id"])
@@ -155,8 +183,19 @@ def _run_evaluation(task: dict, request: dict[str, Any]) -> dict[str, Any]:
         current_task = store.get_analysis_task(task["id"])
         if current_task is None or current_task["status"] in {"cancelled", "timeout"}:
             terminal = current_task["status"] if current_task else "cancelled"
-            store.update_research_run(run_id, {"status": terminal, "error": current_task["error"] if current_task else "任务已停止"})
-            return {"ok": False, "research_run_id": run_id, "steps": steps, "error": current_task["error"] if current_task else "任务已停止"}
+            store.update_research_run(
+                run_id,
+                {
+                    "status": terminal,
+                    "error": current_task["error"] if current_task else "任务已停止",
+                },
+            )
+            return {
+                "ok": False,
+                "research_run_id": run_id,
+                "steps": steps,
+                "error": current_task["error"] if current_task else "任务已停止",
+            }
         steps[module] = {"status": "running", "error": None}
         save_progress(module)
 
@@ -194,6 +233,36 @@ def _run_evaluation(task: dict, request: dict[str, Any]) -> dict[str, Any]:
                         "latest_time": candles[-1]["t"],
                     },
                 )
+                try:
+                    quantitative = evaluate_market(
+                        candles,
+                        methods=market_methods,
+                        strategy_lenses=strategy_lenses,
+                        periods_per_year=(
+                            {"1h": 8760, "1d": 365, "1w": 52}.get(task["timeframe"], 365)
+                            if instrument.market == "crypto"
+                            else {"1h": 252 * 4, "1d": 252, "1w": 52}.get(task["timeframe"], 252)
+                        ),
+                    )
+                except ValueError as exc:
+                    quantitative = {
+                        "version": "market-evaluation-v1",
+                        "methods": market_methods,
+                        "strategy_lenses": strategy_lenses,
+                        "data_quality": "不足",
+                        "confidence": "低",
+                        "metrics": {},
+                        "dimensions": {},
+                        "strategies": [],
+                        "error": str(exc),
+                    }
+                add_evidence(
+                    run_id,
+                    kind="quantitative_evaluation",
+                    source=str(quantitative.get("version", "market-evaluation-v1")),
+                    title=f"{instrument.code} 可解释量化评估",
+                    payload=quantitative,
+                )
                 complete_module(
                     run_id,
                     "market",
@@ -202,6 +271,8 @@ def _run_evaluation(task: dict, request: dict[str, Any]) -> dict[str, Any]:
                         "count": len(candles),
                         "latest_time": candles[-1]["t"],
                         "latest_price": candles[-1]["c"],
+                        "evaluation_profile": evaluation_profile,
+                        "quantitative": quantitative,
                     },
                 )
             elif module == "news":
@@ -218,7 +289,9 @@ def _run_evaluation(task: dict, request: dict[str, Any]) -> dict[str, Any]:
                 if not news_result.get("ok"):
                     raise RuntimeError(news_result.get("error") or "新闻分析失败")
                 if news_result.get("research_run_id") is None:
-                    complete_module(run_id, "news", {"total": 0, "degraded": True, "degraded_reason": "no_news"})
+                    complete_module(
+                        run_id, "news", {"total": 0, "degraded": True, "degraded_reason": "no_news"}
+                    )
             elif module == "pa":
                 from apps.api.domains.strategies.service import pa_analyze
 
@@ -247,7 +320,7 @@ def _run_evaluation(task: dict, request: dict[str, Any]) -> dict[str, Any]:
                     raise RuntimeError(ensemble_result.get("error") or "多模型判断失败")
             steps[module] = {"status": "succeeded", "error": None}
             succeeded += 1
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - 单模块失败不能中断其余评估模块
             error = str(exc)
             steps[module] = {"status": "failed", "error": error}
             errors.append(f"{module}: {error}")
@@ -262,15 +335,13 @@ def _run_evaluation(task: dict, request: dict[str, Any]) -> dict[str, Any]:
         for module in all_modules
         if module in final_summary
         and not (
-            isinstance(final_summary[module], dict)
-            and final_summary[module].get("ok") is False
+            isinstance(final_summary[module], dict) and final_summary[module].get("ok") is False
         )
     ]
     failed_modules = [
         module
         for module in all_modules
-        if isinstance(final_summary.get(module), dict)
-        and final_summary[module].get("ok") is False
+        if isinstance(final_summary.get(module), dict) and final_summary[module].get("ok") is False
     ]
     final_status = (
         "succeeded"
@@ -316,7 +387,7 @@ def _execute_task(task_id: str) -> None:
                 "duration_ms": round((finished - started) * 1000),
             },
         )
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - 后台任务边界统一持久化未处理异常
         finished = time.time()
         current = store.get_analysis_task(task_id)
         if current is not None and current["status"] not in {"cancelled", "timeout"}:
@@ -388,9 +459,7 @@ def _sync_evaluation_terminal(task: dict) -> None:
     run_id = result.get("research_run_id") if isinstance(result, dict) else None
     if not run_id or store.get_research_run(str(run_id)) is None:
         return
-    store.update_research_run(
-        str(run_id), {"status": task["status"], "error": task.get("error")}
-    )
+    store.update_research_run(str(run_id), {"status": task["status"], "error": task.get("error")})
 
 
 def resume_pending_tasks() -> int:

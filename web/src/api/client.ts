@@ -645,8 +645,9 @@ export const api = {
     }),
 
   // ---- Instrument 标的主数据 ----
-  instruments: (q = '', limit = 50) => {
+  instruments: (q = '', limit = 50, market?: string) => {
     const params = new URLSearchParams({ q, limit: String(limit) })
+    if (market) params.set('market', market)
     return getJSON<{ count: number; instruments: Instrument[] }>(`/instruments?${params.toString()}`)
   },
   resolveInstrument: (code: string, market = 'a_shares', name = '') => {

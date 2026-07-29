@@ -18,10 +18,11 @@ const TIMEFRAMES = ['1d', '1h', '1w'] as const
 type TF = (typeof TIMEFRAMES)[number]
 const LIMIT = 200
 
-// 市场选择：与后端 _resolve_pa_market 对齐，支持 A 股与加密。
+// 市场选择：与后端数据源和 _resolve_market 对齐。
 const MARKETS = [
   { value: 'a_shares', label: 'A股' },
-  { value: 'crypto', label: '加密' },
+  { value: 'us_stocks', label: '美股' },
+  { value: 'crypto', label: '虚拟货币' },
 ] as const
 type Market = (typeof MARKETS)[number]['value']
 

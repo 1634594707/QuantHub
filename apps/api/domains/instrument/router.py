@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 
 from . import service
 from .schemas import InstrumentRegister
@@ -14,9 +14,13 @@ router = APIRouter(prefix="/instruments", tags=["instrument"])
 @router.get("/search")
 def search(
     q: str = Query(default="", description="代码或名称关键字；空则返回最近更新的标的"),
+    market: str | None = Query(default=None, description="可选市场过滤"),
     limit: int = Query(default=20, ge=1, le=200),
 ) -> dict:
-    instruments = service.search(q, limit=limit)
+    try:
+        instruments = service.search(q, limit=limit, market=market)
+    except service.InstrumentResolutionError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {"count": len(instruments), "instruments": [i.to_dict() for i in instruments]}
 
 
