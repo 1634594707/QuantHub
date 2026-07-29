@@ -9,7 +9,7 @@ QuantHub 将行情研究、股票评估、新闻与价格行为分析、策略�
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-009688?logo=fastapi&logoColor=white)
 ![License](https://img.shields.io/badge/License-AGPL--3.0-blue)
 
-![QuantHub 驾驶舱](design/baselines/2026-07-27/overview-1440x900.png)
+![QuantHub 驾驶舱](design/screenshots/quanthub-overview.png)
 
 > [!WARNING]
 > QuantHub 当前定位为研究与模拟执行工具，实盘交易默认关闭。项目输出不构成任何投资建议；在接入真实账户前，请自行完成数据、策略、风控和合规验证。
