@@ -6,7 +6,7 @@
     - alert     : 企微 / Webhook / Telegram 通知
     - llm       : DeepSeek/OpenAI 兼容客户端，支持本地模型
     - backtest  : 网格回测 + backtrader 集成 + 通用事件驱动框架
-    - viz       : Streamlit 组件库 + Plotly helper
+    - config    : YAML 配置合并、环境变量注入与 schema 迁移
 """
 
 from __future__ import annotations

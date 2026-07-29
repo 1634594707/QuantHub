@@ -1,0 +1,51 @@
+/* K线卡片局部样式
+   - 卡片/标题/工具栏等沿用全局 .card/.kline-head/.kline-toolbar/.kline-svg-wrap 类
+   - 静态文字样式与动态颜色/透明度通过 CSS 类 + CSS 变量注入 */
+
+/* 标题区涨跌幅文本 */
+.changeText {
+  font-weight: 600;
+  font-size: 12px;
+}
+
+/* MA 指示点：颜色由 --c 注入 */
+.maDot {
+  background: var(--c, var(--text-3));
+}
+
+/* 错误覆盖层 */
+.errTitle {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.errHint {
+  font-size: var(--fs-12);
+}
+
+.emptyHint {
+  font-size: var(--fs-13);
+}
+
+/* SVG 主体：loading 时半透明，data-loading 属性切换 */
+.svg {
+  transition: opacity 200ms ease;
+}
+
+.svg[data-loading='true'] {
+  opacity: 0.3;
+}
+
+/* tooltip MA 行的标签颜色 */
+.tooltipMaLabel {
+  color: var(--c, var(--text-3));
+}
+
+/* meta 区错误提示行 */
+.itemFull {
+  min-width: 100%;
+}
+
+.itemKeyErr {
+  color: var(--down-ink);
+}

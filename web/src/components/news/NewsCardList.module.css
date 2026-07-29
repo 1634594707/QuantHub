@@ -1,0 +1,18 @@
+/* NewsCardList 专属样式 — 从内联 style 迁移 */
+
+.listHead {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 0 var(--sp-1);
+}
+
+.listTitle {
+  font-size: var(--fs-small);
+  font-weight: var(--fw-bold);
+  color: var(--text-2);
+}
+
+.sortSeg {
+  margin-left: auto;
+}

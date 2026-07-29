@@ -1,0 +1,316 @@
+/* ============================================================
+   QuantHub — 算法协同预测页（Ensemble）
+   复用 tokens.css 的设计令牌，与决策面板视觉一致。
+   ============================================================ */
+
+/* ---------------- 共识大牌 ---------------- */
+.ens-consensus {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+.ens-verdict {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  padding: var(--sp-4);
+  border-radius: var(--r-lg);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  position: relative;
+  overflow: hidden;
+}
+.ens-verdict::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+}
+.ens-verdict.long::before {
+  background: var(--up);
+}
+.ens-verdict.short::before {
+  background: var(--down);
+}
+.ens-verdict.hold::before {
+  background: var(--accent);
+}
+.ens-verdict-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.ens-dir-pill {
+  align-self: flex-start;
+  font-weight: 700;
+  font-size: var(--fs-15);
+  padding: 5px 14px;
+  border-radius: var(--r-pill);
+}
+.ens-dir-pill.lg {
+  font-size: var(--fs-18);
+  padding: 7px 18px;
+}
+.ens-dir-pill.long {
+  background: rgba(22, 199, 132, 0.14);
+  color: var(--up-ink);
+}
+.ens-dir-pill.short {
+  background: rgba(234, 57, 67, 0.14);
+  color: var(--down-ink);
+}
+.ens-dir-pill.hold {
+  background: var(--accent-weak);
+  color: var(--accent-strong);
+}
+.ens-verdict-sub {
+  font-size: var(--fs-13);
+  color: var(--text-2);
+}
+.ens-stats {
+  display: flex;
+  gap: var(--sp-4);
+  flex-shrink: 0;
+}
+.ens-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  min-width: 56px;
+}
+.ens-stat .k {
+  font-size: var(--fs-12);
+  color: var(--text-3);
+}
+.ens-stat .v {
+  font-size: var(--fs-18);
+  font-weight: 700;
+  color: var(--text-1);
+}
+
+/* 综合强度环 */
+.ens-ring {
+  width: 80px;
+  height: 80px;
+  flex-shrink: 0;
+}
+.ens-ring-bg {
+  fill: none;
+  stroke: var(--border-strong);
+  stroke-width: 7;
+}
+.ens-ring-fg {
+  fill: none;
+  stroke-width: 7;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 600ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.ens-ring-num {
+  fill: var(--text-1);
+  font-size: 20px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+/* ---------------- 多空分歧条 ---------------- */
+.ens-votes-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.ens-votes {
+  display: flex;
+  height: 12px;
+  border-radius: var(--r-pill);
+  overflow: hidden;
+}
+.ens-votes > i {
+  height: 100%;
+  display: block;
+  transition: width 500ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.ens-votes > i.buy {
+  background: var(--up);
+}
+.ens-votes > i.hold {
+  background: var(--accent);
+}
+.ens-votes > i.sell {
+  background: var(--down);
+}
+.ens-vote-legend {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--fs-12);
+  color: var(--text-3);
+}
+.ens-vote-legend b {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--text-1);
+}
+
+/* ---------------- 预警 ---------------- */
+.ens-warnings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.ens-warn-item {
+  font-size: var(--fs-12);
+  line-height: 1.5;
+  padding: 7px 10px;
+  border-radius: var(--r-md);
+  background: rgba(240, 180, 41, 0.1);
+  color: var(--warn-ink);
+  border: 1px solid transparent;
+}
+
+/* ---------------- 算法贡献者 ---------------- */
+.ens-contrib-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+}
+.ens-contrib {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border-radius: var(--r-md);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border-strong);
+}
+.ens-contrib.long {
+  border-left-color: var(--up);
+}
+.ens-contrib.short {
+  border-left-color: var(--down);
+}
+.ens-contrib.hold {
+  border-left-color: var(--accent);
+}
+.ens-contrib-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+.ens-contrib-name {
+  font-weight: 700;
+  font-size: var(--fs-14);
+  color: var(--text-1);
+  font-family: var(--font-mono);
+}
+.ens-kind-pill {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: var(--r-pill);
+  color: var(--text-2);
+  background: var(--surface-hover);
+  border: 1px solid var(--border);
+}
+.ens-kind-pill.llm {
+  background: var(--accent-weak);
+  color: var(--accent-strong);
+  border-color: transparent;
+}
+.ens-kind-pill.news {
+  background: rgba(240, 180, 41, 0.12);
+  color: var(--warn-ink);
+  border-color: transparent;
+}
+.ens-dir-pill {
+  margin-left: auto;
+  font-size: var(--fs-12);
+  font-weight: 600;
+  padding: 2px 9px;
+  border-radius: var(--r-pill);
+}
+.ens-dir-pill.long {
+  background: rgba(22, 199, 132, 0.14);
+  color: var(--up-ink);
+}
+.ens-dir-pill.short {
+  background: rgba(234, 57, 67, 0.14);
+  color: var(--down-ink);
+}
+.ens-dir-pill.hold {
+  background: var(--accent-weak);
+  color: var(--accent-strong);
+}
+.ens-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.ens-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-12);
+}
+.ens-bar-label {
+  width: 32px;
+  color: var(--text-3);
+  flex-shrink: 0;
+}
+.ens-bar-track {
+  flex: 1;
+  height: 6px;
+  border-radius: var(--r-pill);
+  background: var(--bg-elevated);
+  overflow: hidden;
+}
+.ens-bar-fill {
+  height: 100%;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+  transition: width 400ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.ens-bar-fill.weak {
+  background: var(--text-3);
+}
+.ens-bar-val {
+  width: 30px;
+  text-align: right;
+  font-weight: 600;
+  color: var(--text-1);
+  flex-shrink: 0;
+}
+.ens-contrib-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  font-size: var(--fs-12);
+  flex-wrap: wrap;
+}
+.ens-weight {
+  color: var(--text-3);
+  font-family: var(--font-mono);
+}
+.ens-rationale {
+  color: var(--text-2);
+  flex: 1;
+  min-width: 120px;
+}
+
+/* ---------------- 响应式 ---------------- */
+@media (max-width: 900px) {
+  .ens-verdict {
+    flex-wrap: wrap;
+  }
+  .ens-stats {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}

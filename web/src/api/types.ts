@@ -1,4 +1,4 @@
-// 后端 API 网关（apps/api，端口 8000）的类型契约。
+// 后端 API 网关（apps/api，开发端口 8001）的类型契约。
 // 与 apps/api/main.py 的响应结构保持一致。
 
 export interface Candle {
@@ -18,6 +18,16 @@ export interface KlineResp {
   count: number
   candles: Candle[]
   error?: string
+  quality?: {
+    status: 'ok' | 'empty' | 'invalid' | string
+    usable: boolean
+    row_count: number
+    missing_rate: number
+    invalid_rows: number
+    latest_time: string | null
+    latency_ms?: number
+    reason: string | null
+  }
 }
 
 export interface HealthResp {
@@ -26,6 +36,148 @@ export interface HealthResp {
   strategies: number
   live_trading: boolean
   version: string
+  deployment_mode: string
+  started_at: string
+  build_id: string
+}
+
+export interface DataSourceStatusResp {
+  ok: boolean
+  generated_at: number
+  configured: Array<{ market: string; primary: string | null; fallbacks: string[] }>
+  sources: Array<{
+    source: string
+    operation: DataSourceOperation
+    calls: number
+    successes: number
+    errors: number
+    success_rate: number
+    error_rate: number
+    avg_latency_ms: number
+    last_called_at: number | null
+    last_success_at: number | null
+    last_error: string | null
+  }>
+  cache: {
+    hits: number
+    misses: number
+    requests: number
+    hit_rate: number
+    kline_entries: number
+    document_entries: number
+    latest_write_at: number | null
+  }
+}
+
+export type DataSourceOperation = 'get_kline' | 'get_news' | 'get_announcements'
+
+export interface DataSourceCheckResult {
+  ok: boolean
+  source: string
+  operation: DataSourceOperation
+  count: number
+  latency_ms: number
+  error: string | null
+}
+
+// ---------- 可追溯研究运行 ----------
+
+export type ResearchStatus =
+  | 'draft'
+  | 'queued'
+  | 'running'
+  | 'succeeded'
+  | 'partial'
+  | 'failed'
+  | 'cancelled'
+  | 'timeout'
+
+export type AnalysisTaskKind = 'pa' | 'news' | 'ensemble' | 'evaluation'
+export type AnalysisTaskStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled' | 'timeout'
+
+export interface AnalysisTask {
+  id: string
+  kind: AnalysisTaskKind
+  status: AnalysisTaskStatus
+  symbol: string
+  market: string
+  timeframe: string
+  fingerprint: string
+  request: Record<string, unknown>
+  result: Record<string, unknown> | null
+  error: string | null
+  attempt: number
+  parent_task_id: string | null
+  created_at: number
+  updated_at: number
+  started_at: number | null
+  finished_at: number | null
+  duration_ms: number | null
+}
+
+export interface ResearchEvidence {
+  id: string
+  run_id: string
+  kind: string
+  source: string
+  title: string
+  uri: string | null
+  payload: Record<string, unknown>
+  captured_at: number
+}
+
+export interface ResearchRun {
+  id: string
+  symbol: string
+  market: string
+  timeframe: string
+  status: ResearchStatus
+  modules: string[]
+  input: Record<string, unknown>
+  summary: Record<string, unknown>
+  error: string | null
+  note: string
+  favorite: boolean
+  created_at: number
+  updated_at: number
+  evidence_count: number
+  evidence?: ResearchEvidence[]
+}
+
+export interface ResearchVerification {
+  ok: boolean
+  run_id: string
+  snapshot_count: number
+  snapshots_valid: boolean
+  has_analysis_output: boolean
+  replay_ready: boolean
+  checks: Array<{
+    evidence_id: string
+    title: string
+    expected_sha256: string | null
+    actual_sha256: string | null
+    valid: boolean
+    bar_count: number
+  }>
+}
+
+export interface ResearchComparison {
+  ok: boolean
+  same_context: boolean
+  contexts: Array<{ symbol: string; market: string; timeframe: string }>
+  modules: string[]
+  summary_keys: string[]
+  rows: Array<{
+    id: string
+    status: ResearchStatus
+    updated_at: number
+    modules: string[]
+    module_presence: Record<string, boolean>
+    summary: Record<string, unknown>
+    evidence_count: number
+    evidence_kind_counts: Record<string, number>
+    snapshot_sha256: string[]
+  }>
 }
 
 export interface StrategyInfo {
@@ -41,6 +193,8 @@ export interface StrategiesResp {
 }
 
 export interface SignalResp {
+  /** DB 主键（删除用）；内存态旧信号可能缺失 */
+  id?: string
   symbol: string
   market: string
   timeframe: string
@@ -51,11 +205,139 @@ export interface SignalResp {
   tags: string[]
   meta: Record<string, unknown>
   ts: string | null
+  status?: SignalLifecycleStatus
+  expires_at?: number | null
+  reviewed_at?: number | null
+  decision_note?: string | null
+  order_id?: string | null
+  deduplicated?: boolean
+}
+
+export type SignalLifecycleStatus = 'new' | 'accepted' | 'rejected' | 'expired' | 'converted'
+
+export type SimulationOrderStatus = 'pending' | 'partially_filled' | 'filled' | 'cancelled'
+export type SimulationLedgerSyncStatus = 'pending' | 'synced' | 'failed'
+
+export interface SimulationExecution {
+  id: string
+  order_id: string
+  quantity: number
+  price: number
+  fee: number
+  executed_at: number
+  ledger_sync_status: SimulationLedgerSyncStatus
+  ledger_trade_id: string | null
+  ledger_sync_error: string | null
+}
+
+export interface SimulationOrder {
+  id: string
+  signal_id: string | null
+  account_id: string
+  symbol: string
+  market: string
+  side: 'buy' | 'sell'
+  order_type: 'market' | 'limit'
+  quantity: number
+  limit_price: number | null
+  status: SimulationOrderStatus
+  filled_quantity: number
+  average_price: number | null
+  created_at: number
+  updated_at: number
+  executions: SimulationExecution[]
+}
+
+export interface SimulationAccount {
+  ok: boolean
+  mode: 'paper'
+  starting_cash: number
+  cash: number
+  market_value: number
+  equity: number
+  total_fees: number
+  realized_pnl: number
+  unrealized_pnl: number
+  positions: Array<{
+    symbol: string
+    market: string
+    quantity: number
+    average_cost: number
+    mark_price: number
+    market_value: number
+    realized_pnl: number
+    unrealized_pnl: number
+  }>
+  order_count: number
+  execution_count: number
+  reconciled: boolean
+  reconciliation_issues: Array<{ order_id: string; field: string }>
+}
+
+export interface SimulationOrderPreviewCheck {
+  key: string
+  label: string
+  status: 'passed' | 'failed' | 'unavailable'
+  actual: number | null
+  limit: number | null
+  unit: 'ratio' | 'currency' | 'price'
+}
+
+export interface SimulationOrderPreview {
+  symbol: string
+  market: string
+  side: 'buy' | 'sell'
+  quantity: number
+  price: number | null
+  order_notional: number | null
+  current_quantity: number
+  projected_quantity: number
+  current_symbol_value: number | null
+  projected_symbol_value: number | null
+  gross_exposure_before: number
+  gross_exposure_after: number | null
+  cash_before: number
+  cash_after: number | null
+  equity: number
+  risk_evaluated: boolean
+  can_submit: boolean
+  checks: SimulationOrderPreviewCheck[]
 }
 
 export interface SignalsResp {
   count: number
+  total: number
+  next_cursor: string | null
   signals: SignalResp[]
+}
+
+export interface ResearchRunsResp {
+  ok: boolean
+  count: number
+  total: number
+  next_cursor: string | null
+  runs: ResearchRun[]
+}
+
+export interface SimulationOrdersResp {
+  ok: boolean
+  count: number
+  total: number
+  next_cursor: string | null
+  orders: SimulationOrder[]
+}
+
+/** POST /signals/publish 请求体，对应后端 PublishRequest（apps/api/main.py:100-109）。 */
+export interface PublishSignalReq {
+  symbol: string
+  market?: string
+  direction?: string // buy | sell | hold
+  score?: number
+  confidence?: number
+  source?: string
+  timeframe?: string
+  tags?: string[]
+  meta?: Record<string, unknown>
 }
 
 export interface RunResp {
@@ -136,13 +418,23 @@ export interface LiveResp {
 
 export interface PaAnalyzeResp {
   ok: boolean
+  research_run_id?: string
   symbol: string
   timeframe: string
   market: string
   error?: string
-  decision: DecisionView
-  future: FutureTrendView
-  tree: DecisionTreeView
+  decision?: DecisionView
+  future?: FutureTrendView
+  tree?: DecisionTreeView
+  stage1?: Record<string, unknown>
+  stage2?: Record<string, unknown>
+  meta?: {
+    kline_count: number
+    stage1_complete: boolean
+    stage2_complete: boolean
+    gate_shortcircuited: boolean
+    usage: Record<string, number>
+  }
 }
 
 export interface DecisionView {
@@ -167,6 +459,9 @@ export interface DecisionView {
   estimated_win_rate: string
   trade_confidence: { score: number | null; color: string | null; reasoning: string }
   reasoning: string
+  key_factors: string[]
+  watch_points: string[]
+  risk_assessment: string
 }
 
 export interface FutureTrendView {
@@ -211,11 +506,14 @@ export interface PortfolioSummary {
   dailyPnl: number
   dailyPnlPct: number
   cash: number
-  winRate: number
+  /** 涨跌派生情绪分（非真实胜率；真实胜率见 DecisionPanel 的 estimated_win_rate）。 */
+  chgBasedScore: number
   totalPositions: number
 }
 
 export interface PortfolioHolding {
+  /** DB 主键（编辑/删除用）；旧数据可能缺失 */
+  id?: string
   code: string
   name: string
   price: number
@@ -224,7 +522,20 @@ export interface PortfolioHolding {
   chgPct: number
   shares: number
   pnl: number
-  winRate: number
+  /** 涨跌派生情绪分（非真实胜率）。 */
+  chgBasedScore: number
+  /** 市场标识（a_shares/us_stocks/crypto） */
+  market?: string
+}
+
+/** 持仓 CRUD 端点返回的结构（POST/PATCH /portfolio/holdings）。 */
+export interface HoldingCRUDResp {
+  id: string
+  code: string
+  name: string
+  shares: number
+  cost: number
+  market: string
 }
 
 export interface PortfolioResp {
@@ -245,6 +556,8 @@ export interface MarketBreadthResp {
 }
 
 export interface WatchlistItem {
+  /** DB 主键（编辑/删除用）；旧数据可能缺失 */
+  id?: string
   sym: string
   name: string
   /** 最新价；无法接入数据源时为 null（如加密货币在当前环境无可用源）。 */
@@ -261,13 +574,60 @@ export interface WatchlistResp {
   items: WatchlistItem[]
 }
 
+/** 关注列表 CRUD 端点返回的结构（POST/PATCH /market/watchlist）。 */
+export interface WatchlistCRUDResp {
+  id: string
+  sym: string
+  name: string
+  market: string
+}
+
 /** 单标的实时报价（/market/quote）。 */
 export interface QuoteResp {
   sym: string
+  /** 行情源解析出的证券名称；无法解析时为空。 */
+  name: string
   market: string
   price: number | null
   chgPct: number | null
   available: boolean
+}
+
+// ---------- 算法协同预测（/predict/ensemble） ----------
+export interface EnsembleContributor {
+  name: string
+  kind: 'technical' | 'llm' | 'news'
+  direction: string // buy | sell | hold
+  score: number
+  confidence: number
+  weight: number
+  available: boolean
+  rationale?: string
+  metrics?: Record<string, unknown>
+}
+
+export interface EnsembleConsensus {
+  direction: string // buy | sell | hold
+  score: number // 综合强度 0~1
+  confidence: number // 共识置信 0~1
+  agreement: number // 共识度 0~1
+  buy_votes: number
+  sell_votes: number
+  n: number // 参与算法数
+}
+
+export interface EnsembleResp {
+  ok: boolean
+  research_run_id?: string
+  symbol: string
+  market?: string
+  timeframe?: string
+  data_source?: string
+  kline_count?: number
+  error?: string
+  contributors?: EnsembleContributor[]
+  consensus?: EnsembleConsensus
+  warnings?: string[]
 }
 
 // ---------- 配置（API Key 等） ----------
@@ -278,4 +638,637 @@ export interface ApiKeyResp {
   provider: string
   key_env: string
   masked: string | null
+}
+
+// ---------- Instrument 标的主数据 ----------
+
+export interface Instrument {
+  instrument_id: string
+  code: string
+  market: string
+  exchange: string
+  name: string
+  currency: string
+  asset_class: string
+}
+
+// ---------- 组合账本 ----------
+
+export interface LedgerTrade {
+  id: string
+  instrument_id: string
+  code: string
+  market: string
+  direction: 'buy' | 'sell'
+  quantity: number
+  price: number
+  fee: number
+  ts: number
+  source: string
+  note: string
+  cash_flow?: number
+}
+
+export interface LedgerCashEntry {
+  id: string
+  direction: 'in' | 'out'
+  amount: number
+  currency: string
+  ts: number
+  source: string
+  note: string
+}
+
+export interface LedgerPosition {
+  instrument_id: string
+  code: string
+  market: string
+  quantity: number
+  average_cost: number
+  realized_pnl: number
+  last_price: number
+  ts: number
+  unrealized_pnl: number
+  market_value: number
+  cost_basis: number
+}
+
+export interface LedgerSummary {
+  nav: number
+  cash: number
+  market_value: number
+  cost_basis: number
+  realized_pnl: number
+  unrealized_pnl: number
+  total_pnl: number
+  return_pct: number
+  n_positions: number
+}
+
+export interface LedgerPerformance {
+  ok: boolean
+  equity_curve: Array<{ t: number | string | null; equity: number }>
+  twr_pct: number
+  max_drawdown: {
+    max_drawdown_pct: number
+    peak_equity?: number
+    peak_at: number | string | null
+    trough_at: number | string | null
+  }
+  benchmark_excess: {
+    portfolio_return_pct: number
+    benchmark_return_pct: number
+    excess_return_pct: number
+    benchmark_name: string
+    benchmark_code: string
+  } | null
+}
+
+export interface LedgerExposures {
+  ok: boolean
+  by_market: Record<string, number>
+  by_direction: { long: number; short: number }
+  by_symbol: Array<{ code: string; market: string; market_value: number; weight_pct: number }>
+  total_market_value: number
+  gross_market_value: number
+}
+
+export interface LedgerAttributionGroup {
+  key: string
+  trade_count: number
+  notional: number
+  fees: number
+  cash_flow: number
+}
+
+export interface LedgerAttribution {
+  ok: boolean
+  start_at: number | null
+  end_at: number | null
+  period: 'day' | 'week' | 'month'
+  by_instrument: Array<{
+    instrument_id: string
+    code: string
+    market: string
+    realized_pnl: number
+    unrealized_pnl: number
+    total_pnl: number
+    trade_count: number
+  }>
+  by_strategy: LedgerAttributionGroup[]
+  by_direction: LedgerAttributionGroup[]
+  by_period: LedgerAttributionGroup[]
+}
+
+export interface DecisionTimelineEvent {
+  kind: 'research_run' | 'signal' | 'simulation_order' | 'simulation_execution' | 'ledger_trade'
+  id: string
+  ts: number
+  status: string
+  label: string
+  note?: string | null
+  links: Record<string, string | null>
+}
+
+export interface PositionDecisionContext {
+  ok: boolean
+  position: LedgerPosition
+  timeline: { ok: boolean; instrument_id: string; count: number; events: DecisionTimelineEvent[] }
+}
+
+export interface LedgerBenchmark {
+  id: string
+  name: string
+  code: string
+  market: string
+  equity_curve: Array<Record<string, unknown>>
+  metrics: Record<string, unknown>
+  ts: number
+}
+
+export interface LedgerCorrection {
+  id: string
+  entity_type: 'trade' | 'cash' | 'benchmark'
+  entity_id: string
+  reason: string
+  before: Record<string, unknown>
+  after: Record<string, unknown>
+  created_at: number
+}
+
+// ---------- 策略实验室 ----------
+
+export interface StrategyVersion {
+  id: string
+  definition_id: string
+  version: string
+  params: Record<string, unknown>
+  code_hash: string
+  changelog: string
+  created_at: number
+  archived_at?: number | null
+}
+
+export interface StrategyDefinition {
+  id: string
+  name: string
+  strategy_key: string
+  market: string
+  description: string
+  tags: string[]
+  created_at: number
+  updated_at: number
+  archived_at?: number | null
+  versions?: StrategyVersion[]
+}
+
+export interface StrategyExperiment {
+  id: string
+  definition_id: string
+  symbol: string
+  market: string
+  timeframe: string
+  version_id: string | null
+  status: string
+  params: Record<string, unknown>
+  note: string
+  created_at: number
+  updated_at?: number
+  archived_at?: number | null
+}
+
+export interface StrategyLabRun {
+  id: string
+  experiment_id: string
+  symbol: string
+  market: string
+  timeframe: string
+  params: Record<string, unknown>
+  data_snapshot: Record<string, unknown>
+  initial_capital: number
+  equity_curve: Array<Record<string, unknown>>
+  trades: Array<Record<string, unknown>>
+  metrics: Record<string, unknown>
+  seed: string | null
+  status: string
+  error: string
+  started_at: number
+  finished_at: number | null
+}
+
+export interface StrategyLabComparisonRow {
+  run_id: string
+  symbol: string
+  market: string
+  timeframe: string
+  initial_capital: number
+  seed: string | null
+  status: string
+  metrics: Record<string, unknown>
+  n_trades: number
+  data_snapshot_sha256: string | null
+  data_snapshot: Record<string, unknown>
+  params: Record<string, unknown>
+  code_hash: string | null
+}
+
+export interface StrategyLabFieldDifference {
+  field: string
+  before: unknown
+  after: unknown
+  changed: boolean
+}
+
+export interface StrategyLabRunDifference {
+  against_run_id: string
+  run_id: string
+  data_snapshot: StrategyLabFieldDifference[]
+  params: StrategyLabFieldDifference[]
+  code_hash: { before: string | null; after: string | null; changed: boolean }
+  metrics: StrategyLabFieldDifference[]
+}
+
+// ---------- 自动化控制台 ----------
+
+export interface AutomationJob {
+  name: string
+  market: string
+  cron: string
+  func_name: string
+  custom: boolean
+  enabled: boolean
+  next_run: string | null
+  updated_at: number | null
+  updated_by: string | null
+}
+
+export type AutomationRunStatus = 'queued' | 'running' | 'succeeded' | 'failed'
+
+export interface AutomationRun {
+  id: string
+  job_name: string
+  status: AutomationRunStatus
+  trigger_type: 'manual' | 'retry'
+  attempt: number
+  parent_run_id: string | null
+  log: string
+  error: string | null
+  created_at: number
+  started_at: number | null
+  finished_at: number | null
+  duration_ms: number | null
+  acknowledged_at: number | null
+  acknowledged_by: string | null
+}
+
+export interface AutomationAuditLog {
+  id: string
+  action: string
+  entity_type: string
+  entity_id: string
+  actor: string
+  before: Record<string, unknown> | null
+  after: Record<string, unknown> | null
+  result: string
+  error: string | null
+  created_at: number
+}
+
+// ---------- 访问治理 ----------
+
+export interface GovernanceUser {
+  id: string
+  username: string
+  display_name: string
+  active: boolean
+  created_at: number
+  roles: string[]
+  permissions: string[]
+}
+
+export interface GovernanceRole {
+  id: string
+  name: string
+  permissions: string[]
+}
+
+export interface ApiTokenRecord {
+  id: string
+  user_id: string
+  username: string
+  label: string
+  expires_at: number | null
+  last_used_at: number | null
+  created_at: number
+  revoked_at: number | null
+}
+
+export interface CreatedApiToken {
+  id: string
+  user_id: string
+  label: string
+  token: string
+  expires_at: number | null
+  created_at: number
+}
+
+export interface GovernanceAuditLog {
+  id: string
+  actor_id: string
+  action: string
+  entity_type: string
+  entity_id: string
+  before: Record<string, unknown> | null
+  after: Record<string, unknown> | null
+  result: string
+  error: string | null
+  created_at: number
+}
+
+export interface GlobalSearchItem {
+  id: string
+  group: 'instruments' | 'definitions' | 'experiments' | 'research' | 'signals' | 'orders'
+  marker: string
+  label: string
+  detail: string
+  path: string
+  secondary_label?: string
+  secondary_path?: string
+}
+
+export type AlertRuleType =
+  | 'price_above'
+  | 'price_below'
+  | 'change_pct_above'
+  | 'change_pct_below'
+  | 'volatility_above'
+  | 'signal_created'
+  | 'evaluation_changed'
+  | 'risk_invalidated'
+
+export interface AlertRule {
+  id: string
+  user_id: string
+  name: string
+  rule_type: AlertRuleType
+  symbol: string
+  market: string
+  threshold: number | null
+  enabled: boolean
+  frequency_minutes: number
+  quiet_start: string | null
+  quiet_end: string | null
+  expires_at: number | null
+  context: Record<string, unknown>
+  last_checked_at: number | null
+  last_triggered_at: number | null
+  created_at: number
+  updated_at: number
+}
+
+export interface AlertEvent {
+  id: string
+  rule_id: string
+  status: 'pending' | 'acknowledged'
+  message: string
+  observed_value: number | null
+  related_type: string | null
+  related_id: string | null
+  delivery: Record<string, boolean>
+  triggered_at: number
+  acknowledged_at: number | null
+  rule_name: string
+  symbol: string
+  market: string
+}
+
+export interface AutomationStatus {
+  ok: boolean
+  total?: number
+  enabled_count?: number
+  by_market?: Record<string, number>
+  custom_entry_count?: number
+  generic_entry_count?: number
+  running_count?: number
+  failed_count?: number
+  unacknowledged_alert_count?: number
+  running?: boolean
+  note?: string
+  error?: string
+}
+
+export interface BackupRecord {
+  name: string
+  path: string
+  bytes: number
+  modified_at: number
+}
+
+export interface BackupStatus {
+  ok: boolean
+  supported: boolean
+  source_path: string
+  source_exists: boolean
+  backup_directory: string
+  backup_count: number
+  latest_backup: BackupRecord | null
+}
+
+export interface ConfigSystemStatus {
+  ok: boolean
+  gateway: {
+    version: string
+    live_trading: boolean
+    store_path: string
+    deployment_mode: string
+    started_at: string
+    build_id: string
+  }
+  live_confirm: { enabled: boolean; mode: string | null; timeout_seconds: number | null }
+  llm: { provider: string; configured: boolean; key_env: string }
+  capabilities: {
+    a_shares: { akshare: boolean }
+    news_sentiment: {
+      engine: 'transformers' | 'snownlp' | 'keyword'
+      snownlp: boolean
+      transformers: boolean
+      torch: boolean
+      model_path: string
+      model_available: boolean
+    }
+  }
+  notifications: NotificationStatus
+  scheduler: { ok: boolean; total: number; enabled_count: number; running_count: number }
+  backups: { supported: boolean; source_exists: boolean; backup_directory: string; backup_count: number; latest_backup: BackupRecord | null }
+}
+
+export type NotificationChannelName = 'wecom' | 'webhook' | 'telegram'
+
+export interface NotificationStatus {
+  ok: boolean
+  enabled: boolean
+  channels: Array<{
+    channel: NotificationChannelName
+    enabled: boolean
+    configured: boolean
+    fields: Record<string, string | null>
+  }>
+}
+
+export interface BackupVerification {
+  ok: boolean
+  integrity: string
+  table_count: number
+  bytes: number
+}
+
+export interface BackupRetentionResult {
+  ok: boolean
+  directory: string
+  keep: number
+  matched: number
+  deleted: number
+  candidates: string[]
+  dry_run: boolean
+  actor: string
+}
+
+export type IncidentSource = 'analysis_task' | 'automation_run' | 'ledger_sync' | 'data_source'
+
+export interface IncidentAction {
+  type:
+    | 'retry_analysis_task'
+    | 'retry_automation_run'
+    | 'acknowledge_automation_run'
+    | 'retry_ledger_sync'
+    | 'open_data_source_status'
+    | 'check_data_source'
+    | 'acknowledge_data_source_recovery'
+  label: string
+  task_id?: string
+  run_id?: string
+  order_id?: string
+  execution_id?: string
+  incident_id?: string
+}
+
+export interface IncidentRecord {
+  id: string
+  source: IncidentSource
+  entity_id: string
+  status: string
+  occurred_at: number
+  error: string
+  context: Record<string, string | number | boolean | null>
+  actions: IncidentAction[]
+}
+
+// ---------- 新闻结构化分析（Phase 1：本地 LM Studio） ----------
+
+/** 提取的命名实体 */
+export interface NewsEntity {
+  text: string
+  type: 'person' | 'org' | 'location'
+  start?: number | null
+  end?: number | null
+}
+
+/** 情绪结果 */
+export interface NewsSentiment {
+  label: 'positive' | 'negative' | 'neutral'
+  score: number // [-1.0, 1.0]
+  confidence: number // [0, 1]
+}
+
+export interface NewsEventImpact {
+  label: 'positive' | 'negative' | 'neutral' | 'uncertain'
+  confidence: number
+  reason: string
+  rule_id: string | null
+}
+
+export interface NewsPriceDirection {
+  label: 'up' | 'down' | 'flat' | 'uncertain'
+  confidence: number
+  reason: string
+}
+
+/** 单条新闻结构化分析 */
+export interface NewsAnalysisItem {
+  title: string
+  source: string
+  url: string | null
+  ts: string | null
+  symbols: string[]
+  entities: NewsEntity[]
+  sentiment: NewsSentiment
+  event_impact?: NewsEventImpact
+  price_direction?: NewsPriceDirection
+  topic: string
+  summary: string
+  engine: string // "semantic" | "semantic+api" | "keyword"
+  model: string | null
+  latency_ms: number
+  error: string | null
+}
+
+/** POST /news/analyze 响应 */
+export interface NewsAnalyzeResp {
+  ok: boolean
+  research_run_id?: string
+  degraded: boolean
+  degraded_reason: string | null
+  engine: string
+  model: string | null
+  total: number
+  items: NewsAnalysisItem[]
+  topic_dist: Record<string, number>
+  sentiment_dist: { positive: number; negative: number; neutral: number }
+  event_impact_dist: { positive: number; negative: number; neutral: number; uncertain: number }
+  top_entities: { text: string; type: string; count: number }[]
+}
+
+/** GET /news/health 响应 */
+export interface NewsHealthResp {
+  ok: boolean
+  engine: string  // transformers / snownlp / keyword（SentimentAnalyzer 实际引擎）
+  api_enhancement: boolean  // DeepSeek API 是否可用
+  api_provider: string
+  model: string | null
+}
+
+/** 9 主题受控词表（与后端 NewsTopic 枚举 1:1） */
+export interface NewsTopicMeta {
+  value: string
+  label: string
+  color: string
+}
+
+export const NEWS_TOPICS: NewsTopicMeta[] = [
+  { value: 'macro', label: '宏观经济', color: '#2f81f7' },
+  { value: 'monetary', label: '货币政策', color: '#8b5cf6' },
+  { value: 'industry', label: '行业动态', color: '#06b6d4' },
+  { value: 'company', label: '公司经营', color: '#16c784' },
+  { value: 'capital_action', label: '资本运作', color: '#f59e0b' },
+  { value: 'regulation', label: '监管政策', color: '#f0b429' },
+  { value: 'market_mood', label: '市场情绪', color: '#ec4899' },
+  { value: 'international', label: '国际财经', color: '#14b8a6' },
+  { value: 'unknown', label: '未分类', color: '#647488' },
+]
+
+/** 情绪标签映射 */
+export const SENTIMENT_META: Record<
+  string,
+  { label: string; cls: string }
+> = {
+  positive: { label: '正面', cls: 'positive' },
+  negative: { label: '负面', cls: 'negative' },
+  neutral: { label: '中性', cls: 'neutral' },
+}
+
+/** 实体类型映射 */
+export const ENTITY_META: Record<string, { label: string; cls: string }> = {
+  person: { label: '人物', cls: 'person' },
+  org: { label: '机构', cls: 'org' },
+  location: { label: '地点', cls: 'location' },
 }

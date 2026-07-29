@@ -1,0 +1,251 @@
+/* ============================================================
+   QuantHub Base — Reset + 全局基础 + 高频工具类
+   从 app.css:1-65 拆出，作为 CSS Modules 体系下的全局基础层。
+   依赖 tokens.css（变量定义）。
+   ============================================================ */
+
+/* ---------- 1. Reset ---------- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  background: var(--bg);
+  color: var(--text-1);
+  font-size: var(--fs-body);
+  line-height: var(--lh-normal);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  transition: background var(--t-norm) var(--ease-out), color var(--t-norm) var(--ease-out);
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+  transition: color var(--t-fast) var(--ease-out);
+}
+a:hover {
+  color: var(--accent-strong);
+}
+
+input,
+select,
+textarea {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
+:where(a, button, input, select, textarea):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ---------- 2. 滚动条 ---------- */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--scroll-thumb);
+  border-radius: var(--r-pill);
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scroll-thumb-hover);
+  border-radius: var(--r-pill);
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scroll-thumb) transparent;
+}
+
+/* ---------- 3. 文本工具类（跨页通用） ---------- */
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.mono-num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+.up {
+  color: var(--up-ink);
+}
+.down {
+  color: var(--down-ink);
+}
+.warn {
+  color: var(--warn-ink);
+}
+.info {
+  color: var(--info-ink);
+}
+.muted {
+  color: var(--text-3);
+}
+.sec {
+  color: var(--text-2);
+}
+.accent-text {
+  color: var(--accent-strong);
+}
+
+/* ---------- 4. 布局工具类（高频小工具，仅限布局意图） ----------
+   颜色/字体/边框等视觉表达必须用 .module.css。
+   命名约定：.stack-N（纵向，gap=sp-N）/ .row-N（横向居中，gap=sp-N） */
+.stack {
+  display: flex;
+  flex-direction: column;
+}
+.stack-1 {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+.stack-2 {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.stack-3 {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.stack-4 {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+.stack-5 {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+}
+.stack-6 {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-6);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+}
+.row-1 {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+.row-2 {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.row-3 {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+.row-4 {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+}
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-4);
+}
+.grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--sp-4);
+}
+
+.full-w {
+  width: 100%;
+}
+.full-h {
+  height: 100%;
+}
+.text-right {
+  text-align: right;
+}
+.text-center {
+  text-align: center;
+}
+.nowrap {
+  white-space: nowrap;
+}
+.uppercase {
+  text-transform: uppercase;
+  letter-spacing: var(--ls-caps);
+}
+
+/* ---------- 5. 视觉工具类（跨页通用） ---------- */
+.hairline {
+  border-color: var(--divider);
+}
+.glass {
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+}
+.density-tight {
+  --row-pad: 8px;
+}
+
+/* 焦点环（无障碍） */
+.focus-ring:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+/* 屏幕阅读器专用（视觉隐藏但可读） */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

@@ -8,8 +8,7 @@ from __future__ import annotations
 
 import os
 from copy import deepcopy
-from dataclasses import dataclass
-from functools import lru_cache
+from functools import cache
 from pathlib import Path
 from typing import Any
 
@@ -20,7 +19,6 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 CONFIGS_DIR = REPO_ROOT / "configs"
 
 
-@dataclass
 class SchemaVersionError(Exception):
     """配置 schema 版本不兼容时抛出。"""
 
@@ -73,7 +71,10 @@ def _migrate_schema(cfg: dict, current_schema: int) -> dict:
     return cfg
 
 
-@lru_cache(maxsize=1)
+# maxsize=None：market 取值有限（None/a_shares/crypto），不会膨胀；
+# 多市场交替调用时避免反复重读 base.yaml + 重跑 _resolve_env_placeholders。
+# cache_clear() 语义保留，set_api_key 等场景仍可一键失效。
+@cache
 def get_config(market: str | None = None) -> dict:
     """加载并合并配置。
 
@@ -105,6 +106,16 @@ def get_config(market: str | None = None) -> dict:
 
     # 解析环境变量占位符
     cfg = _resolve_env_placeholders(cfg)
+    alert = cfg.get("alert")
+    if isinstance(alert, dict):
+        enabled_override = os.environ.get("QUANTHUB_ALERT_ENABLED")
+        if enabled_override is not None:
+            alert["enabled"] = enabled_override == "1"
+        channels_override = os.environ.get("QUANTHUB_ALERT_CHANNELS")
+        if channels_override is not None:
+            alert["channels"] = [
+                item.strip() for item in channels_override.split(",") if item.strip()
+            ]
 
     return cfg
 

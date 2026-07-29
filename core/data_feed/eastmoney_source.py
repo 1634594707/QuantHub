@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from collections.abc import Iterable
 from datetime import datetime, timedelta
@@ -19,6 +20,7 @@ from core.data_feed.base import (
     Announcement,
     DataSource,
     Interval,
+    News,
 )
 
 logger = logging.getLogger(__name__)
@@ -177,3 +179,90 @@ class EastmoneySource(DataSource):
                 )
             )
         return anns
+
+    def get_news(self, symbol: str | None = None, limit: int = 50) -> list[News]:
+        """Fetch stock-related articles directly from Eastmoney search."""
+        if not symbol:
+            return []
+
+        url = "https://search-api-web.eastmoney.com/search/jsonp"
+        callback = "jQuery35101792940631092459_1764599530165"
+        inner_param = {
+            "uid": "",
+            "keyword": symbol,
+            "type": ["cmsArticleWebOld"],
+            "client": "web",
+            "clientType": "web",
+            "clientVersion": "curr",
+            "param": {
+                "cmsArticleWebOld": {
+                    "searchScope": "default",
+                    "sort": "default",
+                    "pageIndex": 1,
+                    "pageSize": min(max(1, int(limit)), 100),
+                    "preTag": "<em>",
+                    "postTag": "</em>",
+                }
+            },
+        }
+        params = {
+            "cb": callback,
+            "param": json.dumps(inner_param, ensure_ascii=False),
+            "_": "1764599530176",
+        }
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Referer": f"https://so.eastmoney.com/news/s?keyword={symbol}",
+        }
+
+        @self._retryer()
+        def _fetch() -> str:
+            response = self._session.get(url, params=params, headers=headers, timeout=15)
+            response.raise_for_status()
+            return response.text
+
+        try:
+            data_text = _fetch()
+            prefix = callback + "("
+            payload_text = (
+                data_text[len(prefix) : -1] if data_text.startswith(prefix) else data_text
+            )
+            payload = json.loads(payload_text)
+        except Exception:
+            logger.exception("eastmoney get_news 失败: %s", symbol)
+            return []
+
+        def _clean(value: object) -> str:
+            return (
+                str(value or "")
+                .replace("<em>", "")
+                .replace("</em>", "")
+                .replace("\u3000", "")
+                .replace("\r", " ")
+                .replace("\n", " ")
+                .strip()
+            )
+
+        items = payload.get("result", {}).get("cmsArticleWebOld", [])
+        news: list[News] = []
+        for item in items[:limit]:
+            try:
+                published = pd.to_datetime(item.get("date")).to_pydatetime()
+            except Exception:
+                published = datetime.now()
+            article_code = str(item.get("code", "") or "")
+            news.append(
+                News(
+                    title=_clean(item.get("title")),
+                    content=_clean(item.get("content")),
+                    ts=published,
+                    source=str(item.get("mediaName") or "东方财富"),
+                    url=(
+                        f"https://finance.eastmoney.com/a/{article_code}.html"
+                        if article_code
+                        else None
+                    ),
+                    symbols=[symbol],
+                )
+            )
+        return news

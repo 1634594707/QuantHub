@@ -19,6 +19,10 @@ _BRANCH_OUTCOME_STOP_RE = re.compile(r"^(处理|判断依据|条件|说明|多�
 _BAR_RANGE_RE = re.compile(r"^K(\d+)-K(\d+)$", re.IGNORECASE)
 _SINGLE_BAR_RE = re.compile(r"^K(\d+)$", re.IGNORECASE)
 _QUESTION_BAR_BASIS_SUFFIX_RE = re.compile(r"（基于[^）]+判断）$")
+_PENDING_BAR_RANGE_VALUES = frozenset(
+    {"", "pending", "tbd", "n/a", "na", "等待触发", "待触发", "未触发", "尚无", "等待"}
+)
+_GLOBAL_BAR_RANGE_VALUES = frozenset({"全局", "全图", "整体", "全部", "all", "global"})
 
 GATE_RESULTS = frozenset({"proceed", "wait", "unknown"})
 TRACE_ANSWERS = frozenset({"是", "否", "中性", "等待", "不适用"})
@@ -226,17 +230,49 @@ def load_decision_tree(path: Path | None = None) -> dict[str, Any]:
     }
 
 
+def _cap_bar_seq(seq: int, max_seq: int | None) -> int:
+    if max_seq is not None and max_seq >= 1:
+        return max(1, min(seq, max_seq))
+    return seq
+
+
+def _fix_bar_range_string(text: str, *, default_max_seq: int | None = None) -> str:
+    """Canonicalize the display-only K-line range without the removed PA pipeline."""
+    raw = str(text or "").strip()
+    lowered = raw.lower()
+    if lowered in _PENDING_BAR_RANGE_VALUES:
+        return ""
+    if raw in _GLOBAL_BAR_RANGE_VALUES or lowered in _GLOBAL_BAR_RANGE_VALUES:
+        return f"K{default_max_seq}-K1" if default_max_seq and default_max_seq > 1 else "不适用"
+
+    compact = raw.upper().replace(" ", "")
+    if "," in compact or "，" in compact or "、" in compact:
+        refs = [int(match.group(1)) for match in re.finditer(r"K(\d+)", compact)]
+        if len(refs) >= 2:
+            compact = f"K{max(refs)}-K{min(refs)}"
+
+    match = _BAR_RANGE_RE.match(compact)
+    if match:
+        older, newer = sorted((int(match.group(1)), int(match.group(2))), reverse=True)
+        older = _cap_bar_seq(older, default_max_seq)
+        newer = _cap_bar_seq(newer, default_max_seq)
+        return f"K{older}" if older == newer else f"K{older}-K{newer}"
+
+    match = _SINGLE_BAR_RE.match(compact)
+    if match:
+        return f"K{_cap_bar_seq(int(match.group(1)), default_max_seq)}"
+    return raw
+
+
 def normalize_bar_range(item: dict[str, Any], *, default_max_seq: int | None = None) -> str:
     """Return display token like ``K50-K1`` or ``K1`` from a trace item.
 
     When *default_max_seq* is provided, K0 references (unclosed bar) are
     automatically capped to K1 so that downstream validators see valid seqs.
     """
-    from pa_agent.ai.trace_normalize import fix_bar_range_string
-
     raw = item.get("bar_range")
     if raw is not None and str(raw).strip():
-        return fix_bar_range_string(str(raw), default_max_seq=default_max_seq)
+        return _fix_bar_range_string(str(raw), default_max_seq=default_max_seq)
 
     bar_from = item.get("bar_from")
     bar_to = item.get("bar_to")

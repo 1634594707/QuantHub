@@ -1,63 +1,41 @@
-import type { Kpi } from '../data/mock'
-import { KPIS } from '../data/mock'
-import type { PortfolioSummary } from '../api/types'
-import KpiCard from './KpiCard'
+import type { LedgerSummary, PortfolioSummary, SimulationAccount } from '../api/types'
+import { KpiCard } from './ui/KpiCard/KpiCard'
 
-function genSpark(seed: number, n = 12, up = true): number[] {
-  let v = 20
-  const out: number[] = []
-  for (let i = 0; i < n; i++) {
-    const drift = (Math.sin(seed + i * 0.7) + (up ? 0.15 : -0.15)) * 4
-    v = Math.max(4, Math.min(36, v + drift))
-    out.push(v)
-  }
-  return out
+export type AccountScope = 'research' | 'simulation' | 'ledger'
+
+interface Props {
+  scope: AccountScope
+  research: PortfolioSummary
+  simulation: SimulationAccount | null
+  ledger: LedgerSummary | null
 }
 
-function summaryToKpis(s?: PortfolioSummary | null): Kpi[] {
-  if (!s) return KPIS
-  return [
-    {
-      label: '账户净值',
-      value: s.nav.toLocaleString('en-US', { maximumFractionDigits: 0 }),
-      unit: '¥',
-      deltaAbs: (s.dailyPnl >= 0 ? '+' : '') + s.dailyPnl.toLocaleString('en-US', { maximumFractionDigits: 0 }),
-      deltaPct: s.dailyPnlPct,
-      spark: genSpark(1, 12, s.dailyPnlPct >= 0),
-    },
-    {
-      label: '浮动盈亏',
-      value: (s.dailyPnl >= 0 ? '+' : '-') + Math.abs(s.dailyPnl).toLocaleString('en-US', { maximumFractionDigits: 0 }),
-      unit: '¥',
-      deltaAbs: (s.dailyPnlPct >= 0 ? '+' : '') + s.dailyPnlPct.toFixed(2) + '%',
-      deltaPct: s.dailyPnlPct,
-      spark: genSpark(2, 12, s.dailyPnlPct >= 0),
-    },
-    {
-      label: '持仓胜率',
-      value: s.winRate.toFixed(1),
-      unit: '%',
-      deltaAbs: '+2.3pt',
-      deltaPct: s.winRate - 50,
-      spark: genSpark(3, 12, s.winRate >= 50),
-    },
-    {
-      label: '可用资金',
-      value: s.cash.toLocaleString('en-US', { maximumFractionDigits: 0 }),
-      unit: '¥',
-      deltaAbs: '-9,200',
-      deltaPct: -2.11,
-      spark: genSpark(4, 12, false),
-    },
+function money(value: number): string {
+  return value.toLocaleString('zh-CN', { maximumFractionDigits: 0 })
+}
+
+export default function KpiRow({ scope, research, simulation, ledger }: Props) {
+  const items = scope === 'simulation' ? [
+    { label: '模拟账户权益', value: money(simulation?.equity ?? 0) },
+    { label: '模拟浮动盈亏', value: money(simulation?.unrealized_pnl ?? 0) },
+    { label: '模拟已实现盈亏', value: money(simulation?.realized_pnl ?? 0) },
+    { label: '模拟可用现金', value: money(simulation?.cash ?? 0) },
+  ] : scope === 'ledger' ? [
+    { label: '账本净值', value: money(ledger?.nav ?? 0) },
+    { label: '账本浮动盈亏', value: money(ledger?.unrealized_pnl ?? 0) },
+    { label: '账本已实现盈亏', value: money(ledger?.realized_pnl ?? 0) },
+    { label: '账本现金', value: money(ledger?.cash ?? 0) },
+  ] : [
+    { label: '研究组合总值', value: money(research.nav) },
+    { label: '研究组合累计盈亏', value: money(research.dailyPnl) },
+    { label: '持仓涨跌评分', value: research.chgBasedScore.toFixed(1), unit: undefined },
+    { label: '研究可用资金', value: money(research.cash) },
   ]
-}
 
-export default function KpiRow({ summary }: { summary?: PortfolioSummary | null }) {
-  const items = summaryToKpis(summary)
   return (
     <div className="kpi-row">
-      {items.map((k) => (
-        <KpiCard key={k.label} item={k} />
+      {items.map((item) => (
+        <KpiCard key={item.label} label={item.label} value={item.value} unit={item.unit ?? (item.label === '持仓涨跌评分' ? undefined : '¥')} />
       ))}
     </div>
   )

@@ -1,0 +1,28 @@
+/* NewsPage 专属样式 — 从内联 style 迁移 */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+}
+
+/* hero-meta 中的模型名（可能较长，字号略小） */
+.heroModel {
+  font-size: var(--fs-h3);
+}
+
+.contextBar {
+  display: flex;
+  justify-content: flex-end;
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  background: var(--surface-1);
+}
+
+.contextBar label {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  color: var(--text-2);
+  font-size: var(--fs-caption);
+}

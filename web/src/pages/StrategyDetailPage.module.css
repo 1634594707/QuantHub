@@ -1,0 +1,153 @@
+/* StrategyDetailPage 专属样式 — 从内联 style 迁移
+   动态颜色（盈亏正负）通过 .pnlCell[data-positive] 选择器实现，避免内联 style。 */
+
+/* SegmentedControl 外层：原 .period-tabs 已替换为 SegmentedControl，无额外样式需要 */
+.tabsWrap {
+}
+
+/* 卡片标题行：左对齐 + 间隙（容纳返回箭头 + 名称 + 徽标） */
+.titleRow {
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+/* 返回箭头：去除下划线，与标题等高 */
+.backArrow {
+  text-decoration: none;
+  font-size: var(--fs-h2);
+  line-height: 1;
+  color: var(--text-2);
+  transition: color var(--t-fast) var(--ease-out);
+}
+
+.backArrow:hover {
+  color: var(--text-1);
+}
+
+/* 未找到策略：内边距 + 提示间距 */
+.notFoundBody {
+  padding: var(--sp-3);
+}
+
+.notFoundHint {
+  margin-bottom: var(--sp-3);
+}
+
+.backLink {
+  text-decoration: none;
+}
+
+/* 概览 stat-tile 内的小号数值（如「最近运行」相对时间） */
+.statValueSmall {
+  font-size: var(--fs-small);
+}
+
+/* 信号结果区：图表 / 总结的纵向间距 */
+.histogramWrap {
+  margin-top: var(--sp-3);
+}
+
+.resultHead {
+  margin-top: var(--sp-3);
+}
+
+.resultSummary {
+  margin-bottom: var(--sp-3);
+}
+
+/* 回测结果统计：收益率 / 最大回撤的语义色 */
+.returnPositive {
+  color: var(--up-ink);
+}
+
+.returnNegative {
+  color: var(--down-ink);
+}
+
+.maxDrawdown {
+  color: var(--down-ink);
+}
+
+/* 成交明细：盈亏 / 收益率单元格的语义色（通过 data-positive 属性切换） */
+.pnlCell {
+  color: var(--down-ink);
+}
+
+.pnlCell[data-positive='true'] {
+  color: var(--up-ink);
+}
+
+/* 区块标题间距 */
+.tradesTitle {
+  margin-top: var(--sp-3);
+}
+
+/* 历史 / 备注区的 muted 文本统一小号 */
+.mutedSmall {
+  font-size: var(--fs-small);
+}
+
+/* 「恢复结果与参数」按钮：左对齐 + 上间距 */
+.restoreBtn {
+  margin-top: var(--sp-1);
+  align-self: flex-start;
+}
+
+/* 信号筛选排序 select 固定宽度 */
+.sortSelect {
+  width: 110px;
+  flex: 0 0 auto;
+}
+
+.operationBar {
+  position: sticky;
+  z-index: var(--z-sticky);
+  top: 0;
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr) 130px auto;
+  gap: var(--sp-3);
+  align-items: center;
+  min-height: 54px;
+  padding: var(--sp-2) var(--sp-3);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border-strong);
+  background: var(--bg-subtle);
+}
+
+.operationBar > span {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.operationBar small {
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+}
+
+.operationBar b {
+  overflow: hidden;
+  color: var(--text-2);
+  font-size: var(--fs-caption);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.operationBar > div {
+  display: flex;
+  gap: var(--sp-2);
+}
+
+.runningState { color: var(--accent-strong) !important; }
+.stoppedState { color: var(--text-3) !important; }
+
+@media (max-width: 720px) {
+  .operationBar {
+    top: var(--topbar-h);
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .operationBar > span:nth-child(2) {
+    display: none;
+  }
+}

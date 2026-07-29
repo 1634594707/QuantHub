@@ -1,7 +1,16 @@
-import { useEffect, useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
-import type { RunResp, SignalResp, StrategyInfo } from '../api/types'
-import { dirBucket, directionColor } from '../lib/signal-utils'
+import type { SignalResp, StrategyInfo } from '../api/types'
+import { dirBucket, directionColor, matchDir } from '../lib/signal-utils'
+import { DirectionDonut, ScoreHistogram } from './SignalViz'
+import { Input } from './ui/Input/Input'
+import { Select } from './ui/Select/Select'
+import { Textarea } from './ui/Textarea/Textarea'
+import { Toggle } from './ui/Toggle/Toggle'
+import { Tag } from './ui/Tag/Tag'
+import { Button } from './ui/Button/Button'
+import s from './StrategyShared.module.css'
+import '../styles/strategy-module.css'
 
 export type MarketKey = 'a_shares' | 'crypto' | 'us_stocks' | 'other'
 
@@ -29,12 +38,17 @@ export function defaultParams(name: string): Record<string, unknown> {
     pa_agent: { symbol: '600519', timeframe: '1h' },
     okx_grid: { symbol: 'BTC-USDT-SWAP', live: false },
     alphagpt: { symbol: 'BTC-USDT-SWAP' },
-    alphamaster: {},
+    alphamaster: {
+      formulas: [[2], [9], [23]],
+      min_trade_exposure: 0.05,
+      cost_rate: 0.0001,
+      slippage_rate: 0.0001,
+    },
   }
   return map[name] ?? {}
 }
 
-export type FieldType = 'symbols' | 'text' | 'number' | 'select' | 'toggle'
+export type FieldType = 'symbols' | 'formulas' | 'text' | 'number' | 'select' | 'toggle'
 
 export interface ParamField {
   key: string
@@ -60,6 +74,13 @@ export function paramFields(name: string): ParamField[] {
       ]
     case 'alphagpt':
       return [{ key: 'symbol', label: '交易对', type: 'text', placeholder: 'BTC-USDT-SWAP' }]
+    case 'alphamaster':
+      return [
+        { key: 'formulas', label: '因子公式 token', type: 'formulas', placeholder: '2; 9; 23' },
+        { key: 'min_trade_exposure', label: '最小交易敞口', type: 'number', min: 0, max: 1 },
+        { key: 'cost_rate', label: '单边手续费率', type: 'number', min: 0, max: 0.1 },
+        { key: 'slippage_rate', label: '单边滑点率', type: 'number', min: 0, max: 0.1 },
+      ]
     case 'selector':
       return [
         {
@@ -123,185 +144,171 @@ function fieldControl(
   onChange: (p: Record<string, unknown>) => void,
 ) {
   const value = params[f.key]
-  const base: CSSProperties = {
-    padding: 'var(--sp-2)',
-    borderRadius: 'var(--r-sm)',
-    border: '1px solid var(--border)',
-    background: 'var(--bg-elevated)',
-    color: 'var(--text-1)',
-    fontSize: 'var(--fs-14)',
-    width: '100%',
-    boxSizing: 'border-box',
-  }
   if (f.type === 'symbols') {
     const text = Array.isArray(value) ? (value as unknown[]).join(', ') : ''
     return (
-      <input
+      <Input
         type="text"
         value={text}
         placeholder={f.placeholder}
         onChange={(e) => {
           const codes = e.target.value
             .split(/[,，]/)
-            .map((s) => s.trim())
+            .map((str) => str.trim())
             .filter(Boolean)
           onChange({ ...params, [f.key]: codes })
         }}
-        style={base}
       />
     )
   }
   if (f.type === 'text') {
     return (
-      <input
+      <Input
         type="text"
         value={value == null ? '' : String(value)}
         placeholder={f.placeholder}
         onChange={(e) => onChange({ ...params, [f.key]: e.target.value })}
-        style={base}
+      />
+    )
+  }
+  if (f.type === 'formulas') {
+    const text = Array.isArray(value)
+      ? (value as unknown[])
+        .map((formula) => Array.isArray(formula) ? formula.join(', ') : '')
+        .filter(Boolean)
+        .join('; ')
+      : ''
+    return (
+      <Textarea
+        variant="mono"
+        rows={3}
+        value={text}
+        placeholder={f.placeholder}
+        onChange={(event) => {
+          const groups = event.target.value.split(';').map((group) => group.trim()).filter(Boolean)
+          const formulas = groups.map((group) => group.split(',').map((token) => Number(token.trim())))
+          if (formulas.some((formula) => formula.length === 0 || formula.some((token) => !Number.isInteger(token)))) return
+          onChange({ ...params, [f.key]: formulas })
+        }}
       />
     )
   }
   if (f.type === 'number') {
     return (
-      <input
+      <Input
         type="number"
         min={f.min}
         max={f.max}
         value={value == null ? '' : Number(value)}
         onChange={(e) => {
-          const n = parseInt(e.target.value || '0', 10)
+          const n = Number(e.target.value || '0')
           onChange({ ...params, [f.key]: Number.isNaN(n) ? 0 : n })
         }}
-        style={base}
       />
     )
   }
   if (f.type === 'select') {
     return (
-      <select
+      <Select
         value={value == null ? '' : String(value)}
         onChange={(e) => onChange({ ...params, [f.key]: e.target.value })}
-        style={base}
-      >
-        {f.options?.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
+        options={f.options ?? []}
+      />
     )
   }
   if (f.type === 'toggle') {
     const on = value === true || value === 1 || value === 'true'
     return (
-      <button
-        type="button"
-        onClick={() => onChange({ ...params, [f.key]: !on })}
-        style={{
-          alignSelf: 'flex-start',
-          padding: '6px 16px',
-          borderRadius: 999,
-          border: `1px solid ${on ? 'var(--accent)' : 'var(--border)'}`,
-          background: on ? 'var(--accent)' : 'var(--bg-elevated)',
-          color: on ? '#fff' : 'var(--text-1)',
-          fontSize: 'var(--fs-13)',
-          cursor: 'pointer',
-          fontWeight: 600,
-        }}
-      >
-        {on ? '已开启' : '已关闭'}
-      </button>
+      <Toggle
+        checked={on}
+        onChange={(next) => onChange({ ...params, [f.key]: next })}
+        label={on ? '已开启' : '已关闭'}
+      />
     )
   }
   return null
 }
 
-export function ParamsEditor({
+function structuredValueControl(
+  key: string,
+  value: unknown,
+  onChange: (value: unknown) => void,
+) {
+  if (typeof value === 'boolean') {
+    return <Toggle checked={value} onChange={onChange} label={value ? '已开启' : '已关闭'} />
+  }
+  if (typeof value === 'number') {
+    return <Input type="number" step="any" value={value} onChange={(event) => onChange(Number(event.target.value))} />
+  }
+  if (typeof value === 'string' || value == null) {
+    return <Input value={value == null ? '' : value} onChange={(event) => onChange(event.target.value)} />
+  }
+  if (Array.isArray(value)) {
+    return (
+      <div className={s.structuredList}>
+        {value.map((item, index) => (
+          <div key={`${key}:${index}`}>
+            <span>{index + 1}</span>
+            {structuredValueControl(`${key}.${index}`, item, (next) => onChange(value.map((current, itemIndex) => itemIndex === index ? next : current)))}
+            <Button type="button" variant="link" size="sm" onClick={() => onChange(value.filter((_, itemIndex) => itemIndex !== index))}>移除</Button>
+          </div>
+        ))}
+        <Button type="button" variant="link" size="sm" onClick={() => onChange([...value, typeof value[0] === 'number' ? 0 : ''])}>增加一项</Button>
+      </div>
+    )
+  }
+  const entries = Object.entries(value as Record<string, unknown>)
+  return entries.length ? (
+    <div className={s.structuredObject}>
+      {entries.map(([childKey, childValue]) => (
+        <label key={childKey}>
+          <span>{childKey}</span>
+          {structuredValueControl(`${key}.${childKey}`, childValue, (next) => onChange({ ...(value as Record<string, unknown>), [childKey]: next }))}
+        </label>
+      ))}
+    </div>
+  ) : <span className={s.emptyParams}>空对象</span>
+}
+
+export function StructuredParamsEditor({
   name,
   params,
   onChange,
 }: {
   name: string
   params: Record<string, unknown>
-  onChange: (p: Record<string, unknown>) => void
+  onChange: (params: Record<string, unknown>) => void
 }) {
   const fields = paramFields(name)
-  const [jsonText, setJsonText] = useState(() => JSON.stringify(params, null, 2))
-  const [jsonError, setJsonError] = useState('')
-
-  useEffect(() => {
-    setJsonText(JSON.stringify(params, null, 2))
-    setJsonError('')
-  }, [name])
-
-  const box: CSSProperties = {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 'var(--sp-3)',
-    padding: 'var(--sp-3)',
-    borderRadius: 'var(--r-md)',
-    border: '1px solid var(--border)',
-    background: 'var(--bg-subtle)',
+  if (fields.length) {
+    return (
+      <div className={s.box}>
+        {fields.map((field) => (
+          <div key={field.key} className={s.fieldRow}>
+            <label className={s.fieldLabel}>{field.label}</label>
+            {fieldControl(field, params, onChange)}
+          </div>
+        ))}
+      </div>
+    )
   }
 
+  const entries = Object.entries(params)
   return (
-    <div style={box}>
-      <div style={{ fontSize: 'var(--fs-14)', fontWeight: 600 }}>运行参数</div>
-      {fields.length > 0 ? (
-        fields.map((f) => (
-          <div key={f.key} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-1)' }}>
-            <label style={{ fontSize: 'var(--fs-12)', color: 'var(--text-2)' }}>{f.label}</label>
-            {fieldControl(f, params, onChange)}
-          </div>
-        ))
-      ) : (
-        <>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 'var(--fs-13)', color: 'var(--text-2)' }}>
-              该策略暂不支持可视化参数，请填写 JSON
-            </span>
-            {jsonError && <span style={{ fontSize: 'var(--fs-12)', color: 'var(--down-ink)' }}>{jsonError}</span>}
-          </div>
-          <textarea
-            value={jsonText}
-            onChange={(e) => {
-              setJsonText(e.target.value)
-              try {
-                const parsed = JSON.parse(e.target.value)
-                if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-                  onChange(parsed as Record<string, unknown>)
-                  setJsonError('')
-                } else {
-                  setJsonError('参数必须是对象')
-                }
-              } catch {
-                setJsonError('JSON 格式错误')
-              }
-            }}
-            rows={6}
-            style={{
-              padding: 'var(--sp-2)',
-              borderRadius: 'var(--r-sm)',
-              border: '1px solid ' + (jsonError ? 'var(--down-ink)' : 'var(--border)'),
-              background: 'var(--bg-elevated)',
-              color: 'var(--text-1)',
-              fontFamily: 'monospace',
-              fontSize: 'var(--fs-13)',
-              resize: 'vertical',
-              boxSizing: 'border-box',
-              width: '100%',
-            }}
-          />
-        </>
-      )}
+    <div className={s.box}>
+      {entries.length ? entries.map(([key, value]) => (
+        <div key={key} className={s.fieldRow}>
+          <label className={s.fieldLabel}>{key}</label>
+          {structuredValueControl(key, value, (next) => onChange({ ...params, [key]: next }))}
+        </div>
+      )) : <span className={s.emptyParams}>当前策略没有参数</span>}
     </div>
   )
 }
 
 export function summarize(signals: SignalResp[]) {
-  const buy = signals.filter((s) => dirBucket(s.direction) === 'buy').length
-  const sell = signals.filter((s) => dirBucket(s.direction) === 'sell').length
+  const buy = signals.filter((sig) => dirBucket(sig.direction) === 'buy').length
+  const sell = signals.filter((sig) => dirBucket(sig.direction) === 'sell').length
   const hold = signals.length - buy - sell
   const parts: string[] = []
   if (buy) parts.push('做多 ' + buy)
@@ -325,108 +332,136 @@ export function SignalRow({ sig }: { sig: SignalResp }) {
     )
     .slice(0, 4)
 
+  // 方向色作为 CSS 变量注入，避免在子元素上重复内联 style
+  const dirStyle = { '--dir-color': directionColor(sig.direction) } as CSSProperties
+
   return (
-    <div
-      style={{
-        padding: 'var(--sp-3)',
-        borderRadius: 'var(--r-md)',
-        border: '1px solid var(--border)',
-        background: 'var(--bg-subtle)',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 'var(--sp-2)',
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' }}>
-        <span style={{ fontWeight: 700, fontSize: 'var(--fs-15)' }}>{sig.symbol}</span>
-        <span
-          style={{
-            fontSize: 'var(--fs-12)',
-            padding: '2px 10px',
-            borderRadius: 'var(--r-pill)',
-            fontWeight: 700,
-            color: '#fff',
-            background: directionColor(sig.direction),
-          }}
-        >
-          {sig.direction.toUpperCase()}
-        </span>
-        <span className="muted" style={{ fontSize: 'var(--fs-12)', marginLeft: 'auto' }}>
+    <div className={s.signalRow} style={dirStyle}>
+      <div className={s.rowHead}>
+        <span className={s.symbol}>{sig.symbol}</span>
+        <span className={s.dirBadge}>{sig.direction.toUpperCase()}</span>
+        <span className={['muted', s.score].join(' ')}>
           score {sig.score.toFixed(2)}
         </span>
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' }}>
-        <span style={{ fontSize: 'var(--fs-12)', color: 'var(--text-2)', width: 56 }}>置信度</span>
-        <div style={{ flex: 1, height: 6, borderRadius: 999, background: 'var(--bg-elevated)', overflow: 'hidden' }}>
+      <div className={s.confRow}>
+        <span className={s.confLabel}>置信度</span>
+        <div className={s.confBar}>
           <div
-            style={{
-              width: `${(sig.confidence * 100).toFixed(0)}%`,
-              height: '100%',
-              borderRadius: 999,
-              background: directionColor(sig.direction),
-            }}
+            className={s.confFill}
+            style={{ '--w': `${(sig.confidence * 100).toFixed(0)}%` } as CSSProperties}
           />
         </div>
-        <span
-          className="mono"
-          style={{ width: 40, textAlign: 'right', fontSize: 'var(--fs-12)', fontWeight: 600 }}
-        >
+        <span className={['mono', s.confValue].join(' ')}>
           {(sig.confidence * 100).toFixed(0)}%
         </span>
       </div>
-      <div style={{ fontSize: 'var(--fs-12)', color: 'var(--text-2)' }}>
+      <div className={s.meta}>
         {sig.market} · {sig.timeframe} · 来源 {sig.source}
       </div>
-      {reason && (
-        <div
-          style={{
-            fontSize: 'var(--fs-13)',
-            lineHeight: 1.6,
-            color: 'var(--text-1)',
-            padding: 'var(--sp-2) var(--sp-3)',
-            borderRadius: 'var(--r-sm)',
-            background: 'var(--accent-weak)',
-          }}
-        >
-          {reason}
-        </div>
-      )}
+      {reason && <div className={s.reason}>{reason}</div>}
       {extra.length > 0 && (
-        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '2px' }}>
+        <div className={s.extraList}>
           {extra.map(([k, v]) => (
-            <span
-              key={k}
-              style={{
-                fontSize: 'var(--fs-11)',
-                padding: '2px 6px',
-                borderRadius: 'var(--r-pill)',
-                background: 'var(--bg-elevated)',
-                color: 'var(--text-2)',
-              }}
-            >
-              {k}: {String(v)}
-            </span>
+            <Tag key={k} variant="neutral">{k}: {String(v)}</Tag>
           ))}
         </div>
       )}
       {sig.tags.length > 0 && (
-        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginTop: '2px' }}>
+        <div className={s.tagList}>
           {sig.tags.map((t) => (
-            <span
-              key={t}
-              style={{
-                fontSize: 'var(--fs-11)',
-                padding: '2px 6px',
-                borderRadius: 'var(--r-pill)',
-                background: 'var(--accent-weak)',
-                color: 'var(--accent-strong)',
-              }}
-            >
-              {t}
-            </span>
+            <Tag key={t} variant="accent">{t}</Tag>
           ))}
         </div>
       )}
     </div>
+  )
+}
+
+/* ---------------- 共享常量（回测表单 / 信号筛选） ---------------- */
+/** 回测市场选项：与 marketKey/marketBadge 同源，详情页回测表单复用 */
+export const MARKET_OPTIONS = [
+  { value: 'a_shares', label: 'A股' },
+  { value: 'us_stocks', label: '美股' },
+  { value: 'crypto', label: '加密' },
+  { value: 'mt5', label: 'MT5' },
+]
+
+/** 回测周期选项 */
+export const INTERVAL_OPTIONS = [
+  { value: '1d', label: '日线' },
+  { value: '1h', label: '1小时' },
+  { value: '4h', label: '4小时' },
+  { value: '15m', label: '15分钟' },
+]
+
+/** 信号方向筛选选项：详情页 SignalResults 与 SignalsPage 复用，单一来源 */
+export const DIR_FILTERS: ReadonlyArray<['all' | 'buy' | 'sell' | 'hold', string]> = [
+  ['all', '全部'],
+  ['buy', '做多'],
+  ['sell', '做空'],
+  ['hold', '观望'],
+]
+
+/** 信号排序选项 */
+export const SIGNAL_SORT_OPTIONS = [
+  { value: 'score', label: '按分数' },
+  { value: 'confidence', label: '按置信度' },
+  { value: 'time', label: '按时间' },
+]
+
+/**
+ * 运行结果区块：方向环图 + 分数分布 + 方向筛选 + 排序 + 信号卡片列表。
+ * 详情页「信号」「运行」Tab 复用；未来 SignalsPage 也可复用。
+ */
+export function SignalResults({ signals }: { signals: SignalResp[] }) {
+  const [dirFilter, setDirFilter] = useState<'all' | 'buy' | 'sell' | 'hold'>('all')
+  const [sortBy, setSortBy] = useState<'time' | 'score' | 'confidence'>('score')
+
+  const filtered = useMemo(() => {
+    const list = signals.filter((sig) => matchDir(sig.direction, dirFilter))
+    return [...list].sort((a, b) => {
+      if (sortBy === 'score') return b.score - a.score
+      if (sortBy === 'confidence') return b.confidence - a.confidence
+      return 0
+    })
+  }, [signals, dirFilter, sortBy])
+
+  return (
+    <>
+      <DirectionDonut signals={signals} />
+      <div className={s.histogramWrap}>
+        <ScoreHistogram signals={signals} />
+      </div>
+      <div className={`signal-result-head ${s.resultHead}`}>
+        <div className="signal-result-summary">{summarize(signals)}</div>
+      </div>
+      <div className="signal-filter-bar">
+        <div className="signal-filters">
+          {DIR_FILTERS.map(([k, l]) => (
+            <Button
+              key={k}
+              size="sm"
+              variant={dirFilter === k ? 'primary' : 'secondary'}
+              onClick={() => setDirFilter(k)}
+            >
+              {l}
+            </Button>
+          ))}
+        </div>
+        <Select
+          className={s.sortSelect}
+          options={SIGNAL_SORT_OPTIONS}
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+        />
+      </div>
+      <div className="signal-list">
+        {filtered.map((sig, idx) => (
+          <SignalRow key={`${sig.symbol}-${idx}`} sig={sig} />
+        ))}
+        {filtered.length === 0 && <div className="muted">当前筛选下无信号</div>}
+      </div>
+    </>
   )
 }

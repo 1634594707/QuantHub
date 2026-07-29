@@ -1,0 +1,41 @@
+/* PortfolioPage 专属样式 — 从内联 style 迁移 */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.body {
+  padding: var(--sp-3);
+}
+
+/* 暴露数值（多/空/观）字号略小 */
+.exposureValue {
+  font-size: var(--fs-small);
+}
+
+/* 区块间距 */
+.sectionGap {
+  margin-top: var(--sp-3);
+}
+
+/* 绑定行内权重标记 */
+.weightTag {
+  margin-left: 6px;
+  font-size: var(--fs-caption);
+}
+
+/* 空态提示 */
+.emptyHint {
+  font-size: var(--fs-small);
+}
+
+.success {
+  margin-top: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border-left: 3px solid var(--up);
+  background: var(--up-weak);
+  color: var(--up-ink);
+  font-size: var(--fs-small);
+}

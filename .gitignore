@@ -33,6 +33,9 @@ okx_grid_master/venv/
 
 # ===== 测试与覆盖率 =====
 .pytest_cache/
+.npm-cache/
+.npm-skill-cache/
+.uv-cache/
 .coverage
 .coverage.*
 htmlcov/

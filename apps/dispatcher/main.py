@@ -17,6 +17,39 @@ from core.signals import Signal, get_bus
 logger = logging.getLogger(__name__)
 
 
+def build_ledger_risk_context(symbol: str, market: str) -> RiskContext:
+    from apps.api.domains.ledger import service as ledger_service
+
+    summary = ledger_service.portfolio_summary()["summary"]
+    positions = ledger_service.get_positions(refresh_prices=False)["positions"]
+    instrument_id = f"{market}:{symbol.strip().upper()}"
+    symbol_position = next(
+        (position for position in positions if position["instrument_id"] == instrument_id),
+        None,
+    )
+    return RiskContext(
+        total_equity=float(summary["nav"]),
+        position_value=sum(abs(float(position["market_value"])) for position in positions),
+        symbol_position_value=abs(float(symbol_position["market_value"]))
+        if symbol_position
+        else 0.0,
+    )
+
+
+def allocation_notional(symbol: str, sources: list[str], total_equity: float) -> float:
+    from apps.api import store
+
+    matching = [
+        allocation
+        for allocation in store.list_allocs()
+        if allocation["strategy"] in sources
+        and (allocation["symbol"] is None or allocation["symbol"] == symbol)
+    ]
+    if not matching:
+        raise RiskError("没有匹配当前标的与信号来源的策略分配")
+    return total_equity * sum(float(allocation["weight"]) for allocation in matching)
+
+
 class Dispatcher:
     """信号中枢。
 
@@ -118,18 +151,31 @@ class Dispatcher:
             tags=agg["sources"],
             ts=agg["ts"],
         )
+        price: float | None = None
+        quantity = 1.0
         # 风控（实盘时）
-        if not self._router.dry_run and account_ctx is not None:
+        if not self._router.dry_run:
+            from apps.api.domains.portfolio.service import latest_close
+
+            context = account_ctx or build_ledger_risk_context(agg["symbol"], agg["market"])
+            price = latest_close(agg["symbol"], agg["market"])
+            if price is None or price <= 0:
+                return {"symbol": agg["symbol"], "rejected": "无法取得下单价格"}
             checker = self._risk_checkers.setdefault(
                 agg["market"], RiskChecker(market=agg["market"])
             )
             try:
-                checker.check({"symbol": agg["symbol"], "notional": 100.0}, account_ctx)
+                notional = allocation_notional(agg["symbol"], agg["sources"], context.total_equity)
+                quantity = notional / price
+                checker.check(
+                    {"symbol": agg["symbol"], "side": agg["direction"], "notional": notional},
+                    context,
+                )
             except RiskError as e:
                 logger.warning("风控拒绝: %s (%s)", agg["symbol"], e)
                 return {"symbol": agg["symbol"], "rejected": str(e)}
 
-        intent = self._router.route(sig, qty=1.0)
+        intent = self._router.route(sig, qty=quantity, price=price)
         return intent.to_dict()
 
 

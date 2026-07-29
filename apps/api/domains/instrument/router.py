@@ -1,0 +1,43 @@
+"""Instrument 路由：/instruments 端点。"""
+
+from __future__ import annotations
+
+from fastapi import APIRouter, Query
+
+from . import service
+from .schemas import InstrumentRegister
+
+router = APIRouter(prefix="/instruments", tags=["instrument"])
+
+
+@router.get("")
+@router.get("/search")
+def search(
+    q: str = Query(default="", description="代码或名称关键字；空则返回最近更新的标的"),
+    limit: int = Query(default=20, ge=1, le=200),
+) -> dict:
+    instruments = service.search(q, limit=limit)
+    return {"count": len(instruments), "instruments": [i.to_dict() for i in instruments]}
+
+
+@router.get("/{code}")
+def get_instrument(
+    code: str,
+    market: str = Query(default="a_shares"),
+    name: str = Query(default="", description="可选名称提示，避免回填时触网"),
+) -> dict:
+    instrument = service.resolve(code, market=market, name_hint=name)
+    return {"ok": True, "instrument": instrument.to_dict()}
+
+
+@router.post("")
+def register(req: InstrumentRegister) -> dict:
+    instrument = service.register(
+        code=req.code,
+        market=req.market,
+        name=req.name,
+        exchange=req.exchange,
+        currency=req.currency,
+        asset_class=req.asset_class,
+    )
+    return {"ok": True, "instrument": instrument.to_dict()}

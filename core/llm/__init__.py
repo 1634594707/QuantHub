@@ -130,6 +130,15 @@ class LLMClient:
 _clients: dict[str, LLMClient] = {}
 
 
+def reset_clients() -> None:
+    """清除所有缓存的 LLM 客户端单例。
+
+    供 set_api_key 等场景在热重载后调用，让下次 get_llm() 重新读取环境变量。
+    对外公开接口，避免跨模块直接操作 ``_clients`` 私有变量。
+    """
+    _clients.clear()
+
+
 def get_llm(provider: str | None = None) -> LLMClient:
     """获取 LLM 客户端单例。"""
     key = provider or get_config().get("llm", {}).get("provider", "deepseek")

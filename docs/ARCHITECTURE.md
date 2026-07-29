@@ -7,9 +7,9 @@
 ```
 ┌─────────────────────────────────────────────────────────┐
 │  应用层 apps/                                            │
-│  ├─ dashboard   (Streamlit 看板，无鉴权)                  │
+│  ├─ api         (FastAPI 网页网关与领域接口)              │
 │  ├─ dispatcher  (信号中枢 → 风控 → 路由，默认 dry-run)    │
-│  └─ scheduler   (APScheduler 定时任务)                   │
+│  └─ scheduler   (网页自动化任务调度)                     │
 ├─────────────────────────────────────────────────────────┤
 │  策略层 strategies/ (插件式，@register_strategy 挂载)     │
 │  ├─ a_shares/   sentiment · news_scanner · selector ·   │
@@ -23,7 +23,6 @@
 │  ├─ alert      (企微/Webhook/Telegram)                  │
 │  ├─ llm        (DeepSeek/OpenAI 兼容客户端)             │
 │  ├─ backtest   (网格 + backtrader + 事件驱动)           │
-│  ├─ viz        (Streamlit 组件 + Plotly helper)         │
 │  └─ config     (YAML 合并 + env 占位 + schema 迁移)     │
 ├─────────────────────────────────────────────────────────┤
 │  configs/  base.yaml + a_shares.yaml + crypto.yaml      │
@@ -32,7 +31,7 @@
 
 ## 2. 核心设计原则
 
-1. **单一底座**：数据/信号/告警/LLM/回测/可视化只实现一次，消除原 6 个项目的重复实现。
+1. **单一底座**：数据/信号/告警/LLM/回测只实现一次，消除原项目的重复实现。
 2. **插件式策略**：每个策略实现 `StrategyBase`，通过 `@register_strategy` 注册，互不污染。
 3. **实盘安全优先**：三层开关（全局 `live_trading` + 模块 `live` + 密钥环境变量）+ 风控 + CLI 二次确认。
 4. **渐进迁移**：原项目逻辑保持算法不变，仅替换数据/LLM/告警的接入层。
@@ -141,6 +140,23 @@ class DataSource(ABC):
 
 ## 6. 实盘安全设计
 
+### 模拟成交与账本同步
+
+模拟执行和账本保持独立数据模型，但每一笔 `simulation_executions` 成交都会由模拟执行服务自动写入一笔 `ledger_trades` 成交：
+
+```text
+simulation_orders
+  → simulation_executions
+  → Instrument.instrument_id
+  → ledger_trades
+```
+
+- `ledger_sync_status` 只使用 `pending`、`synced` 和 `failed`。
+- `ledger_trade_id` 使用模拟成交编号稳定派生，重复同步不会生成重复账本流水。
+- `ledger_sync_error` 保存同步失败原因，前端通过 `/simulation/orders/{order_id}/executions/{execution_id}/ledger-sync` 重试。
+- 账本持仓支持多头和空头，反向成交先平仓，超出部分建立反向持仓。
+- 当前同步只连接本地模拟执行与本地账本，不会调用真实券商或交易所。
+
 ### 三层开关
 
 1. `configs/base.yaml: live_trading: false`（全局）
@@ -164,7 +180,7 @@ Signal → dispatcher 加权聚合 → RiskChecker (仓位/敞口/流动性/蜜�
 
 ## 7. 依赖管理
 
-- **uv workspace**：13 个成员（core + 3 apps + 9 strategies），共享单一虚拟环境
+- **uv workspace**：成员列表以根目录 `pyproject.toml` 的 `[tool.uv.workspace].members` 为准，共享单一虚拟环境
 - 可选依赖组：`a_shares` / `crypto` / `ai` / `backtest` / `dashboard` / `heavy-torch` / `heavy-solana`
 - 重依赖（torch/solana）懒加载，未安装时策略降级而非崩溃
 
@@ -178,6 +194,9 @@ Signal → dispatcher 加权聚合 → RiskChecker (仓位/敞口/流动性/蜜�
 | supertrend | a_shares | 否 | trading-master 05 |
 | morning_brief | a_shares | 否 | trading-master 03 晨会简报 |
 | perks_monitor | a_shares | 否 | 羊毛监控 |
+| news_analyzer | a_shares | 否 | 新闻结构化分析 |
+| realtime_analyzer | a_shares | 否 | 实时行情分析 |
 | okx_grid | crypto | 是(默认关) | OKX Grid Master |
 | alphagpt | crypto | 是(默认关) | AlphaGPT |
 | pa_agent | ai_analysis | 否 | PA_Agent |
+| alphamaster | mt5 | 是(默认关) | AlphaMaster |

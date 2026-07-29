@@ -7,9 +7,9 @@ market: "a_shares"
 data_sources:
   # 在线源优先：当前环境 akshare 经系统代理访问东财接口必失败（ProxyError），
   # 腾讯接口可正常穿透代理，故以 tencent 为 primary 保证实时数据低延迟可用。
-  # akshare 保留为 fallback（如未来代理策略调整）；local_parquet 作离线最后兜底（会提示数据延迟）。
+  # 东方财富直连负责个股新闻；新浪财经提供独立新闻兜底，akshare 为兼容备用。
   primary: "tencent"
-  fallback: ["akshare", "local_parquet"]
+  fallback: ["eastmoney", "sina_news", "akshare", "local_parquet"]
   akshare: {}
   tencent: {}
   local_parquet:
@@ -30,9 +30,9 @@ data_sources:
         tf_map: { "5m": "5", "15m": "15", "1h": "60" }
         time_mode: "ordinal"
         warn: true                          # ⚠️ 实测 OHLC 为负/volume=int64 最小值，疑似损坏，谨慎使用
-  # 注：eastmoney/sina 在当前环境经代理不可用，已从 fallback 移除，此处仅保留配置占位。
   eastmoney:
     push2_host: "push2.eastmoney.com"
+  sina_news: {}
 
 # ===== 交易时间 =====
 trading_hours:
@@ -48,6 +48,13 @@ modules:
     model_dir: "finbert2-base-sentiment-3class-stage2"
     news_source: "eastmoney"
     daily_scan_cron: "0 18 * * 1-5"       # 每个交易日 18:00 扫描
+  news_analyzer:
+    enabled: true
+    # 初始情绪分析复用 modules.sentiment 的 SentimentAnalyzer（transformers/FinBERT2 → snownlp → 关键词）
+    # 可选 API 增强：配置 DEEPSEEK_API_KEY 环境变量后自动启用 NER/主题/摘要结构化分析
+    api_provider: "deepseek"              # 可选 API 提供方（未配置 Key 时自动跳过）
+    batch_size: 5                         # API 增强单批最大条数
+    max_title_chars: 200                  # 标题截断长度（控制 prompt token）
   news_scanner:
     enabled: true
     scan_interval_minutes: 30

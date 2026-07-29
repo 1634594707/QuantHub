@@ -200,6 +200,21 @@ class CacheStore:
         conn.executescript("DELETE FROM kline_cache; DELETE FROM doc_cache;")
         conn.commit()
 
+    def stats(self) -> dict[str, int | float | None]:
+        """Return cache inventory without reading cached payloads."""
+        conn = self._conn()
+        kline_count = int(conn.execute("SELECT COUNT(*) FROM kline_cache").fetchone()[0])
+        doc_count = int(conn.execute("SELECT COUNT(*) FROM doc_cache").fetchone()[0])
+        row = conn.execute(
+            "SELECT MAX(created_at) FROM ("
+            "SELECT created_at FROM kline_cache UNION ALL SELECT created_at FROM doc_cache)"
+        ).fetchone()
+        return {
+            "kline_entries": kline_count,
+            "document_entries": doc_count,
+            "latest_write_at": float(row[0]) if row and row[0] is not None else None,
+        }
+
 
 def cache_key_date(ts: datetime | None = None) -> str:
     """生成缓存键中的 date 部分（UTC 日期，便于跨市场统一）。"""

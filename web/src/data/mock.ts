@@ -26,7 +26,8 @@ export interface Holding {
   chgPct: number
   shares: number
   pnl: number
-  winRate: number
+  /** 涨跌派生情绪分（非真实胜率）。 */
+  chgBasedScore: number
 }
 
 export interface Breadth {
@@ -134,11 +135,11 @@ export const KPIS: Kpi[] = [
 ]
 
 export const HOLDINGS: Holding[] = [
-  { code: '600519', name: '贵州茅台', price: 1685.0, chgPct: 1.82, shares: 100, pnl: 12400, winRate: 72 },
-  { code: '300750', name: '宁德时代', price: 198.6, chgPct: -0.94, shares: 800, pnl: -3200, winRate: 61 },
-  { code: '000858', name: '五粮液', price: 142.3, chgPct: 0.56, shares: 500, pnl: 5600, winRate: 65 },
-  { code: '002594', name: '比亚迪', price: 256.8, chgPct: 2.31, shares: 300, pnl: 9800, winRate: 70 },
-  { code: '601318', name: '中国平安', price: 48.2, chgPct: -0.41, shares: 1200, pnl: -1500, winRate: 58 },
+  { code: '600519', name: '贵州茅台', price: 1685.0, chgPct: 1.82, shares: 100, pnl: 12400, chgBasedScore: 72 },
+  { code: '300750', name: '宁德时代', price: 198.6, chgPct: -0.94, shares: 800, pnl: -3200, chgBasedScore: 61 },
+  { code: '000858', name: '五粮液', price: 142.3, chgPct: 0.56, shares: 500, pnl: 5600, chgBasedScore: 65 },
+  { code: '002594', name: '比亚迪', price: 256.8, chgPct: 2.31, shares: 300, pnl: 9800, chgBasedScore: 70 },
+  { code: '601318', name: '中国平安', price: 48.2, chgPct: -0.41, shares: 1200, pnl: -1500, chgBasedScore: 58 },
 ]
 
 export const BREADTH: Breadth = { up: 1842, flat: 213, down: 1396 }

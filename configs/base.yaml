@@ -62,7 +62,7 @@ llm:
   deepseek:
     api_key_env: "DEEPSEEK_API_KEY"
     base_url: "https://api.deepseek.com"
-    model: "deepseek-chat"
+    model: "deepseek-v4-flash"              # API 支持 deepseek-v4-pro / deepseek-v4-flash
     timeout: 60
     max_retries: 3
   openai:
@@ -74,6 +74,14 @@ llm:
   local:
     # 本地模型（如 FinBERT2 走 transformers 直加载，不经此客户端）
     enabled: false
+  lmstudio:
+    # [已废弃] news_analyzer 不再使用 LM Studio，改用 SentimentAnalyzer + 可选 DeepSeek API
+    # 保留配置以兼容旧引用，后续版本移除
+    api_key: "lm-studio"
+    base_url: "http://localhost:1234/v1"
+    model: "qwen3.5-4b"
+    timeout: 120
+    max_retries: 2
 
 # ===== 回测 =====
 backtest:

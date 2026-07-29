@@ -1,23 +1,43 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { api } from '../api/client'
 import { useApi } from '../api/useApi'
-import type { BacktestResp, LiveResp, RunResp, SignalResp } from '../api/types'
+import type { BacktestResp, RunResp, SignalResp } from '../api/types'
 import {
   defaultParams,
+  INTERVAL_OPTIONS,
+  MARKET_OPTIONS,
   marketBadge,
-  ParamsEditor,
-  SignalRow,
-  summarize,
+  StructuredParamsEditor,
+  SignalResults,
 } from '../components/StrategyShared'
 import { DirectionDonut, ScoreHistogram } from '../components/SignalViz'
+import EquityCurve from '../components/EquityCurve'
 import { useStrategyRuns } from '../hooks/useStrategyRuns'
 import { useStrategyPresets } from '../hooks/useStrategyPresets'
 import { useSignals } from '../hooks/useSignals'
-import { matchDir } from '../lib/signal-utils'
 import { formatRelativeTime } from '../lib/time'
+import { Button } from '../components/ui/Button/Button'
+import { AsyncStateBoundary } from '../components/ui/AsyncStateBoundary/AsyncStateBoundary'
+import { ConfirmActionButton } from '../components/ui/ConfirmActionButton/ConfirmActionButton'
+import { Input } from '../components/ui/Input/Input'
+import { Select } from '../components/ui/Select/Select'
+import { SegmentedControl } from '../components/ui/SegmentedControl/SegmentedControl'
+import { Tag } from '../components/ui/Tag/Tag'
+import { WorkspaceHeader } from '../components/WorkspaceHeader/WorkspaceHeader'
+import s from './StrategyDetailPage.module.css'
 
-type Tab = 'overview' | 'params' | 'run' | 'history' | 'signals' | 'backtest' | 'live'
+type Tab = 'overview' | 'run' | 'backtest' | 'history' | 'signals'
+
+/** Tab 列表：原 7 Tab 精简为 5 Tab。「参数」已合并进「运行」（运行 Tab 含 ParamsEditor）；
+ *  「实盘」已合并进「概览」（实盘状态作为 stat-tile + 模拟 Tick 小节）。 */
+const TAB_LIST: { key: Tab; label: string }[] = [
+  { key: 'overview', label: '概览' },
+  { key: 'run', label: '运行' },
+  { key: 'backtest', label: '回测' },
+  { key: 'history', label: '历史' },
+  { key: 'signals', label: '信号' },
+]
 
 function paramsPreview(params: Record<string, unknown>) {
   return Object.entries(params)
@@ -25,104 +45,11 @@ function paramsPreview(params: Record<string, unknown>) {
     .join(' · ')
 }
 
-/** 运行结果区块：方向环图 + 分数分布 + 方向筛选 + 排序 + 信号卡片列表。供「运行」「信号」两个 Tab 复用。 */
-function SignalResults({ signals }: { signals: SignalResp[] }) {
-  const [dirFilter, setDirFilter] = useState<'all' | 'buy' | 'sell' | 'hold'>('all')
-  const [sortBy, setSortBy] = useState<'time' | 'score' | 'confidence'>('score')
-
-  const filtered = useMemo(() => {
-    let list = signals.filter((s) => matchDir(s.direction, dirFilter))
-    return [...list].sort((a, b) => {
-      if (sortBy === 'score') return b.score - a.score
-      if (sortBy === 'confidence') return b.confidence - a.confidence
-      return 0
-    })
-  }, [signals, dirFilter, sortBy])
-
-  return (
-    <>
-      <DirectionDonut signals={signals} />
-      <div style={{ marginTop: 'var(--sp-3)' }}>
-        <ScoreHistogram signals={signals} />
-      </div>
-      <div className="signal-result-head" style={{ marginTop: 'var(--sp-3)' }}>
-        <div className="signal-result-summary">{summarize(signals)}</div>
-      </div>
-      <div className="signal-filter-bar">
-        <div className="signal-filters">
-          {(
-            [
-              ['all', '全部'],
-              ['buy', '做多'],
-              ['sell', '做空'],
-              ['hold', '观望'],
-            ] as const
-          ).map(([k, l]) => (
-            <button
-              key={k}
-              className="period-tab"
-              onClick={() => setDirFilter(k)}
-              style={{
-                background: dirFilter === k ? 'var(--accent)' : 'var(--bg-subtle)',
-                color: dirFilter === k ? '#fff' : 'var(--text-1)',
-                border: dirFilter === k ? '1px solid var(--accent)' : '1px solid var(--border)',
-              }}
-            >
-              {l}
-            </button>
-          ))}
-        </div>
-        <select
-          className="edit-input"
-          style={{ width: 110, flex: '0 0 auto' }}
-          value={sortBy}
-          onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-        >
-          <option value="score">按分数</option>
-          <option value="confidence">按置信度</option>
-          <option value="time">按时间</option>
-        </select>
-      </div>
-      <div className="signal-list">
-        {filtered.map((sig, idx) => (
-          <SignalRow key={`${sig.symbol}-${idx}`} sig={sig} />
-        ))}
-        {filtered.length === 0 && <div className="muted">当前筛选下无信号</div>}
-      </div>
-    </>
-  )
-}
-
-/** 权益曲线（纯 SVG，零依赖）。points 为 {t, equity} 序列。 */
-function EquityCurve({ points, initial }: { points: Array<{ t: string | null; equity: number }>; initial: number }) {
-  const W = 720
-  const H = 200
-  const pad = 24
-  if (points.length < 2) return null
-  const eqs = points.map((p) => p.equity)
-  const min = Math.min(initial, ...eqs)
-  const max = Math.max(initial, ...eqs)
-  const span = max - min || 1
-  const stepX = (W - pad * 2) / (points.length - 1)
-  const y = (v: number) => H - pad - ((v - min) / span) * (H - pad * 2)
-  const x = (i: number) => pad + i * stepX
-  const d = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(p.equity).toFixed(1)}`).join(' ')
-  const baseY = y(initial)
-  const lastUp = points[points.length - 1].equity >= initial
-  const stroke = lastUp ? 'var(--up-ink)' : 'var(--down-ink)'
-  return (
-    <svg className="bt-equity-svg" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" role="img" aria-label="权益曲线">
-      <line x1={pad} y1={baseY} x2={W - pad} y2={baseY} stroke="var(--border)" strokeDasharray="3 3" />
-      <path d={d} fill="none" stroke={stroke} strokeWidth={2} />
-    </svg>
-  )
-}
-
 export default function StrategyDetailPage() {
   const { name } = useParams<{ name: string }>()
   const [searchParams] = useSearchParams()
   const strategies = useApi(() => api.strategies(), [])
-  const strategy = strategies.data?.strategies.find((s) => s.name === name)
+  const strategy = strategies.data?.strategies.find((item) => item.name === name)
 
   const { addRun, runsFor } = useStrategyRuns()
   const { forStrategy, save, remove } = useStrategyPresets()
@@ -137,9 +64,15 @@ export default function StrategyDetailPage() {
   const [runError, setRunError] = useState('')
   const [presetName, setPresetName] = useState('')
   const [loadedPreset, setLoadedPreset] = useState('')
+  const [presetMessage, setPresetMessage] = useState('')
 
-  // ?tab= 直达（侧栏「回测工作台」可跳 /strategies/supertrend?tab=backtest）
-  const initialTab = (searchParams.get('tab') as Tab | null) || 'overview'
+  // ?tab= 直达（列表卡片「回测」按钮跳 /strategies/:name?tab=backtest）
+  // 兼容旧 Tab 值：'params' → 'run'（已合并），'live' → 'overview'（已合并）
+  const rawTab = searchParams.get('tab') as Tab | 'params' | 'live' | null
+  const initialTab: Tab =
+    rawTab === 'backtest' || rawTab === 'run' || rawTab === 'history' || rawTab === 'signals'
+      ? rawTab
+      : 'overview'
   const [tab, setTab] = useState<Tab>(initialTab)
 
   // ---- G6 回测 ----
@@ -151,6 +84,15 @@ export default function StrategyDetailPage() {
   const [btResult, setBtResult] = useState<BacktestResp | null>(null)
   const [btRunning, setBtRunning] = useState(false)
   const [btError, setBtError] = useState('')
+
+  useEffect(() => {
+    if (!strategy) return
+    setBtMarket(strategy.market)
+    if (strategy.market === 'mt5') {
+      setBtSymbol('XAUUSD')
+      setBtInterval('1h')
+    }
+  }, [strategy?.name, strategy?.market])
 
   async function handleBacktest() {
     if (!name) return
@@ -174,7 +116,11 @@ export default function StrategyDetailPage() {
   }
 
   // ---- G5 实盘（paper）----
-  const liveInfo = useApi(() => (name ? api.liveStatus(name) : Promise.resolve(null)), [name])
+  const liveInfo = useApi(
+    () => (name ? api.liveStatus(name) : Promise.resolve(null)),
+    [name],
+    { resetKey: name },
+  )
   const [liveState, setLiveState] = useState<unknown>(null)
   const [liveRunning, setLiveRunning] = useState(false)
   const [liveError, setLiveError] = useState('')
@@ -222,12 +168,21 @@ export default function StrategyDetailPage() {
     }
   }
 
-  if (strategies.loading) {
+  if (!strategies.data) {
     return (
       <div className="card">
-        <div className="card-head">
-          <div className="card-title">加载中…</div>
-        </div>
+        <AsyncStateBoundary
+          loading={strategies.loading}
+          error={strategies.error}
+          reconnecting={strategies.reconnecting}
+          hasData={false}
+          isEmpty={false}
+          onRetry={strategies.refetch}
+          loadingTitle="正在读取策略详情…"
+          emptyTitle="暂无策略详情"
+        >
+          <div />
+        </AsyncStateBoundary>
       </div>
     )
   }
@@ -238,11 +193,11 @@ export default function StrategyDetailPage() {
         <div className="card-head">
           <div className="card-title">未找到策略</div>
         </div>
-        <div style={{ padding: 'var(--sp-3)' }}>
-          <div className="muted" style={{ marginBottom: 'var(--sp-3)' }}>
+        <div className={s.notFoundBody}>
+          <div className={`muted ${s.notFoundHint}`}>
             策略 <code>{name}</code> 未注册或已被移除。
           </div>
-          <Link to="/strategies" className="period-tab" style={{ textDecoration: 'none' }}>
+          <Link to="/strategies" className={`link-btn ${s.backLink}`}>
             ← 返回策略模块列表
           </Link>
         </div>
@@ -250,48 +205,51 @@ export default function StrategyDetailPage() {
     )
   }
 
-  const tabs: { key: Tab; label: string }[] = [
-    { key: 'overview', label: '概览' },
-    { key: 'params', label: '参数' },
-    { key: 'run', label: '运行' },
-    { key: 'backtest', label: '回测' },
-    { key: 'history', label: '历史' },
-    { key: 'signals', label: '信号' },
-    { key: 'live', label: '实盘' },
-  ]
-
   return (
+    <>
+      <WorkspaceHeader
+        context="策略 / 策略工作台"
+        title={`${strategy?.name ?? '策略'} 工作台`}
+        description={strategy?.description}
+        metrics={[
+          { label: '市场', value: marketBadge(strategy?.market ?? '') },
+          { label: '实盘', value: strategy?.live_capable ? '可' : '否' },
+        ]}
+      />
     <div className="card" data-board="workbench">
       <div className="card-head">
-        <div className="card-title" style={{ alignItems: 'center', gap: 'var(--sp-2)' }}>
+        <div className={`card-title ${s.titleRow}`}>
           <Link
             to="/strategies"
-            className="muted"
-            style={{ textDecoration: 'none', fontSize: 'var(--fs-18)', lineHeight: 1 }}
+            className={`muted ${s.backArrow}`}
             title="返回策略模块列表"
           >
             ←
           </Link>
           <span>{strategy.name}</span>
-          <span className="strategy-card-badge market">{marketBadge(strategy.market)}</span>
-          {strategy.live_capable && <span className="strategy-card-badge live">可实盘</span>}
+          <Tag variant="accent">{marketBadge(strategy.market)}</Tag>
+          {strategy.live_capable && <Tag variant="up">可实盘</Tag>}
+        </div>
+      </div>
+
+      <div className={s.operationBar}>
+        <span><small>状态</small><b className={running ? s.runningState : s.stoppedState}>{running ? '运行中' : '已停止'}</b></span>
+        <span><small>参数</small><b>{paramsPreview(params) || '无参数'}</b></span>
+        <span><small>最近结果</small><b>{runResult ? `${runResult.count} 条信号` : lastOkRun ? `${lastOkRun.result.count} 条信号` : '—'}</b></span>
+        <div>
+          <Button variant="primary" size="sm" onClick={() => { setTab('run'); void handleRun() }} loading={running}>运行</Button>
+          <Button size="sm" onClick={() => setTab('backtest')}>回测</Button>
         </div>
       </div>
 
       <div className="detail-tabs">
-        <div className="period-tabs" role="tablist" aria-label="策略工作台">
-          {tabs.map((t) => (
-            <button
-              key={t.key}
-              role="tab"
-              aria-selected={tab === t.key}
-              className={`period-tab ${tab === t.key ? 'active' : ''}`}
-              onClick={() => setTab(t.key)}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl
+          value={tab}
+          onChange={(v) => setTab(v as Tab)}
+          options={TAB_LIST.map((t) => ({ value: t.key, label: t.label }))}
+          size="sm"
+          className={s.tabsWrap}
+        />
       </div>
 
       <div className="detail-body">
@@ -312,6 +270,10 @@ export default function StrategyDetailPage() {
                 <span className="v">{strategy.live_capable ? '可实盘' : '回测/分析'}</span>
               </div>
               <div className="stat-tile">
+                <span className="k">当前模式</span>
+                <span className="v mono">{liveInfo.data?.is_live ? 'LIVE' : 'PAPER'}</span>
+              </div>
+              <div className="stat-tile">
                 <span className="k">参数预设</span>
                 <span className="v mono">{presets.length}</span>
               </div>
@@ -321,7 +283,7 @@ export default function StrategyDetailPage() {
               </div>
               <div className="stat-tile">
                 <span className="k">最近运行</span>
-                <span className="v" style={{ fontSize: 'var(--fs-13)' }}>
+                <span className={`v ${s.statValueSmall}`}>
                   {history[0] ? formatRelativeTime(history[0].ts) : '—'}
                 </span>
               </div>
@@ -337,48 +299,119 @@ export default function StrategyDetailPage() {
               {vizSignals.length > 0 ? (
                 <>
                   <DirectionDonut signals={vizSignals} />
-                  <div style={{ marginTop: 'var(--sp-3)' }}>
+                  <div className={s.histogramWrap}>
                     <ScoreHistogram signals={vizSignals} />
                   </div>
                 </>
               ) : (
-                <div className="empty-hint">
-                  暂无运行记录。前往「运行」页运行策略后，这里会展示方向占比与分数分布。
-                </div>
+                <div className="empty-hint">暂无运行记录</div>
               )}
             </div>
+            {/* 实盘状态：原独立 Tab 已合并到概览（信息密度低，作为概览末尾小节） */}
+            <div className="detail-section">
+              <div className="detail-section-title">实盘状态</div>
+              <AsyncStateBoundary
+                loading={liveInfo.loading}
+                error={liveInfo.error}
+                reconnecting={liveInfo.reconnecting}
+                hasData={liveInfo.data !== null}
+                isEmpty={false}
+                onRetry={liveInfo.refetch}
+                loadingTitle="正在读取实盘状态…"
+                emptyTitle="暂无实盘状态"
+              >
+                <>
+                  <div className="bus-hint warn">
+                    {liveInfo.data?.note ||
+                      '实盘需要交易所/券商 API 配置；未配置时 live_tick 为 no-op（模拟态），不产生真实成交。'}
+                  </div>
+                  <div className="detail-actions">
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={handleLiveTick}
+                      loading={liveRunning}
+                    >
+                      {liveRunning ? 'Tick 中…' : '模拟一次 Tick'}
+                    </Button>
+                  </div>
+                  {liveError && <div className="run-error">{liveError}</div>}
+                  {liveState != null && (
+                    <pre className="live-state">{JSON.stringify(liveState, null, 2)}</pre>
+                  )}
+                </>
+              </AsyncStateBoundary>
+            </div>
             <div className="detail-actions">
-              <button
-                className="period-tab"
+              <Button
+                variant="primary"
+                size="sm"
                 onClick={() => {
                   setTab('run')
                   void handleRun()
                 }}
-                style={{ background: 'var(--accent)', color: '#fff' }}
               >
                 快速运行
-              </button>
-              <button className="link-btn" onClick={() => setTab('params')}>
+              </Button>
+              <Button variant="link" size="sm" onClick={() => setTab('run')}>
                 配置参数
-              </button>
+              </Button>
             </div>
           </>
         )}
 
-        {/* 参数 */}
-        {tab === 'params' && (
-          <div className="detail-section">
-            <div className="detail-section-title">运行参数</div>
-            <ParamsEditor name={strategy.name} params={params} onChange={setParams} />
+        {/* 运行（含参数编辑 + 运行 + 参数预设，原「参数」Tab 已合并） */}
+        {tab === 'run' && (
+          <>
+            <div className="detail-section">
+              <div className="detail-section-title">运行参数</div>
+              <StructuredParamsEditor name={strategy.name} params={params} onChange={setParams} />
+              <div className="detail-actions">
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={handleRun}
+                  loading={running}
+                >
+                  {running ? '运行中…' : '运行策略'}
+                </Button>
+                <Button
+                  variant="link"
+                  size="sm"
+                  onClick={() => setParams({ ...defaultParams(strategy.name) })}
+                >
+                  重置默认参数
+                </Button>
+              </div>
+              {runError && <div className="run-error">{runError}</div>}
+            </div>
 
-            <div className="preset-block">
+            {runResult && (
+              <div className="detail-section">
+                <div className="detail-section-title">运行结果</div>
+                <div className={`signal-result-summary ${s.resultSummary}`}>
+                  {runResult.ok
+                    ? runResult.signals.length > 0
+                      ? `产出 ${runResult.count} 条信号`
+                      : '运行成功，但未产出信号'
+                    : `运行失败${runResult.error ? ' · ' + runResult.error : ''}`}
+                </div>
+                {runResult.ok && runResult.signals.length > 0 && (
+                  <Button variant="primary" size="sm" onClick={() => setTab('signals')}>
+                    查看完整信号分析 →
+                  </Button>
+                )}
+              </div>
+            )}
+
+            {/* 参数预设（原「参数」Tab 迁移至此） */}
+            <div className="detail-section">
               <div className="detail-section-title">
                 参数预设
                 <span className="local-hint">本机保存 · 不跨设备</span>
               </div>
               <div className="preset-add">
-                <input
-                  className="edit-input"
+                <Input
                   placeholder="预设名称，如 激进 / 稳健"
                   value={presetName}
                   onChange={(e) => setPresetName(e.target.value)}
@@ -389,18 +422,18 @@ export default function StrategyDetailPage() {
                     }
                   }}
                 />
-                <button
-                  className="period-tab"
+                <Button
+                  variant="primary"
+                  size="sm"
                   disabled={!presetName.trim() || !name}
                   onClick={() => {
                     if (!presetName.trim() || !name) return
                     save(name, presetName.trim(), params)
                     setPresetName('')
                   }}
-                  style={{ background: 'var(--accent)', color: '#fff' }}
                 >
                   保存当前为预设
-                </button>
+                </Button>
               </div>
 
               {presets.length > 0 ? (
@@ -411,100 +444,43 @@ export default function StrategyDetailPage() {
                         {p.name}
                       </span>
                       <div className="preset-actions">
-                        <button
-                          className="link-btn"
+                        <Button
+                          variant="link"
+                          size="sm"
                           onClick={() => {
                             setParams({ ...p.params })
                             setLoadedPreset(p.name)
                           }}
                         >
                           加载
-                        </button>
-                        <button
-                          className="link-btn"
-                          onClick={() => {
+                        </Button>
+                        <ConfirmActionButton
+                          label="删除"
+                          title="确认删除参数预设"
+                          description={`删除预设 ${p.name} 后无法从本地预设列表恢复。策略运行历史不会被删除。`}
+                          confirmLabel="确认删除"
+                          variant="link"
+                          onConfirm={() => {
                             if (name) remove(name, p.id)
                             if (loadedPreset === p.name) setLoadedPreset('')
+                            setPresetMessage(`预设 ${p.name} 已删除`)
                           }}
-                        >
-                          删除
-                        </button>
+                        />
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="muted" style={{ fontSize: 'var(--fs-13)' }}>
-                  暂无预设。调整参数后点击「保存当前为预设」即可复用。
+                <div className={`muted ${s.mutedSmall}`}>
+                  暂无参数预设
                 </div>
               )}
 
               {loadedPreset && (
                 <div className="local-hint ok">已加载预设：{loadedPreset}</div>
               )}
+              {presetMessage && <div className="local-hint ok" role="status">{presetMessage}</div>}
             </div>
-
-            <div className="detail-actions">
-              <button
-                className="link-btn"
-                onClick={() => setParams({ ...defaultParams(strategy.name) })}
-              >
-                重置默认参数
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* 运行 */}
-        {tab === 'run' && (
-          <>
-            <div className="detail-section">
-              <div className="detail-section-title">运行参数</div>
-              <ParamsEditor name={strategy.name} params={params} onChange={setParams} />
-              <div className="detail-actions">
-                <button
-                  className="period-tab"
-                  onClick={handleRun}
-                  disabled={running}
-                  style={{
-                    background: 'var(--accent)',
-                    color: '#fff',
-                    opacity: running ? 0.7 : 1,
-                  }}
-                >
-                  {running ? '运行中…' : '运行策略'}
-                </button>
-                <button
-                  className="link-btn"
-                  onClick={() => setParams({ ...defaultParams(strategy.name) })}
-                >
-                  重置默认参数
-                </button>
-              </div>
-              {runError && <div className="run-error">{runError}</div>}
-            </div>
-
-            {runResult && (
-              <div className="detail-section">
-                <div className="detail-section-title">运行结果</div>
-                <div className="signal-result-summary" style={{ marginBottom: 'var(--sp-3)' }}>
-                  {runResult.ok
-                    ? runResult.signals.length > 0
-                      ? `产出 ${runResult.count} 条信号`
-                      : '运行成功，但未产出信号'
-                    : `运行失败${runResult.error ? ' · ' + runResult.error : ''}`}
-                </div>
-                {runResult.ok && runResult.signals.length > 0 && (
-                  <button
-                    className="period-tab"
-                    onClick={() => setTab('signals')}
-                    style={{ background: 'var(--accent)', color: '#fff' }}
-                  >
-                    查看完整信号分析 →
-                  </button>
-                )}
-              </div>
-            )}
           </>
         )}
 
@@ -516,40 +492,27 @@ export default function StrategyDetailPage() {
               <div className="bt-form">
                 <label className="bt-field">
                   <span>标的</span>
-                  <input
-                    className="edit-input"
-                    value={btSymbol}
-                    onChange={(e) => setBtSymbol(e.target.value)}
-                  />
+                  <Input value={btSymbol} onChange={(e) => setBtSymbol(e.target.value)} />
                 </label>
                 <label className="bt-field">
                   <span>市场</span>
-                  <select
-                    className="edit-input"
+                  <Select
+                    options={MARKET_OPTIONS}
                     value={btMarket}
                     onChange={(e) => setBtMarket(e.target.value)}
-                  >
-                    <option value="a_shares">A股</option>
-                    <option value="us_stocks">美股</option>
-                    <option value="crypto">加密</option>
-                  </select>
+                  />
                 </label>
                 <label className="bt-field">
                   <span>周期</span>
-                  <select
-                    className="edit-input"
+                  <Select
+                    options={INTERVAL_OPTIONS}
                     value={btInterval}
                     onChange={(e) => setBtInterval(e.target.value)}
-                  >
-                    <option value="1d">日线</option>
-                    <option value="1h">1小时</option>
-                    <option value="4h">4小时</option>
-                  </select>
+                  />
                 </label>
                 <label className="bt-field">
                   <span>K线数</span>
-                  <input
-                    className="edit-input"
+                  <Input
                     type="number"
                     value={btLimit}
                     onChange={(e) => setBtLimit(Number(e.target.value) || 300)}
@@ -557,8 +520,7 @@ export default function StrategyDetailPage() {
                 </label>
                 <label className="bt-field">
                   <span>初始资金</span>
-                  <input
-                    className="edit-input"
+                  <Input
                     type="number"
                     value={btCapital}
                     onChange={(e) => setBtCapital(Number(e.target.value) || 100000)}
@@ -566,14 +528,15 @@ export default function StrategyDetailPage() {
                 </label>
               </div>
               <div className="detail-actions">
-                <button
-                  className="period-tab"
+                <Button
+                  variant="primary"
+                  size="sm"
                   onClick={handleBacktest}
+                  loading={btRunning}
                   disabled={btRunning || !btSymbol.trim()}
-                  style={{ background: 'var(--accent)', color: '#fff' }}
                 >
                   {btRunning ? '回测中…' : '运行回测'}
-                </button>
+                </Button>
               </div>
               {btError && <div className="run-error">{btError}</div>}
             </div>
@@ -593,20 +556,16 @@ export default function StrategyDetailPage() {
                       <div className="stat-tile">
                         <span className="k">收益率</span>
                         <span
-                          className="v mono"
-                          style={{
-                            color:
-                              (btResult.summary?.total_return ?? 0) >= 0
-                                ? 'var(--up-ink)'
-                                : 'var(--down-ink)',
-                          }}
+                          className={`v mono ${
+                            (btResult.summary?.total_return ?? 0) >= 0 ? s.returnPositive : s.returnNegative
+                          }`}
                         >
                           {((btResult.summary?.total_return ?? 0) * 100).toFixed(2)}%
                         </span>
                       </div>
                       <div className="stat-tile">
                         <span className="k">最大回撤</span>
-                        <span className="v mono" style={{ color: 'var(--down-ink)' }}>
+                        <span className={`v mono ${s.maxDrawdown}`}>
                           {((btResult.summary?.max_drawdown ?? 0) * 100).toFixed(2)}%
                         </span>
                       </div>
@@ -637,7 +596,7 @@ export default function StrategyDetailPage() {
                       </div>
                     )}
 
-                    <div className="detail-section-title" style={{ marginTop: 'var(--sp-3)' }}>
+                    <div className={`detail-section-title ${s.tradesTitle}`}>
                       成交明细
                     </div>
                     {btResult.trades.length > 0 ? (
@@ -662,14 +621,14 @@ export default function StrategyDetailPage() {
                                   <td className="mono">{String(t.entry_time ?? t.entry ?? '—')}</td>
                                   <td className="mono">{String(t.exit_time ?? t.exit ?? '—')}</td>
                                   <td
-                                    className="mono"
-                                    style={{ color: pnl >= 0 ? 'var(--up-ink)' : 'var(--down-ink)' }}
+                                    className={`mono ${s.pnlCell}`}
+                                    data-positive={pnl >= 0}
                                   >
                                     {pnl.toFixed(2)}
                                   </td>
                                   <td
-                                    className="mono"
-                                    style={{ color: ret >= 0 ? 'var(--up-ink)' : 'var(--down-ink)' }}
+                                    className={`mono ${s.pnlCell}`}
+                                    data-positive={ret >= 0}
                                   >
                                     {ret.toFixed(2)}%
                                   </td>
@@ -680,7 +639,7 @@ export default function StrategyDetailPage() {
                         </table>
                       </div>
                     ) : (
-                      <div className="muted" style={{ fontSize: 'var(--fs-13)' }}>
+                      <div className={`muted ${s.mutedSmall}`}>
                         该回测未返回逐笔成交（策略 backtest() 未产出 trades）。
                       </div>
                     )}
@@ -706,9 +665,10 @@ export default function StrategyDetailPage() {
                       </span>
                     </div>
                     <div className="run-record-params">{paramsPreview(h.params)}</div>
-                    <button
-                      className="link-btn"
-                      style={{ marginTop: 'var(--sp-1)', alignSelf: 'flex-start' }}
+                    <Button
+                      variant="link"
+                      size="sm"
+                      className={s.restoreBtn}
                       onClick={() => {
                         setParams({ ...h.params })
                         setRunResult(h.result)
@@ -717,12 +677,12 @@ export default function StrategyDetailPage() {
                       }}
                     >
                       恢复结果与参数
-                    </button>
+                    </Button>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="muted" style={{ fontSize: 'var(--fs-13)' }}>
+              <div className={`muted ${s.mutedSmall}`}>
                 暂无运行记录。
               </div>
             )}
@@ -742,7 +702,7 @@ export default function StrategyDetailPage() {
               <SignalResults signals={runResult.signals} />
             ) : lastOkRun && lastOkRun.result.ok ? (
               <>
-                <div className="signal-result-summary" style={{ marginBottom: 'var(--sp-3)' }}>
+                <div className={`signal-result-summary ${s.resultSummary}`}>
                   显示最近一次运行（{formatRelativeTime(lastOkRun.ts)}）的 {lastOkRun.result.count} 条信号。
                 </div>
                 <SignalResults signals={lastOkRun.result.signals} />
@@ -752,48 +712,8 @@ export default function StrategyDetailPage() {
             )}
           </div>
         )}
-
-        {/* 实盘（G5：诚实 paper 模式，无 broker 配置不产生真实成交） */}
-        {tab === 'live' && (
-          <div className="detail-section">
-            <div className="detail-section-title">实盘状态</div>
-            {liveInfo.loading ? (
-              <div className="muted">加载中…</div>
-            ) : (
-              <>
-                <div className="overview-stats">
-                  <div className="stat-tile">
-                    <span className="k">实盘能力</span>
-                    <span className="v">{liveInfo.data?.live_capable ? '可实盘' : '回测/分析'}</span>
-                  </div>
-                  <div className="stat-tile">
-                    <span className="k">当前模式</span>
-                    <span className="v mono">{liveInfo.data?.is_live ? 'LIVE' : 'PAPER'}</span>
-                  </div>
-                </div>
-                <div className="bus-hint warn">
-                  {liveInfo.data?.note ||
-                    '实盘需要交易所/券商 API 配置；未配置时 live_tick 为 no-op（模拟态），不产生真实成交。'}
-                </div>
-                <div className="detail-actions">
-                  <button
-                    className="period-tab"
-                    onClick={handleLiveTick}
-                    disabled={liveRunning}
-                    style={{ background: 'var(--accent)', color: '#fff' }}
-                  >
-                    {liveRunning ? 'Tick 中…' : '模拟一次 Tick'}
-                  </button>
-                </div>
-                {liveError && <div className="run-error">{liveError}</div>}
-                {liveState != null && (
-                  <pre className="live-state">{JSON.stringify(liveState, null, 2)}</pre>
-                )}
-              </>
-            )}
-          </div>
-        )}
       </div>
     </div>
+    </>
   )
 }

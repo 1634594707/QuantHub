@@ -74,6 +74,7 @@ class OrderRouter:
             side=signal.direction if signal.direction != "hold" else "buy",
             qty=qty,
             price=price,
+            notional=qty * price if price is not None else None,
             source=signal.source,
             meta={"signal_score": signal.score, "signal_confidence": signal.confidence},
         )

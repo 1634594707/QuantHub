@@ -1,0 +1,65 @@
+.card {
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  overflow: hidden;
+  position: relative;
+  transition: border-color var(--t-fast) var(--ease-out),
+    transform var(--t-norm) var(--ease-out),
+    box-shadow var(--t-norm) var(--ease-out);
+}
+
+/* elevation 层级 */
+.flat {
+  background: var(--bg-subtle);
+  box-shadow: none;
+}
+
+.card {
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-card);
+}
+
+.pop {
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-pop);
+}
+
+/* padding 控制 */
+.padNone {
+  padding: 0;
+}
+
+.padSm {
+  padding: var(--sp-3);
+}
+
+.padMd {
+  padding: var(--sp-4);
+}
+
+.padLg {
+  padding: var(--sp-5);
+}
+
+/* 悬浮可交互 */
+.hoverable {
+  cursor: pointer;
+}
+
+.hoverable:hover {
+  border-color: var(--border-strong);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-pop);
+}
+
+/* 板块强调导轨（左侧 3px 竖条，颜色跟随 --board） */
+.accentRail::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--board, var(--accent));
+  opacity: 0.7;
+}

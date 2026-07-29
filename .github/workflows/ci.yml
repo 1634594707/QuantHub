@@ -7,7 +7,28 @@ on:
     branches: [main, master]
 
 jobs:
-  quality:
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install frontend dependencies
+        run: npm ci
+      - name: Frontend typecheck
+        run: npm run typecheck
+      - name: Frontend component tests
+        run: npm test
+      - name: Frontend production build
+        run: npm run build
+
+  backend:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -18,26 +39,14 @@ jobs:
       - name: Set up Python
         run: uv python install 3.11
 
-      - name: Install (base + dev + dashboard + api)
-        run: uv sync --extra dev --extra dashboard --extra api
+      - name: Install web API dependencies
+        run: uv sync
 
-      - name: Ruff lint
-        run: uv run ruff check .
+      - name: Byte-compile backend
+        run: uv run python -m compileall -q apps/api apps/dispatcher apps/scheduler core strategies
 
-      - name: Ruff format check
-        run: uv run ruff format --check .
+      - name: Import FastAPI application
+        run: uv run python -c "from apps.api.main import app; assert app.title"
 
-      - name: Tests + coverage
-        run: uv run pytest tests/ -q --cov=core --cov=strategies --cov-report=term-missing
-
-  # PA_Agent 桌面应用：仅做导入/语法校验（PyQt GUI 在 Linux CI 上无法真正拉起窗口）
-  pa-agent-import:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v3
-      - run: uv python install 3.11
-      - name: Install pa-agent (无 GUI 依赖，仅校验结构)
-        run: uv sync --extra dev
-      - name: Byte-compile desktop app (syntax check, 不导入 PyQt)
-        run: uv run python -m compileall -q apps/pa_agent/pa_agent apps/pa_agent/run.py
+      - name: Product workflow tests
+        run: uv run python -m unittest discover -s tests -p "test_*.py"

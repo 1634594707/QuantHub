@@ -7,7 +7,7 @@ market: "us_stocks"
 
 # ===== 美股数据源 =====
 data_sources:
-  # 腾讯 us 前缀行情可穿透代理，提供美股日/周线；分钟级不支持，回退 local_parquet（离线）。
+  # 腾讯负责可用的在线数据；历史不足时回退已有 MT5 Parquet。
   primary: "tencent"
   fallback: ["local_parquet"]
   tencent: {}
@@ -16,8 +16,8 @@ data_sources:
     time_mode: "auto"
     groups:
       us_stocks:
-        subdir: "parquet/us"
-        pattern: "{code}_{tf}min.parquet"
-        symbol_norm: "code"
-        tf_map: { "5m": "5", "15m": "15", "1h": "60" }
-        time_mode: "ordinal"
+        subdir: "MT5_K线数据"
+        pattern: "{symbol}_{TF}.parquet"
+        symbol_norm: "symbol"
+        tf_map: { "5m": "M5", "15m": "M15", "1h": "H1", "1d": "D1" }
+        time_mode: "unix_seconds"

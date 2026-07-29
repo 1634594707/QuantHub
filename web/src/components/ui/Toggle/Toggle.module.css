@@ -1,0 +1,80 @@
+.wrapper {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  cursor: pointer;
+}
+
+.wrapper:has(.toggle:disabled) {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.toggle {
+  position: relative;
+  border: none;
+  border-radius: var(--r-pill);
+  background: var(--border-strong);
+  cursor: pointer;
+  flex: none;
+  transition: background var(--t-fast) var(--ease-out);
+}
+
+.toggle:disabled {
+  cursor: not-allowed;
+}
+
+.toggle::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform var(--t-norm) var(--ease-spring);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.toggle:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+.checked {
+  background: var(--accent);
+}
+
+/* 尺寸 */
+.md {
+  width: 46px;
+  height: 26px;
+}
+
+.md::after {
+  width: 20px;
+  height: 20px;
+}
+
+.md.checked::after {
+  transform: translateX(20px);
+}
+
+.sm {
+  width: 36px;
+  height: 20px;
+}
+
+.sm::after {
+  width: 14px;
+  height: 14px;
+}
+
+.sm.checked::after {
+  transform: translateX(16px);
+}
+
+.label {
+  font-size: var(--fs-small);
+  color: var(--text-2);
+  user-select: none;
+}

@@ -1,0 +1,52 @@
+.rail {
+  position: sticky;
+  top: calc(var(--topbar-h) + var(--sp-3));
+  width: 320px;
+  min-width: 0;
+  max-height: calc(100vh - var(--topbar-h) - var(--statusbar-h) - var(--sp-6));
+  overflow: hidden;
+  border-left: 1px solid var(--border-strong);
+  background: var(--bg-subtle);
+}
+.collapsed { width: 44px; }
+.rail header {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: 1px solid var(--border);
+}
+.rail header > div { display: grid; min-width: 0; gap: 2px; }
+.rail header span, .meta dt { color: var(--text-3); font-size: var(--fs-micro); }
+.rail header strong { overflow: hidden; font-size: var(--fs-caption); text-overflow: ellipsis; white-space: nowrap; }
+.rail header button {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+}
+.rail header button:hover, .rail header button:focus-visible { border-color: var(--accent); color: var(--accent-strong); outline: none; }
+.body { max-height: calc(100vh - var(--topbar-h) - var(--statusbar-h) - 54px - var(--sp-6)); overflow: auto; }
+.meta { display: grid; gap: var(--sp-2); margin: 0; padding: var(--sp-3); border-bottom: 1px solid var(--border); }
+.meta > div { display: grid; gap: 2px; }
+.meta dd { overflow-wrap: anywhere; margin: 0; color: var(--text-2); font-family: var(--font-mono); font-size: var(--fs-micro); }
+.timeline { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+.timeline li { display: grid; gap: 3px; padding: var(--sp-3); border-bottom: 1px solid var(--divider); }
+.timeline li > span { color: var(--accent-strong); font-family: var(--font-mono); font-size: var(--fs-micro); }
+.timeline strong { font-size: var(--fs-caption); }
+.timeline small, .empty { color: var(--text-3); font-size: var(--fs-micro); }
+.timeline a { color: var(--accent-strong); font-size: var(--fs-micro); text-decoration: none; }
+.empty { margin: 0; padding: var(--sp-5) var(--sp-3); line-height: var(--lh-relaxed); }
+
+@media (max-width: 960px) {
+  .rail, .collapsed { position: static; width: 100%; max-height: none; border-top: 1px solid var(--border-strong); border-left: 0; }
+  .body { max-height: none; }
+}

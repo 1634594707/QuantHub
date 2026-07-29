@@ -1,0 +1,217 @@
+/* 关注列表组件局部样式
+   - 卡片/标题/编辑行等沿用全局 .card/.card-head/.edit-list/.edit-row/.watch/.watch-item 类
+   - 仅放无法用 utility / 旧类表达的局部样式 */
+
+/* 头部操作区 */
+.headActions {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: center;
+}
+
+/* 编辑表单行：代码 / 名称 / 市场 / 删除 */
+.editRow {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr 1fr auto;
+  gap: var(--sp-2);
+  align-items: center;
+}
+
+/* 暂无数据提示 */
+.emptyHint {
+  padding: var(--sp-3);
+}
+
+.editList {
+  max-height: 330px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* 右侧价格块：价格右对齐 + 小字号 */
+.priceBlock {
+  text-align: right;
+  font-size: 13px;
+}
+
+.card {
+  overflow: hidden;
+}
+
+.watch {
+  padding: var(--sp-1) var(--sp-3) var(--sp-3);
+}
+
+.columnHead,
+.row {
+  display: grid;
+  grid-template-columns: minmax(130px, 1.3fr) 62px 76px minmax(76px, 0.8fr) 68px 58px;
+  gap: var(--sp-3);
+  align-items: center;
+}
+
+.columnHead {
+  min-height: 28px;
+  padding: 0 var(--sp-3);
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+}
+
+.columnHead span:nth-child(n + 4) {
+  text-align: right;
+}
+
+.row {
+  min-height: 50px;
+  padding: var(--sp-2) var(--sp-3);
+  border-top: 1px solid var(--divider);
+  color: var(--text-1);
+  text-decoration: none;
+  transition: background var(--t-fast), box-shadow var(--t-fast);
+}
+
+.row:hover,
+.row:focus-visible {
+  background: var(--surface-hover);
+  box-shadow: inset 3px 0 var(--accent);
+  outline: none;
+}
+
+.asset {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.symbol {
+  overflow: hidden;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-semibold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.name {
+  overflow: hidden;
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.market {
+  justify-self: start;
+  padding: 2px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-xs);
+  color: var(--text-2);
+  font-size: var(--fs-micro);
+}
+
+.row :global(.watch-mini) {
+  width: 68px;
+  height: 24px;
+}
+
+.price,
+.change,
+.noChange {
+  text-align: right;
+  font-size: var(--fs-small);
+  font-variant-numeric: tabular-nums;
+}
+
+.price {
+  font-weight: var(--fw-semibold);
+}
+
+.change {
+  font-weight: var(--fw-semibold);
+}
+
+.openAction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  color: var(--accent-strong);
+  font-size: var(--fs-micro);
+}
+
+.noTrend,
+.unavailable,
+.noChange {
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+}
+
+.unavailable {
+  text-align: right;
+}
+
+.emptyState {
+  padding: var(--sp-6) var(--sp-3);
+  border-top: 1px solid var(--divider);
+  color: var(--text-3);
+  font-size: var(--fs-caption);
+  text-align: center;
+}
+
+.headerPagination {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding-right: var(--sp-2);
+  border-right: 1px solid var(--divider);
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+}
+
+.headerPagination > span {
+  min-width: 42px;
+  text-align: center;
+}
+
+.previousIcon {
+  transform: rotate(180deg);
+}
+
+@media (max-width: 680px) {
+  .columnHead,
+  .row {
+    grid-template-columns: minmax(110px, 1fr) 72px 70px 24px;
+    gap: var(--sp-2);
+  }
+
+  .columnHead span:nth-child(2),
+  .columnHead span:nth-child(3),
+  .row > .market,
+  .row > :global(.watch-mini),
+  .noTrend {
+    display: none;
+  }
+
+  .columnHead span:nth-child(4) {
+    grid-column: 2;
+  }
+
+  .columnHead span:nth-child(5) {
+    grid-column: 3;
+  }
+
+  .openAction span {
+    display: none;
+  }
+}
+
+@media (max-width: 520px) {
+  .editRow {
+    grid-template-columns: 1fr 1fr auto;
+  }
+
+  .editRow > :nth-child(3) {
+    grid-column: 1 / 3;
+  }
+}

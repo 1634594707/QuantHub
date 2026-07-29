@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import functools
 import logging
+import time
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +17,7 @@ import pandas as pd
 from core.config import get_config
 from core.data_feed.base import Announcement, DataSource, Interval, News
 from core.data_feed.cache import CacheStore, cache_key_date
+from core.data_feed.telemetry import telemetry
 
 logger = logging.getLogger(__name__)
 
@@ -37,9 +39,24 @@ def _cached(fn):
             limit = args[4] if len(args) > 4 else kwargs.get("limit", 500)
             date = cache_key_date()
             hit = cache.get_kline(symbol, self.market, interval, date, limit)
+            if (
+                hit is not None
+                and self.market == "us_stocks"
+                and len(hit) < min(int(limit or 0), 20)
+            ):
+                logger.info(
+                    "忽略美股短历史缓存 %s %s: %d/%d 条",
+                    symbol,
+                    interval,
+                    len(hit),
+                    limit,
+                )
+                hit = None
             if hit is not None and not hit.empty:
+                telemetry.record_cache(hit=True)
                 logger.debug("缓存命中 kline %s %s limit=%s", symbol, interval, limit)
                 return hit
+            telemetry.record_cache(hit=False)
             df = fn(self, *args, **kwargs)
             if df is not None and not df.empty:
                 cache.set_kline(symbol, self.market, interval, date, df, limit)
@@ -50,10 +67,12 @@ def _cached(fn):
             limit = args[1] if len(args) > 1 else kwargs.get("limit", 50)
             docs = cache.get_docs(kind, symbol, limit)
             if docs:
+                telemetry.record_cache(hit=True)
                 # 重建对象
                 if kind == "get_news":
                     return [News(**d) for d in docs]
                 return [Announcement(**d) for d in docs]
+            telemetry.record_cache(hit=False)
             result = fn(self, *args, **kwargs)
             # 空结果不入缓存：避免 primary 离线/失败时把空列表永久固化，导致 fallback 源无法被使用
             if not result:
@@ -92,12 +111,33 @@ class DataSourceProxy(DataSource):
         sources = [self._primary] + self._fallbacks
         last_err: Exception | None = None
         for src in sources:
+            started = time.perf_counter()
             try:
                 df = src.get_kline(symbol, interval, start, end, limit)
                 if df is not None and not df.empty:
+                    telemetry.record_source(
+                        src.name,
+                        "get_kline",
+                        success=True,
+                        latency_ms=(time.perf_counter() - started) * 1000,
+                    )
                     df.attrs["_source"] = src.name
                     return df
+                telemetry.record_source(
+                    src.name,
+                    "get_kline",
+                    success=False,
+                    latency_ms=(time.perf_counter() - started) * 1000,
+                    error="empty_result",
+                )
             except Exception as e:
+                telemetry.record_source(
+                    src.name,
+                    "get_kline",
+                    success=False,
+                    latency_ms=(time.perf_counter() - started) * 1000,
+                    error=str(e),
+                )
                 last_err = e
                 logger.warning("数据源 %s get_kline 失败，尝试 fallback: %s", src.name, e)
         if last_err:
@@ -108,11 +148,32 @@ class DataSourceProxy(DataSource):
     def get_news(self, symbol=None, limit=50) -> list[News]:
         sources = [self._primary] + self._fallbacks
         for src in sources:
+            started = time.perf_counter()
             try:
                 news = src.get_news(symbol, limit)
                 if news:
+                    telemetry.record_source(
+                        src.name,
+                        "get_news",
+                        success=True,
+                        latency_ms=(time.perf_counter() - started) * 1000,
+                    )
                     return news
-            except Exception:
+                telemetry.record_source(
+                    src.name,
+                    "get_news",
+                    success=False,
+                    latency_ms=(time.perf_counter() - started) * 1000,
+                    error="empty_result",
+                )
+            except Exception as exc:
+                telemetry.record_source(
+                    src.name,
+                    "get_news",
+                    success=False,
+                    latency_ms=(time.perf_counter() - started) * 1000,
+                    error=str(exc),
+                )
                 logger.warning("数据源 %s get_news 失败，尝试 fallback", src.name, exc_info=True)
         return []
 
@@ -120,11 +181,32 @@ class DataSourceProxy(DataSource):
     def get_announcements(self, symbol, limit=50) -> list[Announcement]:
         sources = [self._primary] + self._fallbacks
         for src in sources:
+            started = time.perf_counter()
             try:
                 anns = src.get_announcements(symbol, limit)
                 if anns:
+                    telemetry.record_source(
+                        src.name,
+                        "get_announcements",
+                        success=True,
+                        latency_ms=(time.perf_counter() - started) * 1000,
+                    )
                     return anns
-            except Exception:
+                telemetry.record_source(
+                    src.name,
+                    "get_announcements",
+                    success=False,
+                    latency_ms=(time.perf_counter() - started) * 1000,
+                    error="empty_result",
+                )
+            except Exception as exc:
+                telemetry.record_source(
+                    src.name,
+                    "get_announcements",
+                    success=False,
+                    latency_ms=(time.perf_counter() - started) * 1000,
+                    error=str(exc),
+                )
                 logger.warning(
                     "数据源 %s get_announcements 失败，尝试 fallback", src.name, exc_info=True
                 )
@@ -161,6 +243,10 @@ def _build_source(
         from core.data_feed.eastmoney_source import EastmoneySource
 
         return EastmoneySource()
+    if name == "sina_news":
+        from core.data_feed.sina_news_source import SinaNewsSource
+
+        return SinaNewsSource()
     if name == "okx":
         from core.data_feed.okx_source import OkxSource
 
@@ -201,11 +287,38 @@ def get_data_source(market: str = "a_shares", **kwargs: Any) -> DataSourceProxy:
     fallback_names = sources_cfg.get("fallback", [])
     if not primary_name:
         raise ValueError(f"市场 {market} 未配置 data_sources.primary")
-    primary = _build_source(primary_name, cfg=cfg, market=market, **kwargs)
-    fallbacks = []
-    for fb in fallback_names:
+    built_sources: list[DataSource] = []
+    source_names = [primary_name, *fallback_names]
+    for index, source_name in enumerate(source_names):
         try:
-            fallbacks.append(_build_source(fb, cfg=cfg, market=market))
-        except Exception:
-            logger.warning("构建 fallback 数据源 %s 失败", fb, exc_info=True)
-    return DataSourceProxy(primary, fallbacks)
+            source_kwargs = kwargs if index == 0 else {}
+            built_sources.append(
+                _build_source(source_name, cfg=cfg, market=market, **source_kwargs)
+            )
+        except Exception as exc:
+            role = "primary" if index == 0 else "fallback"
+            logger.warning(
+                "构建 %s 数据源 %s 失败，继续尝试后续数据源: %s",
+                role,
+                source_name,
+                exc,
+            )
+
+    if not built_sources:
+        configured = ", ".join(source_names)
+        raise RuntimeError(f"市场 {market} 的数据源均不可用: {configured}")
+
+    # 主源的可选依赖缺失时，将首个可用 fallback 提升为当前源。
+    # 这样离线研究不会在数据源构造阶段提前中断。
+    primary = built_sources[0]
+    return DataSourceProxy(primary, built_sources[1:])
+
+
+def get_configured_source(market: str, name: str) -> DataSource:
+    """构造市场配置中明确列出的单个数据源，不启用 fallback。"""
+    cfg = get_config(market)
+    sources_cfg = cfg.get("data_sources", {})
+    configured = [sources_cfg.get("primary"), *sources_cfg.get("fallback", [])]
+    if name not in configured:
+        raise ValueError(f"市场 {market} 未配置数据源 {name}")
+    return _build_source(name, cfg=cfg, market=market)

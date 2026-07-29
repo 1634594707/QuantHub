@@ -1,0 +1,109 @@
+.input {
+  width: 100%;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-1);
+  border-radius: var(--r-md);
+  padding: 0 var(--sp-3);
+  height: 36px;
+  font-family: inherit;
+  font-size: var(--fs-small);
+  outline: none;
+  transition: border-color var(--t-fast) var(--ease-out),
+    box-shadow var(--t-fast) var(--ease-out);
+}
+
+.input::placeholder {
+  color: var(--text-3);
+}
+
+.input:hover:not(:disabled) {
+  border-color: var(--border-strong);
+}
+
+.input:focus {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-focus);
+}
+
+.input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.invalid {
+  border-color: var(--down);
+}
+
+.invalid:focus {
+  border-color: var(--down);
+  box-shadow: 0 0 0 3px var(--down-weak);
+}
+
+/* 带 prefix/suffix 的包装 */
+.wrapper {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  border-radius: var(--r-md);
+  padding: 0 var(--sp-3);
+  transition: border-color var(--t-fast) var(--ease-out),
+    box-shadow var(--t-fast) var(--ease-out);
+}
+
+.wrapper:focus-within {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-focus);
+}
+
+.wrapper .input {
+  border: none;
+  background: none;
+  box-shadow: none;
+  padding: 0;
+  height: 100%;
+}
+
+.wrapper .input:focus {
+  box-shadow: none;
+}
+
+.prefix,
+.suffix {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-3);
+  flex: none;
+  font-size: var(--fs-caption);
+}
+
+.prefix svg,
+.suffix svg {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+}
+
+/* 尺寸（仅对 wrapper 生效，独立 input 固定 36px） */
+.sm {
+  height: 30px;
+  font-size: var(--fs-caption);
+}
+
+.sm .input {
+  height: 100%;
+  font-size: var(--fs-caption);
+}
+
+.md {
+  height: 36px;
+}

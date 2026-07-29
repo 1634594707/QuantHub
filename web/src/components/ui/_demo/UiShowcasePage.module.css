@@ -1,0 +1,119 @@
+.page {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: var(--sp-6) var(--sp-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-8);
+}
+
+.header {
+  padding-bottom: var(--sp-5);
+  border-bottom: 1px solid var(--border);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--fs-display);
+  font-weight: var(--fw-heavy);
+  letter-spacing: -0.02em;
+}
+
+.subtitle {
+  margin: var(--sp-2) 0 0;
+  color: var(--text-3);
+  font-size: var(--fs-small);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: var(--fs-h2);
+  font-weight: var(--fw-bold);
+  color: var(--text-1);
+  padding-bottom: var(--sp-2);
+  border-bottom: 1px solid var(--divider);
+}
+
+.sectionDesc {
+  margin: 0;
+  font-size: var(--fs-caption);
+  color: var(--text-3);
+}
+
+.sectionBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.demoRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+}
+
+.demoLabel {
+  font-size: var(--fs-caption);
+  color: var(--text-3);
+  font-weight: var(--fw-semibold);
+  min-width: 80px;
+}
+
+.demoContent {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+.cardGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--sp-3);
+}
+
+.cardGrid > * {
+  padding: var(--sp-4);
+  font-size: var(--fs-small);
+}
+
+.kpiGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--sp-3);
+}
+
+.fieldGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--sp-4);
+}
+
+.emptyGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--sp-3);
+}
+
+.emptyGrid > * {
+  border: 1px dashed var(--border);
+  border-radius: var(--r-md);
+}
+
+@media (max-width: 600px) {
+  .demoRow {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .demoLabel {
+    min-width: 0;
+  }
+}

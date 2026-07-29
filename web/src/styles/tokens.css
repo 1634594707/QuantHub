@@ -1,85 +1,120 @@
 /* ============================================================
-   QuantHub Design Tokens — UI Designer
-   暗色主基调 (#0B1018) + 亮色备用，双主题一键切换。
+   QuantHub Design Tokens — UI Designer v2
+   暗色主基调（深空交易终端）+ 亮色备用（现代仪表盘），双主题一键切换。
    语义色：涨绿 / 跌红 在图表中恒定含义；文本用 *-ink 变体保证 WCAG AA。
+   令牌分层：颜色（双主题）→ 字体/间距/圆角/动效（全局）→ 别名（向后兼容）。
    ============================================================ */
 
+/* ---------- 1. 暗色：深空交易终端（4 层 elevation） ---------- */
 :root,
 [data-theme='dark'] {
-  /* 背景层级 */
-  --bg: #0b1018;
-  --bg-subtle: #0e151e;
-  --bg-elevated: #121a24;
+  /* 背景层级 4 层：base → subtle → elevated → pop */
+  --bg: #0b0f11;
+  --bg-subtle: #111719;
+  --bg-elevated: #171e20;
+  --bg-pop: #20282a;
+
   --surface-hover: rgba(255, 255, 255, 0.04);
   --surface-active: rgba(255, 255, 255, 0.07);
+  --surface-overlay: rgba(255, 255, 255, 0.10); /* 新增：active+hover 叠加 */
 
-  /* 边框 */
-  --border: #1c2733;
-  --border-strong: #283747;
+  /* 边框 3 层 */
+  --border: #263033;
+  --border-strong: #344043;
+  --border-focus: #4fa8b8;
 
-  /* 文本 */
-  --text-1: #e6edf3;
-  --text-2: #9fb0c0;
-  --text-3: #647488;
+  /* 文本 4 层 */
+  --text-1: #edf2f2;
+  --text-2: #a9b6b7;
+  --text-3: #7f9092;
+  --text-disabled: #4a5868; /* 新增 */
 
-  /* 品牌强调色 */
-  --accent: #2f81f7;
-  --accent-weak: rgba(47, 129, 247, 0.14);
-  --accent-strong: #5a9bff;
+  /* 品牌强调色（保留主调，强化 weak/strong 对比 + 新增 press） */
+  --accent: #4fa8b8;
+  --accent-contrast: #071014;
+  --accent-weak: rgba(79, 168, 184, 0.14);
+  --accent-strong: #7cc2ce;
+  --accent-press: #3d8f9e;
 
   /* 语义色（图表 / 图形恒定） */
   --up: #16c784;
   --down: #ea3943;
   --warn: #f0b429;
-  --info: #3b82f6;
+  --info: #4fa8b8;
+
+  /* 语义弱色（新增：背景用 12% 透明度） */
+  --up-weak: rgba(22, 199, 132, 0.12);
+  --down-weak: rgba(234, 57, 67, 0.12);
+  --warn-weak: rgba(240, 180, 41, 0.12);
+  --info-weak: rgba(79, 168, 184, 0.12);
 
   /* 指标线 */
   --ma-5: #8b5cf6;
   --ma-10: #f59e0b;
   --ma-20: #06b6d4;
 
-  /* 语义文本色（暗色下等同图形色，已满足对比度） */
+  /* 语义文本色（暗色下与图形色一致，已满足对比度） */
   --up-ink: #2bd99a;
   --down-ink: #ff5b69;
   --warn-ink: #f5c451;
+  --info-ink: #7cc2ce;
 
   /* 网格 / 分隔线 */
   --grid-line: rgba(255, 255, 255, 0.06);
   --divider: rgba(255, 255, 255, 0.08);
 
-  /* 阴影 */
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.28);
-  --shadow-pop: 0 12px 40px rgba(0, 0, 0, 0.55);
+  /* 阴影（暗色偏深、偏窄） */
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.28);
+  --shadow-pop: 0 8px 32px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.4);
+  --shadow-focus: 0 0 0 3px var(--accent-weak); /* 新增 */
 
   /* 滚动条 */
   --scroll-thumb: rgba(255, 255, 255, 0.12);
+  --scroll-thumb-hover: rgba(255, 255, 255, 0.20); /* 新增 */
+
+  /* 圆角（暗色更小，强化终端密度感） */
+  --r-card: var(--r-md);
+  --r-input: var(--r-sm);
+
   color-scheme: dark;
 }
 
+/* ---------- 2. 亮色：现代仪表盘（柔和留白） ---------- */
 [data-theme='light'] {
-  --bg: #f4f6f9;
-  --bg-subtle: #eef2f7;
+  --bg: #f7f8fa;
+  --bg-subtle: #eef1f5;
   --bg-elevated: #ffffff;
+  --bg-pop: #ffffff; /* 弹层与卡片同色，靠阴影区分 */
+
   --surface-hover: rgba(11, 16, 24, 0.04);
   --surface-active: rgba(11, 16, 24, 0.07);
+  --surface-overlay: rgba(11, 16, 24, 0.10);
 
   --border: #e4e9f0;
   --border-strong: #d2dae5;
+  --border-focus: #247c8a;
 
   --text-1: #0b1018;
   --text-2: #51616f;
-  --text-3: #8a99a8;
+  --text-3: #5b6c7b;
+  --text-disabled: #b6c2cf;
 
-  --accent: #2563eb;
-  --accent-weak: rgba(37, 99, 235, 0.1);
-  --accent-strong: #1d4ed8;
+  --accent: #247c8a;
+  --accent-contrast: #ffffff;
+  --accent-weak: rgba(36, 124, 138, 0.10);
+  --accent-strong: #196674;
+  --accent-press: #145461;
 
   --up: #16c784;
   --down: #ea3943;
   --warn: #f0b429;
-  --info: #2563eb;
+  --info: #247c8a;
 
-  /* 指标线 */
+  --up-weak: rgba(22, 199, 132, 0.10);
+  --down-weak: rgba(234, 57, 67, 0.10);
+  --warn-weak: rgba(240, 180, 41, 0.12);
+  --info-weak: rgba(36, 124, 138, 0.10);
+
   --ma-5: #7c3aed;
   --ma-10: #d97706;
   --ma-20: #0891b2;
@@ -88,54 +123,168 @@
   --up-ink: #0ca678;
   --down-ink: #e03131;
   --warn-ink: #b7791f;
+  --info-ink: #196674;
 
   --grid-line: rgba(11, 16, 24, 0.06);
   --divider: rgba(11, 16, 24, 0.08);
 
-  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.06), 0 8px 24px rgba(16, 24, 40, 0.08);
-  --shadow-pop: 0 12px 40px rgba(16, 24, 40, 0.18);
+  /* 亮色阴影：更柔、更大扩散 */
+  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.04), 0 4px 16px rgba(16, 24, 40, 0.06);
+  --shadow-pop: 0 8px 32px rgba(16, 24, 40, 0.10), 0 2px 8px rgba(16, 24, 40, 0.06);
+  --shadow-focus: 0 0 0 3px var(--accent-weak);
 
   --scroll-thumb: rgba(11, 16, 24, 0.16);
+  --scroll-thumb-hover: rgba(11, 16, 24, 0.28);
+
+  /* 圆角（亮色更柔和，卡片圆角加大） */
+  --r-card: var(--r-lg);
+  --r-input: var(--r-md);
+
   color-scheme: light;
 }
 
-/* ---------- 间距（4px 基准 / 8pt 网格） ---------- */
+/* ---------- 3. 全局令牌（与主题无关） ---------- */
 :root {
+  /* 间距（4px 基准 / 8pt 网格，新增 7/16/20 让组件更灵活） */
+  --sp-0: 0;
+  --sp-px: 1px;
   --sp-1: 4px;
   --sp-2: 8px;
   --sp-3: 12px;
   --sp-4: 16px;
   --sp-5: 20px;
   --sp-6: 24px;
+  --sp-7: 28px; /* 新增 */
   --sp-8: 32px;
   --sp-10: 40px;
   --sp-12: 48px;
+  --sp-16: 64px; /* 新增：page hero 用 */
+  --sp-20: 80px; /* 新增：section 间距 */
 
-  /* 圆角 */
-  --r-sm: 8px;
-  --r-md: 10px;
-  --r-lg: 14px;
+  /* 语义间距（业务代码只用语义变量） */
+  --gap-inline: var(--sp-2); /* 同行元素 */
+  --gap-stack: var(--sp-3); /* 同容器纵向 */
+  --gap-card-pad: var(--sp-5); /* 卡片内边距 */
+  --gap-section: var(--sp-6); /* 页面分区块 */
+  --gap-page: var(--sp-6); /* content 区块间距 */
+
+  /* 圆角阶梯（新增 xs/xl，保留 sm/md/lg 数值不变以兼容旧代码） */
+  --r-xs: 3px;
+  --r-sm: 5px;
+  --r-md: 6px;
+  --r-lg: 8px;
+  --r-xl: 8px;
   --r-pill: 999px;
 
-  /* 字号 */
-  --fs-12: 12px;
-  --fs-13: 13px;
-  --fs-14: 14px;
-  --fs-15: 15px;
-  --fs-18: 18px;
-  --fs-22: 22px;
-  --fs-26: 26px;
+  /* 字体族 */
+  --font-sans: 'Bahnschrift', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'Cascadia Mono', 'SFMono-Regular', Menlo, ui-monospace, monospace;
 
-  /* 字体 */
-  --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  /* 字号阶梯（语义化重命名，旧数值令牌作别名指向新语义令牌以保持兼容） */
+  --fs-display: 30px; /* 板块 hero h1 */
+  --fs-h1: 22px;
+  --fs-h2: 18px;
+  --fs-h3: 15px;
+  --fs-body: 14px;
+  --fs-small: 13px;
+  --fs-caption: 12px;
+  --fs-micro: 11px; /* 新增 */
+  --fs-mono-num: 13px; /* 行情数字专用 */
 
-  /* 过渡 */
-  --t-fast: 150ms ease;
-  --t-norm: 250ms cubic-bezier(0.16, 1, 0.3, 1);
+  /* 字重 */
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --fw-bold: 700;
+  --fw-heavy: 800;
+
+  /* 行高 */
+  --lh-tight: 1.1;
+  --lh-snug: 1.3;
+  --lh-normal: 1.5;
+  --lh-relaxed: 1.65;
+
+  /* 字距 */
+  --ls-tight: 0;
+  --ls-normal: 0;
+  --ls-wide: 0.08em;
+  --ls-caps: 0;
+
+  /* 动效时长（新增 instant/slow/slower） */
+  --t-instant: 80ms; /* 颜色变化 */
+  --t-fast: 150ms; /* hover、focus */
+  --t-norm: 250ms; /* 主题切换、展开 */
+  --t-slow: 400ms; /* 路由切换入场 */
+  --t-slower: 600ms; /* 大型结构变化 */
+
+  /* 缓动函数 */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1); /* 弹性 */
+
+  /* 复合过渡 */
+  --t-fast-ease: 150ms var(--ease-out);
+  --t-norm-ease: 250ms var(--ease-out);
+  --t-slow-ease: 400ms var(--ease-out);
 
   /* 布局尺寸 */
-  --sidebar-w: 220px;
-  --sidebar-w-collapsed: 64px;
-  --topbar-h: 56px;
+  --sidebar-w: 280px;
+  --sidebar-w-collapsed: 56px;
+  --topbar-h: 60px;
+
+  /* z-index 层级（新增，统一管理） */
+  --z-base: 0;
+  --z-dropdown: 1000;
+  --z-sticky: 1100;
+  --z-overlay: 1300;
+  --z-modal: 1400;
+  --z-toast: 1500;
+  --z-tooltip: 1600;
+}
+
+/* ---------- 4. 向后兼容别名（旧数值令牌 → 新语义令牌） ----------
+   保留旧令牌名以避免破坏现有 9 个 CSS 文件中的引用。
+   新代码请使用语义令牌（如 --fs-body 而非 --fs-14）。
+   ---------------------------------------------------------------- */
+:root {
+  --fs-26: var(--fs-display); /* 旧值 26px，新值 30px（更接近 hero） */
+  --fs-22: var(--fs-h1);
+  --fs-18: var(--fs-h2);
+  --fs-15: var(--fs-h3);
+  --fs-14: var(--fs-body);
+  --fs-13: var(--fs-small);
+  --fs-12: var(--fs-caption);
+  --fs-11: var(--fs-micro); /* 修复：terminal.css 中 .badge / .donut center span 引用 */
+}
+
+/* ---------- 5. 入场动画预设（4 个，统一全站动效） ---------- */
+@keyframes qh-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes qh-fade-in-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes qh-fade-in-scale {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes qh-slide-in-right {
+  from { opacity: 0; transform: translateX(16px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.anim-fade { animation: qh-fade-in var(--t-norm) var(--ease-out) both; }
+.anim-fade-up { animation: qh-fade-in-up var(--t-norm) var(--ease-out) both; }
+.anim-fade-scale { animation: qh-fade-in-scale var(--t-fast) var(--ease-out) both; }
+.anim-slide-in { animation: qh-slide-in-right var(--t-norm) var(--ease-out) both; }
+
+/* 尊重用户偏好：减少动效 */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

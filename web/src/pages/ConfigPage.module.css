@@ -1,0 +1,484 @@
+/* ConfigPage 专属样式 — 从内联 style 迁移 */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  max-width: 720px;
+}
+
+.form {
+  padding: var(--sp-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.fieldGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.fieldLabel {
+  font-size: var(--fs-small);
+  font-weight: var(--fw-semibold);
+}
+
+.fieldHint {
+  margin: 0;
+  font-size: var(--fs-caption);
+  color: var(--text-3);
+  line-height: var(--lh-normal);
+}
+
+.submitRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.statusOk {
+  color: var(--up-ink);
+  font-size: var(--fs-small);
+}
+
+.statusErr {
+  color: var(--down-ink);
+  font-size: var(--fs-small);
+}
+
+.impactNotice {
+  padding: var(--sp-2) var(--sp-3);
+  border-left: 3px solid var(--warn);
+  background: var(--warn-weak);
+  color: var(--text-2);
+  font-size: var(--fs-caption);
+}
+
+.impactNotice b {
+  color: var(--text-1);
+  font-family: var(--font-mono);
+}
+
+.sourceCheckForm {
+  display: grid;
+  grid-template-columns: minmax(130px, .8fr) minmax(140px, 1fr) minmax(100px, .7fr);
+  gap: var(--sp-2);
+}
+
+.sourceCheckForm label {
+  display: grid;
+  gap: var(--sp-1);
+  color: var(--text-3);
+  font-size: var(--fs-caption);
+}
+
+.sourceCheckForm select {
+  min-height: 34px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--bg-subtle);
+  padding: 0 var(--sp-2);
+  color: var(--text-1);
+}
+
+/* API Key 配置状态徽标 */
+.keyBadge {
+  font-size: var(--fs-caption);
+  padding: 2px 8px;
+  border-radius: var(--r-pill);
+}
+
+.keyBadgeConfigured {
+  background: var(--up-weak);
+  color: var(--up-ink);
+}
+
+.keyBadgePending {
+  background: var(--accent-weak);
+  color: var(--accent-strong);
+}
+
+/* 密码输入框右侧显示/隐藏按钮 */
+.keyToggleBtn {
+  background: none;
+  border: none;
+  color: var(--text-2);
+  cursor: pointer;
+  font-size: var(--fs-caption);
+  padding: 0;
+}
+
+.keyToggleBtn:hover {
+  color: var(--text-1);
+}
+
+/* 本地数据区块 */
+.localBody {
+  padding: var(--sp-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.localTitle {
+  font-size: var(--fs-small);
+  font-weight: var(--fw-semibold);
+}
+
+.localHint {
+  margin: 4px 0 0;
+  font-size: var(--fs-caption);
+  line-height: 1.6;
+  color: var(--text-3);
+}
+
+.resettingHint {
+  margin-left: var(--sp-3);
+  color: var(--text-2);
+  font-size: var(--fs-small);
+}
+
+/* 关于区块 */
+.aboutBody {
+  padding: var(--sp-3);
+  color: var(--text-2);
+  font-size: var(--fs-small);
+  line-height: 1.6;
+}
+
+.codeBlock {
+  margin: var(--sp-2) 0 0;
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--bg-subtle);
+  border-radius: var(--r-md);
+  font-family: var(--font-mono);
+  font-size: var(--fs-caption);
+  overflow: auto;
+}
+
+.linkGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-top: 1px solid var(--divider);
+}
+
+.linkGrid a {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+  padding: var(--sp-3);
+  border-right: 1px solid var(--divider);
+  border-bottom: 1px solid var(--divider);
+  color: var(--text-1);
+}
+
+.linkGrid a:nth-child(2n) {
+  border-right: 0;
+}
+
+.linkGrid span {
+  color: var(--text-3);
+  font-size: var(--fs-caption);
+}
+
+.backupBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+}
+
+.notificationBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+}
+
+.interfaceModeBody {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+}
+
+.interfaceModeBody > span {
+  color: var(--text-3);
+  font-size: var(--fs-caption);
+  text-align: right;
+}
+
+.notificationMaster,
+.channelHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+
+.notificationMaster > div,
+.channelHead > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.notificationMaster strong,
+.channelHead strong {
+  color: var(--text-1);
+  font-size: var(--fs-small);
+}
+
+.notificationMaster span,
+.channelHead span {
+  color: var(--text-3);
+  font-size: var(--fs-caption);
+}
+
+.channelList {
+  border: 1px solid var(--border);
+}
+
+.channelSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+  border-bottom: 1px solid var(--divider);
+}
+
+.channelSection:last-child {
+  border-bottom: 0;
+}
+
+.channelFields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-3);
+}
+
+.channelFields label {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--sp-1);
+  color: var(--text-2);
+  font-size: var(--fs-caption);
+}
+
+.channelFields small {
+  min-height: 1.4em;
+  overflow-wrap: anywhere;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+}
+
+.channelActions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.systemGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-top: 1px solid var(--divider);
+}
+
+.systemGrid span {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--sp-3);
+  border-right: 1px solid var(--divider);
+  border-bottom: 1px solid var(--divider);
+  color: var(--text-3);
+  font-size: var(--fs-caption);
+}
+
+.systemGrid span:nth-child(2n) {
+  border-right: 0;
+}
+
+.systemGrid b {
+  overflow-wrap: anywhere;
+  color: var(--text-1);
+  font-family: var(--font-mono);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-medium);
+}
+
+.backupStatusGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  border: 1px solid var(--border);
+  background: var(--bg-subtle);
+}
+
+.backupStatusGrid span {
+  display: grid;
+  grid-template-columns: 130px minmax(0, 1fr);
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: 1px solid var(--divider);
+  color: var(--text-3);
+  font-size: var(--fs-caption);
+}
+
+.backupStatusGrid span:last-child {
+  border-bottom: 0;
+}
+
+.backupStatusGrid b {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--text-1);
+  font-family: var(--font-mono);
+  font-weight: var(--fw-medium);
+}
+
+.backupList {
+  border-top: 1px solid var(--border);
+}
+
+.backupRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--sp-3);
+  padding: var(--sp-3) 0;
+  border-bottom: 1px solid var(--divider);
+}
+
+.backupRow > div:first-child {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.backupRow strong,
+.backupRow span,
+.backupRow small {
+  overflow-wrap: anywhere;
+}
+
+.backupRow strong {
+  font-family: var(--font-mono);
+  font-size: var(--fs-small);
+}
+
+.backupRow span,
+.backupRow small {
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+}
+
+.backupActions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.backupActions input,
+.retentionBand input {
+  height: 30px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  background: var(--bg-subtle);
+  padding: 0 var(--sp-2);
+  color: var(--text-1);
+  font-family: var(--font-mono);
+  font-size: var(--fs-caption);
+}
+
+.backupActions input {
+  width: 190px;
+}
+
+.retentionBand {
+  display: flex;
+  align-items: end;
+  gap: var(--sp-3);
+  padding-top: var(--sp-2);
+}
+
+.retentionBand label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  color: var(--text-2);
+  font-size: var(--fs-caption);
+}
+
+.retentionBand input {
+  width: 96px;
+}
+
+.retentionPreview {
+  padding: var(--sp-3);
+  border-left: 3px solid var(--warn);
+  background: var(--warn-weak);
+  font-size: var(--fs-caption);
+}
+
+.retentionPreview ul {
+  max-height: 160px;
+  margin: var(--sp-2) 0;
+  overflow: auto;
+  padding-left: var(--sp-5);
+  color: var(--text-2);
+  font-family: var(--font-mono);
+}
+
+@media (max-width: 600px) {
+  .sourceCheckForm { grid-template-columns: 1fr; }
+  .linkGrid {
+    grid-template-columns: 1fr;
+  }
+  .linkGrid a,
+  .linkGrid a:nth-child(2n) {
+    border-right: 0;
+  }
+  .backupRow {
+    grid-template-columns: 1fr;
+  }
+  .backupActions,
+  .retentionBand {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .backupActions input,
+  .retentionBand input {
+    width: 100%;
+  }
+  .systemGrid {
+    grid-template-columns: 1fr;
+  }
+  .systemGrid span,
+  .systemGrid span:nth-child(2n) {
+    border-right: 0;
+  }
+  .notificationMaster,
+  .channelHead {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .interfaceModeBody {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .interfaceModeBody > span {
+    text-align: left;
+  }
+  .channelFields {
+    grid-template-columns: 1fr;
+  }
+}

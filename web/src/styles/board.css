@@ -1,0 +1,28 @@
+/* ============================================================
+   QuantHub Board — 页面语义层
+
+   data-board 继续标识当前页面，供状态栏与局部语义选择器使用。
+   所有页面共享固定交互色；涨跌、风险与警告继续使用 tokens.css
+   中的 --up / --down / --warn，不再由页面归属改写。
+   ============================================================ */
+
+[data-board] {
+  --board: var(--accent);
+  --board-ink: var(--accent-strong);
+  --board-weak: var(--accent-weak);
+}
+
+.accent-rail {
+  position: relative;
+}
+
+.accent-rail::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--accent);
+  border-radius: var(--r-sm) 0 0 var(--r-sm);
+}

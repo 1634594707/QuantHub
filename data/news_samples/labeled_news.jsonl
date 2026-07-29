@@ -1,0 +1,50 @@
+{"id":"n001","title":"央行宣布下调存款准备金率0.5个百分点 释放长期资金约1万亿元","source":"央行官网","gold_sentiment":"positive","gold_topic":"monetary","gold_entities":[{"text":"央行","type":"org"}],"gold_summary_keywords":["降准","1万亿"]}
+{"id":"n002","title":"财政部：上半年全国一般公共预算收入同比增长3.8%","source":"财政部","gold_sentiment":"positive","gold_topic":"macro","gold_entities":[{"text":"财政部","type":"org"}],"gold_summary_keywords":["财政收入","增长"]}
+{"id":"n003","title":"国家统计局：三季度GDP同比增长4.9% 经济持续恢复","source":"统计局","gold_sentiment":"positive","gold_topic":"macro","gold_entities":[{"text":"国家统计局","type":"org"}],"gold_summary_keywords":["GDP","增长"]}
+{"id":"n004","title":"国务院常务会议部署稳经济一揽子政策措施","source":"新华社","gold_sentiment":"positive","gold_topic":"regulation","gold_entities":[{"text":"国务院","type":"org"}],"gold_summary_keywords":["稳经济","政策"]}
+{"id":"n005","title":"证监会就上市公司监管指引公开征求意见 强化投资者保护","source":"证监会","gold_sentiment":"neutral","gold_topic":"regulation","gold_entities":[{"text":"证监会","type":"org"}],"gold_summary_keywords":["监管","投资者保护"]}
+{"id":"n006","title":"美联储维持利率不变 鲍威尔暗示年内或不再加息","source":"路透社","gold_sentiment":"positive","gold_topic":"international","gold_entities":[{"text":"美联储","type":"org"},{"text":"鲍威尔","type":"person"}],"gold_summary_keywords":["美联储","利率"]}
+{"id":"n007","title":"欧元区PMI连续低于荣枯线 经济衰退风险加剧","source":"彭博","gold_sentiment":"negative","gold_topic":"international","gold_entities":[{"text":"欧元区","type":"location"}],"gold_summary_keywords":["PMI","衰退"]}
+{"id":"n008","title":"宁德时代三季度净利润同比增长超70% 动力电池市占率稳居全球第一","source":"宁德时代","gold_sentiment":"positive","gold_topic":"company","gold_entities":[{"text":"宁德时代","type":"org"}],"gold_summary_keywords":["净利润","增长"]}
+{"id":"n009","title":"贵州茅台前三季度营收同比增长约18% 直销渠道持续发力","source":"贵州茅台","gold_sentiment":"positive","gold_topic":"company","gold_entities":[{"text":"贵州茅台","type":"org"}],"gold_summary_keywords":["营收","增长"]}
+{"id":"n010","title":"比亚迪10月新能源汽车销量突破30万辆 同比增长超80%","source":"比亚迪","gold_sentiment":"positive","gold_topic":"company","gold_entities":[{"text":"比亚迪","type":"org"}],"gold_summary_keywords":["销量","增长"]}
+{"id":"n011","title":"某上市公司被立案调查 涉嫌信息披露违法违规","source":"证监会","gold_sentiment":"negative","gold_topic":"regulation","gold_entities":[{"text":"证监会","type":"org"}],"gold_summary_keywords":["立案调查","违法"]}
+{"id":"n012","title":"A股三大指数集体收跌 沪指失守3000点 两市成交额不足7000亿","source":"东财","gold_sentiment":"negative","gold_topic":"market_mood","gold_entities":[{"text":"沪指","type":"org"},{"text":"A股","type":"org"}],"gold_summary_keywords":["收跌","3000点"]}
+{"id":"n013","title":"北向资金净流入超80亿元 主力加仓白酒与新能源板块","source":"东财","gold_sentiment":"positive","gold_topic":"market_mood","gold_entities":[{"text":"北向资金","type":"org"}],"gold_summary_keywords":["净流入","加仓"]}
+{"id":"n014","title":"两市融资余额连续三日下降 杠杆资金撤离超百亿","source":"东财","gold_sentiment":"negative","gold_topic":"market_mood","gold_entities":[{"text":"两市","type":"org"}],"gold_summary_keywords":["融资余额","下降"]}
+{"id":"n015","title":"半导体板块逆势走强 国产替代逻辑持续兑现","source":"中证报","gold_sentiment":"positive","gold_topic":"industry","gold_entities":[{"text":"半导体","type":"org"}],"gold_summary_keywords":["半导体","走强"]}
+{"id":"n016","title":"房地产板块大跌 销售数据持续承压 政策预期落空","source":"中证报","gold_sentiment":"negative","gold_topic":"industry","gold_entities":[{"text":"房地产","type":"org"}],"gold_summary_keywords":["房地产","大跌"]}
+{"id":"n017","title":"光伏行业产能过剩加剧 组件价格创近三年新低","source":"中国光伏协会","gold_sentiment":"negative","gold_topic":"industry","gold_entities":[{"text":"中国光伏协会","type":"org"}],"gold_summary_keywords":["产能过剩","价格"]}
+{"id":"n018","title":"新能源汽车下乡政策出台 充电桩建设迎来加速期","source":"发改委","gold_sentiment":"positive","gold_topic":"industry","gold_entities":[{"text":"发改委","type":"org"}],"gold_summary_keywords":["新能源","充电桩"]}
+{"id":"n019","title":"美的集团拟回购股份不低于25亿元 用于员工持股计划","source":"美的集团","gold_sentiment":"positive","gold_topic":"capital_action","gold_entities":[{"text":"美的集团","type":"org"}],"gold_summary_keywords":["回购","25亿"]}
+{"id":"n020","title":"某科技巨头宣布10送10高送转方案 股权登记日为下周三","source":"公司公告","gold_sentiment":"positive","gold_topic":"capital_action","gold_entities":[],"gold_summary_keywords":["高送转","10送10"]}
+{"id":"n021","title":"中国移动拟现金分红超800亿元 股息率超5%","source":"中国移动","gold_sentiment":"positive","gold_topic":"capital_action","gold_entities":[{"text":"中国移动","type":"org"}],"gold_summary_keywords":["分红","800亿"]}
+{"id":"n022","title":"某上市公司股东减持套现超5亿元 引发市场关注","source":"公司公告","gold_sentiment":"negative","gold_topic":"capital_action","gold_entities":[],"gold_summary_keywords":["减持","套现"]}
+{"id":"n023","title":"京东方定增募资200亿元 投资建设OLED产线","source":"京东方","gold_sentiment":"neutral","gold_topic":"capital_action","gold_entities":[{"text":"京东方","type":"org"}],"gold_summary_keywords":["定增","OLED"]}
+{"id":"n024","title":"国务院发布促进民营经济发展壮大31条意见","source":"国务院","gold_sentiment":"positive","gold_topic":"regulation","gold_entities":[{"text":"国务院","type":"org"}],"gold_summary_keywords":["民营经济","31条"]}
+{"id":"n025","title":"银保监会提示金融风险 严防资金空转套利","source":"银保监会","gold_sentiment":"negative","gold_topic":"regulation","gold_entities":[{"text":"银保监会","type":"org"}],"gold_summary_keywords":["金融风险","空转"]}
+{"id":"n026","title":"央行公开市场净投放2000亿元 维护市场流动性合理充裕","source":"央行","gold_sentiment":"neutral","gold_topic":"monetary","gold_entities":[{"text":"央行","type":"org"}],"gold_summary_keywords":["净投放","流动性"]}
+{"id":"n027","title":"人民币对美元汇率跌破7.3关口 创历史新低","source":"外汇交易中心","gold_sentiment":"negative","gold_topic":"macro","gold_entities":[{"text":"人民币","type":"org"},{"text":"美元","type":"org"}],"gold_summary_keywords":["汇率","7.3"]}
+{"id":"n028","title":"CPI同比上涨0.7% 通胀温和复苏","source":"统计局","gold_sentiment":"neutral","gold_topic":"macro","gold_entities":[{"text":"统计局","type":"org"}],"gold_summary_keywords":["CPI","0.7%"]}
+{"id":"n029","title":"PPI同比下降3.0% 工业品通缩压力延续","source":"统计局","gold_sentiment":"negative","gold_topic":"macro","gold_entities":[{"text":"统计局","type":"org"}],"gold_summary_keywords":["PPI","下降"]}
+{"id":"n030","title":"海关总署：9月出口同比下降6.2% 进口降幅收窄","source":"海关总署","gold_sentiment":"negative","gold_topic":"macro","gold_entities":[{"text":"海关总署","type":"org"}],"gold_summary_keywords":["出口","下降"]}
+{"id":"n031","title":"欧盟对中国电动汽车启动反补贴调查 贸易摩擦升级","source":"商务部","gold_sentiment":"negative","gold_topic":"international","gold_entities":[{"text":"欧盟","type":"org"},{"text":"中国","type":"location"}],"gold_summary_keywords":["反补贴","电动汽车"]}
+{"id":"n032","title":"中美两国元首会晤 释放经贸关系缓和信号","source":"新华社","gold_sentiment":"positive","gold_topic":"international","gold_entities":[{"text":"中美","type":"location"}],"gold_summary_keywords":["会晤","缓和"]}
+{"id":"n033","title":"日本央行维持负利率政策 日元持续贬值","source":"日本央行","gold_sentiment":"neutral","gold_topic":"international","gold_entities":[{"text":"日本央行","type":"org"},{"text":"日元","type":"org"}],"gold_summary_keywords":["负利率","日元"]}
+{"id":"n034","title":"英伟达发布三季报营收超预期 数据中心业务暴增","source":"英伟达","gold_sentiment":"positive","gold_topic":"international","gold_entities":[{"text":"英伟达","type":"org"}],"gold_summary_keywords":["营收","超预期"]}
+{"id":"n035","title":"消费板块走强 食品饮料领涨 白酒股集体上攻","source":"中证报","gold_sentiment":"positive","gold_topic":"industry","gold_entities":[{"text":"白酒","type":"org"}],"gold_summary_keywords":["消费","走强"]}
+{"id":"n036","title":"医药生物板块回调 创新药龙头放量下跌","source":"中证报","gold_sentiment":"negative","gold_topic":"industry","gold_entities":[{"text":"创新药","type":"org"}],"gold_summary_keywords":["医药","回调"]}
+{"id":"n037","title":"银行板块逆市上涨 红利策略受青睐","source":"中证报","gold_sentiment":"positive","gold_topic":"industry","gold_entities":[{"text":"银行","type":"org"}],"gold_summary_keywords":["银行","上涨"]}
+{"id":"n038","title":"券商板块异动拉升 两市成交活跃度提升","source":"中证报","gold_sentiment":"positive","gold_topic":"market_mood","gold_entities":[{"text":"券商","type":"org"}],"gold_summary_keywords":["券商","拉升"]}
+{"id":"n039","title":"两市成交额连续5日不足6000亿 交投情绪清淡","source":"东财","gold_sentiment":"negative","gold_topic":"market_mood","gold_entities":[{"text":"两市","type":"org"}],"gold_summary_keywords":["成交额","清淡"]}
+{"id":"n040","title":"沪指尾盘翻红 微涨0.1%收复2950点","source":"东财","gold_sentiment":"neutral","gold_topic":"market_mood","gold_entities":[{"text":"沪指","type":"org"}],"gold_summary_keywords":["沪指","翻红"]}
+{"id":"n041","title":"某上市公司董事长因个人原因辞职 公司治理引发担忧","source":"公司公告","gold_sentiment":"negative","gold_topic":"company","gold_entities":[],"gold_summary_keywords":["董事长","辞职"]}
+{"id":"n042","title":"海尔智家海外收入占比超50% 全球化布局成效显现","source":"海尔智家","gold_sentiment":"positive","gold_topic":"company","gold_entities":[{"text":"海尔智家","type":"org"}],"gold_summary_keywords":["海外收入","全球化"]}
+{"id":"n043","title":"万华化学三季度净利润下滑超30% 产品价格下行拖累业绩","source":"万华化学","gold_sentiment":"negative","gold_topic":"company","gold_entities":[{"text":"万华化学","type":"org"}],"gold_summary_keywords":["净利润","下滑"]}
+{"id":"n044","title":"中芯国际14nm量产良率提升 国产先进制程取得突破","source":"中芯国际","gold_sentiment":"positive","gold_topic":"company","gold_entities":[{"text":"中芯国际","type":"org"}],"gold_summary_keywords":["14nm","良率"]}
+{"id":"n045","title":"LPR利率维持不变 符合市场预期","source":"央行","gold_sentiment":"neutral","gold_topic":"monetary","gold_entities":[{"text":"LPR","type":"org"},{"text":"央行","type":"org"}],"gold_summary_keywords":["LPR","不变"]}
+{"id":"n046","title":"央行下调MLF利率15个基点 超市场预期","source":"央行","gold_sentiment":"positive","gold_topic":"monetary","gold_entities":[{"text":"MLF","type":"org"},{"text":"央行","type":"org"}],"gold_summary_keywords":["MLF","降息"]}
+{"id":"n047","title":"社融数据超预期新增4.9万亿 实体经济融资需求回暖","source":"央行","gold_sentiment":"positive","gold_topic":"monetary","gold_entities":[{"text":"央行","type":"org"}],"gold_summary_keywords":["社融","4.9万亿"]}
+{"id":"n048","title":"美国10年期国债收益率突破5% 创2007年以来新高","source":"路透社","gold_sentiment":"negative","gold_topic":"international","gold_entities":[{"text":"美国","type":"location"}],"gold_summary_keywords":["美债","5%"]}
+{"id":"n049","title":"深交所发布退市新规 严打财务造假与空壳公司","source":"深交所","gold_sentiment":"neutral","gold_topic":"regulation","gold_entities":[{"text":"深交所","type":"org"}],"gold_summary_keywords":["退市","新规"]}
+{"id":"n050","title":"某上市公司商誉减值超10亿元 全年业绩预亏","source":"公司公告","gold_sentiment":"negative","gold_topic":"company","gold_entities":[],"gold_summary_keywords":["商誉减值","预亏"]}

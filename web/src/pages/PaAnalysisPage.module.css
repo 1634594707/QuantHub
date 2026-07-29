@@ -1,0 +1,27 @@
+/* PaAnalysisPage 专属样式 — 从内联 style 迁移 */
+.formArea {
+  padding: var(--sp-3);
+  display: flex;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.runBtn {
+  margin-top: auto;
+}
+
+.symbolInput {
+  width: 140px;
+}
+
+.researchLink {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  background: var(--surface-1);
+  color: var(--text-2);
+}

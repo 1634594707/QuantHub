@@ -40,17 +40,19 @@ _MARKET_SYMBOL = "A股市场"
 _CN_TO_EN = {"正面": "Positive", "负面": "Negative", "中性": "Neutral"}
 _CN_LABEL = {"Positive": "正面", "Negative": "负面", "Neutral": "中性"}
 
-# LLM system prompt（原样提取自 scanner/sentiment.py:analyze_sentiment）
-_SENTIMENT_SYSTEM_PROMPT = (
+# LLM system prompt（批量分析：一次调用分析多条新闻标题，避免 N 条新闻 N 次调用的延迟）
+_BATCH_SENTIMENT_SYSTEM_PROMPT = (
     "你是专业的中国股市情感分析师。"
-    "分析以下财经新闻对 A 股市场的情感倾向，"
+    "分析给定的一组财经新闻标题对相关 A 股标的的综合情感倾向，"
     "仅返回 JSON（不要有其他文字）："
-    '{"sentiment": "正面/负面/中性", "score": 浮点数, "reason": "简短理由"}'
-    "score 范围：-1.0（极度负面）到 1.0（极度正面）。"
+    '{"sentiment": "正面/负面/中性", "score": 浮点数, '
+    '"positive": 整数, "negative": 整数, "neutral": 整数, "reason": "简短理由"}'
+    "score 为综合情绪分，范围 -1.0（极度负面）到 1.0（极度正面）。"
+    "positive/negative/neutral 为各条新闻的情绪计数，三者之和必须等于新闻总数。"
 )
-# 原 LLM 调用参数：temperature=0.1, max_tokens=150
+# 原 LLM 调用参数：temperature=0.1；批量分析需更多 token（含计数+理由）
 _LLM_TEMPERATURE = 0.1
-_LLM_MAX_TOKENS = 150
+_LLM_MAX_TOKENS = 400
 
 # 方向阈值（pos_prob 已归一化到 [0,1]；与 sentiment 策略对齐）
 _BUY_THRESHOLD = 0.65
@@ -154,30 +156,22 @@ class NewsScannerStrategy(StrategyBase):
         news_list: list[News],
         timeframe: str,
     ) -> Signal | None:
-        """聚合单标的/分组的新闻情绪 → 单个 Signal。"""
+        """聚合单标的/分组的新闻情绪 → 单个 Signal（单次 LLM 批量调用）。"""
         if not news_list:
             return None
 
-        analyses: list[tuple[float, str, str]] = []
-        for n in news_list:
-            score, sentiment, reason = self._analyze(n.title or "")
-            analyses.append((score, sentiment, reason))
-        if not analyses:
+        titles = [n.title or "" for n in news_list if (n.title or "").strip()]
+        if not titles:
             return None
 
-        # 平均情绪分（[-1,1]）→ 归一化正向概率 [0,1]
-        avg_score = sum(a[0] for a in analyses) / len(analyses)
+        avg_score, dist, dominant_sentiment, reason = self._analyze_batch(titles)
         pos_prob = (avg_score + 1.0) / 2.0
         direction, score_field = self._map_direction(pos_prob)
 
         # 置信度：主导情绪占比
-        dist = {"Positive": 0, "Negative": 0, "Neutral": 0}
-        for a in analyses:
-            dist[a[1]] += 1
-        dominant = max(dist.values())
-        confidence = dominant / len(analyses) if analyses else 0.0
+        dominant = dist.get(dominant_sentiment, 0)
+        confidence = dominant / len(titles) if titles else 0.0
         confidence = max(0.0, min(1.0, confidence))
-        dominant_sentiment = max(dist, key=dist.get)
 
         try:
             return Signal(
@@ -192,31 +186,33 @@ class NewsScannerStrategy(StrategyBase):
                 meta={
                     "avg_score": round(avg_score, 4),
                     "pos_prob": round(pos_prob, 4),
-                    "news_count": len(analyses),
+                    "news_count": len(titles),
                     "sentiment_dist": dist,
                     "label": _CN_LABEL.get(dominant_sentiment, "中性"),
+                    "reason": reason,
                 },
             )
         except ValueError as e:
             logger.warning("信号构造失败 %s: %s", symbol, e)
             return None
 
-    def _analyze(self, text: str) -> tuple[float, str, str]:
-        """调用统一 LLM 客户端分析单条新闻标题。
+    def _analyze_batch(self, titles: list[str]) -> tuple[float, dict[str, int], str, str]:
+        """批量分析新闻标题（单次 LLM 调用，避免 N 条新闻 N 次调用的延迟）。
 
         Returns:
-            (score, sentiment, reason)，score ∈ [-1,1]，
-            sentiment ∈ {"Positive","Negative","Neutral"}，
-            失败时返回 (0.0, "Neutral", "")。
+            (avg_score, sentiment_dist, dominant_sentiment, reason)
+            avg_score ∈ [-1,1]，sentiment_dist 形如 {"Positive": n, ...}，
+            dominant_sentiment ∈ {"Positive","Negative","Neutral"}，
+            失败时返回 (0.0, 全 0 计数, "Neutral", "")。
         """
-        if not text or not text.strip():
-            return 0.0, "Neutral", ""
-        if self._llm is None:
-            return 0.0, "Neutral", ""
+        neutral_dist = {"Positive": 0, "Negative": 0, "Neutral": 0}
+        if not titles or self._llm is None:
+            return 0.0, neutral_dist, "Neutral", ""
 
+        content = "\n".join(f"{i + 1}. {t}" for i, t in enumerate(titles))
         messages = [
-            {"role": "system", "content": _SENTIMENT_SYSTEM_PROMPT},
-            {"role": "user", "content": f"新闻：{text}"},
+            {"role": "system", "content": _BATCH_SENTIMENT_SYSTEM_PROMPT},
+            {"role": "user", "content": f"共 {len(titles)} 条新闻标题：\n{content}"},
         ]
         try:
             resp = self._llm.chat(
@@ -225,33 +221,47 @@ class NewsScannerStrategy(StrategyBase):
                 max_tokens=_LLM_MAX_TOKENS,
             )
         except Exception:
-            logger.exception("LLM 情绪分析失败")
-            return 0.0, "Neutral", ""
+            logger.exception("LLM 批量情绪分析失败")
+            return 0.0, neutral_dist, "Neutral", ""
 
-        return self._parse_sentiment(resp.content)
+        return self._parse_batch_sentiment(resp.content, len(titles))
 
     @staticmethod
-    def _parse_sentiment(raw: str) -> tuple[float, str, str]:
-        """解析 LLM 返回的 JSON（沿用原 sentiment.py 的正则提取方式）。"""
+    def _parse_batch_sentiment(raw: str, total: int) -> tuple[float, dict[str, int], str, str]:
+        """解析 LLM 批量返回的 JSON。
+
+        若 positive/negative/neutral 计数之和不等于 total，退化为「全部归入主导情绪」。
+        """
+        neutral_dist = {"Positive": 0, "Negative": 0, "Neutral": 0}
         if not raw:
-            return 0.0, "Neutral", ""
+            return 0.0, neutral_dist, "Neutral", ""
         match = re.search(r"\{.*?\}", raw, re.DOTALL)
         if not match:
-            return 0.0, "Neutral", ""
+            return 0.0, neutral_dist, "Neutral", ""
         try:
             obj = json.loads(match.group())
         except json.JSONDecodeError:
-            return 0.0, "Neutral", ""
+            return 0.0, neutral_dist, "Neutral", ""
 
         try:
-            score = float(obj.get("score", 0.0))
+            score = max(-1.0, min(1.0, float(obj.get("score", 0.0))))
         except (TypeError, ValueError):
             score = 0.0
-        score = max(-1.0, min(1.0, score))
 
-        sentiment = _CN_TO_EN.get(obj.get("sentiment", "中性"), "Neutral")
+        dist = {
+            "Positive": max(0, int(obj.get("positive", 0) or 0)),
+            "Negative": max(0, int(obj.get("negative", 0) or 0)),
+            "Neutral": max(0, int(obj.get("neutral", 0) or 0)),
+        }
+        # 计数校正：LLM 返回的计数之和与实际新闻数不符时，退化为全部归主导情绪
+        if total <= 0 or sum(dist.values()) != total:
+            sentiment = _CN_TO_EN.get(obj.get("sentiment", "中性"), "Neutral")
+            dist = {"Positive": 0, "Negative": 0, "Neutral": 0}
+            dist[sentiment] = max(0, total)
+
+        dominant = max(dist, key=dist.get) if any(dist.values()) else "Neutral"
         reason = str(obj.get("reason", ""))[:200]
-        return score, sentiment, reason
+        return score, dist, dominant, reason
 
     @staticmethod
     def _map_direction(pos_prob: float) -> tuple[str, float]:

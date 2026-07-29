@@ -1,0 +1,69 @@
+/* 持仓明细组件局部样式
+   - 仅放置无法用 utility/app.css 旧类表达的局部样式
+   - 卡片容器、表头、表格等沿用全局 .card/.card-head/.tbl/.edit-list/.edit-row 类 */
+
+/* 编辑模式下，标题右侧的操作区 */
+.headActions {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: center;
+}
+
+/* 编辑表单行：代码 / 名称 / 市场 / 股数 / 成本 / 删除 */
+.editRow {
+  display: grid;
+  grid-template-columns: 1.1fr 1.4fr 1fr 0.8fr 0.9fr auto;
+  gap: var(--sp-2);
+  align-items: center;
+}
+
+/* 数字输入框右对齐 */
+.numInput {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 暂无数据提示 */
+.emptyHint {
+  padding: var(--sp-3);
+}
+
+/* ReturnBar：收益率条 */
+.winrate {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 120px;
+}
+
+.winrateValue {
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  flex-shrink: 0;
+  min-width: 48px;
+}
+
+.winrateValue.up {
+  color: var(--up);
+}
+
+.winrateValue.down {
+  color: var(--down);
+}
+
+.winrateTrack {
+  position: relative;
+  flex: 1;
+  height: 6px;
+  background: var(--surface-2);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+
+.winrateFill {
+  height: 100%;
+  border-radius: var(--radius-pill);
+  /* width 和 background 由内联 style 注入（动态计算值） */
+  transition: width 0.2s ease;
+}

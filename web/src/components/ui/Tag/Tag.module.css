@@ -1,0 +1,77 @@
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px 5px 12px;
+  border-radius: var(--r-sm);
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-semibold);
+  line-height: 1.4;
+  white-space: nowrap;
+  flex: none;
+  border: 1px solid transparent;
+}
+
+.label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.close {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border: none;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: currentColor;
+  opacity: 0.6;
+  cursor: pointer;
+  transition: opacity var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out);
+  flex: none;
+  margin-left: 2px;
+}
+
+.close:hover {
+  opacity: 1;
+  background: var(--surface-active);
+}
+
+/* 变体 */
+.neutral {
+  background: var(--surface-hover);
+  color: var(--text-2);
+  border-color: var(--border);
+}
+
+.accent {
+  background: var(--accent-weak);
+  color: var(--accent-strong);
+  border-color: color-mix(in srgb, var(--accent) 24%, transparent);
+}
+
+.up {
+  background: var(--up-weak);
+  color: var(--up-ink);
+  border-color: color-mix(in srgb, var(--up) 24%, transparent);
+}
+
+.down {
+  background: var(--down-weak);
+  color: var(--down-ink);
+  border-color: color-mix(in srgb, var(--down) 24%, transparent);
+}
+
+.warn {
+  background: var(--warn-weak);
+  color: var(--warn-ink);
+  border-color: color-mix(in srgb, var(--warn) 24%, transparent);
+}
+
+.info {
+  background: var(--info-weak);
+  color: var(--info-ink);
+  border-color: color-mix(in srgb, var(--info) 24%, transparent);
+}

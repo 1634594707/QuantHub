@@ -1,0 +1,15 @@
+.description {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--fs-small);
+  line-height: var(--lh-relaxed);
+}
+
+.error {
+  margin-top: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border-left: 3px solid var(--down);
+  background: var(--down-weak);
+  color: var(--down-ink);
+  font-size: var(--fs-small);
+}

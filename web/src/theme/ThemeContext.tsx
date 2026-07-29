@@ -3,7 +3,10 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 export type ThemeMode = 'dark' | 'light'
 
 interface ThemeCtx {
+  /** 用户偏好主题（可能为 'dark'/'light'） */
   theme: ThemeMode
+  /** 实际渲染主题（与 theme 一致，为未来 SSR/系统偏好预留） */
+  resolvedTheme: ThemeMode
   toggle: () => void
   setTheme: (t: ThemeMode) => void
 }
@@ -29,7 +32,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const setTheme = (t: ThemeMode) => setThemeState(t)
   const toggle = () => setThemeState((p) => (p === 'dark' ? 'light' : 'dark'))
 
-  return <Ctx.Provider value={{ theme, toggle, setTheme }}>{children}</Ctx.Provider>
+  // resolvedTheme 当前与 theme 一致；预留为未来支持 'system' 模式时解析实际渲染主题
+  const resolvedTheme = theme
+
+  return (
+    <Ctx.Provider value={{ theme, resolvedTheme, toggle, setTheme }}>{children}</Ctx.Provider>
+  )
 }
 
 export function useTheme(): ThemeCtx {

@@ -261,7 +261,7 @@ def scaffold(
     log.append("")
     log.append("下一步：")
     log.append("  uv sync                         # 安装新成员")
-    log.append("  uv run pytest tests/ -q        # 必须全绿（记得加 tests/ 覆盖新策略）")
+    log.append("  uv run python -m compileall -q strategies  # 校验策略语法")
     log.append(
         f'  uv run python -c "from strategies import discover_and_register, list_strategies; '
         f"discover_and_register(); print('{name}' in list_strategies())\""

@@ -197,6 +197,28 @@ _NEGATIVE_KEYWORDS = [
     "*st",
 ]
 
+# 高置信资金方向短语。通用中文情感模型（尤其 SnowNLP）常把“亿元、资金”等
+# 中性词误判为正面，因此这类明确的交易方向语义应在通用模型之前处理。
+_POSITIVE_FLOW_PHRASES = (
+    "主力资金净流入",
+    "主力资金流入",
+    "资金净流入",
+    "主力买入",
+    "资金流入",
+    "净流入",
+)
+_NEGATIVE_FLOW_PHRASES = (
+    "主力资金净流出",
+    "主力资金流出",
+    "资金净流出",
+    "主力卖出",
+    "主力出逃",
+    "资金撤离",
+    "资金流出",
+    "净流出",
+    "撤离",
+)
+
 
 class SentimentAnalyzer:
     """FinBERT2 情绪分析器（懒加载）。
@@ -291,6 +313,11 @@ class SentimentAnalyzer:
         """
         if not text or len(text) < 5:
             return 0.5, 0.0, "empty"
+
+        flow_score = self._financial_flow_score(text)
+        if flow_score is not None:
+            return flow_score, abs(flow_score - 0.5) * 2, "financial_rules"
+
         self._ensure_loaded()
 
         if self._engine == "transformers":
@@ -358,6 +385,22 @@ class SentimentAnalyzer:
     # ------------------------------------------------------------------
     # 关键词规则降级（源自原 _keyword_score）
     # ------------------------------------------------------------------
+
+    def _financial_flow_score(self, text: str) -> float | None:
+        """识别明确的资金流入/流出方向；否定表达自动反转。"""
+        for phrase in _NEGATIVE_FLOW_PHRASES:
+            idx = text.find(phrase)
+            if idx != -1:
+                negated, _ = self._context(text, idx)
+                return 0.9 if negated else 0.1
+
+        for phrase in _POSITIVE_FLOW_PHRASES:
+            idx = text.find(phrase)
+            if idx != -1:
+                negated, _ = self._context(text, idx)
+                return 0.1 if negated else 0.9
+
+        return None
 
     def _keyword_score(self, text: str) -> float:
         """关键词规则打分，支持否定词反转与程度副词。"""

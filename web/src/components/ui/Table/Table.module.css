@@ -1,0 +1,84 @@
+.scrollWrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-small);
+}
+
+.table th,
+.table td {
+  text-align: left;
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: 1px solid var(--divider);
+  white-space: nowrap;
+}
+
+.table th {
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-semibold);
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0;
+  background: var(--bg-subtle);
+}
+
+.stickyHead th {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+}
+
+.table tbody tr {
+  transition: background var(--t-fast) var(--ease-out);
+}
+
+.table tbody tr:hover {
+  background: var(--surface-hover);
+}
+
+.clickable {
+  cursor: pointer;
+}
+
+.selected {
+  box-shadow: inset 3px 0 var(--accent);
+  background: var(--accent-weak);
+}
+
+/* 密度 */
+.comfortable th,
+.comfortable td {
+  padding-top: var(--sp-3);
+  padding-bottom: var(--sp-3);
+}
+
+.compact th,
+.compact td {
+  padding-top: var(--sp-1);
+  padding-bottom: var(--sp-1);
+}
+
+/* 对齐 */
+.alignLeft {
+  text-align: left;
+}
+
+.alignCenter {
+  text-align: center;
+}
+
+.alignRight {
+  text-align: right;
+}
+
+.alignRight :where(td, th) {
+  font-variant-numeric: tabular-nums;
+}
+
+.emptyWrap {
+  padding: var(--sp-4);
+}

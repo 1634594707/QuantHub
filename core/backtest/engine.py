@@ -92,7 +92,11 @@ class BacktraderEngine:
         self.slippage = slippage
 
     def run(
-        self, klines: pd.DataFrame, strategy_cls: Any, strategy_params: dict | None = None
+        self,
+        klines: pd.DataFrame,
+        strategy_cls: Any,
+        strategy_params: dict | None = None,
+        periods_per_year: int = 252,
     ) -> BacktestResult:
         try:
             import backtrader as bt
@@ -161,7 +165,7 @@ class BacktraderEngine:
             pass
 
         returns = eq["equity"].pct_change().dropna()
-        metrics = compute_metrics(returns, final_equity, max_dd)
+        metrics = compute_metrics(returns, final_equity, max_dd, periods_per_year=periods_per_year)
 
         return BacktestResult(
             equity_curve=eq,
@@ -186,7 +190,10 @@ class EventEngine:
         self.commission = commission
 
     def run(
-        self, klines: pd.DataFrame, on_bar: Callable[[pd.Series, EventContext], None]
+        self,
+        klines: pd.DataFrame,
+        on_bar: Callable[[pd.Series, EventContext], None],
+        periods_per_year: int = 252,
     ) -> BacktestResult:
         if klines.empty:
             return BacktestResult(
@@ -215,7 +222,7 @@ class EventEngine:
         max_dd = float(drawdown.min()) if not drawdown.empty else 0.0
 
         returns = eq_df["equity"].pct_change().dropna()
-        metrics = compute_metrics(returns, final_equity, max_dd)
+        metrics = compute_metrics(returns, final_equity, max_dd, periods_per_year=periods_per_year)
         return BacktestResult(
             equity_curve=eq_df,
             trades=ctx.trades,

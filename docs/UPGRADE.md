@@ -81,10 +81,26 @@ register_source("my_source", MySource)
 ### 3.1 升级 QuantHub 版本
 
 ```powershell
+# 升级前先生成可验证的在线备份
+uv run python -m tools.backup_store backup --output backups/store-pre-upgrade.db
+uv run python -m tools.backup_store verify backups/store-pre-upgrade.db
+
 # 拉取新版本后
-uv sync --all-extras          # 更新依赖
-python -m pytest tests/core/  # 验证底座
+uv sync                       # 更新网页 API 依赖
+uv run python -m compileall -q apps/api apps/dispatcher apps/scheduler core strategies
+Set-Location web
+npm.cmd ci
+npm.cmd run typecheck
+npm.cmd run build
 # _migrate_schema 自动迁移配置
+```
+
+建议至少保留最近 14 份数据库备份；清理命令默认 dry-run，检查候选文件后再加
+`--apply`：
+
+```powershell
+uv run python -m tools.backup_store prune backups --keep 14
+uv run python -m tools.backup_store prune backups --keep 14 --apply
 ```
 
 ### 3.2 配置 schema 升级（用户侧）
@@ -136,25 +152,28 @@ python -m pytest tests/core/  # 验证底座
 - deepseek_client → `core.llm.get_llm()`
 - 自研回测 → `core.backtest`（网格/backtrader/事件驱动）
 
-## 6. 测试
+## 6. 发布前验证
 
 ```powershell
-# 底座单测（28 个）
-python -m pytest tests/core/ -v
-
-# 集成测试（策略注册 + 信号总线 + dispatcher）
-python -m pytest tests/test_integration.py -v
-
-# 全部
-python -m pytest -v
+uv run python -m compileall -q apps/api apps/dispatcher apps/scheduler core strategies
+uv run python -c "from apps.api.main import app; assert app.title"
+Set-Location web
+npm.cmd run typecheck
+npm.cmd run build
 ```
 
 ## 7. 回滚
 
 如升级后异常：
-1. `git checkout <旧版本>` （如已纳入 git）
-2. 配置回滚：手动改 `configs/base.yaml: schema_version`（_migrate_schema 向上兼容旧版）
-3. 缓存清理：`CacheStore().clear()`
+1. 停止 API、调度器和 dispatcher，避免恢复期间继续写 SQLite。
+2. 切回已验证的旧代码版本并同步对应依赖。
+3. 校验升级前备份：`uv run python -m tools.backup_store verify backups/store-pre-upgrade.db`。
+4. 恢复数据库：`uv run python -m tools.backup_store restore backups/store-pre-upgrade.db --yes`。
+5. 恢复命令会先自动备份当前数据库；保留输出中的 `safety_backup` 路径，便于反向恢复。
+6. 启动 API，检查 `/health`、`/market-data/status`，再运行完整测试。
+
+不要手工降低 `schema_version`。配置迁移和 SQLite 增量列迁移只保证向前兼容，数据库
+回滚必须使用与旧代码版本匹配的升级前备份。
 
 ## 8. 后续 TODO
 

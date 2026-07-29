@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "quanthub"
 version = "0.1.0"
-description = "QuantHub: 分层单体仓库，整合 A股研究 + 加密交易 + AI 分析（统一底座 + 插件式策略 + Streamlit 看板）"
+description = "QuantHub Web: React 量化工作台 + FastAPI 网关 + 插件式策略"
 readme = "README.md"
 requires-python = ">=3.11,<3.13"
 license = { text = "AGPL-3.0-or-later" }
@@ -16,12 +16,17 @@ dependencies = [
     "urllib3>=2.0",
     "pandas>=2.2",
     "numpy>=1.26",
+    "pyarrow>=14",         # 本地 Parquet 行情（A股 / 加密 / MT5 共用）
     "python-dateutil>=2.8",
     "pyyaml>=6.0",
     "pydantic>=2.7",
     "tenacity>=8.2",       # 统一重试
     "loguru>=0.7",         # 统一日志
     "python-dotenv>=1.0",
+    "sqlalchemy>=2.0,<3",
+    "alembic>=1.13,<2",
+    "psycopg[binary]>=3.2,<4",
+    "quanthub-api",
 ]
 
 [project.optional-dependencies]
@@ -30,7 +35,6 @@ a_shares = [
     "akshare>=1.16",
     "snownlp>=0.12",
     "tqdm>=4.66",
-    "pyarrow>=14",
 ]
 crypto = [
     "ccxt>=4.3",
@@ -44,14 +48,6 @@ ai = [
 backtest = [
     "backtrader>=1.9.78",
 ]
-dashboard = [
-    "streamlit>=1.32",
-    "plotly>=5.20",
-]
-api = [
-    "fastapi>=0.110",
-    "uvicorn>=0.29",
-]
 # 重依赖（按需安装，避免污染基础环境）
 heavy-torch = [
     "torch>=2.0",
@@ -62,25 +58,17 @@ heavy-solana = [
     "solana>=0.30",
     "base58>=2.1",
 ]
-dev = [
-    "pytest>=8",
-    "pytest-cov>=5",
-    "hypothesis>=6",
-    "ruff>=0.5",
-    "httpx>=0.27",
-    "pre-commit>=3.7",
-]
 
 [tool.uv.workspace]
 # uv workspace: 每个成员独立 pyproject.toml，但共享单一虚拟环境
 members = [
     "core",
-    "apps/dashboard",
     "apps/dispatcher",
     "apps/scheduler",
     "apps/api",
     "strategies/a_shares/sentiment",
     "strategies/a_shares/news_scanner",
+    "strategies/a_shares/news_analyzer",
     "strategies/a_shares/selector",
     "strategies/a_shares/supertrend",
     "strategies/a_shares/morning_brief",
@@ -96,6 +84,7 @@ members = [
 [tool.uv.sources]
 # workspace 内部包互引
 quanthub-core = { workspace = true }
+quanthub-api = { workspace = true }
 
 [tool.hatch.build.targets.wheel]
 packages = ["core", "apps", "strategies"]
@@ -133,7 +122,15 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
 
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-addopts = "-q"
-pythonpath = ["."]
+# FastAPI 的 Query/Path/Body 等参数对象是单例（定义期一次性构建），
+# B008 对它们的 list[str]/复杂类型默认报错属于误报。
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = [
+    "fastapi.Query",
+    "fastapi.Path",
+    "fastapi.Body",
+    "fastapi.Form",
+    "fastapi.Header",
+    "fastapi.Cookie",
+    "fastapi.Depends",
+]

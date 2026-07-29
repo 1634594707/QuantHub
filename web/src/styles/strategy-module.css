@@ -432,6 +432,79 @@
   padding: var(--sp-2) var(--sp-3) var(--sp-3);
   background: var(--bg-subtle);
 }
+.signal-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 2px 7px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text-2);
+  background: var(--bg-elevated);
+  font-size: var(--fs-11);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.signal-status.new { color: var(--warn-ink); border-color: color-mix(in srgb, var(--warn) 42%, var(--border)); }
+.signal-status.accepted { color: var(--up-ink); border-color: color-mix(in srgb, var(--up) 42%, var(--border)); }
+.signal-status.rejected { color: var(--down-ink); border-color: color-mix(in srgb, var(--down) 42%, var(--border)); }
+.signal-status.expired { color: var(--text-3); }
+.signal-status.converted { color: var(--accent-strong); border-color: color-mix(in srgb, var(--accent) 42%, var(--border)); }
+.signal-review {
+  display: grid;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+  padding-top: var(--sp-2);
+  border-top: 1px solid var(--divider);
+}
+.signal-review-meta,
+.signal-review-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  color: var(--text-3);
+  font-size: var(--fs-12);
+}
+.signal-review-meta b { color: var(--text-1); font-weight: 600; }
+.signal-review-actions input {
+  flex: 1 1 220px;
+  min-width: 160px;
+  height: 30px;
+  padding: 0 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--bg-elevated);
+  color: var(--text-1);
+  font: inherit;
+}
+.signal-order-quantity {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+.signal-order-quantity input {
+  flex: 0 0 88px;
+  width: 88px;
+  min-width: 88px;
+}
+.signal-action {
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--bg-elevated);
+  color: var(--text-2);
+  cursor: pointer;
+}
+.signal-action:disabled { cursor: wait; opacity: .55; }
+.signal-action.accept { color: var(--up-ink); border-color: color-mix(in srgb, var(--up) 42%, var(--border)); }
+.signal-action.reject { color: var(--down-ink); border-color: color-mix(in srgb, var(--down) 42%, var(--border)); }
+.signal-action.convert { color: var(--accent-strong); border-color: color-mix(in srgb, var(--accent) 42%, var(--border)); }
+.signal-decision-note { margin: 0; color: var(--text-2); font-size: var(--fs-12); }
+.signal-action-error { margin: var(--sp-2) var(--sp-3) 0; color: var(--down-ink); font-size: var(--fs-12); }
 .sig-group {
   margin-bottom: var(--sp-4);
 }
@@ -470,22 +543,7 @@
    目的：打破两页在「信号可视化」子模块的视觉趋同，
    让每个板块保留独有记忆点，同时架构上为迭代留余地。
    ============================================================ */
-[data-board="signals"] {
-  --accent: #d97706;          /* 亮主题深琥珀，保证 AA 对比 */
-  --accent-weak: rgba(217, 119, 6, 0.14);
-  --accent-strong: #b45309;
-}
-[data-theme="dark"][data-board="signals"] {
-  --accent: #f59e0b;          /* 暗主题亮琥珀，深底上对比充足 */
-  --accent-weak: rgba(245, 158, 11, 0.16);
-  --accent-strong: #fbbf24;
-}
-/* 工作台保持蓝驾驶舱，显式锚定（如需微调在此覆盖） */
-[data-board="workbench"] {
-  --accent: #3b82f6;
-  --accent-weak: rgba(59, 130, 246, 0.14);
-  --accent-strong: #60a5fa;
-}
+/* 交互主色由 tokens.css 统一定义，此处不再重复定义。 */
 
 /* —— 更新状态栏：表达「信号是流动的」，为实时/增量刷新预留空间 —— */
 .update-bar {
@@ -709,8 +767,4 @@
 }
 
 /* ---------------- 板块签名：组合管理（靛蓝，避免与工作台蓝趋同） ---------------- */
-[data-board="portfolio"] {
-  --accent: #6366f1;
-  --accent-weak: rgba(99, 102, 241, 0.14);
-  --accent-strong: #818cf8;
-}
+/* 组合管理沿用 tokens.css 的固定交互色。 */

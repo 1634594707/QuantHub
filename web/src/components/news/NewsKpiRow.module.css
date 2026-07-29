@@ -1,0 +1,7 @@
+/* NewsKpiRow 专属样式 — 从内联 style 迁移
+   --kpi-color CSS 变量由组件按数据注入，驱动卡片左侧色条。 */
+
+/* Top 主题卡片的值（主题名可能较长，字号略大） */
+.topTopicVal {
+  font-size: var(--fs-h2);
+}

@@ -36,6 +36,20 @@ from core.llm import LLMClient, get_llm
 
 logger = logging.getLogger(__name__)
 
+PA_PIPELINE_VERSION = "pa-two-stage-v1"
+PA_PROMPT_VERSION = "pa-inline-schema-2026-07-25"
+
+_CYCLE_VALUES = (
+    "spike",
+    "micro_channel",
+    "tight_channel",
+    "normal_channel",
+    "broad_channel",
+    "trending_tr",
+    "trading_range",
+    "extreme_tr",
+)
+
 
 # ── 结果数据类 ─────────────────────────────────────────────────────────────────
 
@@ -83,9 +97,14 @@ def _stage1_system_prompt() -> str:
 
 必须在 content 正文输出如下 JSON（裸 JSON，无 markdown）：
 {{
-  "cycle_position": "趋势 | 区间 | 反转 | 过渡",
+  "cycle_position": "spike | micro_channel | tight_channel | normal_channel | broad_channel | trending_tr | trading_range | extreme_tr",
+  "alternative_cycle_position": "上述枚举之一或null",
   "direction": "bullish | bearish | neutral",
   "trend_stage": "初生 | 发展 | 成熟 | 衰竭",
+  "market_phase": "stable | transitioning",
+  "transition_risk": "低 | 中 | 高",
+  "diagnosis_confidence": 0到100的整数,
+  "diagnosis_confidence_reasoning": "简体中文置信依据",
   "detected_patterns": ["以简体中文描述检测到的 PA 形态，如 高1/低1、二次突破、外包棒等"],
   "key_levels": {{
     "support": [数字],
@@ -140,10 +159,23 @@ def _stage2_system_prompt() -> str:
     "risk_assessment": "简体中文风险评估"
   }},
   "diagnosis_summary": {{
-    "cycle_position": "与阶段一一致",
+    "cycle_position": "阶段一的周期枚举",
+    "alternative_cycle_position": "备选周期枚举或null",
     "direction": "bullish | bearish | neutral",
+    "market_phase": "stable | transitioning",
+    "transition_risk": "低 | 中 | 高",
     "key_signals": ["简体中文关键信号"]
   }},
+  "decision_trace": [
+    {{
+      "phase": "decision",
+      "node_id": "如 4.1",
+      "question": "本节点评估问题",
+      "answer": "通过 | 边缘 | 不通过",
+      "reason": "简体中文依据",
+      "bar_range": "如 K8-K1"
+    }}
+  ],
   "terminal": {{
     "node_id": "10.x",
     "outcome": "wait | reject | trade | proceed",
@@ -152,6 +184,21 @@ def _stage2_system_prompt() -> str:
   "next_bar_prediction": {{
     "direction": "bullish | bearish | neutral | null",
     "probabilities": {{"bullish": 0到100整数, "bearish": 0到100整数, "neutral": 0到100整数}},
+    "unpredictable": true或false,
+    "reasoning": "简体中文预测依据"
+  }},
+  "next_cycle_prediction": {{
+    "direction": "bullish | bearish | neutral | null",
+    "probabilities": {{
+      "spike": 0到100整数,
+      "micro_channel": 0到100整数,
+      "tight_channel": 0到100整数,
+      "normal_channel": 0到100整数,
+      "broad_channel": 0到100整数,
+      "trending_tr": 0到100整数,
+      "trading_range": 0到100整数,
+      "extreme_tr": 0到100整数
+    }},
     "unpredictable": true或false,
     "reasoning": "简体中文预测依据"
   }}
@@ -319,6 +366,81 @@ def _has_required_keys(obj: dict, keys: list[str]) -> bool:
     return all(k in obj for k in keys)
 
 
+def _normalize_stage1(stage1: dict) -> dict:
+    """补齐阶段一可选字段，保证视图模型拿到稳定结构。"""
+    stage1.setdefault("alternative_cycle_position", None)
+    stage1.setdefault("trend_stage", "")
+    stage1.setdefault("market_phase", "stable")
+    stage1.setdefault("transition_risk", "低")
+    stage1.setdefault("diagnosis_confidence", 0)
+    stage1.setdefault("diagnosis_confidence_reasoning", "")
+    stage1.setdefault("detected_patterns", [])
+    stage1.setdefault("key_levels", {"support": [], "resistance": []})
+    stage1.setdefault("momentum", "中")
+    stage1.setdefault("bar_by_bar_summary", [])
+    stage1.setdefault("gate_trace", [])
+    return stage1
+
+
+def _empty_cycle_probabilities() -> dict[str, int]:
+    return {key: 0 for key in _CYCLE_VALUES}
+
+
+def _normalize_stage2(stage2: dict, stage1: dict) -> dict:
+    """补齐阶段二模块，避免模型漏字段导致前端出现空白区块。"""
+    decision = stage2.setdefault("decision", {})
+    decision.setdefault("order_type", "不下单")
+    decision.setdefault("order_direction", None)
+    decision.setdefault("entry_price", None)
+    decision.setdefault("stop_loss_price", None)
+    decision.setdefault("take_profit_price", None)
+    decision.setdefault("take_profit_price_2", None)
+    decision.setdefault("reasoning", "模型未提供决策依据")
+    decision.setdefault("diagnosis_confidence", stage1.get("diagnosis_confidence", 0))
+    decision.setdefault(
+        "diagnosis_confidence_reasoning", stage1.get("diagnosis_confidence_reasoning", "")
+    )
+    decision.setdefault("trade_confidence", 0)
+    decision.setdefault("trade_confidence_reasoning", "")
+    decision.setdefault("estimated_win_rate", None)
+    decision.setdefault("key_factors", [])
+    decision.setdefault("watch_points", [])
+    decision.setdefault("risk_assessment", "")
+
+    stage2.setdefault(
+        "diagnosis_summary",
+        {
+            "cycle_position": stage1.get("cycle_position"),
+            "alternative_cycle_position": stage1.get("alternative_cycle_position"),
+            "direction": stage1.get("direction"),
+            "market_phase": stage1.get("market_phase"),
+            "transition_risk": stage1.get("transition_risk"),
+            "key_signals": stage1.get("detected_patterns", []),
+        },
+    )
+    stage2.setdefault("decision_trace", [])
+    stage2.setdefault("terminal", {"node_id": "unknown", "outcome": "wait", "label": "等待"})
+    stage2.setdefault(
+        "next_bar_prediction",
+        {
+            "direction": None,
+            "probabilities": {"bullish": 0, "bearish": 0, "neutral": 0},
+            "unpredictable": True,
+            "reasoning": "模型未提供下一根预测",
+        },
+    )
+    stage2.setdefault(
+        "next_cycle_prediction",
+        {
+            "direction": None,
+            "probabilities": _empty_cycle_probabilities(),
+            "unpredictable": True,
+            "reasoning": "模型未提供下一周期预测",
+        },
+    )
+    return stage2
+
+
 # ── 主流程 ─────────────────────────────────────────────────────────────────────
 
 
@@ -334,10 +456,16 @@ def _call_llm(
     【简化说明】原版 stream_chat 支持思考流/正文流分流、取消令牌、QClaw fallback；
     此处用 ``core.llm.LLMClient.chat`` 一次性调用，由其内置 tenacity 重试覆盖网络错误。
     """
+    chat_kwargs = {}
+    if getattr(client, "_provider", "") == "deepseek":
+        # PA 输出是严格 JSON。关闭 DeepSeek v4 的独立推理区，避免两阶段调用
+        # 长时间消耗 reasoning token 后 content 为空。
+        chat_kwargs["extra_body"] = {"thinking": {"type": "disabled"}}
     resp = client.chat(
         messages,
         temperature=temperature,
         max_tokens=max_tokens,
+        **chat_kwargs,
     )
     usage = resp.usage or {}
     return resp.content or "", dict(usage)
@@ -400,37 +528,54 @@ def run_two_stage(
         stage1_json, ["cycle_position", "direction", "gate_result"]
     ):
         # 【简化说明】原版会触发 validation_retry 带 feedback 重试；此处直接判失败
+        logger.warning(
+            "PA 阶段一 JSON 解析失败 symbol=%s; content(前300字): %.300s",
+            symbol,
+            content_s1,
+        )
         result.error = "阶段一 JSON 解析或必填字段校验失败"
         return result
-    result.stage1_json = stage1_json
+    result.stage1_json = _normalize_stage1(stage1_json)
 
     # 4. 闸门短路：gate_result 非 proceed 时跳过阶段二模型调用
     gate = str(stage1_json.get("gate_result", "proceed")).lower()
     if gate in ("wait", "unknown"):
         # 与原版 build_stage2_gate_wait_response 行为一致：短路生成不下单决策
-        result.stage2_json = {
-            "decision": {
-                "order_type": "不下单",
-                "order_direction": None,
-                "entry_price": None,
-                "stop_loss_price": None,
-                "take_profit_price": None,
-                "reasoning": f"阶段一 gate_result={gate}，闸门未通过，不下单",
-                "diagnosis_confidence": stage1_json.get("diagnosis_confidence", 0),
-                "trade_confidence": 0,
-                "estimated_win_rate": None,
-                "key_factors": [],
-                "watch_points": ["等待周期清晰或结构突破后再评估"],
-                "risk_assessment": "周期无法识别或极端混乱，不入场",
+        result.stage2_json = _normalize_stage2(
+            {
+                "decision": {
+                    "order_type": "不下单",
+                    "order_direction": None,
+                    "entry_price": None,
+                    "stop_loss_price": None,
+                    "take_profit_price": None,
+                    "reasoning": f"阶段一 gate_result={gate}，闸门未通过，不下单",
+                    "diagnosis_confidence": stage1_json.get("diagnosis_confidence", 0),
+                    "trade_confidence": 0,
+                    "estimated_win_rate": None,
+                    "key_factors": [],
+                    "watch_points": ["等待周期清晰或结构突破后再评估"],
+                    "risk_assessment": "周期无法识别或极端混乱，不入场",
+                },
+                "diagnosis_summary": {
+                    "cycle_position": stage1_json.get("cycle_position"),
+                    "alternative_cycle_position": stage1_json.get("alternative_cycle_position"),
+                    "direction": stage1_json.get("direction"),
+                    "market_phase": stage1_json.get("market_phase"),
+                    "transition_risk": stage1_json.get("transition_risk"),
+                    "key_signals": stage1_json.get("detected_patterns", []),
+                },
+                "decision_trace": [],
+                "terminal": {"node_id": "gate", "outcome": "wait", "label": "闸门短路"},
+                "next_bar_prediction": {
+                    "direction": None,
+                    "probabilities": None,
+                    "unpredictable": True,
+                    "reasoning": "闸门未通过，不预测下一根",
+                },
             },
-            "terminal": {"node_id": "gate", "outcome": "wait", "label": "闸门短路"},
-            "next_bar_prediction": {
-                "direction": None,
-                "probabilities": None,
-                "unpredictable": True,
-                "reasoning": "闸门未通过，不预测下一根",
-            },
-        }
+            stage1_json,
+        )
         return result
 
     # 5. Stage 2: 决策评估
@@ -447,7 +592,12 @@ def run_two_stage(
     if stage2_json is None or not _has_required_keys(
         stage2_json, ["decision", "terminal", "next_bar_prediction"]
     ):
+        logger.warning(
+            "PA 阶段二 JSON 解析失败 symbol=%s; content(前300字): %.300s",
+            symbol,
+            content_s2,
+        )
         result.error = "阶段二 JSON 解析或必填字段校验失败"
         return result
-    result.stage2_json = stage2_json
+    result.stage2_json = _normalize_stage2(stage2_json, stage1_json)
     return result

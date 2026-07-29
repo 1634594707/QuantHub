@@ -1,0 +1,268 @@
+/* StrategiesPage 专属样式 — 工具栏 + 策略卡（从 app.css 迁移并模块化） */
+
+.toolbarWrap {
+  padding: var(--sp-3);
+}
+
+.searchInput {
+  min-width: 180px;
+  max-width: 280px;
+}
+
+.countBadge {
+  margin-left: 6px;
+  opacity: 0.75;
+  font-size: var(--fs-caption);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.sortControls {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.sortSelect {
+  width: 110px;
+  flex: 0 0 auto;
+}
+
+.groupCount {
+  font-weight: var(--fw-regular);
+}
+
+/* ---------------- 工具栏 ---------------- */
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-4);
+  padding: var(--sp-3);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+
+/* ---------------- 分组标题 ---------------- */
+.groupTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-3);
+  font-weight: 700;
+  font-size: var(--fs-13);
+  letter-spacing: 0;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+.groupTitle::before {
+  content: '';
+  width: 3px;
+  height: 14px;
+  background: var(--board, var(--accent));
+  border-radius: var(--r-pill);
+  opacity: 0.8;
+}
+
+/* ---------------- 卡片网格 ---------------- */
+.grid {
+  display: grid;
+  gap: 0;
+  border: 1px solid var(--border);
+}
+
+/* ---------------- 策略卡 ---------------- */
+/* 深色 elevated 背景 + 顶部状态色条 */
+.card {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(190px, .8fr) minmax(240px, 1.4fr) minmax(300px, 1.2fr);
+  gap: var(--sp-3);
+  align-items: center;
+  min-height: 66px;
+  padding: var(--sp-2) var(--sp-3);
+  border: 0;
+  border-bottom: 1px solid var(--divider);
+  border-radius: 0;
+  background: var(--bg-elevated);
+  cursor: pointer;
+  transition: background var(--t-fast), box-shadow var(--t-fast);
+}
+/* 顶部 3px 状态色条（默认 idle 灰） */
+.card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--text-3);
+  opacity: 0.4;
+  transition: background var(--t-fast), opacity var(--t-fast);
+}
+.card.isIdle::before {
+  background: var(--text-3);
+  opacity: 0.35;
+}
+.card.isRunning::before {
+  background: var(--accent);
+  opacity: 1;
+  animation: stratBarPulse 1.4s ease-in-out infinite;
+}
+.card.isOk::before {
+  background: var(--up);
+  opacity: 0.85;
+}
+.card.isErr::before {
+  background: var(--down);
+  opacity: 0.85;
+}
+@keyframes stratBarPulse {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+.card:hover {
+  background: var(--surface-hover);
+  box-shadow: inset 3px 0 var(--board, var(--accent));
+}
+.card:hover::before {
+  opacity: 1;
+}
+
+.cardHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+.cardTitle {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.stratName {
+  font-weight: 800;
+  font-size: var(--fs-16);
+  letter-spacing: 0;
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cardMeta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.stratTag {
+  font-size: var(--fs-11);
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: var(--r-pill);
+  letter-spacing: 0;
+  border: 1px solid transparent;
+}
+.stratTagMarket {
+  background: var(--accent-weak);
+  color: var(--accent-strong);
+  border-color: color-mix(in srgb, var(--accent) 24%, transparent);
+}
+.stratTagLive {
+  background: color-mix(in srgb, var(--up) 16%, transparent);
+  color: var(--up-ink);
+  border-color: color-mix(in srgb, var(--up) 28%, transparent);
+}
+
+.cardDesc {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--fs-13);
+  line-height: 1.55;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.cardFoot {
+  display: grid;
+  grid-template-columns: minmax(110px, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.stratStatus {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-12);
+}
+.stratStatusDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-3);
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+.stratStatusDot.isIdle { background: var(--text-3); opacity: 0.5; }
+.stratStatusDot.isRunning {
+  background: var(--accent);
+  opacity: 1;
+  box-shadow: 0 0 0 3px var(--accent-weak);
+  animation: stratDotPulse 1.4s ease-in-out infinite;
+}
+.stratStatusDot.isOk { background: var(--up); opacity: 0.9; }
+.stratStatusDot.isErr { background: var(--down); opacity: 0.9; }
+@keyframes stratDotPulse {
+  0%, 100% { box-shadow: 0 0 0 3px var(--accent-weak); }
+  50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 8%, transparent); }
+}
+.stratStatusText {
+  color: var(--text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.stratStatusText.isOk { color: var(--up-ink); }
+.stratStatusText.isErr { color: var(--down-ink); }
+.stratStatusText.isRunning { color: var(--accent-strong); }
+
+.cardActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 860px) {
+  .card {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .cardDesc {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .cardFoot {
+    grid-column: 1 / -1;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}
+
+@media (max-width: 600px) {
+  .toolbarWrap { padding: 0; }
+  .toolbar { align-items: stretch; flex-direction: column; }
+  .searchInput { max-width: none; }
+  .card { grid-template-columns: 1fr; }
+  .cardDesc { grid-column: auto; grid-row: auto; }
+  .cardFoot { grid-column: auto; grid-template-columns: 1fr; }
+}

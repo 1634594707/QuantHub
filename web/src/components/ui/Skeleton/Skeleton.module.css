@@ -1,0 +1,56 @@
+.skeleton {
+  background: var(--surface-hover);
+  border-radius: var(--r-sm);
+  flex: none;
+}
+
+.text {
+  height: var(--fs-body);
+  border-radius: var(--r-xs);
+  width: 100%;
+}
+
+.block {
+  width: 100%;
+  height: 100%;
+  min-height: 20px;
+}
+
+.circle {
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+}
+
+.animated {
+  position: relative;
+  overflow: hidden;
+}
+
+.animated::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--surface-active) 50%,
+    transparent 100%
+  );
+  animation: qh-shimmer 1.6s var(--ease-in-out) infinite;
+}
+
+@keyframes qh-shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animated::after {
+    animation: none;
+  }
+}

@@ -1,7 +1,7 @@
 """QuantHub 策略插件层。
 
 子包:
-    - a_shares/   : sentiment, news_scanner, selector, supertrend, morning_brief, perks_monitor, realtime_analyzer
+    - a_shares/   : sentiment, news_scanner, news_analyzer, selector, supertrend, morning_brief, perks_monitor, realtime_analyzer
     - crypto/     : okx_grid, alphagpt
     - mt5/        : alphamaster (AlphaMaster MT5 因子引擎)
     - ai_analysis/: pa_agent
@@ -39,6 +39,7 @@ _STRATEGY_MODULES: list[str] = [
     "strategies.a_shares.supertrend",
     "strategies.a_shares.perks_monitor",
     "strategies.a_shares.news_scanner",
+    "strategies.a_shares.news_analyzer",
     "strategies.a_shares.selector",
     "strategies.a_shares.morning_brief",
     "strategies.a_shares.realtime_analyzer",

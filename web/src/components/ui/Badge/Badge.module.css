@@ -1,0 +1,79 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: var(--r-pill);
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-heavy);
+  letter-spacing: 0;
+  line-height: 1.4;
+  white-space: nowrap;
+  flex: none;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+}
+
+/* 变体 */
+.neutral {
+  background: var(--surface-hover);
+  color: var(--text-2);
+}
+
+.accent {
+  background: var(--accent-weak);
+  color: var(--accent-strong);
+}
+
+.up {
+  background: var(--up-weak);
+  color: var(--up-ink);
+}
+
+.down {
+  background: var(--down-weak);
+  color: var(--down-ink);
+}
+
+.warn {
+  background: var(--warn-weak);
+  color: var(--warn-ink);
+}
+
+.info {
+  background: var(--info-weak);
+  color: var(--info-ink);
+}
+
+/* live 变体：带脉冲圆点 */
+.live {
+  background: var(--up-weak);
+  color: var(--up-ink);
+}
+
+.live .dot {
+  animation: qh-live-pulse 2s var(--ease-in-out) infinite;
+  box-shadow: 0 0 0 3px var(--up-weak);
+}
+
+@keyframes qh-live-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live .dot {
+    animation: none;
+  }
+}

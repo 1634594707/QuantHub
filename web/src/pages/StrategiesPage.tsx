@@ -6,6 +6,15 @@ import type { StrategyInfo } from '../api/types'
 import { useStrategyRuns } from '../hooks/useStrategyRuns'
 import { marketBadge, marketKey, defaultParams } from '../components/StrategyShared'
 import { formatRelativeTime } from '../lib/time'
+import { AsyncStateBoundary } from '../components/ui/AsyncStateBoundary/AsyncStateBoundary'
+import { RefreshControl } from '../components/ui/RefreshControl/RefreshControl'
+import { Input } from '../components/ui/Input/Input'
+import { Select } from '../components/ui/Select/Select'
+import { Toggle } from '../components/ui/Toggle/Toggle'
+import { Button } from '../components/ui/Button/Button'
+import { SegmentedControl } from '../components/ui/SegmentedControl/SegmentedControl'
+import { WorkspaceHeader } from '../components/WorkspaceHeader/WorkspaceHeader'
+import s from './StrategiesPage.module.css'
 
 type MarketKey = 'a_shares' | 'crypto' | 'us_stocks' | 'other'
 
@@ -15,6 +24,12 @@ const GROUPS: { key: MarketKey | 'all'; label: string }[] = [
   { key: 'crypto', label: '加密货币' },
   { key: 'us_stocks', label: '美股' },
   { key: 'other', label: '其他' },
+]
+
+const SORT_OPTIONS = [
+  { value: 'default', label: '默认排序' },
+  { value: 'name', label: '按名称' },
+  { value: 'recent', label: '最近运行' },
 ]
 
 export default function StrategiesPage() {
@@ -80,106 +95,109 @@ export default function StrategiesPage() {
   }
 
   return (
-    <div className="card">
-      <div className="card-head">
-        <div className="card-title">
-          策略模块
-          <span className="sub">已注册 · 共 {list.length} 个</span>
-        </div>
-        <button className="link-btn" onClick={() => strategies.refetch()} disabled={strategies.loading}>
-          {strategies.loading ? '刷新中…' : '刷新'}
-        </button>
-      </div>
-
-      <div style={{ padding: 'var(--sp-3)' }}>
-        {/* 工具栏 */}
-        <div className="strategy-toolbar">
-          <input
-            className="edit-input"
-            style={{ minWidth: 180, maxWidth: 280 }}
-            placeholder="搜索策略名称或描述…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          <div style={{ display: 'flex', gap: 'var(--sp-2)', flexWrap: 'wrap' }}>
-            {GROUPS.map((g) => {
-              const count = g.key === 'all' ? list.length : list.filter((s) => marketKey(s.market) === g.key).length
-              const active = filter === g.key
-              return (
-                <button
-                  key={g.key}
-                  onClick={() => setFilter(g.key)}
-                  className="period-tab"
-                  style={{
-                    background: active ? 'var(--accent)' : 'var(--bg-subtle)',
-                    color: active ? '#fff' : 'var(--text-1)',
-                    border: active ? '1px solid var(--accent)' : '1px solid var(--border)',
-                  }}
-                >
-                  {g.label}
-                  <span style={{ marginLeft: '6px', opacity: 0.75, fontSize: 'var(--fs-12)' }}>{count}</span>
-                </button>
-              )
-            })}
-          </div>
-          <div style={{ display: 'flex', gap: 'var(--sp-2)', alignItems: 'center', flexWrap: 'wrap' }}>
-            <label className="toggle-label">
-              <input
-                type="checkbox"
+    <>
+      <WorkspaceHeader
+        context="策略 / 策略库"
+        title="策略库"
+        metrics={[
+          { label: '已注册', value: list.length },
+          { label: '当前筛选', value: filtered.length },
+          { label: '可实盘', value: list.filter((strategy) => strategy.live_capable).length },
+        ]}
+      />
+      <div className="card">
+        <div className={s.toolbarWrap}>
+          {/* 工具栏：搜索 + 分组 + 排序/筛选/刷新（hero 已显示注册数，card-head 不再重复） */}
+          <div className={s.toolbar}>
+            <Input
+              className={s.searchInput}
+              placeholder="搜索策略名称或描述…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+            <SegmentedControl
+              value={filter}
+              onChange={(v) => setFilter(v as MarketKey | 'all')}
+              size="sm"
+              options={GROUPS.map((g) => {
+                const count =
+                  g.key === 'all'
+                    ? list.length
+                    : list.filter((s) => marketKey(s.market) === g.key).length
+                return {
+                  value: g.key,
+                  label: (
+                    <>
+                      {g.label}
+                      <span className={s.countBadge}>{count}</span>
+                    </>
+                  ),
+                }
+              })}
+            />
+            <div className={s.sortControls}>
+              <Toggle
                 checked={liveOnly}
-                onChange={(e) => setLiveOnly(e.target.checked)}
+                onChange={setLiveOnly}
+                label="仅可实盘"
               />
-              仅可实盘
-            </label>
-            <select
-              className="edit-input"
-              style={{ width: 110, flex: '0 0 auto' }}
-              value={sort}
-              onChange={(e) => setSort(e.target.value as typeof sort)}
-            >
-              <option value="default">默认排序</option>
-              <option value="name">按名称</option>
-              <option value="recent">最近运行</option>
-            </select>
+              <Select
+                className={s.sortSelect}
+                options={SORT_OPTIONS}
+                value={sort}
+                onChange={(e) => setSort(e.target.value as typeof sort)}
+              />
+              <RefreshControl onRefresh={strategies.refetch} refreshing={strategies.loading || strategies.reconnecting} updatedAt={strategies.updatedAt} />
+            </div>
           </div>
-        </div>
 
-        {filtered.length === 0 && (
-          <div className="muted" style={{ textAlign: 'center', padding: 'var(--sp-5)' }}>
-            {strategies.loading ? '加载中…' : '没有匹配的策略'}
-          </div>
-        )}
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-4)' }}>
-          {(Object.keys(grouped) as (MarketKey | '')[])
-            .filter((k) => grouped[k].length > 0)
-            .map((key) => (
-              <section key={key || 'results'}>
-                {filter === 'all' && !search.trim() && (
-                  <div className="strategy-group-title">
-                    {GROUPS.find((g) => g.key === key)?.label}
-                    <span className="sub" style={{ fontWeight: 400 }}>
-                      {grouped[key].length} 个
-                    </span>
+          <AsyncStateBoundary
+            loading={strategies.loading}
+            error={strategies.error}
+            reconnecting={strategies.reconnecting}
+            hasData={strategies.data !== null}
+            isEmpty={filtered.length === 0}
+            onRetry={strategies.refetch}
+            loadingTitle="正在读取策略注册表…"
+            emptyTitle={list.length ? '没有匹配的策略' : '策略注册表为空'}
+            emptyDescription={list.length ? '尝试调整筛选条件或搜索关键词。' : undefined}
+          >
+            <div className="stack-4">
+              {(Object.keys(grouped) as (MarketKey | '')[])
+                .filter((k) => grouped[k].length > 0)
+                .map((key) => (
+                  <section key={key || 'results'}>
+                  {filter === 'all' && !search.trim() && (
+                    <div className={s.groupTitle}>
+                      {GROUPS.find((g) => g.key === key)?.label}
+                      <span className={`sub ${s.groupCount}`}>
+                        {grouped[key].length} 个
+                      </span>
+                    </div>
+                  )}
+                  <div className={s.grid}>
+                    {grouped[key].map((st) => (
+                      <StrategyCard
+                        key={st.name}
+                        st={st}
+                        last={lastRun(st.name)}
+                        running={running.has(st.name)}
+                        onClick={() => navigate(`/strategies/${st.name}`)}
+                        onRun={(e) => handleQuickRun(e, st.name)}
+                        onBacktest={(e) => {
+                          e.stopPropagation()
+                          navigate(`/strategies/${st.name}?tab=backtest`)
+                        }}
+                      />
+                    ))}
                   </div>
-                )}
-                <div className="strategy-grid">
-                  {grouped[key].map((st) => (
-                    <StrategyCard
-                      key={st.name}
-                      st={st}
-                      last={lastRun(st.name)}
-                      running={running.has(st.name)}
-                      onClick={() => navigate(`/strategies/${st.name}`)}
-                      onRun={(e) => handleQuickRun(e, st.name)}
-                    />
-                  ))}
-                </div>
-              </section>
-            ))}
+                  </section>
+                ))}
+            </div>
+          </AsyncStateBoundary>
         </div>
       </div>
-    </div>
+    </>
   )
 }
 
@@ -189,13 +207,31 @@ function StrategyCard({
   running,
   onClick,
   onRun,
+  onBacktest,
 }: {
   st: StrategyInfo
   last?: { result: { ok: boolean; count: number; error?: string }; ts: number }
   running: boolean
   onClick: () => void
   onRun: (e: React.MouseEvent) => void
+  onBacktest: (e: React.MouseEvent) => void
 }) {
+  const statusKey: 'idle' | 'running' | 'ok' | 'err' = running
+    ? 'running'
+    : last
+      ? last.result.ok
+        ? 'ok'
+        : 'err'
+      : 'idle'
+  const statusClass =
+    statusKey === 'running'
+      ? s.isRunning
+      : statusKey === 'ok'
+        ? s.isOk
+        : statusKey === 'err'
+          ? s.isErr
+          : s.isIdle
+
   const recent = last
     ? last.result.ok
       ? `最近运行 ${last.result.count} 条信号 · ${formatRelativeTime(last.ts)}`
@@ -203,29 +239,51 @@ function StrategyCard({
     : '未运行过'
 
   return (
-    <div className="strategy-card" onClick={onClick}>
-      <div className="strategy-card-head">
-        <div className="strategy-card-title">
-          <span>{st.name}</span>
-          <span className="strategy-card-badge market">{marketBadge(st.market)}</span>
-          {st.live_capable && <span className="strategy-card-badge live">可实盘</span>}
+    <div className={`${s.card} ${statusClass}`} role="button" tabIndex={0} onClick={onClick} onKeyDown={(event) => { if (event.key === 'Enter') onClick() }}>
+      <div className={s.cardHead}>
+        <div className={s.cardTitle}>
+          <span className={s.stratName}>{st.name}</span>
+        </div>
+        <div className={s.cardMeta}>
+          <span className={`${s.stratTag} ${s.stratTagMarket}`}>{marketBadge(st.market)}</span>
+          {st.live_capable && <span className={`${s.stratTag} ${s.stratTagLive}`}>实盘</span>}
         </div>
       </div>
-      <p className="strategy-card-desc">{st.description || '暂无描述'}</p>
-      <div className="strategy-card-foot">
-        <span className={`strategy-card-status ${last ? (last.result.ok ? 'ok' : 'err') : 'muted'}`}>
-          {recent}
-        </span>
-        <div style={{ display: 'flex', gap: 'var(--sp-2)', marginTop: 'auto', paddingTop: 'var(--sp-2)' }}>
-          <button
-            className="period-tab"
+      <p className={s.cardDesc}>{st.description || '—'}</p>
+      <div className={s.cardFoot}>
+        <div className={s.stratStatus}>
+          <span className={`${s.stratStatusDot} ${statusClass}`} />
+          <span className={`${s.stratStatusText} ${statusClass}`}>{recent}</span>
+        </div>
+        <div className={s.cardActions}>
+          <Button
+            variant="primary"
+            size="sm"
             onClick={onRun}
             disabled={running}
-            style={{ background: 'var(--accent)', color: '#fff' }}
+            loading={running}
           >
             {running ? '运行中…' : '快速运行'}
-          </button>
-          <button className="link-btn">详情 →</button>
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={onBacktest}
+            title="进入该策略的回测 Tab"
+          >
+            回测
+          </Button>
+          <Button
+            variant="link"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation()
+              onClick()
+            }}
+            title="进入策略工作台"
+          >
+            详情 →
+          </Button>
         </div>
       </div>
     </div>

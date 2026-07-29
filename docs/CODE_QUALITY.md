@@ -70,12 +70,12 @@
 
 ---
 
-## 5. 测试红线（改动必带测试）
+## 5. 网页发布验证
 
-- 每个策略**至少 1 个测试**：注册成功 + `produce()` 离线可跑（mock 网络）+ `backtest()` 返回 `BacktestResult`（不 raise）。
-- **单元测禁止真实网络**：数据源用本地 parquet / 合成 DataFrame；外部 API 用 `unittest.mock` 或 try/except 降级分支覆盖。
-- 全量 `uv run pytest tests/ -q` **必须全绿**才能合入。当前基线 **52 passed**。
-- 集成测试 `tests/test_integration.py` 的"期望策略集"随注册增减同步更新。
+- Python 代码必须通过 `compileall`，FastAPI 应用必须可导入。
+- React 前端必须通过 TypeScript 类型检查和生产构建。
+- 外部 API 在无密钥或网络不可用时必须明确降级，不得阻断网页启动。
+- 策略注册增减后同步检查策略列表 API 与网页路由。
 
 ---
 
@@ -86,7 +86,7 @@
 1. **只读先行**：先只统计、不写盘（如 `tools/repair_indices_parquet.py` 默认 dry-run）。
 2. **备份优先**：落盘前 `cp -r` 到 `_backup_<时间戳>/`，确认成功再动。
 3. **先问后动**：破坏性 / 不可逆操作（删数据、改生产配置、开实盘）**必须**显式获得确认，禁止自作主张。
-4. `vendored/` 视为只读；要改逻辑请提取到 `core/` 或 `strategies/`，不要直接编辑归档。
+4. 第三方最小运行时代码保存在对应策略的 `_upstream/`，修改时保留来源和许可证。
 
 ---
 
@@ -110,7 +110,7 @@ uv run python tools/scaffold_strategy.py --name myalpha --market a_shares --desc
 - [ ] 实盘默认关，双开关齐全
 - [ ] 重依赖懒加载，`import` 包零副作用
 - [ ] 类型标注 + docstring 完整
-- [ ] 新增/改动带测试，全量 pytest 绿
+- [ ] Python 编译、API 导入、前端类型检查和生产构建通过
 - [ ] 危险操作已备份 + 已确认
 - [ ] 配置未硬编码，阈值走 yaml
 

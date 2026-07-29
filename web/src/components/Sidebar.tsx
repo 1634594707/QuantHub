@@ -1,16 +1,12 @@
-import { useEffect, useState } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import type { StrategyInfo } from '../api/types'
 import {
-  IconGrid,
-  IconSignal,
-  IconChart,
-  IconCog,
-  IconLayers,
-  IconActivity,
-  IconHeart,
-  IconChevron,
-} from './icons'
+  isWorkspaceItemActive,
+  workspacesForMode,
+  workspaceForPath,
+} from '../navigation/workspaces'
+import type { InterfaceMode } from '../hooks/useInterfaceMode'
+import { IconChevron } from './icons'
 
 interface Props {
   collapsed: boolean
@@ -19,164 +15,135 @@ interface Props {
   onNavigate: () => void
   strategyCount?: number
   strategyList?: StrategyInfo[]
+  clock: Date
+  interfaceMode: InterfaceMode
 }
-
-interface NavChild {
-  key: string
-  label: string
-  to: string
-}
-interface NavItem {
-  key: string
-  label: string
-  icon?: typeof IconGrid
-  to?: string
-  end?: boolean
-  badge?: string
-  children?: NavChild[]
-}
-type NavEntry = NavItem | { section: string }
-
-const NAV = (strategyList: StrategyInfo[]): NavEntry[] => [
-  { section: '分析' },
-  { key: 'overview', label: '概览', icon: IconGrid, to: '/', end: true },
-  { key: 'signal', label: '信号', icon: IconSignal, to: '/signals' },
-  // 回测：已整合进策略工作台「回测」Tab（G6），不再独立重复页面
-  { key: 'backtest', label: '回测', icon: IconChart, to: '/strategies/supertrend?tab=backtest' },
-  {
-    key: 'strategy',
-    label: '策略模块',
-    icon: IconLayers,
-    to: '/strategies',
-    children: strategyList.map((s) => ({
-      key: `strat-${s.name}`,
-      label: s.name,
-      to: `/strategies/${s.name}`,
-    })),
-  },
-  { section: '工作台' },
-  { key: 'pa', label: 'PA 分析工作台', icon: IconActivity, to: '/pa' },
-  // 情感分析：本就是策略模块中的一个策略（name=sentiment），直接进其工作台（消除重复页）
-  { key: 'sentiment', label: '情感分析', icon: IconHeart, to: '/strategies/sentiment' },
-  { key: 'portfolio', label: '组合管理', icon: IconLayers, to: '/portfolio' },
-  { key: 'config', label: '配置', icon: IconCog, to: '/config' },
-]
 
 export default function Sidebar({
   collapsed,
   mobileOpen,
   onToggleCollapse,
   onNavigate,
+  strategyCount,
   strategyList = [],
+  clock,
+  interfaceMode,
 }: Props) {
   const location = useLocation()
-  const onStratDetail = location.pathname.startsWith('/strategies/')
-  const [stratOpen, setStratOpen] = useState(onStratDetail)
-
-  useEffect(() => {
-    if (onStratDetail) setStratOpen(true)
-  }, [onStratDetail])
-
-  const items: NavEntry[] = NAV(strategyList)
+  const activeWorkspace = workspaceForPath(location.pathname)
+  const clockText = clock.toLocaleTimeString('zh-CN', { hour12: false })
+  const visibleWorkspaces = workspacesForMode(interfaceMode)
 
   return (
-    <aside className={`sidebar ${collapsed ? 'collapsed' : ''} ${mobileOpen ? 'mobile-open' : ''}`} aria-label="主导航">
-      <div className="brand">
-        <div className="brand-logo">Q</div>
-        <span className="brand-name">QuantHub</span>
+    <aside
+      className={`sidebar ${collapsed ? 'collapsed' : ''} ${mobileOpen ? 'mobile-open' : ''}`}
+      aria-label="工作区导航"
+    >
+      <div className="workspace-rail">
+        <NavLink className="rail-brand" to="/" onClick={onNavigate} aria-label="QuantHub 驾驶舱">
+          <span>Q</span>
+        </NavLink>
+
+        <nav className="workspace-tabs" aria-label="一级工作区">
+          {visibleWorkspaces.map((workspace) => {
+            const Icon = workspace.icon
+            const active = workspace.key === activeWorkspace.key
+            return (
+              <NavLink
+                key={workspace.key}
+                to={workspace.to}
+                className={`workspace-tab ${active ? 'active' : ''}`}
+                onClick={onNavigate}
+                title={workspace.label}
+                aria-label={workspace.label}
+                aria-current={active ? 'page' : undefined}
+              >
+                <Icon size={20} />
+                <span>{workspace.shortLabel}</span>
+              </NavLink>
+            )
+          })}
+        </nav>
+
         <button
-          className="collapse-btn"
+          type="button"
+          className="rail-collapse"
           onClick={onToggleCollapse}
-          aria-label={collapsed ? '展开侧边栏' : '折叠侧边栏'}
-          title={collapsed ? '展开' : '折叠'}
+          aria-label="展开侧边栏"
+          aria-pressed={collapsed}
+          title="展开侧边栏"
         >
-          <IconChevron size={14} className={collapsed ? 'chevron-flip' : undefined} />
+          <IconChevron size={16} />
         </button>
       </div>
 
-      <nav className="nav">
-        {items.map((it, i) => {
-          if ('section' in it) {
-            return (
-              <div key={`s${i}`} className="nav-section">
-                {it.section}
-              </div>
-            )
-          }
-
-          const Icon = it.icon!
-
-          // 可展开子菜单（策略模块）：折叠态下退化为图标链接到列表页
-          if (it.children) {
-            if (collapsed) {
-              return (
-                <NavLink
-                  key={it.key}
-                  to={it.to!}
-                  className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-                  onClick={onNavigate}
-                  title={it.label}
-                >
-                  <Icon className="nav-icon" />
-                </NavLink>
-              )
-            }
-            const isParentActive =
-              location.pathname === it.to || location.pathname.startsWith(`${it.to}/`)
-            return (
-              <div key={it.key} className="nav-group">
-                <button
-                  type="button"
-                  className={`nav-item ${isParentActive ? 'active' : ''}`}
-                  onClick={() => setStratOpen((v) => !v)}
-                  title={it.label}
-                  aria-expanded={stratOpen}
-                >
-                  <Icon className="nav-icon" />
-                  <span className="nav-label">{it.label}</span>
-                  <IconChevron size={14} className={`nav-caret ${stratOpen ? 'open' : ''}`} />
-                </button>
-                {stratOpen && (
-                  <div className="nav-sub">
-                    {it.children.map((c) => (
-                      <NavLink
-                        key={c.key}
-                        to={c.to}
-                        className={({ isActive }) => `nav-subitem ${isActive ? 'active' : ''}`}
-                        onClick={onNavigate}
-                        title={c.label}
-                      >
-                        {c.label}
-                      </NavLink>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )
-          }
-
-          return (
-            <NavLink
-              key={it.key}
-              to={it.to!}
-              end={it.end}
-              className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-              onClick={onNavigate}
-              title={it.label}
+      <div className="context-nav-shell">
+        <header className="context-nav-head">
+          <div>
+            <strong>QuantHub</strong>
+            <span>{activeWorkspace.label}工作区</span>
+          </div>
+          <div className="context-nav-tools">
+            <span className="context-nav-count">
+              {activeWorkspace.key === 'strategy' ? `${strategyCount ?? 0} 策略` : `${activeWorkspace.items.length} 入口`}
+            </span>
+            <button
+              type="button"
+              className="context-collapse"
+              onClick={onToggleCollapse}
+              aria-label="收起侧边栏"
+              title="收起侧边栏"
             >
-              <Icon className="nav-icon" />
-              <span className="nav-label">{it.label}</span>
-              {it.badge && <span className="nav-badge">{it.badge}</span>}
-            </NavLink>
-          )
-        })}
-      </nav>
+              <IconChevron size={15} className="chevron-flip" />
+            </button>
+          </div>
+        </header>
 
-      <div className="sidebar-foot">
-        <div className="avatar" style={{ width: 30, height: 30, fontSize: 12 }}>
-          a
-        </div>
-        <span>v0.1 · 设计系统预览</span>
+        <nav className="context-nav" aria-label={`${activeWorkspace.label}二级导航`}>
+          {(visibleWorkspaces.find((workspace) => workspace.key === activeWorkspace.key)?.items ?? []).map((item) => {
+            const Icon = item.icon
+            const active = isWorkspaceItemActive(item, location.pathname)
+            return (
+              <NavLink
+                key={item.key}
+                to={item.to}
+                end={item.end}
+                className={`context-nav-item ${active ? 'active' : ''}`}
+                onClick={onNavigate}
+                aria-current={active ? 'page' : undefined}
+              >
+                <Icon size={17} />
+                <span>{item.label}</span>
+                {item.key === 'strategy' && strategyCount ? (
+                  <span className="context-nav-badge">{strategyCount}</span>
+                ) : null}
+              </NavLink>
+            )
+          })}
+
+          {activeWorkspace.key === 'strategy' && strategyList.length > 0 ? (
+            <div className="context-strategies">
+              <span className="context-strategies-label">已注册策略</span>
+              {strategyList.map((strategy) => (
+                <NavLink
+                  key={strategy.name}
+                  to={`/strategies/${strategy.name}`}
+                  className={({ isActive }) => `context-strategy ${isActive ? 'active' : ''}`}
+                  onClick={onNavigate}
+                  title={strategy.description ? `${strategy.name} - ${strategy.description}` : strategy.name}
+                >
+                  <span className="context-strategy-dot" aria-hidden="true" />
+                  <span>{strategy.name}</span>
+                </NavLink>
+              ))}
+            </div>
+          ) : null}
+        </nav>
+
+        <footer className="context-nav-foot" title={`v0.1 · 本地终端 · ${clockText}`}>
+          <span>v0.1 · 本地终端</span>
+          <span className="mono-num">{clockText}</span>
+        </footer>
       </div>
     </aside>
   )

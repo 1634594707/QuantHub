@@ -48,6 +48,7 @@ class RiskChecker:
     def check(self, intent: dict, ctx: RiskContext) -> None:
         """校验下单意图。不通过抛 RiskError。"""
         order_value = float(intent.get("notional", 0))
+        side = str(intent.get("side", "buy"))
         if order_value <= 0:
             raise RiskError("下单金额非正")
 
@@ -55,7 +56,8 @@ class RiskChecker:
             raise RiskError("总权益非正")
 
         # 单标的仓位
-        new_symbol_value = ctx.symbol_position_value + order_value
+        direction = -1.0 if side == "sell" else 1.0
+        new_symbol_value = max(0.0, ctx.symbol_position_value + direction * order_value)
         if new_symbol_value / ctx.total_equity > self.max_position_per_symbol:
             raise RiskError(
                 f"单标的仓位超限: {new_symbol_value / ctx.total_equity:.2%} > "
@@ -63,7 +65,7 @@ class RiskChecker:
             )
 
         # 总敞口
-        new_total = ctx.position_value + order_value
+        new_total = max(0.0, ctx.position_value + direction * order_value)
         if new_total / ctx.total_equity > self.max_total_exposure:
             raise RiskError(
                 f"总敞口超限: {new_total / ctx.total_equity:.2%} > {self.max_total_exposure:.2%}"

@@ -1,0 +1,171 @@
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  border: 1px solid transparent;
+  border-radius: var(--r-md);
+  font-family: inherit;
+  font-weight: var(--fw-semibold);
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--t-fast) var(--ease-out),
+    border-color var(--t-fast) var(--ease-out),
+    color var(--t-fast) var(--ease-out),
+    box-shadow var(--t-fast) var(--ease-out),
+    transform var(--t-instant) var(--ease-out);
+  user-select: none;
+  flex: none;
+}
+
+.button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.button:disabled {
+  border-color: var(--border);
+  background: var(--bg-subtle);
+  color: var(--text-3);
+  cursor: not-allowed;
+}
+
+.button:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+/* 尺寸 */
+.sm {
+  height: 30px;
+  padding: 0 var(--sp-3);
+  font-size: var(--fs-caption);
+}
+
+.md {
+  height: 36px;
+  padding: 0 var(--sp-4);
+  font-size: var(--fs-small);
+}
+
+.lg {
+  height: 42px;
+  padding: 0 var(--sp-5);
+  font-size: var(--fs-body);
+}
+
+/* 变体 */
+.primary {
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-color: var(--accent);
+}
+
+.primary:hover:not(:disabled) {
+  background: var(--accent-strong);
+  border-color: var(--accent-strong);
+}
+
+.primary:active:not(:disabled) {
+  background: var(--accent-press);
+  border-color: var(--accent-press);
+}
+
+.secondary {
+  background: var(--bg-elevated);
+  color: var(--text-1);
+  border-color: var(--border-strong);
+}
+
+.secondary:hover:not(:disabled) {
+  background: var(--surface-hover);
+  border-color: var(--border-focus);
+}
+
+.ghost {
+  background: transparent;
+  color: var(--text-2);
+  border-color: transparent;
+}
+
+.ghost:hover:not(:disabled) {
+  background: var(--surface-hover);
+  color: var(--text-1);
+}
+
+.danger {
+  background: var(--down);
+  color: #fff;
+  border-color: var(--down);
+}
+
+.danger:hover:not(:disabled) {
+  background: var(--down-ink);
+  border-color: var(--down-ink);
+}
+
+/* link 变体：无边框、无背景，仅文字 + 下划线 hover */
+.linkBtn {
+  background: none;
+  border: none;
+  color: var(--accent-strong);
+  font-weight: var(--fw-medium);
+  cursor: pointer;
+  padding: 0;
+  font-size: var(--fs-small);
+  transition: color var(--t-fast) var(--ease-out);
+}
+
+.linkBtn:hover:not(:disabled) {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.linkBtn:disabled {
+  color: var(--text-3);
+  cursor: not-allowed;
+}
+
+.link {
+  /* link 变体不需要尺寸 padding */
+}
+
+/* 内部元素 */
+.icon,
+.iconRight {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+}
+
+.icon svg,
+.iconRight svg {
+  width: 16px;
+  height: 16px;
+}
+
+.sm .icon svg,
+.sm .iconRight svg {
+  width: 14px;
+  height: 14px;
+}
+
+.lg .icon svg,
+.lg .iconRight svg {
+  width: 18px;
+  height: 18px;
+}
+
+.label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.spinner {
+  color: currentColor;
+}
+
+.fullWidth {
+  width: 100%;
+}

@@ -1,5 +1,6 @@
 import type { SignalResp } from '../api/types'
 import { dirBucket } from '../lib/signal-utils'
+import s from './SignalViz.module.css'
 
 /**
  * 方向占比环图：用 CSS conic-gradient 绘制做多/做空/观望三段，
@@ -27,26 +28,26 @@ export function DirectionDonut({ signals }: { signals: SignalResp[] }) {
   ]
 
   return (
-    <div className="signal-viz">
-      <div className="donut-wrap">
+    <div className={s.visualization}>
+      <div className={s.donutWrap}>
         <div
-          className="donut"
+          className={s.donut}
           style={{ background: grad }}
           role="img"
           aria-label={`方向分布：做多 ${buy}，做空 ${sell}，观望 ${hold}`}
         >
-          <div className="center">
+          <div className={s.donutCenter}>
             <b>{total}</b>
             <span>信号</span>
           </div>
         </div>
       </div>
-      <div className="donut-legend">
+      <div className={s.legend}>
         {legend.map((l) => (
-          <div className="li" key={l.label}>
-            <span className="dot" style={{ background: l.color }} />
+          <div className={s.legendItem} key={l.label}>
+            <span className={s.legendDot} style={{ background: l.color }} />
             <span>{l.label}</span>
-            <span className="cnt">{l.cnt}</span>
+            <span className={s.legendCount}>{l.cnt}</span>
           </div>
         ))}
       </div>
@@ -69,19 +70,19 @@ export function ScoreHistogram({ signals }: { signals: SignalResp[] }) {
 
   return (
     <div>
-      <div className="histo">
+      <div className={s.histogram}>
         {buckets.map((c, i) => (
           <div
-            className="bar"
+            className={s.histogramBar}
             key={i}
             title={`${(i / 10).toFixed(1)}–${((i + 1) / 10).toFixed(1)}：${c} 条`}
           >
-            <span className="val">{c}</span>
-            <div className="fill" style={{ height: `${(c / max) * 100}%` }} />
+            <span className={s.histogramValue}>{c}</span>
+            <div className={s.histogramFill} style={{ height: `${(c / max) * 100}%` }} />
           </div>
         ))}
       </div>
-      <div className="histo-axis">
+      <div className={s.histogramAxis}>
         <span>0</span>
         <span>0.5</span>
         <span>1.0</span>
@@ -104,18 +105,18 @@ export function SourceBars({ signals }: { signals: SignalResp[] }) {
   const max = Math.max(...entries.map((e) => e[1]))
 
   return (
-    <div className="source-bars">
-      <div className="detail-section-title">按来源策略分布</div>
-      <div className="source-bars-list">
+    <div className={s.sourceBars}>
+      <div className={s.sourceTitle}>按来源策略分布</div>
+      <div className={s.sourceList}>
         {entries.map(([src, cnt]) => (
-          <div className="src-row" key={src}>
-            <span className="src-name" title={src}>
+          <div className={s.sourceRow} key={src}>
+            <span className={s.sourceName} title={src}>
               {src}
             </span>
-            <span className="src-track">
-              <span className="src-fill" style={{ width: `${(cnt / max) * 100}%` }} />
+            <span className={s.sourceTrack}>
+              <span className={s.sourceFill} style={{ width: `${(cnt / max) * 100}%` }} />
             </span>
-            <span className="src-cnt mono">{cnt}</span>
+            <span className={s.sourceCount}>{cnt}</span>
           </div>
         ))}
       </div>

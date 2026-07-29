@@ -117,6 +117,16 @@ class Notifier:
                 logger.warning("未知告警通道: %s", ch)
         return results
 
+    def send_to(self, channel: str, msg: AlertMessage) -> bool:
+        """向一个精确通道发送测试消息，不改变已启用通道列表。"""
+        if channel == "wecom":
+            return self._send_wecom(msg)
+        if channel == "webhook":
+            return self._send_webhook(msg)
+        if channel == "telegram":
+            return self._send_telegram(msg)
+        raise ValueError(f"未知告警通道: {channel}")
+
     def send_batch(self, messages: Iterable[AlertMessage]) -> list[dict[str, bool]]:
         return [self.send(m) for m in messages]
 
@@ -130,3 +140,8 @@ def get_notifier() -> Notifier:
     if _notifier is None:
         _notifier = Notifier()
     return _notifier
+
+
+def reset_notifier() -> None:
+    global _notifier
+    _notifier = None

@@ -1,0 +1,67 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: var(--sp-8) var(--sp-5);
+  gap: var(--sp-2);
+  min-height: 200px;
+}
+
+.icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--surface-hover);
+  color: var(--text-3);
+  margin-bottom: var(--sp-1);
+}
+
+.icon svg {
+  width: 24px;
+  height: 24px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.5;
+}
+
+.title {
+  font-size: var(--fs-h3);
+  font-weight: var(--fw-bold);
+  color: var(--text-1);
+}
+
+.desc {
+  font-size: var(--fs-small);
+  color: var(--text-2);
+  line-height: var(--lh-relaxed);
+  max-width: 48ch;
+}
+
+.action {
+  margin-top: var(--sp-3);
+}
+
+/* loading 变体 */
+.loading .title {
+  color: var(--text-2);
+  font-weight: var(--fw-medium);
+}
+
+/* error 变体 */
+.error .title {
+  color: var(--down-ink);
+}
+
+.error .desc {
+  color: var(--down-ink);
+  opacity: 0.85;
+}
+
+/* no-data 变体 */
+.noData .title {
+  color: var(--text-2);
+}

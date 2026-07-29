@@ -52,6 +52,14 @@ export const IconGrid = ({ size = 20, className }: P) => (
     <rect x="14" y="14" width="7" height="7" rx="1.5" />
   </svg>
 )
+export const IconNetwork = ({ size = 20, className }: P) => (
+  <svg {...base(size)} className={className}>
+    <circle cx="12" cy="5" r="2.4" />
+    <circle cx="5" cy="18" r="2.4" />
+    <circle cx="19" cy="18" r="2.4" />
+    <path d="M12 7.4 6.2 16M12 7.4 17.8 16M7.4 18h9.2" />
+  </svg>
+)
 export const IconSignal = ({ size = 20, className }: P) => (
   <svg {...base(size)} className={className}>
     <path d="M3 17l5-5 4 4 8-8" />
@@ -64,6 +72,19 @@ export const IconChart = ({ size = 20, className }: P) => (
     <rect x="7" y="10" width="3" height="7" />
     <rect x="12" y="6" width="3" height="11" />
     <rect x="17" y="13" width="3" height="4" />
+  </svg>
+)
+export const IconBeaker = ({ size = 20, className }: P) => (
+  <svg {...base(size)} className={className}>
+    <path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.8 3h10.4a2 2 0 0 0 1.8-3l-5-9V3" />
+    <path d="M7.5 14h9" />
+  </svg>
+)
+export const IconWallet = ({ size = 20, className }: P) => (
+  <svg {...base(size)} className={className}>
+    <path d="M3 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v1" />
+    <path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2H5" />
+    <circle cx="16.5" cy="13" r="1.2" fill="currentColor" stroke="none" />
   </svg>
 )
 export const IconFlask = ({ size = 20, className }: P) => (
@@ -89,6 +110,14 @@ export const IconActivity = ({ size = 20, className }: P) => (
     <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
   </svg>
 )
+// 瞄准镜：PA 分析（Performance Attribution 归因分析）专用，与 IconActivity 心电图视觉区分
+export const IconCrosshair = ({ size = 20, className }: P) => (
+  <svg {...base(size)} className={className}>
+    <circle cx="12" cy="12" r="7" />
+    <path d="M12 2v4M12 18v4M2 12h4M18 12h4" />
+    <circle cx="12" cy="12" r="2" fill="currentColor" stroke="none" />
+  </svg>
+)
 export const IconHeart = ({ size = 20, className }: P) => (
   <svg {...base(size)} className={className}>
     <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
@@ -97,5 +126,14 @@ export const IconHeart = ({ size = 20, className }: P) => (
 export const IconChevron = ({ size = 16, className }: P) => (
   <svg {...base(size)} className={className}>
     <path d="m9 18 6-6-6-6" />
+  </svg>
+)
+export const IconNews = ({ size = 20, className }: P) => (
+  <svg {...base(size)} className={className}>
+    <path d="M4 4h13a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H6a2 2 0 0 1-2-2V4z" />
+    <path d="M18 8h2a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-1" />
+    <line x1="8" y1="8" x2="14" y2="8" />
+    <line x1="8" y1="12" x2="14" y2="12" />
+    <line x1="8" y1="16" x2="12" y2="16" />
   </svg>
 )

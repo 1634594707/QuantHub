@@ -5,44 +5,9 @@ build-backend = "hatchling.build"
 [project]
 name = "quanthub-apps-pa-agent"
 version = "0.1.0"
-description = "QuantHub PA_Agent 桌面应用（PyQt6）：决策树 / DeepSeek 分析 / 快照 / 案例库，双轨并入"
+description = "QuantHub 网页 PA 分析视图模型"
 requires-python = ">=3.11,<3.13"
-dependencies = [
-    "requests>=2.31",
-    "pandas>=2.2",
-    "numpy>=1.26",
-    "pydantic>=2.7",
-    "loguru>=0.7",
-    "tenacity>=8.2",
-    "python-dotenv>=1.0",
-]
-
-[project.optional-dependencies]
-# 桌面 UI（默认不装，按需启用）：uv sync --extra pa-agent-desktop
-pa-agent-desktop = [
-    "PyQt6>=6.6",
-    "pyqtgraph>=0.13",
-    "openai>=1.40",
-    "tiktoken>=0.7",
-    "jsonschema>=4.22",
-    "cryptography>=42",
-]
-# 数据源 / 行情（按需启用）
-pa-agent-data = [
-    "akshare>=1.14",
-    "baostock>=0.8",
-    "tushare>=1.4",
-    "curl_cffi>=0.13",
-]
-# Windows 平台专属（MT5 / pywin32）
-pa-agent-win32 = [
-    "pywin32>=306; sys_platform == 'win32'",
-    "MetaTrader5>=5.0; sys_platform == 'win32'",
-]
+dependencies = []
 
 [tool.hatch.build.targets.wheel]
 packages = ["pa_agent"]
-
-# ===== 旗舰前端入口（PA_Agent PyQt6 桌面应用 = 产品前端主基调）=====
-[project.scripts]
-quanthub-desktop = "pa_agent.main:main"

@@ -1,0 +1,196 @@
+/* StrategyShared 专属样式 — 从内联 style 迁移
+   包含 ParamsEditor 与 SignalRow 两个共享组件。
+   动态方向色通过 --dir-color CSS 变量注入，避免内联 style。 */
+
+/* ---------------- ParamsEditor ---------------- */
+.box {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  background: var(--bg-subtle);
+}
+
+.sectionTitle {
+  font-size: var(--fs-body);
+  font-weight: var(--fw-semibold);
+}
+
+.fieldRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.fieldLabel {
+  font-size: var(--fs-caption);
+  color: var(--text-2);
+}
+
+.jsonHintRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.jsonHint {
+  font-size: var(--fs-small);
+  color: var(--text-2);
+}
+
+.jsonError {
+  font-size: var(--fs-caption);
+  color: var(--down-ink);
+}
+
+.jsonTextarea {
+  font-family: var(--font-mono);
+  font-size: var(--fs-small);
+  resize: vertical;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+/* ---------------- SignalRow ---------------- */
+.signalRow {
+  padding: var(--sp-3);
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  background: var(--bg-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  /* --dir-color 由组件按方向注入 */
+}
+
+.rowHead {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.symbol {
+  font-weight: var(--fw-bold);
+  font-size: var(--fs-h3);
+}
+
+.dirBadge {
+  font-size: var(--fs-caption);
+  padding: 2px 10px;
+  border-radius: var(--r-pill);
+  font-weight: var(--fw-bold);
+  color: #fff;
+  background: var(--dir-color, var(--text-2));
+}
+
+.score {
+  margin-left: auto;
+  font-size: var(--fs-caption);
+  color: var(--text-2);
+}
+
+.confRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.confLabel {
+  font-size: var(--fs-caption);
+  color: var(--text-2);
+  width: 56px;
+  flex-shrink: 0;
+}
+
+.confBar {
+  flex: 1;
+  height: 6px;
+  border-radius: var(--r-pill);
+  background: var(--bg-elevated);
+  overflow: hidden;
+}
+
+.confFill {
+  height: 100%;
+  width: var(--w, 0%);
+  border-radius: var(--r-pill);
+  background: var(--dir-color, var(--text-2));
+}
+
+.confValue {
+  width: 40px;
+  text-align: right;
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-semibold);
+  flex-shrink: 0;
+}
+
+.meta {
+  font-size: var(--fs-caption);
+  color: var(--text-2);
+}
+
+.reason {
+  font-size: var(--fs-small);
+  line-height: 1.6;
+  color: var(--text-1);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-sm);
+  background: var(--accent-weak);
+}
+
+.extraList,
+.tagList {
+  display: flex;
+  flex-wrap: wrap;
+  margin-top: 2px;
+}
+
+.extraList {
+  gap: 6px;
+}
+
+.tagList {
+  gap: 4px;
+}
+
+/* ---------------- SignalResults ---------------- */
+/* 从 StrategyDetailPage.module.css 迁入：SignalResults 已抽离到 StrategyShared */
+.histogramWrap {
+  margin-top: var(--sp-3);
+}
+
+.resultHead {
+  margin-top: var(--sp-3);
+}
+
+.sortSelect {
+  width: 110px;
+  flex: 0 0 auto;
+}
+.structuredList,
+.structuredObject {
+  display: grid;
+  gap: var(--sp-2);
+}
+
+.structuredList > div {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  gap: var(--sp-2);
+  align-items: center;
+}
+
+.structuredObject > label {
+  display: grid;
+  grid-template-columns: minmax(90px, auto) minmax(0, 1fr);
+  gap: var(--sp-2);
+  align-items: center;
+}
+
+.emptyParams {
+  color: var(--text-3);
+  font-size: var(--fs-caption);
+}

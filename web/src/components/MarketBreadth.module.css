@@ -1,0 +1,115 @@
+/* 市场广度组件局部样式
+   - 卡片/标题/legend 等沿用全局 .card/.card-head/.breadth/.breadth-legend 类
+   - bar 的三段宽度通过 CSS 变量 --w 注入（动态值），背景色按段固定 */
+
+/* 标题中的"样本" pill 左侧留白 */
+.samplePill {
+  margin-left: var(--sp-2);
+}
+
+.card {
+  overflow: hidden;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-4) var(--sp-4);
+}
+
+.note {
+  overflow: hidden;
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 涨跌分布条 */
+.bar {
+  display: flex;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+  background: var(--surface-2);
+}
+
+.barSeg {
+  width: var(--w, 0%);
+  height: 100%;
+  transition: width 0.3s ease;
+}
+
+.barSegUp {
+  background: var(--up);
+}
+
+.barSegFlat {
+  background: var(--text-3);
+}
+
+.barSegDown {
+  background: var(--down);
+}
+
+.legend {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--fs-micro);
+}
+
+.sectors {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-2);
+}
+
+.sector {
+  display: flex;
+  min-width: 0;
+  min-height: 34px;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--divider);
+  border-radius: var(--r-sm);
+  background: var(--bg-subtle);
+  color: var(--text-2);
+  font-size: var(--fs-caption);
+}
+
+.sector > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sectorChange {
+  flex-shrink: 0;
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-semibold);
+}
+
+.toggle {
+  align-self: flex-start;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--accent-strong);
+  cursor: pointer;
+  font-size: var(--fs-micro);
+}
+
+.toggle:hover,
+.toggle:focus-visible {
+  text-decoration: underline;
+  outline: none;
+}
+
+@media (max-width: 420px) {
+  .sectors {
+    grid-template-columns: 1fr;
+  }
+}

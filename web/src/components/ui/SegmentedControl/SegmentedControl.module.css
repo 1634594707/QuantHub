@@ -1,0 +1,59 @@
+.seg {
+  display: inline-flex;
+  padding: 3px;
+  gap: 3px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+
+.fullWidth {
+  display: flex;
+  width: 100%;
+}
+
+.fullWidth .btn {
+  flex: 1;
+}
+
+.btn {
+  border: none;
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+  border-radius: calc(var(--r-md) - 3px);
+  font-weight: var(--fw-semibold);
+  white-space: nowrap;
+  transition: color var(--t-fast) var(--ease-out),
+    background var(--t-fast) var(--ease-out),
+    box-shadow var(--t-fast) var(--ease-out);
+  font-family: inherit;
+}
+
+.btn:hover:not(.active) {
+  color: var(--text-1);
+}
+
+.btn:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+.active {
+  background: var(--accent);
+  color: var(--accent-contrast);
+  box-shadow: 0 2px 8px var(--accent-weak);
+}
+
+/* 尺寸 */
+.sm .btn {
+  padding: 5px 10px;
+  font-size: var(--fs-caption);
+  min-height: 26px;
+}
+
+.md .btn {
+  padding: 7px 14px;
+  font-size: var(--fs-small);
+  min-height: 32px;
+}

@@ -1,20 +1,16 @@
 """Shared view-model layer for PA Agent analysis results.
 
-This module extracts the data-binding logic that the PyQt6 GUI panels
-(``gui/decision_panel.py``, ``gui/future_trend_panel.py``,
-``gui/decision_tree_panel.py``) perform, and exposes it as **pure-Python**
-functions returning plain ``dict`` / ``list`` structures.
+This module exposes the PA analysis data-binding logic as **pure-Python**
+functions returning plain ``dict`` / ``list`` structures for the web API.
 
 Why a shared layer
 -------------------
-The desktop GUI and the Streamlit web workbench (``apps/dashboard``) need the
-same structured view of an ``AnalysisRecord``. Instead of duplicating the
-field-extraction logic (which is the real "rendering" work), both front-ends
-call these functions. This module must **never** import PyQt — it only depends
-on the pure-Python helpers in ``pa_agent.util`` / ``pa_agent.ai``.
+The React workbench needs a stable structured view of an ``AnalysisRecord``.
+Keeping field extraction here lets the FastAPI layer stay thin and keeps this
+package independent from any GUI framework.
 
 Each ``build_*_view`` accepts the raw record dict (``AnalysisRecord.model_dump()``)
-so it works identically on desktop and web.
+so it can be serialized directly by the web API.
 """
 
 from __future__ import annotations
@@ -209,6 +205,9 @@ def build_decision_view(
             "reasoning": str(decision.get("trade_confidence_reasoning") or "").strip(),
         },
         "reasoning": str(reasoning) if reasoning else "",
+        "key_factors": [str(x) for x in (decision.get("key_factors") or [])],
+        "watch_points": [str(x) for x in (decision.get("watch_points") or [])],
+        "risk_assessment": str(decision.get("risk_assessment") or ""),
     }
     if view["trade_confidence"]["score"] is not None:
         view["trade_confidence"]["color"] = _score_color(view["trade_confidence"]["score"])

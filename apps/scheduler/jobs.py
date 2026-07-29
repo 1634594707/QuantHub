@@ -97,7 +97,7 @@ def start() -> None:
                 CronTrigger(
                     minute=minute, hour=hour, day=day, month=month, day_of_week=day_of_week
                 ),
-                args=[job["func_name"]],
+                args=[job["name"]],
                 id=job["name"],
                 name=job["name"],
                 replace_existing=True,
@@ -133,21 +133,18 @@ def _run_strategy(strategy_name: str) -> None:
         logger.exception("策略执行失败: %s", strategy_name)
 
 
-def _dispatch_job(func_name: str) -> None:
-    """按函数全路径动态导入并执行；通用策略入口以 __run_strategy__:<name> 标识。"""
-    import importlib
+def _dispatch_job(job_name: str) -> None:
+    """APScheduler 只创建持久化运行记录，任务由自动化执行器消费。"""
+    from apps.api.domains.automation import service as automation_service
 
-    if func_name.startswith("__run_strategy__:"):
-        strategy_name = func_name.split(":", 1)[1]
-        _run_strategy(strategy_name)
-        return
-    module_path, _, fn_name = func_name.rpartition(".")
     try:
-        mod = importlib.import_module(module_path)
-        fn = getattr(mod, fn_name)
-        fn()
+        automation_service.submit_run(
+            job_name,
+            actor="scheduler",
+            trigger_type="scheduled",
+        )
     except Exception:
-        logger.exception("任务执行失败: %s", func_name)
+        logger.exception("任务入队失败: %s", job_name)
 
 
 if __name__ == "__main__":

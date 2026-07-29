@@ -1,8 +1,10 @@
 import { useState } from 'react'
+import type { CSSProperties } from 'react'
 import type { MarketBreadthResp } from '../api/types'
 import { BREADTH, SECTORS } from '../data/mock'
+import s from './MarketBreadth.module.css'
 
-const PREVIEW_COUNT = 5
+const PREVIEW_COUNT = 4
 
 export default function MarketBreadth({
   data,
@@ -12,28 +14,42 @@ export default function MarketBreadth({
   const [expanded, setExpanded] = useState(false)
   const b = data || BREADTH
   const sectors = data?.sectors || SECTORS
-  const total = b.up + b.flat + b.down
+  const total = Math.max(1, b.up + b.flat + b.down)
   const pct = (v: number) => ((v / total) * 100).toFixed(1)
   const top = [...sectors].sort((a, c) => c.chgPct - a.chgPct)
   const visible = expanded ? top : top.slice(0, PREVIEW_COUNT)
-  const hidden = top.length - PREVIEW_COUNT
+  const hidden = Math.max(0, top.length - PREVIEW_COUNT)
+  const marketTone = b.up > b.down ? '上涨占优' : b.down > b.up ? '下跌占优' : '多空均衡'
 
   return (
-    <div className="card">
+    <div className={`card ${s.card}`}>
       <div className="card-head">
         <div className="card-title">
-          市场广度 <span className="sub">全市涨跌分布</span>
-          {b.sample && <span className="src-pill warn" style={{ marginLeft: 'var(--sp-2)' }}>样本</span>}
+          市场广度 <span className="sub">{marketTone}</span>
+          {b.sample && <span className={`src-pill warn ${s.samplePill}`}>样本</span>}
         </div>
       </div>
-      {b.note && <div className="breadth-note">{b.note}</div>}
-      <div className="breadth">
-        <div className="breadth-bar" role="img" aria-label={`上涨 ${b.up} 平 ${b.flat} 下跌 ${b.down}`}>
-          <i style={{ width: pct(b.up) + '%', background: 'var(--up)' }} />
-          <i style={{ width: pct(b.flat) + '%', background: 'var(--text-3)' }} />
-          <i style={{ width: pct(b.down) + '%', background: 'var(--down)' }} />
+      <div className={s.body}>
+        {b.note && <div className={s.note} title={b.note}>{b.note}</div>}
+        <div
+          className={s.bar}
+          role="img"
+          aria-label={`上涨 ${b.up} 平 ${b.flat} 下跌 ${b.down}`}
+        >
+          <i
+            className={`${s.barSeg} ${s.barSegUp}`}
+            style={{ '--w': pct(b.up) + '%' } as CSSProperties}
+          />
+          <i
+            className={`${s.barSeg} ${s.barSegFlat}`}
+            style={{ '--w': pct(b.flat) + '%' } as CSSProperties}
+          />
+          <i
+            className={`${s.barSeg} ${s.barSegDown}`}
+            style={{ '--w': pct(b.down) + '%' } as CSSProperties}
+          />
         </div>
-        <div className="breadth-legend">
+        <div className={s.legend}>
           <span className="up">
             涨 <b>{b.up}</b> ({pct(b.up)}%)
           </span>
@@ -45,15 +61,15 @@ export default function MarketBreadth({
           </span>
         </div>
 
-        <div className="breadth-sectors">
-          {visible.map((s) => {
-            const up = s.chgPct >= 0
+        <div className={s.sectors}>
+          {visible.map((sec) => {
+            const up = sec.chgPct >= 0
             return (
-              <div className="breadth-sector" key={s.name}>
-                <span className="name">{s.name}</span>
-                <span className={`chg mono ${up ? 'up' : 'down'}`}>
+              <div className={s.sector} key={sec.name}>
+                <span>{sec.name}</span>
+                <span className={`mono ${s.sectorChange} ${up ? 'up' : 'down'}`}>
                   {up ? '+' : ''}
-                  {s.chgPct.toFixed(2)}%
+                  {sec.chgPct.toFixed(2)}%
                 </span>
               </div>
             )
@@ -63,7 +79,7 @@ export default function MarketBreadth({
         {hidden > 0 && (
           <button
             type="button"
-            className="breadth-toggle"
+            className={s.toggle}
             onClick={() => setExpanded((v) => !v)}
           >
             {expanded ? '收起行业' : `展开 ${hidden} 个行业`}

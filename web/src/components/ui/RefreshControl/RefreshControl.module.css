@@ -1,0 +1,27 @@
+.control {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+}
+
+.time {
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.stale {
+  color: var(--warn-ink);
+  font-weight: 700;
+}
+
+@media (max-width: 560px) {
+  .control {
+    width: 100%;
+    justify-content: space-between;
+  }
+}

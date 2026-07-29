@@ -1,0 +1,50 @@
+.wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.select {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-1);
+  border-radius: var(--r-md);
+  padding: 0 var(--sp-7) 0 var(--sp-3);
+  font-family: inherit;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-medium);
+  cursor: pointer;
+  outline: none;
+  transition: border-color var(--t-fast) var(--ease-out),
+    box-shadow var(--t-fast) var(--ease-out);
+}
+
+.select:hover {
+  border-color: var(--border-strong);
+}
+
+.select:focus {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-focus);
+}
+
+.chevron {
+  position: absolute;
+  right: var(--sp-2);
+  color: var(--text-3);
+  pointer-events: none;
+  flex: none;
+}
+
+/* 尺寸 */
+.sm .select {
+  height: 30px;
+  font-size: var(--fs-caption);
+}
+
+.md .select {
+  height: 36px;
+}

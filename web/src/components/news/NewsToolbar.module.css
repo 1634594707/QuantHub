@@ -1,0 +1,65 @@
+/* NewsToolbar 专属样式 — 从内联 style 迁移 */
+
+/* API 增强开关：不随工具栏伸缩 */
+.apiToggle {
+  flex: none;
+}
+
+.limitControl {
+  display: inline-flex;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg-subtle);
+}
+
+.limitControl button {
+  min-height: 36px;
+  padding: 7px 14px;
+  border: 0;
+  border-radius: calc(var(--r-md) - 3px);
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+  font-size: var(--fs-13);
+  font-weight: 700;
+}
+
+.limitControl button:hover {
+  color: var(--text-1);
+}
+
+.limitActive {
+  background: var(--accent) !important;
+  color: var(--accent-contrast) !important;
+}
+
+/* 引擎状态徽标按钮：可点击的 src-pill 变体 */
+.healthPill {
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.healthPill:hover {
+  opacity: 0.85;
+}
+
+/* 状态指示圆点 */
+.healthDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.healthDotOk {
+  background: var(--up);
+}
+
+.healthDotWarn {
+  background: var(--warn);
+}

@@ -1,0 +1,31 @@
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.label {
+  font-size: var(--fs-small);
+  font-weight: var(--fw-semibold);
+  color: var(--text-2);
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.required {
+  color: var(--down-ink);
+  font-weight: var(--fw-heavy);
+}
+
+.hint {
+  font-size: var(--fs-caption);
+  color: var(--text-3);
+  line-height: var(--lh-snug);
+}
+
+.error {
+  font-size: var(--fs-caption);
+  color: var(--down-ink);
+  line-height: var(--lh-snug);
+}

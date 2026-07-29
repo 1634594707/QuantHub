@@ -1,0 +1,59 @@
+/* EnsemblePage 专属样式 — 从内联 style 迁移
+   动态宽度（进度条 / 投票占比）保留为内联，因值依赖运行时数据。 */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+}
+
+/* 控制条：横向排列，可换行 */
+.controlBar {
+  padding: var(--sp-3);
+  display: flex;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* 字段组：纵向 label + control */
+.fieldGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.fieldLabel {
+  font-size: var(--fs-caption);
+  color: var(--text-3);
+}
+
+.symbolInput {
+  width: 140px;
+}
+
+.marketSelect {
+  width: 96px;
+}
+
+.runBtn {
+  margin-top: auto;
+}
+
+.publishBar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: 1px solid var(--divider);
+  color: var(--text-2);
+  font-size: var(--fs-caption);
+}
+
+/* 贡献者列表：加载 / 空态提示 */
+.contribHint {
+  font-size: var(--fs-small);
+  padding: var(--sp-3);
+  color: var(--text-3);
+}

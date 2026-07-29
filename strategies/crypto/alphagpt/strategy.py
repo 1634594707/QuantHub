@@ -175,7 +175,7 @@ class AlphaGptStrategy(StrategyBase):
             state["i"] += 1
 
         engine = EventEngine(initial_capital=initial_capital)
-        result = engine.run(df, on_bar)
+        result = engine.run(df, on_bar, periods_per_year=365)
         return {
             "engine": result.engine,
             "metrics": result.metrics,

@@ -39,7 +39,7 @@ class GridResult:
     metrics: dict[str, float] = field(default_factory=dict)
     extra: dict = field(default_factory=dict)
 
-    def to_backtest_result(self) -> BacktestResult:
+    def to_backtest_result(self, periods_per_year: int = 365) -> BacktestResult:
         """转换为统一 BacktestResult（供策略 backtest() 统一返回）。"""
         from core.backtest.engine import BacktestResult
 
@@ -68,7 +68,9 @@ class GridBacktester:
     def __init__(self, config: GridConfig | None = None) -> None:
         self.config = config or GridConfig()
 
-    def run(self, klines: pd.DataFrame, config: GridConfig | None = None) -> GridResult:
+    def run(
+        self, klines: pd.DataFrame, config: GridConfig | None = None, periods_per_year: int = 365
+    ) -> GridResult:
         cfg = config or self.config
         if klines.empty or len(klines) < 2:
             return GridResult(
@@ -151,7 +153,7 @@ class GridBacktester:
         max_dd = float(drawdown.min()) if not drawdown.empty else 0.0
 
         returns = eq_df["equity"].pct_change().dropna()
-        metrics = compute_metrics(returns, final_equity, max_dd)
+        metrics = compute_metrics(returns, final_equity, max_dd, periods_per_year=periods_per_year)
 
         return GridResult(
             equity_curve=eq_df,

@@ -6,53 +6,76 @@
 
 设计要点：
     - 启动即 discover_and_register()，暴露全部策略
-    - /strategies/{name}/run 通过 inspect 过滤参数，兼容异构 produce() 签名
-      （有的吃 codes，有的无参），单个策略出错不影响网关
-    - 信号总线可读可写，便于外部系统注入 / 订阅
+    - 所有业务路由已按领域拆分到 ``apps/api/domains/``，通过 ``include_router`` 挂载
+    - 本文件只保留 ``/health`` 健康检查和领域路由的注册入口
     - CORS 放开，方便本地看板直连
 
 启动::
 
-    uv run uvicorn apps.api.main:app --host 0.0.0.0 --port 8000
+    uv run uvicorn apps.api.main:app --host 0.0.0.0 --port 8001
 """
 
 from __future__ import annotations
 
-import inspect
 import logging
-import os
-import re
+import hashlib
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Any
 
-import pandas as pd
-import requests
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from pa_agent.view_models import (
-    build_decision_tree_view,
-    build_decision_view,
-    build_future_trend_view,
-)
-from pydantic import BaseModel, Field
+from fastapi.responses import JSONResponse
 
 from core.config import get_config
-from core.data_feed.factory import get_data_source
-from core.data_feed.tencent_source import _to_tencent_code
-from core.signals import Signal, get_bus
-from strategies import discover_and_register, get_strategy, list_strategies
-from strategies.ai_analysis.pa_agent.two_stage import run_two_stage
+from strategies import discover_and_register, list_strategies
 
-from . import store
+from .deployment import load_settings
+
+# Domain routers (modularized routes)
+from .domains.automation import router as automation_router
+from .domains.alerts import router as alerts_router
+from .domains.backups import router as backups_router
+from .domains.ensemble import router as ensemble_router
+from .domains.governance import auth as governance_auth
+from .domains.governance import repository as governance_repository
+from .domains.governance import router as governance_router
+from .domains.incidents import router as incidents_router
+from .domains.instrument import router as instrument_router
+from .domains.ledger import router as ledger_router
+from .domains.market import router as market_router
+from .domains.market_data import router as market_data_router
+from .domains.news import router as news_router
+from .domains.portfolio import router as portfolio_router
+from .domains.research import router as research_router
+from .domains.search import router as search_router
+from .domains.settings import router as settings_router
+from .domains.signals import router as signals_router
+from .domains.simulation import router as simulation_router
+from .domains.strategies import router as strategies_router
+from .domains.strategy_lab import router as strategy_lab_router
+from .domains.tasks import router as tasks_router
 
 # 加载 apps/api/.env（含 DEEPSEEK_API_KEY 等密钥）；文件缺失时静默跳过
 load_dotenv(Path(__file__).resolve().parent / ".env")
 
 logger = logging.getLogger(__name__)
+
+
+def _source_build_id() -> str:
+    root = Path(__file__).resolve().parents[2]
+    digest = hashlib.sha256()
+    for source_root in (root / "apps", root / "core", root / "strategies"):
+        for path in sorted(source_root.rglob("*.py")):
+            digest.update(path.relative_to(root).as_posix().encode("utf-8"))
+            digest.update(path.read_bytes())
+    return digest.hexdigest()[:12]
+
+
+PROCESS_STARTED_AT = datetime.now().astimezone().isoformat(timespec="seconds")
+SOURCE_BUILD_ID = _source_build_id()
 
 _DISCOVERED = False
 
@@ -67,235 +90,102 @@ def _ensure_discovered() -> None:
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     _ensure_discovered()
-    yield
+    from .domains.alerts import service as alerts_service
+    from .domains.automation import service as automation_service
+
+    automation_service.recover_pending_runs()
+    alerts_service.start_monitor()
+    try:
+        yield
+    finally:
+        alerts_service.stop_monitor()
 
 
-app = FastAPI(title="QuantHub API", version="0.1.0", lifespan=_lifespan)
+deployment = load_settings()
+app = FastAPI(title="QuantHub API", version="0.2.0", lifespan=_lifespan)
+
+
+@app.middleware("http")
+async def governance_middleware(request: Request, call_next):
+    if request.url.path == "/health" or request.method == "OPTIONS":
+        return await call_next(request)
+    principal = governance_auth.authenticate(request)
+    if principal is None:
+        return JSONResponse(status_code=401, content={"detail": "需要有效的 Bearer token"})
+    permission = governance_auth.required_permission(request.method, request.url.path)
+    if permission not in principal["permissions"]:
+        return JSONResponse(
+            status_code=403,
+            content={"detail": f"缺少权限: {permission}"},
+        )
+    request.state.principal = principal
+    if request.method in {"GET", "HEAD"}:
+        return await call_next(request)
+
+    result = "succeeded"
+    error = None
+    try:
+        response = await call_next(request)
+        if response.status_code >= 400:
+            result = "failed"
+            error = f"HTTP {response.status_code}"
+        return response
+    except Exception as exc:
+        result = "failed"
+        error = f"{type(exc).__name__}: {exc}"
+        raise
+    finally:
+        path_parts = [part for part in request.url.path.split("/") if part]
+        try:
+            governance_repository.add_audit(
+                actor_id=principal["id"],
+                action=f"{request.method} {request.url.path}",
+                entity_type=path_parts[0] if path_parts else "root",
+                entity_id=request.url.path,
+                result=result,
+                error=error,
+            )
+        except Exception:
+            logger.exception("写入统一审计日志失败")
+
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=list(deployment.cors_origins),
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-
-# ---------------------------------------------------------------------------
-# 请求 / 响应模型
-# ---------------------------------------------------------------------------
-class RunRequest(BaseModel):
-    params: dict[str, Any] = Field(
-        default_factory=dict, description="透传给策略 produce() 的参数（如 codes/with_kline）"
-    )
-
-
-class ApiKeyRequest(BaseModel):
-    api_key: str = Field(
-        ..., min_length=1, description="LLM API Key（仅保存在本地 apps/api/.env，不入库）"
-    )
-
-
-class PublishRequest(BaseModel):
-    symbol: str
-    market: str = "a_shares"
-    direction: str = "hold"
-    score: float = 0.5
-    confidence: float = 0.5
-    source: str = "api"
-    timeframe: str = "realtime"
-    tags: list[str] = Field(default_factory=list)
-    meta: dict[str, Any] = Field(default_factory=dict)
-
-
-# G2 预设 / 运行持久化
-class PresetRequest(BaseModel):
-    name: str = Field(min_length=1, description="预设名")
-    params: dict[str, Any] = Field(default_factory=dict)
-
-
-class RunRecordRequest(BaseModel):
-    params: dict[str, Any] = Field(default_factory=dict)
-    result: dict[str, Any] = Field(default_factory=dict)
-
-
-# G6 回测
-class BacktestRequest(BaseModel):
-    symbol: str
-    market: str = "a_shares"
-    interval: str = "1d"
-    limit: int = 300
-    initial_capital: float = 100000.0
-    params: dict[str, Any] = Field(default_factory=dict)
-
-
-# G7 组合配置
-class AllocRequest(BaseModel):
-    strategy: str
-    weight: float = Field(default=0.0, ge=0.0, le=1.0)
-    symbol: str | None = None
-    live: bool = False
-    note: str | None = None
+# Wire modular domain routers
+app.include_router(research_router)
+app.include_router(alerts_router)
+app.include_router(search_router)
+app.include_router(market_data_router)
+app.include_router(news_router)
+app.include_router(tasks_router)
+app.include_router(simulation_router)
+app.include_router(signals_router)
+app.include_router(settings_router)
+app.include_router(portfolio_router)
+app.include_router(strategies_router)
+app.include_router(market_router)
+app.include_router(ensemble_router)
+app.include_router(instrument_router)
+app.include_router(incidents_router)
+app.include_router(strategy_lab_router)
+app.include_router(ledger_router)
+app.include_router(automation_router)
+app.include_router(backups_router)
+app.include_router(governance_router)
 
 
 # ---------------------------------------------------------------------------
-# 工具
-# ---------------------------------------------------------------------------
-def _signal_to_dict(sig: Any) -> dict[str, Any]:
-    if hasattr(sig, "to_dict"):
-        try:
-            return sig.to_dict()
-        except Exception:
-            pass
-    if isinstance(sig, Signal):
-        return {
-            "symbol": sig.symbol,
-            "market": sig.market,
-            "timeframe": sig.timeframe,
-            "direction": sig.direction,
-            "score": sig.score,
-            "confidence": sig.confidence,
-            "source": sig.source,
-            "tags": list(sig.tags or []),
-            "meta": sig.meta or {},
-            "ts": getattr(sig, "ts", None),
-        }
-    return dict(sig)
-
-
-def _equity_from_trades(trades: list[dict], initial: float) -> list[dict]:
-    """从成交记录推导权益曲线（回测可视化用）。无 pnl 字段时返回空。"""
-    pts: list[dict] = []
-    eq = float(initial)
-    for t in trades:
-        if not isinstance(t, dict):
-            continue
-        pnl = t.get("pnl")
-        if pnl is None:
-            continue
-        eq += float(pnl)
-        ts = t.get("exit_time") or t.get("time") or t.get("ts")
-        pts.append({"t": str(ts) if ts is not None else None, "equity": round(eq, 2)})
-    return pts
-
-
-def _pair_round_trips(fills: list[Any], commission: float = 0.0003) -> list[dict]:
-    """把回测引擎的逐笔成交（buy/sell fills）配对成平仓回合，供前端交易表展示。
-
-    EventEngine 的 trades 是原始开/平成交，缺 entry/exit/pnl；这里用 FIFO 配对
-    还原成可渲染的回合，保证交易表不会全显示「—」/0.00。
-    """
-    open_lots: list[dict] = []  # {price, qty, time}
-    trips: list[dict] = []
-    for f in fills:
-        if not isinstance(f, dict):
-            continue
-        side = str(f.get("side", "")).lower()
-        try:
-            price = float(f.get("price") or 0)
-            qty = float(f.get("qty") or 0)
-        except (TypeError, ValueError):
-            continue
-        ts = f.get("datetime")
-        if side in ("buy", "long", "open"):
-            open_lots.append({"price": price, "qty": qty, "time": ts})
-        elif side in ("sell", "short", "close") and qty > 0 and open_lots:
-            remaining = qty
-            while remaining > 1e-9 and open_lots:
-                lot = open_lots[0]
-                matched = min(lot["qty"], remaining)
-                cost = matched * lot["price"] * (1 + commission)
-                proceeds = matched * price * (1 - commission)
-                pnl = proceeds - cost
-                ret = (price / lot["price"] - 1) * 100 if lot["price"] else 0.0
-                trips.append(
-                    {
-                        "entry_time": str(lot["time"]) if lot["time"] is not None else None,
-                        "exit_time": str(ts) if ts is not None else None,
-                        "pnl": round(pnl, 2),
-                        "return_pct": round(ret, 2),
-                        "qty": round(matched, 4),
-                    }
-                )
-                lot["qty"] -= matched
-                remaining -= matched
-                if lot["qty"] <= 1e-9:
-                    open_lots.pop(0)
-    return trips
-
-
-def _equity_from_result(raw: Any, initial: float) -> list[dict]:
-    """权益曲线：优先取回测引擎自带的逐根权益序列（含持仓中），缺失时回退成交重建。"""
-    curve = None
-    if hasattr(raw, "equity_curve"):
-        curve = raw.equity_curve
-    elif isinstance(raw, dict):
-        curve = raw.get("equity_curve")
-    if isinstance(curve, pd.DataFrame) and not curve.empty and "equity" in curve.columns:
-        df = curve.reset_index(drop=True)
-        # 抽稀：点数过多时均匀降采样，避免 SVG polyline 过大
-        step = max(1, len(df) // 600)
-        pts: list[dict] = []
-        for i in range(0, len(df), step):
-            row = df.iloc[i]
-            ts = row.get("datetime")
-            pts.append(
-                {
-                    "t": str(ts) if ts is not None else None,
-                    "equity": round(float(row["equity"]), 2),
-                }
-            )
-        # 始终保留末点，保证曲线完整收口
-        if pts and step > 1 and (len(df) - 1) % step != 0:
-            row = df.iloc[-1]
-            ts = row.get("datetime")
-            pts.append(
-                {
-                    "t": str(ts) if ts is not None else None,
-                    "equity": round(float(row["equity"]), 2),
-                }
-            )
-        return pts
-    return _equity_from_trades(
-        [t if isinstance(t, dict) else vars(t) for t in (getattr(raw, "trades", []) or [])],
-        initial,
-    )
-
-
-def _call_produce(strategy: Any, params: dict[str, Any]) -> list[Any]:
-    """反射式调用 produce()，只传它接受的参数，兼容异构签名。"""
-    try:
-        sig = inspect.signature(strategy.produce)
-        accept = set(sig.parameters.keys())
-        has_var_keyword = any(
-            p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()
-        )
-    except (TypeError, ValueError):
-        accept = set()
-        has_var_keyword = False
-
-    if has_var_keyword:
-        # 显式声明的参数优先匹配；其余全部透传给 **kwargs
-        kwargs = dict(params)
-    else:
-        kwargs = {k: v for k, v in params.items() if k in accept} if accept else dict(params)
-    try:
-        result = strategy.produce(**kwargs)
-    except TypeError:
-        # 签名反射失败时的兜底：无参调用
-        result = strategy.produce()
-    if result is None:
-        return []
-    if isinstance(result, (list, tuple)):
-        return list(result)
-    return [result]
-
-
-# ---------------------------------------------------------------------------
-# 路由
+# 健康检查（唯一保留在本文件的路由）
 # ---------------------------------------------------------------------------
 @app.get("/health")
-def health() -> dict[str, Any]:
+def health() -> dict:
+    """健康检查：返回服务状态、已注册策略数和版本信息。"""
     _ensure_discovered()
     cfg = get_config()
     return {
@@ -304,753 +194,13 @@ def health() -> dict[str, Any]:
         "strategies": len(list_strategies()),
         "live_trading": bool(cfg.get("live_trading", False)),
         "version": app.version,
+        "deployment_mode": deployment.mode,
+        "started_at": PROCESS_STARTED_AT,
+        "build_id": SOURCE_BUILD_ID,
     }
-
-
-@app.get("/strategies")
-def get_strategies() -> dict[str, Any]:
-    _ensure_discovered()
-    out = []
-    for name, info in list_strategies().items():
-        out.append(
-            {
-                "name": name,
-                "market": info.market,
-                "live_capable": info.live_capable,
-                "description": info.description or "",
-            }
-        )
-    return {"count": len(out), "strategies": out}
-
-
-@app.get("/strategies/presets")
-def get_all_presets() -> dict[str, Any]:
-    """全部策略预设，按 strategy 分组（前端 forStrategy 同步读取用）。"""
-    return {"presets": store.list_presets()}
-
-
-@app.get("/strategies/runs")
-def get_all_runs() -> dict[str, Any]:
-    """全部运行历史（前端 runsFor 同步过滤用）。"""
-    return {"runs": store.list_runs()}
-
-
-@app.get("/strategies/{name}")
-def get_strategy_info(name: str) -> dict[str, Any]:
-    _ensure_discovered()
-    ss = list_strategies()
-    if name not in ss:
-        raise HTTPException(status_code=404, detail=f"未知策略: {name}")
-    info = ss[name]
-    return {
-        "name": name,
-        "market": info.market,
-        "live_capable": info.live_capable,
-        "description": info.description or "",
-    }
-
-
-@app.post("/strategies/{name}/run")
-def run_strategy(name: str, req: RunRequest) -> dict[str, Any]:
-    _ensure_discovered()
-    ss = list_strategies()
-    if name not in ss:
-        raise HTTPException(status_code=404, detail=f"未知策略: {name}")
-    try:
-        strategy = get_strategy(name, config={"enabled": True})
-    except Exception as exc:
-        raise HTTPException(status_code=400, detail=f"策略实例化失败: {exc}") from exc
-    try:
-        raw = _call_produce(strategy, req.params)
-        signals = [_signal_to_dict(s) for s in raw]
-        result = {"ok": True, "name": name, "count": len(signals), "signals": signals}
-        store.add_run(name, req.params, result)
-        return result
-    except Exception as exc:  # 单策略失败不影响网关
-        logger.exception("策略 %s 运行失败", name)
-        result = {"ok": False, "name": name, "error": str(exc), "signals": []}
-        store.add_run(name, req.params, result)
-        return result
-
-
-def _resolve_pa_market(symbol: str, market: str | None = None) -> str:
-    """为 PA 分析确定标的所属市场（与 PaAgentStrategy 逻辑一致）。"""
-    if market:
-        return market
-    s = (symbol or "").strip().upper()
-    if s.isdigit() and len(s) == 6:
-        return "a_shares"
-    if any(ch.isalpha() for ch in s) and ("-" in s or "/" in s or len(s) >= 6):
-        return "crypto"
-    return "a_shares"
-
-
-@app.post("/strategies/pa_agent/analyze")
-def analyze_pa(
-    symbol: str,
-    timeframe: str = "1h",
-    market: str | None = None,
-) -> dict[str, Any]:
-    """对单个标的执行完整 PA 两阶段分析，返回 view-model 渲染数据。
-
-    - 行情统一走 ``core.data_feed``
-    - 分析复用 ``strategies.ai_analysis.pa_agent.two_stage.run_two_stage``
-    - 视图渲染复用 ``pa_agent.view_models`` 共享层
-    - 失败时 ``ok=false`` 并附带错误信息，前端可降级到 mock
-    """
-    actual_market = _resolve_pa_market(symbol, market)
-    try:
-        ds = get_data_source(actual_market)
-        df = ds.get_kline(symbol, timeframe, limit=300)
-    except Exception as exc:
-        logger.exception("PA 分析取 K 线失败 %s/%s", actual_market, symbol)
-        return {
-            "ok": False,
-            "error": f"取 K 线失败: {exc}",
-            "symbol": symbol,
-            "timeframe": timeframe,
-            "market": actual_market,
-        }
-
-    if df is None or df.empty:
-        return {
-            "ok": False,
-            "error": "K 线为空",
-            "symbol": symbol,
-            "timeframe": timeframe,
-            "market": actual_market,
-        }
-
-    result = run_two_stage(symbol=symbol, timeframe=timeframe, klines=df)
-    if result.error and not result.stage2_json:
-        return {
-            "ok": False,
-            "error": result.error,
-            "symbol": symbol,
-            "timeframe": timeframe,
-            "market": actual_market,
-        }
-
-    s1 = result.stage1_json or {}
-    s2 = result.stage2_json or {}
-    decision = s2.get("decision") or {}
-    terminal = s2.get("terminal") or {}
-    gate_trace = s1.get("gate_trace", [])
-    decision_trace = s2.get("decision_trace", [])
-    gate_result = str(s1.get("gate_result", "proceed")).lower()
-    gate_shortcircuited = gate_result in ("wait", "unknown")
-
-    try:
-        decision_view = build_decision_view(
-            stage2_decision=decision,
-            stage1_diagnosis=s1,
-        )
-        future_view = build_future_trend_view(stage2_decision=s2)
-        tree_view = build_decision_tree_view(
-            gate_trace=gate_trace,
-            decision_trace=decision_trace,
-            terminal=terminal,
-            gate_result=s1.get("gate_result"),
-            gate_shortcircuited=gate_shortcircuited,
-        )
-    except Exception as exc:
-        logger.exception("PA view-model 渲染失败 %s", symbol)
-        return {
-            "ok": False,
-            "error": f"分析成功但视图渲染失败: {exc}",
-            "symbol": symbol,
-            "timeframe": timeframe,
-            "market": actual_market,
-        }
-
-    return {
-        "ok": True,
-        "symbol": symbol,
-        "timeframe": timeframe,
-        "market": actual_market,
-        "decision": decision_view,
-        "future": future_view,
-        "tree": tree_view,
-        "stage1": s1,
-        "stage2": s2,
-        "error": result.error,
-    }
-
-
-@app.get("/signals")
-def get_signals(
-    limit: int = 50, source: str | None = None, market: str | None = None
-) -> dict[str, Any]:
-    _ensure_discovered()
-    # 信号总线是进程内唯一信源；支持按 source（策略名）/ market 过滤，
-    # 让工作台「信号」Tab 与信号中心共用同一数据源（消除双源割裂）。
-    history = get_bus().history(limit=limit, source=source, market=market)
-    return {"count": len(history), "signals": [_signal_to_dict(s) for s in history]}
-
-
-# ---------------------------------------------------------------------------
-# G2 策略预设 / 运行历史（后端持久化，跨设备）
-# ---------------------------------------------------------------------------
-@app.get("/strategies/{name}/presets")
-def get_presets(name: str) -> dict[str, Any]:
-    return {"presets": store.list_presets().get(name, [])}
-
-
-@app.post("/strategies/{name}/presets")
-def create_preset(name: str, req: PresetRequest) -> dict[str, Any]:
-    _ensure_discovered()
-    if name not in list_strategies():
-        raise HTTPException(status_code=404, detail=f"未知策略: {name}")
-    return {"ok": True, "preset": store.save_preset(name, req.name, req.params)}
-
-
-@app.delete("/strategies/{name}/presets/{pid}")
-def delete_preset_endpoint(name: str, pid: str) -> dict[str, Any]:
-    store.delete_preset(name, pid)
-    return {"ok": True}
-
-
-@app.post("/strategies/{name}/runs")
-def create_run(name: str, req: RunRecordRequest) -> dict[str, Any]:
-    return {"ok": True, "run": store.add_run(name, req.params, req.result)}
-
-
-# ---------------------------------------------------------------------------
-# G6 回测（接真实 StrategyBase.backtest，消除「假回测」重复页）
-# ---------------------------------------------------------------------------
-@app.post("/strategies/{name}/backtest")
-def backtest_strategy(name: str, req: BacktestRequest) -> dict[str, Any]:
-    _ensure_discovered()
-    ss = list_strategies()
-    if name not in ss:
-        raise HTTPException(status_code=404, detail=f"未知策略: {name}")
-    try:
-        strategy = get_strategy(name, config={"enabled": True})
-    except Exception as exc:
-        raise HTTPException(status_code=400, detail=f"策略实例化失败: {exc}") from exc
-    try:
-        ds = get_data_source(req.market)
-        klines = ds.get_kline(req.symbol, req.interval, limit=req.limit)
-    except Exception as exc:
-        logger.exception("回测取 K 线失败 %s/%s", req.market, req.symbol)
-        return {"ok": False, "error": f"取 K 线失败: {exc}", "symbol": req.symbol}
-    if klines is None or klines.empty:
-        return {"ok": False, "error": "K 线为空（回测需要历史数据）", "symbol": req.symbol}
-    try:
-        raw = strategy.backtest(klines, initial_capital=req.initial_capital, **req.params)
-    except Exception as exc:
-        logger.exception("策略 %s 回测失败", name)
-        return {"ok": False, "error": str(exc), "symbol": req.symbol}
-    # 归一化：兼容 BacktestResult 与 dict 两种返回
-    if hasattr(raw, "to_summary"):
-        summary = raw.to_summary()
-        trades = [t if isinstance(t, dict) else vars(t) for t in raw.trades]
-    else:
-        summary = {
-            "engine": raw.get("engine", "unknown"),
-            "final_equity": raw.get("final_equity", 0.0),
-            "total_return": raw.get("total_return", 0.0),
-            "max_drawdown": raw.get("max_drawdown", 0.0),
-            "metrics": raw.get("metrics", {}),
-            "n_trades": len(raw.get("trades", []) or []),
-        }
-        trades = raw.get("trades", []) or []
-    # 事件引擎的 trades 是逐笔成交（无 pnl/entry/exit），配对成平仓回合再展示
-    if trades and all(isinstance(t, dict) and "side" in t for t in trades):
-        paired = _pair_round_trips(trades)
-        summary = {**summary, "n_trades": len(paired)}
-        trades = paired
-    equity = _equity_from_result(raw, req.initial_capital)
-    return {
-        "ok": True,
-        "name": name,
-        "symbol": req.symbol,
-        "market": req.market,
-        "summary": summary,
-        "trades": trades,
-        "equity": equity,
-    }
-
-
-# ---------------------------------------------------------------------------
-# G7 组合管理（配置 + 聚合概览），命名空间 /portfolio/manage 避免与持仓端点冲突
-# ---------------------------------------------------------------------------
-@app.get("/portfolio/manage")
-def get_portfolio_manage() -> dict[str, Any]:
-    allocs = store.list_allocs()
-    bus = get_bus().history(limit=200)
-    long_n = sum(1 for s in bus if s.direction in ("buy", "bullish"))
-    short_n = sum(1 for s in bus if s.direction in ("sell", "bearish"))
-    hold_n = len(bus) - long_n - short_n
-    total_w = sum(a["weight"] for a in allocs)
-    live_n = sum(1 for a in allocs if a["live"])
-    max_w = max((a["weight"] for a in allocs), default=0.0)
-    summary = {
-        "n_alloc": len(allocs),
-        "total_weight": round(total_w, 4),
-        "live_count": live_n,
-        "exposure": {
-            "long": long_n,
-            "short": short_n,
-            "hold": hold_n,
-            "total": len(bus),
-        },
-        "max_weight": round(max_w, 4),
-        "concentration": round(max_w / total_w, 4) if total_w > 0 else 0.0,
-    }
-    return {"allocations": allocs, "summary": summary}
-
-
-@app.post("/portfolio/manage/allocations")
-def create_alloc(req: AllocRequest) -> dict[str, Any]:
-    _ensure_discovered()
-    if req.strategy not in list_strategies():
-        raise HTTPException(status_code=404, detail=f"未知策略: {req.strategy}")
-    return {
-        "ok": True,
-        "alloc": store.save_alloc(req.strategy, req.weight, req.symbol, req.live, req.note),
-    }
-
-
-@app.delete("/portfolio/manage/allocations/{aid}")
-def delete_alloc_endpoint(aid: str) -> dict[str, Any]:
-    store.delete_alloc(aid)
-    return {"ok": True}
-
-
-@app.post("/portfolio/manage/allocations/{aid}/live")
-def set_alloc_live(aid: str, live: bool = False) -> dict[str, Any]:
-    store.update_alloc_live(aid, live)
-    return {"ok": True}
-
-
-# ---------------------------------------------------------------------------
-# G5 实盘（诚实 paper 模式：无 broker 配置时 live_tick 为 no-op，不伪造成交）
-# ---------------------------------------------------------------------------
-@app.get("/strategies/{name}/live")
-def get_live_status(name: str) -> dict[str, Any]:
-    _ensure_discovered()
-    ss = list_strategies()
-    if name not in ss:
-        raise HTTPException(status_code=404, detail=f"未知策略: {name}")
-    return {
-        "name": name,
-        "live_capable": ss[name].live_capable,
-        "is_live": False,
-        "note": "实盘需要交易所/券商 API 配置；未配置时 live_tick 为 no-op（模拟态），不产生真实成交。",
-    }
-
-
-@app.post("/strategies/{name}/live/tick")
-def live_tick(name: str) -> dict[str, Any]:
-    _ensure_discovered()
-    ss = list_strategies()
-    if name not in ss:
-        raise HTTPException(status_code=404, detail=f"未知策略: {name}")
-    try:
-        strategy = get_strategy(name, config={"enabled": True})
-        out = strategy.live_tick()
-    except Exception as exc:
-        logger.exception("live_tick %s 失败", name)
-        return {"ok": False, "mode": "paper", "error": str(exc)}
-    return {
-        "ok": True,
-        "mode": "paper",
-        "live_capable": ss[name].live_capable,
-        "state": out,
-        "note": "模拟态：未连接 broker，不产生真实成交。",
-    }
-
-
-# ---------------------------------------------------------------------------
-# 行情数据
-# ---------------------------------------------------------------------------
-@app.get("/data/kline")
-def get_kline(
-    symbol: str,
-    market: str = "a_shares",
-    interval: str = "1h",
-    limit: int = 240,
-) -> dict[str, Any]:
-    """返回指定标的的 K 线（OHLCV）。
-
-    - 经 ``core.data_feed`` 的统一数据源代理（A股在线源优先，本地 parquet 回退）。
-    - 在线源失败/限频时回退本地 parquet；两者皆无数据时返回 ``ok:false`` / ``candles:[]``，
-      供前端优雅降级到模拟数据。
-    - A股本地数据为 ordinal 时间编码，``datetime`` 为占位 NaT，故 ``t`` 用 ``bar_time``。
-    """
-    try:
-        ds = get_data_source(market)
-        df = ds.get_kline(symbol, interval, limit=limit)
-    except Exception as exc:  # 数据源配置缺失等
-        logger.exception("K线获取失败 %s/%s", market, symbol)
-        return {
-            "ok": False,
-            "error": str(exc),
-            "symbol": symbol,
-            "interval": interval,
-            "candles": [],
-        }
-
-    if df is None or df.empty:
-        return {
-            "ok": True,
-            "source": "empty",
-            "symbol": symbol,
-            "interval": interval,
-            "candles": [],
-        }
-
-    candles: list[dict[str, Any]] = []
-    for _, row in df.iterrows():
-        dt = row.get("datetime")
-        if pd.notna(dt):
-            t = pd.Timestamp(dt).isoformat()
-        else:
-            t = str(int(row.get("bar_time", 0)))
-        candles.append(
-            {
-                "t": t,
-                "o": float(row["open"]),
-                "h": float(row["high"]),
-                "l": float(row["low"]),
-                "c": float(row["close"]),
-                "v": float(row["volume"]) if pd.notna(row.get("volume")) else 0.0,
-            }
-        )
-    return {
-        "ok": True,
-        "source": df.attrs.get("_source", "local"),
-        "symbol": symbol,
-        "interval": interval,
-        "count": len(candles),
-        "candles": candles,
-    }
-
-
-# ---------------------------------------------------------------------------
-# 组合与市场面板（静态配置 + 实时价格）
-# ---------------------------------------------------------------------------
-_HOLDINGS_CFG: list[dict[str, Any]] = [
-    {"code": "600519", "name": "贵州茅台", "shares": 100, "cost": 1650.0},
-    {"code": "300750", "name": "宁德时代", "shares": 800, "cost": 202.0},
-    {"code": "000858", "name": "五粮液", "shares": 500, "cost": 140.0},
-    {"code": "002594", "name": "比亚迪", "shares": 300, "cost": 250.0},
-    {"code": "601318", "name": "中国平安", "shares": 1200, "cost": 49.0},
-]
-
-_WATCHLIST_CFG: list[dict[str, Any]] = [
-    {"sym": "NVDA", "name": "英伟达", "market": "us_stocks"},
-    {"sym": "AVGO", "name": "博通", "market": "us_stocks"},
-    {"sym": "600036", "name": "招商银行", "market": "a_shares"},
-    {"sym": "BTC-USDT", "name": "比特币", "market": "crypto"},
-]
-
-
-def _latest_close(symbol: str, market: str, interval: str = "1h") -> float | None:
-    """从数据源取最新收盘价；失败返回 None。"""
-    # 腾讯源仅支持日/周线，非 A股统一取日线最新收盘
-    if market != "a_shares":
-        interval = "1d"
-    try:
-        ds = get_data_source(market)
-        df = ds.get_kline(symbol, interval, limit=2)
-        if df is None or df.empty:
-            return None
-        return float(df["close"].iloc[-1])
-    except Exception:
-        return None
-
-
-def _tencent_prev_close(symbol: str, market: str) -> float | None:
-    """腾讯实时报价取昨收（美股日线常只回 1 根，无法由 K 线算涨跌，改用报价接口）。
-
-    返回 None 表示取不到。
-    """
-    cur, prev = _tencent_quote(symbol, market)
-    return prev
-
-
-def _tencent_quote(symbol: str, market: str) -> tuple[float | None, float | None]:
-    """腾讯实时报价，返回 (当前价, 昨收)；失败返回 (None, None)。
-
-    腾讯 qt 格式（~ 分隔）：索引3=当前价，索引4=昨收。
-    """
-    try:
-        code = _to_tencent_code(symbol, market)
-        r = requests.get(
-            f"https://qt.gtimg.cn/q={code}",
-            headers={
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-                "Referer": "https://quote.eastmoney.com/",
-            },
-            timeout=15,
-        )
-        r.raise_for_status()
-        m = re.search(r'="([^"]+)"', r.text)
-        if not m:
-            return (None, None)
-        parts = m.group(1).split("~")
-        if len(parts) < 5:
-            return (None, None)
-        return (float(parts[3]), float(parts[4]))
-    except Exception:
-        logger.exception("腾讯报价失败 %s/%s", market, symbol)
-        return (None, None)
-
-
-@app.get("/portfolio")
-def get_portfolio() -> dict[str, Any]:
-    """返回账户概览与持仓明细（价格尽可能走实时数据源）。"""
-    holdings: list[dict[str, Any]] = []
-    total_value = 0.0
-    total_cost = 0.0
-    daily_pnl = 0.0
-
-    for cfg in _HOLDINGS_CFG:
-        code = cfg["code"]
-        price = _latest_close(code, "a_shares", "1h")
-        if price is None:
-            price = cfg["cost"]  # 无实时价时回退成本价
-        shares = cfg["shares"]
-        cost = cfg["cost"]
-        market_value = price * shares
-        cost_value = cost * shares
-        pnl = market_value - cost_value
-        chg_pct = ((price - cost) / cost) * 100 if cost else 0.0
-        total_value += market_value
-        total_cost += cost_value
-        daily_pnl += pnl
-        holdings.append(
-            {
-                "code": code,
-                "name": cfg["name"],
-                "price": round(price, 2),
-                "cost": round(cost, 2),
-                "chgPct": round(chg_pct, 2),
-                "shares": shares,
-                "pnl": round(pnl, 2),
-                "winRate": round(min(99, max(1, 50 + chg_pct * 1.5)), 1),
-            }
-        )
-
-    total_pnl = total_value - total_cost
-    total_pnl_pct = (total_pnl / total_cost) * 100 if total_cost else 0.0
-    cash = 426_300.0
-    nav = total_value + cash
-    win_rate = round(sum(h["winRate"] for h in holdings) / len(holdings), 1) if holdings else 0.0
-
-    return {
-        "ok": True,
-        "summary": {
-            "nav": round(nav, 2),
-            "dailyPnl": round(daily_pnl, 2),
-            "dailyPnlPct": round(total_pnl_pct, 2),
-            "cash": round(cash, 2),
-            "winRate": win_rate,
-            "totalPositions": len(holdings),
-        },
-        "holdings": holdings,
-    }
-
-
-# 市场广度样本篮子：覆盖主要行业的代表性成分（用于样本口径广度，非全市场）
-_BREADTH_BASKET: list[tuple[str, str]] = [
-    ("600519", "白酒"),
-    ("000858", "白酒"),
-    ("601318", "保险"),
-    ("600036", "银行"),
-    ("601012", "光伏"),
-    ("300750", "新能源"),
-    ("600276", "医药"),
-    ("000333", "家电"),
-    ("600900", "电力"),
-    ("002594", "汽车"),
-    ("688981", "半导体"),
-    ("600030", "券商"),
-]
-
-
-@app.get("/market/breadth")
-def get_market_breadth() -> dict[str, Any]:
-    """市场广度（样本口径）。
-
-    全市场涨跌家数需 akshare/东财，当前环境代理不放行无法获取；此处用腾讯实时报价
-    取一篮子代表性成分（覆盖主要行业）真实计算涨跌分布，并明确标注 sample=true，
-    绝不伪装成全市场数据。
-    """
-    up = flat = down = 0
-    sector_chg: dict[str, list[float]] = {}
-    for code, sector in _BREADTH_BASKET:
-        cur, prev = _tencent_quote(code, "a_shares")
-        if cur is None or not prev:
-            continue
-        chg = (cur - prev) / prev * 100
-        if chg > 0.05:
-            up += 1
-        elif chg < -0.05:
-            down += 1
-        else:
-            flat += 1
-        sector_chg.setdefault(sector, []).append(chg)
-    sectors = [{"name": s, "chgPct": round(sum(v) / len(v), 2)} for s, v in sector_chg.items()]
-    sectors.sort(key=lambda x: x["chgPct"], reverse=True)
-    return {
-        "ok": True,
-        "sample": True,
-        "note": "样本广度：一篮子代表性成分（腾讯实时报价），非全市场涨跌家数",
-        "up": up,
-        "flat": flat,
-        "down": down,
-        "sectors": sectors,
-    }
-
-
-def _quote_item(sym: str, market: str, name: str) -> dict[str, Any]:
-    """单个标的实时报价（复用 K 线/腾讯报价逻辑），返回统一 item 结构。
-
-    A股/美股经腾讯源取真实日线；加密货币在当前环境无可用数据源→available=false。
-    """
-    interval = "1d"
-    try:
-        ds = get_data_source(market)
-        df = ds.get_kline(sym, interval, limit=10)
-    except Exception:
-        df = None
-    if df is None or df.empty or "close" not in df.columns or pd.isna(df["close"].iloc[-1]):
-        return {
-            "sym": sym,
-            "name": name,
-            "market": market,
-            "price": None,
-            "chgPct": None,
-            "available": False,
-        }
-    closes = df["close"].dropna().tolist()
-    price = float(closes[-1])
-    if len(closes) >= 2:
-        prev = float(closes[-2])
-    else:
-        # 美股日线常只回 1 根，改用腾讯实时报价取昨收算真实涨跌
-        prev = _tencent_prev_close(sym, market)
-    chg = ((price - prev) / prev * 100) if prev else 0.0
-    return {
-        "sym": sym,
-        "name": name,
-        "market": market,
-        "price": round(price, 2),
-        "chgPct": round(chg, 2),
-        "available": True,
-    }
-
-
-@app.get("/market/watchlist")
-def get_watchlist() -> dict[str, Any]:
-    """关注列表（价格走实时数据源；无法接入的市场诚实标注 available=false）。"""
-    items = [
-        _quote_item(cfg["sym"], cfg.get("market", "a_shares"), cfg["name"])
-        for cfg in _WATCHLIST_CFG
-    ]
-    return {"ok": True, "items": items}
-
-
-@app.get("/market/quote")
-def get_quote(symbol: str, market: str = "a_shares") -> dict[str, Any]:
-    """单标的实时报价：A股/美股走腾讯源（真实日线），加密货币当前环境无源→available=false。"""
-    return _quote_item(symbol, market, symbol)
-
-
-# ---------------------------------------------------------------------------
-# 配置（本地密钥管理）
-# ---------------------------------------------------------------------------
-def _llm_key_env() -> str:
-    cfg = get_config()
-    provider = cfg.get("llm", {}).get("provider", "deepseek")
-    prov_cfg = cfg.get("llm", {}).get(provider, {})
-    return str(prov_cfg.get("api_key_env", "DEEPSEEK_API_KEY"))
-
-
-def _mask_key(key: str) -> str:
-    if len(key) <= 8:
-        return "****"
-    return f"{key[:4]}...{key[-4:]}"
-
-
-def _write_env(key: str, value: str) -> None:
-    """将 key=value 写入 apps/api/.env（更新或追加），不删除其他内容。"""
-    env_path = Path(__file__).resolve().parent / ".env"
-    lines: list[str] = []
-    if env_path.exists():
-        lines = env_path.read_text(encoding="utf-8").splitlines()
-    found = False
-    prefix = f"{key}="
-    for i, line in enumerate(lines):
-        if line.startswith(prefix):
-            lines[i] = f"{key}={value}"
-            found = True
-            break
-    if not found:
-        lines.append(f"{key}={value}")
-    env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-
-
-@app.get("/config/apikey")
-def get_api_key_status() -> dict[str, Any]:
-    """返回当前 LLM API Key 是否已配置（仅返回脱敏尾号）。"""
-    env_name = _llm_key_env()
-    val = os.environ.get(env_name)
-    return {
-        "ok": True,
-        "configured": bool(val),
-        "provider": get_config().get("llm", {}).get("provider", "deepseek"),
-        "key_env": env_name,
-        "masked": _mask_key(val) if val else None,
-    }
-
-
-@app.post("/config/apikey")
-def set_api_key(req: ApiKeyRequest) -> dict[str, Any]:
-    """保存 API Key 到本地 .env 并热重载 LLM 客户端（无需重启网关）。"""
-    from core.llm import _clients as _llm_clients
-
-    env_name = _llm_key_env()
-    key = req.api_key.strip()
-
-    _write_env(env_name, key)
-    os.environ[env_name] = key
-
-    # 清除缓存：LLM 客户端单例 + 配置 lru_cache，让下次 get_llm() 重新读取环境变量
-    _llm_clients.clear()
-    get_config.cache_clear()
-
-    return {
-        "ok": True,
-        "configured": True,
-        "provider": get_config().get("llm", {}).get("provider", "deepseek"),
-        "key_env": env_name,
-        "masked": _mask_key(key),
-    }
-
-
-@app.post("/signals/publish")
-def publish_signal(req: PublishRequest) -> dict[str, Any]:
-    _ensure_discovered()
-    sig = Signal(
-        symbol=req.symbol,
-        market=req.market,
-        timeframe=req.timeframe,
-        direction=req.direction,
-        score=req.score,
-        confidence=req.confidence,
-        source=req.source,
-        tags=req.tags,
-        meta=req.meta,
-    )
-    get_bus().publish(sig)
-    return {"ok": True, "signal": _signal_to_dict(sig)}
 
 
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host=deployment.host, port=8000)

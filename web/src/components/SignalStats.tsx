@@ -1,5 +1,7 @@
+import type { CSSProperties } from 'react'
 import type { SignalResp } from '../api/types'
 import { directionColor } from './StrategyShared'
+import s from './SignalStats.module.css'
 
 function directionLabel(d: string) {
   if (d === 'buy' || d === 'bullish') return '做多'
@@ -14,11 +16,11 @@ interface Props {
 export default function SignalStats({ signals }: Props) {
   if (signals.length === 0) return null
 
-  const buy = signals.filter((s) => s.direction === 'buy' || s.direction === 'bullish').length
-  const sell = signals.filter((s) => s.direction === 'sell' || s.direction === 'bearish').length
+  const buy = signals.filter((sig) => sig.direction === 'buy' || sig.direction === 'bullish').length
+  const sell = signals.filter((sig) => sig.direction === 'sell' || sig.direction === 'bearish').length
   const hold = signals.length - buy - sell
-  const avgScore = signals.reduce((a, s) => a + s.score, 0) / signals.length
-  const avgConf = signals.reduce((a, s) => a + s.confidence, 0) / signals.length
+  const avgScore = signals.reduce((a, sig) => a + sig.score, 0) / signals.length
+  const avgConf = signals.reduce((a, sig) => a + sig.confidence, 0) / signals.length
 
   const rows = [
     { label: '做多', count: buy, color: 'var(--up)' },
@@ -37,7 +39,10 @@ export default function SignalStats({ signals }: Props) {
               <span className="signal-stat-value mono">{r.count}</span>
             </div>
             <div className="signal-stat-bar">
-              <div style={{ width: `${pct}%`, background: r.color }} />
+              <div
+                className={s.barFill}
+                style={{ '--w': `${pct}%`, '--c': r.color } as CSSProperties}
+              />
             </div>
           </div>
         )

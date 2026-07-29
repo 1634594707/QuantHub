@@ -39,6 +39,8 @@ modules:
     #   strategies/mt5/alphamaster/best_mt5_strategy.json
     # 缺失时自动回退内置启发式公式。
     min_trade_exposure: 0.05             # |tanh(factor)| 阈值，低于视为空仓
+    cost_rate: 0.0001                    # 单边手续费/点差成本（1bp）
+    slippage_rate: 0.0001                # 单边滑点（1bp）
 
 # ===== 风控（实盘时强制）=====
 # RiskChecker("mt5") 读取本块；MT5 非加密，关闭蜜罐检查

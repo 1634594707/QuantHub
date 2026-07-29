@@ -1,0 +1,141 @@
+.header {
+  display: flex;
+  min-height: 76px;
+  max-height: 88px;
+  align-items: center;
+  gap: var(--sp-4);
+  padding: var(--sp-3) 0 var(--sp-4);
+  border-bottom: 1px solid var(--border-strong);
+}
+
+.identity {
+  display: flex;
+  min-width: 220px;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.context {
+  color: var(--accent-strong);
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-semibold);
+  line-height: 1.2;
+}
+
+.titleLine {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: var(--sp-3);
+}
+
+.titleLine h1 {
+  margin: 0;
+  color: var(--text-1);
+  font-size: 24px;
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.titleLine p {
+  max-width: 48ch;
+  margin: 0;
+  overflow: hidden;
+  color: var(--text-3);
+  font-size: var(--fs-caption);
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.metrics {
+  display: flex;
+  min-width: 0;
+  margin: 0 0 0 auto;
+  align-items: stretch;
+}
+
+.metric {
+  display: flex;
+  min-width: 84px;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  padding: 0 var(--sp-4);
+  border-left: 1px solid var(--divider);
+}
+
+.metric dt {
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.metric dd {
+  max-width: 180px;
+  margin: 0;
+  overflow: hidden;
+  color: var(--text-1);
+  font-family: var(--font-mono);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.action {
+  display: flex;
+  flex: none;
+  align-items: center;
+}
+
+@media (max-width: 1180px) {
+  .titleLine p {
+    display: none;
+  }
+
+  .metric {
+    min-width: 72px;
+    padding: 0 var(--sp-2);
+  }
+}
+
+@media (max-width: 767px) {
+  .header {
+    max-height: none;
+    flex-wrap: wrap;
+    gap: var(--sp-2);
+    padding: var(--sp-2) 0 var(--sp-3);
+  }
+
+  .identity {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .titleLine h1 {
+    overflow: hidden;
+    font-size: 18px;
+    text-overflow: ellipsis;
+  }
+
+  .metrics {
+    width: 100%;
+    margin: 0;
+    overflow-x: auto;
+  }
+
+  .metric:first-child {
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  .action {
+    margin-left: auto;
+  }
+}

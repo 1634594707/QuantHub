@@ -5,8 +5,8 @@
 这第三类资产。**实盘默认关闭**（live=false）。
 
 设计要点（与 crypto/alphagpt 同源但互不污染）：
-    - 通过 sys.path 注入 AlphaMaster-main 根目录，直接复用其因子引擎
-      （命名空间包 model_core.features / model_core.vm），**不复制 152 个文件**。
+    - 通过 sys.path 注入策略内置的 AlphaMaster 最小运行时，复用其因子引擎
+      （命名空间包 model_core.features / model_core.vm）。
     - 重依赖（torch / model_core）全部懒加载：``import strategies.mt5.alphamaster``
       本身不触发 torch import，仅在 produce / backtest / live 路径内 import。
     - 不 import AlphaMaster 的 ``config``（其无条件 ``from dotenv import load_dotenv``
@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import sys
 from pathlib import Path
 from typing import Any
@@ -38,9 +39,9 @@ from strategies.base import StrategyBase, StrategyInfo, register_strategy
 
 logger = logging.getLogger(__name__)
 
-# AlphaMaster-main 仓库根（vendored 归档，相对本文件上溯 4 级 + vendored/）
+# AlphaMaster 最小运行时随策略内置，避免依赖庞大的 vendored 归档。
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
-ALPHAMASTER_ROOT = REPO_ROOT / "vendored" / "AlphaMaster-main"
+ALPHAMASTER_ROOT = Path(__file__).resolve().parent / "_upstream"
 
 # 默认扫描品种（与 AlphaMaster TRAINABLE_SYMBOLS 对齐的子集，仅取已有本地数据的）
 DEFAULT_SYMBOLS: list[str] = [
@@ -66,8 +67,12 @@ MIN_TRADE_EXPOSURE: float = 0.05
 _FALLBACK_FORMULAS: list[list[int]] = [[2], [9], [23]]
 
 
+class FormulaValidationError(ValueError):
+    """AlphaMaster 公式 token 与当前引擎不兼容。"""
+
+
 def _inject_alpha_master_root() -> None:
-    """把 AlphaMaster-main 根目录注入 sys.path（仅追加，避免遮蔽 QuantHub 同名模块）。
+    """把内置 AlphaMaster 运行时注入 sys.path（仅追加，避免遮蔽同名模块）。
 
     其 ``model_core`` 命名空间包与 QuantHub 的 core/strategies/apps 不冲突，
     追加到末尾即可被唯一解析。
@@ -77,7 +82,10 @@ def _inject_alpha_master_root() -> None:
         sys.path.append(root)
 
 
-def compute_target_positions(factors) -> Any:
+def compute_target_positions(
+    factors,
+    min_trade_exposure: float = MIN_TRADE_EXPOSURE,
+) -> Any:
     """连续仓位 [-1, +1]（收益优先模式，等价重实现 AlphaMaster signal.py）。
 
     Args:
@@ -88,13 +96,113 @@ def compute_target_positions(factors) -> Any:
     import torch  # 懒加载
 
     pos = torch.tanh(factors)
-    if MIN_TRADE_EXPOSURE > 0:
+    if min_trade_exposure > 0:
         pos = torch.where(
-            pos.abs() >= MIN_TRADE_EXPOSURE,
+            pos.abs() >= min_trade_exposure,
             pos,
             torch.zeros_like(pos),
         )
     return pos
+
+
+def _normalize_formulas(formulas: Any) -> list[list[int]]:
+    """兼容单公式 ``[tokens]`` 与公式集合 ``[[tokens], ...]``。"""
+    if not isinstance(formulas, list) or not formulas:
+        raise FormulaValidationError("公式不能为空")
+    candidates = [formulas] if all(isinstance(token, int) for token in formulas) else formulas
+    normalized: list[list[int]] = []
+    for index, formula in enumerate(candidates):
+        if not isinstance(formula, list) or not formula:
+            raise FormulaValidationError(f"第 {index + 1} 条公式为空或不是 token 列表")
+        if any(isinstance(token, bool) or not isinstance(token, int) for token in formula):
+            raise FormulaValidationError(f"第 {index + 1} 条公式包含非整数 token")
+        normalized.append([int(token) for token in formula])
+    return normalized
+
+
+def validate_formulas(formulas: Any) -> list[list[int]]:
+    """按上游动态词表和 StackVM 栈规则校验公式。"""
+    normalized = _normalize_formulas(formulas)
+    _inject_alpha_master_root()
+    from model_core.ops import OPS_CONFIG
+    from model_core.vocab import FORMULA_VOCAB
+
+    operator_arity = {
+        FORMULA_VOCAB.operator_offset + index: int(config[2])
+        for index, config in enumerate(OPS_CONFIG)
+    }
+    for formula_index, formula in enumerate(normalized):
+        depth = 0
+        for token_index, token in enumerate(formula):
+            if token < 0 or token >= FORMULA_VOCAB.size:
+                raise FormulaValidationError(
+                    f"第 {formula_index + 1} 条公式的 token[{token_index}]={token} "
+                    f"超出当前词表范围 0..{FORMULA_VOCAB.size - 1}"
+                )
+            if token < FORMULA_VOCAB.operator_offset:
+                depth += 1
+                continue
+            arity = operator_arity.get(token)
+            if arity is None or depth < arity:
+                name = FORMULA_VOCAB.token_names[token]
+                raise FormulaValidationError(
+                    f"第 {formula_index + 1} 条公式在 {name} 处缺少操作数"
+                )
+            depth = depth - arity + 1
+        if depth != 1:
+            raise FormulaValidationError(
+                f"第 {formula_index + 1} 条公式执行后栈深度为 {depth}，应为 1"
+            )
+    return normalized
+
+
+def describe_formulas(formulas: Any) -> list[dict[str, Any]]:
+    """返回公式 token、可读名称和上游结构风险提示。"""
+    normalized = validate_formulas(formulas)
+    _inject_alpha_master_root()
+    from model_core.vm import validate_formula_structure
+    from model_core.vocab import FORMULA_VOCAB, VOCAB_VERSION
+
+    return [
+        {
+            "tokens": formula,
+            "expression": " -> ".join(FORMULA_VOCAB.token_names[token] for token in formula),
+            "warnings": validate_formula_structure(formula, FORMULA_VOCAB.token_names),
+            "vocab_version": VOCAB_VERSION,
+        }
+        for formula in normalized
+    ]
+
+
+def engine_info() -> dict[str, Any]:
+    """AlphaMaster 引擎能力与当前 fallback 公式的可观测信息。"""
+    try:
+        import torch  # noqa: F401
+    except ModuleNotFoundError:
+        return {
+            "available": False,
+            "root": str(ALPHAMASTER_ROOT),
+            "vocab_version": None,
+            "vocab_schema": None,
+            "feature_count": 0,
+            "operator_count": 0,
+            "fallback_formulas": [],
+            "reason": "缺少可选依赖 torch",
+            "install_command": "uv sync --extra heavy-torch",
+        }
+
+    _inject_alpha_master_root()
+    from model_core.vocab import FORMULA_VOCAB, VOCAB_SCHEMA_TAG, VOCAB_VERSION
+
+    return {
+        "available": ALPHAMASTER_ROOT.exists(),
+        "root": str(ALPHAMASTER_ROOT),
+        "vocab_version": VOCAB_VERSION,
+        "vocab_schema": VOCAB_SCHEMA_TAG,
+        "feature_count": FORMULA_VOCAB.feature_count,
+        "operator_count": len(FORMULA_VOCAB.operator_names),
+        "fallback_formulas": describe_formulas(_FALLBACK_FORMULAS),
+    }
 
 
 @register_strategy(
@@ -136,6 +244,15 @@ class AlphaMasterStrategy(StrategyBase):
 
         if formulas is None:
             formulas = self._load_formulas()
+        else:
+            formulas = validate_formulas(formulas)
+
+        min_trade_exposure = float(
+            kwargs.get(
+                "min_trade_exposure",
+                self.config.get("min_trade_exposure", MIN_TRADE_EXPOSURE),
+            )
+        )
 
         import torch  # 懒加载重依赖
 
@@ -174,7 +291,11 @@ class AlphaMasterStrategy(StrategyBase):
 
             raw = sum(scores) / len(scores)
             # 连续仓位：tanh 压缩到 (-1, +1)，低于阈值置零
-            pos = float(compute_target_positions(torch.tensor([raw]))[0].item())
+            pos = float(
+                compute_target_positions(
+                    torch.tensor([raw]), min_trade_exposure=min_trade_exposure
+                )[0].item()
+            )
             if pos > 0:
                 direction = "buy"
             elif pos < 0:
@@ -192,7 +313,12 @@ class AlphaMasterStrategy(StrategyBase):
                 confidence=strength,
                 source="alphamaster",
                 tags=[f"formulas={len(formulas)}", f"bars={len(df)}"],
-                meta={"raw_factor": raw, "engine": "AlphaMaster-MT5"},
+                meta={
+                    "raw_factor": raw,
+                    "target_position": pos,
+                    "formula_tokens": formulas,
+                    "engine": "AlphaMaster-StackVM",
+                },
             )
             signals.append(sig)
             self.publish(sig)
@@ -255,26 +381,27 @@ class AlphaMasterStrategy(StrategyBase):
                 with json_path.open("r", encoding="utf-8") as f:
                     data = json.load(f)
                 formula = data.get("formula") or data.get("formula_tokens")
-                if (
-                    isinstance(formula, list)
-                    and formula
-                    and all(
-                        isinstance(t, int)
-                        for t in (formula[0] if isinstance(formula[0], list) else formula)
-                    )
-                ):
-                    # 兼容 "formula": [tokens] 或 "formula": [[tokens], ...]
-                    if isinstance(formula[0], list):
-                        logger.info(
-                            "alphamaster 加载训练公式 %d 条（来自 %s）",
-                            len(formula),
-                            json_path.name,
-                        )
-                        return [list(map(int, f)) for f in formula]
-                    logger.info("alphamaster 加载训练公式 1 条（来自 %s）", json_path.name)
-                    return [list(map(int, formula))]
-            except Exception:
-                logger.warning("alphamaster 读取 %s 失败，回退启发式公式", json_path.name)
+                _inject_alpha_master_root()
+                from model_core.vocab import FORMULA_VOCAB
+
+                artifact_version = data.get("vocab_version")
+                if artifact_version:
+                    FORMULA_VOCAB.verify(str(artifact_version))
+                else:
+                    logger.warning("alphamaster 策略产物缺少 vocab_version，按 legacy 校验")
+                normalized = validate_formulas(formula)
+                logger.info(
+                    "alphamaster 加载训练公式 %d 条（来自 %s）",
+                    len(normalized),
+                    json_path.name,
+                )
+                return normalized
+            except Exception as exc:
+                logger.warning(
+                    "alphamaster 读取 %s 失败，回退启发式公式: %s",
+                    json_path.name,
+                    exc,
+                )
         return run_factor_search()
 
     # ---------- 回测 / 实盘 ----------
@@ -285,8 +412,8 @@ class AlphaMasterStrategy(StrategyBase):
         formulas: list[list[int]] | None = None,
         initial_capital: float = 10000.0,
         **kwargs: Any,
-    ) -> BacktestResult:
-        """事件驱动回测：on_bar 内按综合因子分方向交易。"""
+    ) -> dict[str, Any]:
+        """按 AlphaMaster 原生连续仓位口径执行无前视偏差回测。"""
         if klines is None or klines.empty:
             from core.backtest.engine import BacktestResult
 
@@ -296,53 +423,216 @@ class AlphaMasterStrategy(StrategyBase):
         from model_core.features import MT5FeatureEngineer
         from model_core.vm import StackVM
 
-        from core.backtest.engine import EventContext, EventEngine
-
-        df = klines.sort_values("datetime").reset_index(drop=True)
-        formulas = formulas or self._load_formulas()
+        sort_column = (
+            "datetime"
+            if "datetime" in klines and klines["datetime"].notna().any()
+            else "bar_time"
+            if "bar_time" in klines
+            else None
+        )
+        df = (
+            klines.sort_values(sort_column).reset_index(drop=True)
+            if sort_column
+            else klines.reset_index(drop=True)
+        )
+        formulas = validate_formulas(formulas or self._load_formulas())
         vm = StackVM()
         feat = MT5FeatureEngineer.compute_features(self._df_to_raw_dict(df))
 
-        per_bar: list[float] = []
-        for i in range(len(df)):
-            bar_scores: list[float] = []
-            for formula in formulas:
-                try:
-                    res = vm.execute(formula, feat)
-                except Exception:
-                    continue
-                if res is None:
-                    continue
-                try:
-                    bar_scores.append(float(res[0, i].item()))
-                except Exception:
-                    continue
-            per_bar.append(sum(bar_scores) / len(bar_scores) if bar_scores else 0.0)
+        factor_tensors = [vm.execute(formula, feat) for formula in formulas]
+        valid_factors = [factor for factor in factor_tensors if factor is not None]
+        if not valid_factors:
+            raise FormulaValidationError("没有公式能被 StackVM 执行")
 
-        state = {"i": 0}
+        import torch
 
-        def on_bar(bar: pd.Series, ctx: EventContext) -> None:
-            i = state["i"]
-            raw = per_bar[i] if i < len(per_bar) else 0.0
-            price = float(bar["close"])
-            ts = bar.get("datetime")
-            if raw > 0.2 and ctx.position == 0.0:
-                qty = ctx.cash / (price * (1 + ctx.commission))
-                if qty > 0:
-                    ctx.buy(price, qty, ts)
-            elif raw < -0.2 and ctx.position > 0.0:
-                ctx.sell(price, ctx.position, ts)
-            state["i"] += 1
+        factor = torch.stack(valid_factors).mean(dim=0)[0]
+        min_trade_exposure = float(
+            kwargs.get(
+                "min_trade_exposure",
+                self.config.get("min_trade_exposure", MIN_TRADE_EXPOSURE),
+            )
+        )
+        position = (
+            compute_target_positions(factor, min_trade_exposure=min_trade_exposure)
+            .detach()
+            .cpu()
+            .numpy()
+            .astype(float)
+        )
+        factor_values = factor.detach().cpu().numpy().astype(float)
+        open_prices = df["open"].astype(float).to_numpy()
+        target_return = np.zeros(len(df), dtype=float)
+        if len(df) >= 3:
+            target_return[:-2] = np.log(
+                (open_prices[2:] + 1e-12) / (open_prices[1:-1] + 1e-12)
+            )
 
-        engine = EventEngine(initial_capital=initial_capital)
-        result = engine.run(df, on_bar)
+        previous_position = np.zeros(len(df), dtype=float)
+        previous_position[1:] = position[:-1]
+        turnover = np.abs(position - previous_position)
+        cost_rate = max(0.0, float(kwargs.get("cost_rate", 0.0001)))
+        slippage_rate = max(0.0, float(kwargs.get("slippage_rate", 0.0001)))
+        total_cost_rate = cost_rate + slippage_rate
+        pnl = position * target_return - turnover * total_cost_rate
+        cumulative_log_return = np.cumsum(pnl)
+        equity_values = float(initial_capital) * np.exp(cumulative_log_return)
+
+        timestamps = (
+            df["datetime"].tolist()
+            if "datetime" in df and df["datetime"].notna().any()
+            else df["bar_time"].tolist()
+            if "bar_time" in df
+            else list(range(len(df)))
+        )
+        trades = self._extract_continuous_trades(
+            position=position,
+            open_prices=open_prices,
+            timestamps=timestamps,
+            pnl=pnl,
+            initial_capital=float(initial_capital),
+            min_trade_exposure=min_trade_exposure,
+        )
+        periods_per_year = max(1, int(kwargs.get("periods_per_year", 6240)))
+        metrics = self._continuous_metrics(
+            pnl=pnl,
+            equity=equity_values,
+            trades=trades,
+            turnover=turnover,
+            position=position,
+            periods_per_year=periods_per_year,
+        )
+        formula_details = describe_formulas(formulas)
+        equity_curve = pd.DataFrame(
+            {
+                "datetime": timestamps,
+                "equity": equity_values,
+                "factor": factor_values,
+                "position": position,
+            }
+        )
         return {
-            "engine": result.engine,
-            "metrics": result.metrics,
-            "final_equity": result.final_equity,
-            "total_return": result.total_return,
-            "max_drawdown": result.max_drawdown,
-            "trades": result.trades,
+            "engine": "alphamaster-continuous",
+            "metrics": {
+                **metrics,
+                "formula_count": len(formulas),
+                "vocab_version": formula_details[0]["vocab_version"],
+                "formula_warnings": [
+                    warning
+                    for item in formula_details
+                    for warning in item["warnings"]
+                ],
+            },
+            "final_equity": float(equity_values[-1]),
+            "total_return": float(equity_values[-1] / initial_capital - 1.0),
+            "max_drawdown": metrics["max_drawdown"],
+            "trades": trades,
+            "equity_curve": equity_curve,
+            "formulas": formula_details,
+        }
+
+    @staticmethod
+    def _extract_continuous_trades(
+        *,
+        position: np.ndarray,
+        open_prices: np.ndarray,
+        timestamps: list[Any],
+        pnl: np.ndarray,
+        initial_capital: float,
+        min_trade_exposure: float,
+    ) -> list[dict[str, Any]]:
+        """把连续仓位的方向切换整理为完整多空交易。"""
+        trades: list[dict[str, Any]] = []
+        current_direction = 0
+        entry_bar = 0
+
+        def direction(value: float) -> int:
+            if value >= min_trade_exposure:
+                return 1
+            if value <= -min_trade_exposure:
+                return -1
+            return 0
+
+        def execution_index(signal_bar: int) -> int:
+            return min(signal_bar + 1, len(open_prices) - 1)
+
+        def close_trade(exit_bar: int) -> None:
+            execution_entry = execution_index(entry_bar)
+            execution_exit = execution_index(exit_bar)
+            log_return = float(pnl[entry_bar:exit_bar].sum())
+            trades.append(
+                {
+                    "direction": "long" if current_direction > 0 else "short",
+                    "entry_time": str(timestamps[execution_entry]),
+                    "exit_time": str(timestamps[execution_exit]),
+                    "entry_price": float(open_prices[execution_entry]),
+                    "exit_price": float(open_prices[execution_exit]),
+                    "pnl": float(initial_capital * math.expm1(log_return)),
+                    "return_pct": float(math.expm1(log_return) * 100),
+                    "hold_bars": max(0, exit_bar - entry_bar),
+                    "avg_exposure": float(np.abs(position[entry_bar:exit_bar]).mean())
+                    if exit_bar > entry_bar
+                    else 0.0,
+                }
+            )
+
+        for bar, value in enumerate(position):
+            new_direction = direction(float(value))
+            if new_direction == current_direction:
+                continue
+            if current_direction != 0:
+                close_trade(bar)
+            current_direction = new_direction
+            entry_bar = bar
+
+        if current_direction != 0:
+            close_trade(len(position))
+        return trades
+
+    @staticmethod
+    def _continuous_metrics(
+        *,
+        pnl: np.ndarray,
+        equity: np.ndarray,
+        trades: list[dict[str, Any]],
+        turnover: np.ndarray,
+        position: np.ndarray,
+        periods_per_year: int,
+    ) -> dict[str, float | int | None]:
+        mean_return = float(np.mean(pnl)) if len(pnl) else 0.0
+        std_return = float(np.std(pnl)) if len(pnl) else 0.0
+        downside = pnl[pnl < 0]
+        downside_std = float(np.std(downside)) if len(downside) else 0.0
+        sharpe = (
+            mean_return / std_return * math.sqrt(periods_per_year)
+            if std_return > 1e-12
+            else 0.0
+        )
+        sortino = (
+            mean_return / downside_std * math.sqrt(periods_per_year)
+            if downside_std > 1e-12
+            else 0.0
+        )
+        peaks = np.maximum.accumulate(equity)
+        drawdown = equity / np.maximum(peaks, 1e-12) - 1.0
+        max_drawdown = abs(float(drawdown.min())) if len(drawdown) else 0.0
+        wins = [float(trade["pnl"]) for trade in trades if float(trade["pnl"]) > 0]
+        losses = [abs(float(trade["pnl"])) for trade in trades if float(trade["pnl"]) < 0]
+        return {
+            "annualized_log_return": mean_return * periods_per_year,
+            "sharpe": float(np.clip(sharpe, -20.0, 20.0)),
+            "sortino": float(np.clip(sortino, -20.0, 20.0)),
+            "max_drawdown": max_drawdown,
+            "win_rate": len(wins) / len(trades) if trades else 0.0,
+            "profit_factor": sum(wins) / sum(losses) if losses else None,
+            "average_hold_bars": float(
+                np.mean([trade["hold_bars"] for trade in trades])
+            )
+            if trades
+            else 0.0,
+            "average_exposure": float(np.mean(np.abs(position))) if len(position) else 0.0,
+            "turnover": float(np.sum(turnover)),
+            "n_trades": len(trades),
         }
 
     def live_tick(self, **kwargs: Any) -> dict | None:
@@ -375,4 +665,4 @@ def run_factor_search(
     迁移版在无 ``best_mt5_strategy.json`` 时**回退为一组内置启发式公式**
     （纯特征 token，覆盖趋势 / 反转 / 动量），无需算子即可被 StackVM 评估。
     """
-    return [list(f) for f in _FALLBACK_FORMULAS]
+    return validate_formulas([list(f) for f in _FALLBACK_FORMULAS])

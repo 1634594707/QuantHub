@@ -98,6 +98,14 @@ class TencentSource(DataSource):
         rows = data.get(key, [])
         if not rows:
             return pd.DataFrame()
+        if self.market == "us_stocks" and len(rows) < min(limit, 20):
+            logger.warning(
+                "腾讯美股历史数据不足 %s: 期望至少 %d 条，实际 %d 条，转入 fallback",
+                symbol,
+                min(limit, 20),
+                len(rows),
+            )
+            return pd.DataFrame()
 
         # 腾讯返回：[date, open, close, high, low, volume]；除权日可能带第 7 列分红信息，只取前 6 列
         trimmed = [r[:6] for r in rows]

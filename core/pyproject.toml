@@ -19,7 +19,6 @@ dependencies = [
 data_feed = ["akshare>=1.16", "ccxt>=4.3"]
 llm = ["openai>=1.40", "tiktoken>=0.7", "jsonschema>=4.22"]
 backtest = ["backtrader>=1.9.78"]
-viz = ["streamlit>=1.32", "plotly>=5.20"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["quanthub_core"]

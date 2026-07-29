@@ -1,9 +1,29 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { CSSProperties } from 'react'
 import type { Decision, Direction } from '../data/mock'
-import { DECISION } from '../data/mock'
 import { api } from '../api/client'
-import { useApi } from '../api/useApi'
-import type { DecisionView, FutureTrendView, PaAnalyzeResp } from '../api/types'
+import { executeAnalysisTask } from '../api/taskRunner'
+import type { DecisionTreeView, DecisionView, FutureTrendView, PaAnalyzeResp } from '../api/types'
+import '../styles/strategy-module.css'
+
+const PA_TIMEOUT_MS = 90_000
+
+const EMPTY_DECISION: Decision = {
+  direction: 'hold',
+  trend: '—',
+  cycle: '—',
+  phase: '—',
+  confidence: 0,
+  dualConfidence: { stage1: 0, stage2: 0 },
+  nextBar: { predictable: false, top3: [], remainder: 1 },
+  nextCycle: { predictable: false, top3: [], remainder: 1 },
+  stop: 0,
+  target: 0,
+  riskReward: 0,
+  winRate: 0,
+  reason: '运行 PA 分析后显示诊断依据与交易计划。',
+  gateTrace: [],
+}
 
 const DIR_LABEL: Record<Direction, { title: string; sub: string }> = {
   long: { title: '看多 · 建议做多', sub: '趋势向上，风险可控' },
@@ -32,7 +52,7 @@ function parseRatioText(txt: string | null | undefined): number {
   return m ? parseFloat(m[0]) : 0
 }
 
-function mapNextBar(bar: FutureTrendView['next_bar']): Decision['nextBar'] {
+function mapNextBar(bar: FutureTrendView['next_bar'] | undefined): Decision['nextBar'] {
   if (!bar) {
     return { predictable: false, top3: [], remainder: 1 }
   }
@@ -49,7 +69,7 @@ function mapNextBar(bar: FutureTrendView['next_bar']): Decision['nextBar'] {
   return { predictable, top3, remainder: Math.max(0, 1 - sum) }
 }
 
-function mapNextCycle(cyc: FutureTrendView['next_cycle']): Decision['nextCycle'] {
+function mapNextCycle(cyc: FutureTrendView['next_cycle'] | undefined): Decision['nextCycle'] {
   if (!cyc) {
     return { predictable: false, top3: [], remainder: 1 }
   }
@@ -58,9 +78,9 @@ function mapNextCycle(cyc: FutureTrendView['next_cycle']): Decision['nextCycle']
   return { predictable: !cyc.unpredictable, top3, remainder: restSum }
 }
 
-function mapGateTrace(path: PaAnalyzeResp['tree']['path']): Decision['gateTrace'] {
+function mapGateTrace(path: DecisionTreeView['path'] | undefined): Decision['gateTrace'] {
   if (!path || path.length === 0) {
-    return DECISION.gateTrace
+    return []
   }
   return path.slice(0, 6).map((p) => ({
     gate: p.question || p.node || '—',
@@ -70,27 +90,27 @@ function mapGateTrace(path: PaAnalyzeResp['tree']['path']): Decision['gateTrace'
 
 function mapPaToDecision(resp: PaAnalyzeResp | null): Decision {
   if (!resp || !resp.ok || !resp.decision) {
-    return DECISION
+    return EMPTY_DECISION
   }
   const v: DecisionView = resp.decision
   const direction = parseDirection(v.direction)
   return {
     direction,
-    trend: v.trend || DECISION.trend,
-    cycle: v.cycle || DECISION.cycle,
-    phase: v.phase || DECISION.phase,
-    confidence: v.trade_confidence?.score ?? DECISION.confidence,
+    trend: v.trend || EMPTY_DECISION.trend,
+    cycle: v.cycle || EMPTY_DECISION.cycle,
+    phase: v.phase || EMPTY_DECISION.phase,
+    confidence: v.trade_confidence?.score ?? EMPTY_DECISION.confidence,
     dualConfidence: {
-      stage1: v.diagnosis_confidence?.score ?? DECISION.dualConfidence.stage1,
-      stage2: v.trade_confidence?.score ?? DECISION.dualConfidence.stage2,
+      stage1: v.diagnosis_confidence?.score ?? EMPTY_DECISION.dualConfidence.stage1,
+      stage2: v.trade_confidence?.score ?? EMPTY_DECISION.dualConfidence.stage2,
     },
     nextBar: mapNextBar(resp.future?.next_bar),
     nextCycle: mapNextCycle(resp.future?.next_cycle),
-    stop: v.sl ?? DECISION.stop,
-    target: v.tp1 ?? DECISION.target,
-    riskReward: v.risk_reward ? parseRatioText(v.risk_reward.ratio_text) : DECISION.riskReward,
-    winRate: parsePct(v.estimated_win_rate) || DECISION.winRate,
-    reason: v.reasoning || DECISION.reason,
+    stop: v.sl ?? EMPTY_DECISION.stop,
+    target: v.tp1 ?? EMPTY_DECISION.target,
+    riskReward: v.risk_reward ? parseRatioText(v.risk_reward.ratio_text) : EMPTY_DECISION.riskReward,
+    winRate: parsePct(v.estimated_win_rate) || EMPTY_DECISION.winRate,
+    reason: v.reasoning || EMPTY_DECISION.reason,
     gateTrace: mapGateTrace(resp.tree?.path),
   }
 }
@@ -109,7 +129,13 @@ function probBar(label: string, prob: number, i: number) {
     <div key={label} className="d-prob-row">
       <span className="d-prob-label">{label}</span>
       <div className="d-prob-track">
-        <div className="d-prob-fill" style={{ width: `${(prob * 100).toFixed(0)}%`, background: color }} />
+        <div
+          className="d-prob-fill"
+          style={{
+            '--w': `${(prob * 100).toFixed(0)}%`,
+            '--c': color,
+          } as CSSProperties}
+        />
       </div>
       <span className="d-prob-value mono">{(prob * 100).toFixed(0)}%</span>
     </div>
@@ -152,23 +178,172 @@ function FutureBox({
 export default function DecisionPanel({
   symbol = '600519',
   timeframe = '1h',
+  market,
+  requestKey = 0,
+  researchRunId,
+  onResearchRunId,
+  initialData,
 }: {
   symbol?: string
   timeframe?: string
+  market?: string
+  requestKey?: number
+  researchRunId?: string | null
+  onResearchRunId?: (runId: string) => void
+  initialData?: PaAnalyzeResp | null
 }) {
-  const { data, loading, error, refetch } = useApi(() => api.analyzePa(symbol, timeframe), [symbol, timeframe])
+  const [data, setData] = useState<PaAnalyzeResp | null>(initialData ?? null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [publishing, setPublishing] = useState(false)
+  const [publishMessage, setPublishMessage] = useState('')
+  const controllerRef = useRef<AbortController | null>(null)
+  const lastRequestKey = useRef(0)
+  const timedOutRef = useRef(false)
+  const taskIdRef = useRef<string | null>(null)
+
+  const runAnalysis = useCallback(async () => {
+    const normalized = symbol.trim()
+    if (!normalized || loading) return
+
+    controllerRef.current?.abort()
+    const controller = new AbortController()
+    controllerRef.current = controller
+    timedOutRef.current = false
+    setLoading(true)
+    setError(null)
+    const timer = window.setTimeout(() => {
+      timedOutRef.current = true
+      controller.abort()
+    }, PA_TIMEOUT_MS)
+
+    try {
+      const response = await executeAnalysisTask<PaAnalyzeResp>({
+        kind: 'pa',
+        symbol: normalized,
+        timeframe,
+        market: market || 'a_shares',
+        payload: { research_run_id: researchRunId ?? undefined },
+        timeoutSeconds: 90,
+      }, {
+        signal: controller.signal,
+        onTask: (task) => { taskIdRef.current = task.id },
+      })
+      if (!response.ok) throw new Error(response.error || 'PA 分析未返回完整结果')
+      setData(response)
+      if (response.research_run_id) onResearchRunId?.(response.research_run_id)
+    } catch (err) {
+      if (controller.signal.aborted) {
+        setError(timedOutRef.current ? '分析超过 90 秒，已自动结束' : '本次分析已取消')
+      } else {
+        setError(err instanceof Error ? err.message : String(err))
+      }
+    } finally {
+      window.clearTimeout(timer)
+      if (controllerRef.current === controller) controllerRef.current = null
+      taskIdRef.current = null
+      setLoading(false)
+    }
+  }, [loading, market, onResearchRunId, researchRunId, symbol, timeframe])
+
+  const cancelAnalysis = useCallback(() => {
+    timedOutRef.current = false
+    if (taskIdRef.current) void api.cancelAnalysisTask(taskIdRef.current)
+    controllerRef.current?.abort()
+  }, [])
+
+  useEffect(() => {
+    if (requestKey <= 0 || requestKey === lastRequestKey.current) return
+    lastRequestKey.current = requestKey
+    void runAnalysis()
+  }, [requestKey, runAnalysis])
+
+  useEffect(() => () => controllerRef.current?.abort(), [])
+
+  useEffect(() => {
+    setData(initialData ?? null)
+    setError(null)
+  }, [initialData, symbol, timeframe])
+
   const d = useMemo(() => mapPaToDecision(data), [data])
-  const isReal = !!data?.ok
+  const isReal = Boolean(data?.ok && data.decision)
   const dir = DIR_LABEL[d.direction]
   const [tab, setTab] = useState<'overview' | 'deep'>('overview')
+  const details = data?.decision
+  const priceText = (value: number | null | undefined) => value && value > 0 ? value : '—'
+
+  const publishSignal = useCallback(async () => {
+    if (!data?.ok || !data.decision) return
+    setPublishing(true)
+    setPublishMessage('')
+    try {
+      const direction = parseDirection(data.decision.direction)
+      const signalDirection = direction === 'long' ? 'buy' : direction === 'short' ? 'sell' : 'hold'
+      const probabilities = data.future?.next_bar?.probabilities
+      const score = signalDirection === 'buy'
+        ? (probabilities?.bullish ?? 50) / 100
+        : signalDirection === 'sell'
+          ? (probabilities?.bearish ?? 50) / 100
+          : (probabilities?.neutral ?? 50) / 100
+      const tradeConfidence = data.decision.trade_confidence?.score
+      const diagnosisConfidence = data.decision.diagnosis_confidence?.score
+      const confidence = typeof tradeConfidence === 'number'
+        ? tradeConfidence / 100
+        : typeof diagnosisConfidence === 'number'
+          ? diagnosisConfidence / 100
+          : 0.3
+      const runId = data.research_run_id ?? researchRunId ?? null
+      const response = await api.publishSignal({
+        symbol: data.symbol,
+        market: data.market,
+        timeframe: data.timeframe,
+        direction: signalDirection,
+        score: Math.max(0, Math.min(1, score)),
+        confidence: Math.max(0, Math.min(1, confidence)),
+        source: 'pa_agent',
+        tags: ['pa_agent', 'two_stage', 'research'],
+        meta: {
+          research_run_id: runId,
+          order_type: data.decision.order_type,
+          entry: data.decision.entry,
+          sl: data.decision.sl,
+          tp1: data.decision.tp1,
+          tp2: data.decision.tp2,
+          risk_reward: data.decision.risk_reward,
+          reasoning: data.decision.reasoning,
+        },
+      })
+      if (runId) {
+        await api.addResearchEvidence(runId, {
+          kind: 'signal',
+          source: 'signals',
+          title: `${data.symbol} PA 待审核信号`,
+          payload: { signal: response.signal },
+        })
+      }
+      setPublishMessage(response.ok ? '信号已进入信号中心' : '信号发布失败')
+    } catch (reason) {
+      setPublishMessage(reason instanceof Error ? reason.message : '信号发布失败')
+    } finally {
+      setPublishing(false)
+    }
+  }, [data, researchRunId])
 
   return (
     <div className="card">
       <div className="card-head">
         <div className="card-title">PA 决策面板</div>
-        <button className="run-btn" onClick={refetch} disabled={loading} title={`对 ${symbol} 运行 PA 分析`}>
-          {loading ? '分析中…' : '运行 PA 分析'}
-        </button>
+        <div className="pa-panel-actions">
+          {isReal && (
+            <button className="run-btn" onClick={() => void publishSignal()} disabled={publishing || loading}>
+              {publishing ? '发布中…' : '生成待审核信号'}
+            </button>
+          )}
+          {loading && <button className="run-btn danger" onClick={cancelAnalysis}>取消</button>}
+          <button className="run-btn" onClick={() => void runAnalysis()} disabled={loading} title={`对 ${symbol} 运行 PA 分析`}>
+            {loading ? '分析中…' : '运行 PA 分析'}
+          </button>
+        </div>
       </div>
       <div className="decision">
         {/* 大方向牌 */}
@@ -180,11 +355,11 @@ export default function DecisionPanel({
           <div className="d-verdict-stats">
             <div className="d-verdict-stat">
               <span className="k">胜率</span>
-              <span className="v mono">{d.winRate}%</span>
+              <span className="v mono">{d.winRate > 0 ? `${d.winRate}%` : '—'}</span>
             </div>
             <div className="d-verdict-stat">
               <span className="k">盈亏比</span>
-              <span className="v mono">{d.riskReward}:1</span>
+              <span className="v mono">{d.riskReward > 0 ? `${d.riskReward}:1` : '—'}</span>
             </div>
           </div>
         </div>
@@ -237,13 +412,18 @@ export default function DecisionPanel({
               <div className="d-section-title">交易计划</div>
               <div className="d-plan">
                 <div className="d-plan-item">
+                  <span className="k">入场</span>
+                  <span className="v mono">{priceText(details?.entry)}</span>
+                </div>
+                <div className="d-plan-arrow">→</div>
+                <div className="d-plan-item">
                   <span className="k">止损</span>
-                  <span className="v mono down">{d.stop}</span>
+                  <span className="v mono down">{priceText(d.stop)}</span>
                 </div>
                 <div className="d-plan-arrow">→</div>
                 <div className="d-plan-item">
                   <span className="k">目标</span>
-                  <span className="v mono up">{d.target}</span>
+                  <span className="v mono up">{priceText(d.target)}</span>
                 </div>
               </div>
             </div>
@@ -284,15 +464,42 @@ export default function DecisionPanel({
                 ))}
               </div>
             </div>
+
+            <div className="d-section">
+              <div className="d-section-title">关键因素与风险</div>
+              <div className="d-insight-grid">
+                <div>
+                  <span className="d-insight-label">关键因素</span>
+                  <ul className="d-insight-list">
+                    {(details?.key_factors?.length ? details.key_factors : ['暂无关键因素']).map((item) => <li key={item}>{item}</li>)}
+                  </ul>
+                </div>
+                <div>
+                  <span className="d-insight-label">观察点</span>
+                  <ul className="d-insight-list">
+                    {(details?.watch_points?.length ? details.watch_points : ['暂无观察点']).map((item) => <li key={item}>{item}</li>)}
+                  </ul>
+                </div>
+              </div>
+              {details?.risk_assessment && <div className="d-reason">{details.risk_assessment}</div>}
+            </div>
           </>
         )}
 
-        {!isReal && !loading && (
-          <div className={`run-status ${error ? 'err' : 'ok'}`} role="status">
-            {error
-              ? `⚠ 后端未返回真实决策：${error}（当前显示 mock 数据）`
-              : 'ℹ 当前为模拟决策数据，点击「运行 PA 分析」请求真实分析（需配置 DEEPSEEK_API_KEY）'}
+        {loading && <div className="run-status work" role="status">正在执行市场诊断与决策评估，最长等待 90 秒…</div>}
+        {!loading && error && <div className="run-status err" role="alert">PA 分析失败：{error}</div>}
+        {!loading && isReal && (
+          <div className="run-status success" role="status">
+            分析完成 · K线 {data?.meta?.kline_count ?? '—'} 根 · 阶段一/二均已生成
           </div>
+        )}
+        {publishMessage && (
+          <div className="run-status ok" role="status">
+            {publishMessage} · <a href="/signals">打开信号中心</a>
+          </div>
+        )}
+        {!loading && !isReal && !error && (
+          <div className="run-status ok" role="status">等待运行 · 不会自动请求大模型</div>
         )}
       </div>
     </div>

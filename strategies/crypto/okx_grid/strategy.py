@@ -229,7 +229,7 @@ class OkxGridStrategy(StrategyBase):
             slippage=float(kwargs.get("slippage", 0.0005)),
         )
         engine = GridBacktester(config=cfg)
-        result = engine.run(klines)
+        result = engine.run(klines, periods_per_year=365)
         return result.to_backtest_result()
 
     # ------------------------------------------------------------------
