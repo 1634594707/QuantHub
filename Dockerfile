@@ -8,10 +8,10 @@ RUN npm run build
 
 FROM python:3.11-slim-bookworm AS backend-builder
 
-COPY --from=ghcr.io/astral-sh/uv:0.10.10 /uv /uvx /bin/
 WORKDIR /app
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy
+RUN pip install --no-cache-dir uv==0.10.10
 COPY . .
 RUN uv sync --frozen --no-dev --no-editable
 
@@ -27,18 +27,11 @@ LABEL org.opencontainers.image.title="QuantHub" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.revision="${REVISION}"
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends nginx ca-certificates \
-    && rm -rf /var/lib/apt/lists/* \
-    && rm -f /etc/nginx/sites-enabled/default \
-    && mkdir -p /data
+RUN mkdir -p /data
 
 WORKDIR /app
 COPY --from=backend-builder /app /app
-COPY --from=frontend-builder /app/web/dist /usr/share/nginx/html
-COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
-COPY docker/entrypoint.sh /usr/local/bin/quanthub-entrypoint
-RUN chmod +x /usr/local/bin/quanthub-entrypoint
+COPY --from=frontend-builder /app/web/dist /app/web/dist
 
 ENV PATH="/app/.venv/bin:${PATH}" \
     PYTHONUNBUFFERED=1 \
@@ -51,4 +44,4 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=5)"
 
-ENTRYPOINT ["quanthub-entrypoint"]
+ENTRYPOINT ["uvicorn", "apps.api.container:create_app", "--factory", "--host", "0.0.0.0", "--port", "8080"]
