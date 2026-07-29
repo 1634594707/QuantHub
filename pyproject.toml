@@ -48,6 +48,10 @@ ai = [
 backtest = [
     "backtrader>=1.9.78",
 ]
+dev = [
+    "pre-commit>=4.0,<5",
+    "ruff>=0.9,<1",
+]
 # 重依赖（按需安装，避免污染基础环境）
 heavy-torch = [
     "torch>=2.0",

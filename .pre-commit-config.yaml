@@ -25,7 +25,7 @@ repos:
     hooks:
       - id: block-secrets
         name: block secrets / sensitive files
-        entry: bash tools/block_secrets.sh
+        entry: uv run python tools/block_secrets.py
         language: system
         pass_filenames: false
         always_run: true

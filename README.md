@@ -193,6 +193,13 @@ tests/          后端产品流程测试
 
 ## 开发与验证
 
+安装开发工具并启用 Git 提交检查：
+
+```bash
+uv sync --locked --extra dev
+uv run pre-commit install
+```
+
 运行后端测试：
 
 ```bash
