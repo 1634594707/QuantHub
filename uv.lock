@@ -1938,6 +1938,11 @@ heavy-torch = [
     { name = "transformers" },
 ]
 
+[package.dev-dependencies]
+test = [
+    { name = "httpx2" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "aiohttp", marker = "extra == 'crypto'", specifier = ">=3.9" },
@@ -1973,6 +1978,9 @@ requires-dist = [
     { name = "urllib3", specifier = ">=2.0" },
 ]
 provides-extras = ["a-shares", "crypto", "ai", "backtest", "dev", "heavy-torch", "heavy-solana"]
+
+[package.metadata.requires-dev]
+test = [{ name = "httpx2", specifier = ">=2.7,<3" }]
 
 [[package]]
 name = "quanthub-alphagpt"

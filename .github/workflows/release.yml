@@ -1,0 +1,98 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Validate release tag
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Validate frontend
+        working-directory: web
+        run: |
+          npm ci
+          npm run typecheck
+          npm test
+          npm run build
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Validate backend
+        run: |
+          uv sync --locked --group test
+          uv run python -m compileall -q apps/api apps/dispatcher apps/scheduler core strategies
+          uv run python -c "from apps.api.main import app; assert app.version == '${GITHUB_REF_NAME#v}'"
+          uv run python -m unittest discover -s tests -p "test_*.py"
+
+  publish:
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Resolve image tags
+        id: image
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          minor="${version%.*}"
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "minor=$minor" >> "$GITHUB_OUTPUT"
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GitHub Container Registry
+        shell: bash
+        run: echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push container image
+        shell: bash
+        run: |
+          docker buildx create --use --name "quanthub-${GITHUB_RUN_ID}"
+          docker buildx build \
+            --platform linux/amd64 \
+            --build-arg VERSION="${{ steps.image.outputs.version }}" \
+            --build-arg REVISION="$GITHUB_SHA" \
+            --tag "${{ steps.image.outputs.image }}:$GITHUB_REF_NAME" \
+            --tag "${{ steps.image.outputs.image }}:${{ steps.image.outputs.version }}" \
+            --tag "${{ steps.image.outputs.image }}:${{ steps.image.outputs.minor }}" \
+            --tag "${{ steps.image.outputs.image }}:latest" \
+            --tag "${{ steps.image.outputs.image }}:sha-${GITHUB_SHA::12}" \
+            --push \
+            .
+
+      - name: Create GitHub release
+        shell: bash
+        run: gh release create "$GITHUB_REF_NAME" --verify-tag --title "QuantHub $GITHUB_REF_NAME" --generate-notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

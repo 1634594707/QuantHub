@@ -17,8 +17,8 @@
 
 from __future__ import annotations
 
-import logging
 import hashlib
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -35,8 +35,8 @@ from strategies import discover_and_register, list_strategies
 from .deployment import load_settings
 
 # Domain routers (modularized routes)
-from .domains.automation import router as automation_router
 from .domains.alerts import router as alerts_router
+from .domains.automation import router as automation_router
 from .domains.backups import router as backups_router
 from .domains.ensemble import router as ensemble_router
 from .domains.governance import auth as governance_auth
@@ -102,7 +102,7 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 deployment = load_settings()
-app = FastAPI(title="QuantHub API", version="0.2.0", lifespan=_lifespan)
+app = FastAPI(title="QuantHub API", version="0.1.0", lifespan=_lifespan)
 
 
 @app.middleware("http")
@@ -190,7 +190,7 @@ def health() -> dict:
     cfg = get_config()
     return {
         "status": "ok",
-        "time": datetime.now().isoformat(timespec="seconds"),
+        "time": datetime.now().astimezone().isoformat(timespec="seconds"),
         "strategies": len(list_strategies()),
         "live_trading": bool(cfg.get("live_trading", False)),
         "version": app.version,

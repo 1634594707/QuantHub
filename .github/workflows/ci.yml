@@ -13,8 +13,8 @@ jobs:
       run:
         working-directory: web
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 20
           cache: npm
@@ -31,16 +31,16 @@ jobs:
   backend:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v7
 
       - name: Set up Python
         run: uv python install 3.11
 
       - name: Install web API dependencies
-        run: uv sync
+        run: uv sync --locked --group test
 
       - name: Byte-compile backend
         run: uv run python -m compileall -q apps/api apps/dispatcher apps/scheduler core strategies
@@ -50,3 +50,11 @@ jobs:
 
       - name: Product workflow tests
         run: uv run python -m unittest discover -s tests -p "test_*.py"
+
+  container:
+    needs: [frontend, backend]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build application image
+        run: docker build --tag quanthub:ci .

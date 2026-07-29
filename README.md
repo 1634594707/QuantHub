@@ -110,6 +110,16 @@ npm --prefix web run dev
 
 Vite 会将 `/api` 请求代理到 `http://127.0.0.1:8001`。
 
+### 4. Docker 镜像
+
+正式版本会发布到 GitHub Container Registry。镜像在同一端口提供 Web 工作台和 API，并将 SQLite 数据持久化到 `/data`：
+
+```bash
+docker run --name quanthub -p 8080:8080 -v quanthub-data:/data ghcr.io/1634594707/quanthub:latest
+```
+
+启动后访问 <http://127.0.0.1:8080>，健康检查位于 <http://127.0.0.1:8080/health>。
+
 ## 可选能力
 
 基础安装足以启动 Web 工作台。需要特定市场或分析能力时，再安装对应 extra：
@@ -203,6 +213,7 @@ uv run pre-commit install
 运行后端测试：
 
 ```bash
+uv sync --locked --group test
 uv run python -m unittest discover -s tests -p "test_*.py" -v
 ```
 

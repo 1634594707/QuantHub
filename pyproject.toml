@@ -63,6 +63,11 @@ heavy-solana = [
     "base58>=2.1",
 ]
 
+[dependency-groups]
+test = [
+    "httpx2>=2.7,<3",
+]
+
 [tool.uv.workspace]
 # uv workspace: 每个成员独立 pyproject.toml，但共享单一虚拟环境
 members = [
