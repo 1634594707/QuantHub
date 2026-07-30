@@ -26,7 +26,16 @@ describe('alertEventHref', () => {
 
   it('opens the associated research run in history', () => {
     expect(alertEventHref({ ...BASE_EVENT, related_type: 'research_run', related_id: 'RUN-1' }))
-      .toBe('/research/600519?market=a_shares&view=history&run_id=RUN-1')
+      .toBe('/research/600519?market=a_shares&tf=1d&view=history&run_id=RUN-1')
+  })
+
+  it('opens a factor research run on the factor page', () => {
+    expect(alertEventHref({
+      ...BASE_EVENT,
+      related_type: 'research_run',
+      related_id: 'FACTOR-1',
+      related_modules: ['factor_research'],
+    })).toBe('/factor-research?run_id=FACTOR-1')
   })
 
   it('opens the instrument research overview for a price event', () => {

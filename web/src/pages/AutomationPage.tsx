@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
 import type {
   AutomationAuditLog,
@@ -11,6 +12,7 @@ import { Button } from '../components/ui/Button/Button'
 import { RefreshControl } from '../components/ui/RefreshControl/RefreshControl'
 import { Table, type Column } from '../components/ui/Table/Table'
 import { WorkspaceHeader } from '../components/WorkspaceHeader/WorkspaceHeader'
+import { linkedResultHref, researchRunHref } from '../lib/researchResults'
 import s from './OperationsPages.module.css'
 
 type ConsoleTab = 'runs' | 'alerts' | 'audit'
@@ -35,6 +37,7 @@ function runStatusLabel(status: AutomationRun['status']) {
 }
 
 export default function AutomationPage() {
+  const navigate = useNavigate()
   const status = useApi(() => api.automationStatus(), [], { retry: false })
   const jobs = useApi(() => api.automationJobs(), [], { retry: false })
   const runs = useApi(() => api.automationRuns(), [], { retry: false })
@@ -138,6 +141,23 @@ export default function AutomationPage() {
       setActionError(error instanceof Error ? error.message : '继续加载审计记录失败')
     } finally {
       setLoadingMoreAudit(false)
+    }
+  }
+
+  async function openRunResult(run: AutomationRun) {
+    if (!run.result_type || !run.result_id) return
+    setActionError(null)
+    try {
+      if (run.result_type === 'research_run') {
+        const response = await api.researchRun(run.result_id)
+        navigate(researchRunHref(response.run))
+        return
+      }
+      const href = linkedResultHref(run.result_type, run.result_id)
+      if (!href) throw new Error(`暂不支持打开产出类型：${run.result_type}`)
+      navigate(href)
+    } catch (caught) {
+      setActionError(caught instanceof Error ? caught.message : '产出定位失败')
     }
   }
 
@@ -245,6 +265,9 @@ export default function AutomationPage() {
       key: 'actions', header: '操作', width: 230, render: (row) => (
         <div className={s.rowActions}>
           <Button size="sm" variant="link" onClick={() => setSelectedRunId(row.id)}>查看日志</Button>
+          {row.status === 'succeeded' && row.result_type && row.result_id && (
+            <Button size="sm" variant="link" onClick={() => void openRunResult(row)}>查看本次产出</Button>
+          )}
           {row.status === 'failed' && (
             <Button
               size="sm"
@@ -390,6 +413,13 @@ export default function AutomationPage() {
               <Button size="sm" variant="ghost" onClick={() => setSelectedRunId(null)}>关闭</Button>
             </div>
             {selectedRun.error && <div className={s.logError}>{selectedRun.error}</div>}
+            {selectedRun.result_type && selectedRun.result_id && (
+              <div className={s.formActions}>
+                <Button size="sm" variant="secondary" onClick={() => void openRunResult(selectedRun)}>
+                  查看本次产出 · {selectedRun.result_type}
+                </Button>
+              </div>
+            )}
             <pre>{selectedRun.log || '运行尚未生成日志。'}</pre>
           </div>
         )}

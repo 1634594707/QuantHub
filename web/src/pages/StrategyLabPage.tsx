@@ -30,6 +30,9 @@ export default function StrategyLabPage() {
   const requestedDefinitionId = searchParams.get('definition_id') || ''
   const requestedExperimentId = searchParams.get('experiment_id') || ''
   const requestedAction = searchParams.get('action') || ''
+  const requestedSymbol = (searchParams.get('symbol') || '600519').toUpperCase()
+  const requestedMarket = searchParams.get('market') || 'a_shares'
+  const requestedTimeframe = searchParams.get('timeframe') || '1d'
   const experimentFormRef = useRef<HTMLFormElement>(null)
   const [tick, setTick] = useState(0)
   const definitions = useApi(() => api.strategyLabDefinitions(200), [tick], { retry: false })
@@ -58,11 +61,11 @@ export default function StrategyLabPage() {
   const [actionMessage, setActionMessage] = useState('')
   const [busy, setBusy] = useState('')
   const [definitionForm, setDefinitionForm] = useState({
-    name: '', strategy_key: '', market: 'a_shares', description: '', tags: '',
+    name: '', strategy_key: '', market: requestedMarket, description: '', tags: '',
   })
   const [versionForm, setVersionForm] = useState({ version: 'v1', changelog: '' })
   const [experimentForm, setExperimentForm] = useState({
-    symbol: '600519', market: 'a_shares', timeframe: '1d', version_id: '', note: '',
+    symbol: requestedSymbol, market: requestedMarket, timeframe: requestedTimeframe, version_id: '', note: '',
   })
   const [versionParams, setVersionParams] = useState<Record<string, unknown>>({})
   const [experimentParams, setExperimentParams] = useState<Record<string, unknown>>({})
@@ -93,6 +96,16 @@ export default function StrategyLabPage() {
     setDefinitionId(requestedDefinitionId)
     setExperimentId(requestedExperimentId)
   }, [requestedDefinitionId, requestedExperimentId])
+
+  useEffect(() => {
+    if (requestedAction !== 'create_experiment' || definitionId || !definitions.data?.definitions.length) return
+    const candidate = definitions.data.definitions.find((item) => item.market === requestedMarket)
+      ?? definitions.data.definitions[0]
+    setDefinitionId(candidate.id)
+    const query = new URLSearchParams(searchParams)
+    query.set('definition_id', candidate.id)
+    setSearchParams(query, { replace: true })
+  }, [definitionId, definitions.data?.definitions, requestedAction, requestedMarket, searchParams, setSearchParams])
 
   useEffect(() => {
     if (requestedAction !== 'create_experiment' || !currentDefinition) return
@@ -378,6 +391,12 @@ export default function StrategyLabPage() {
       />
       {actionError && <div className={s.error}>{actionError}</div>}
       {actionMessage && <div className={s.success}>{actionMessage}</div>}
+      {requestedAction === 'create_experiment' && (
+        <div className={s.contextNotice} role="status">
+          <strong>已带入因子研究上下文</strong>
+          <span>{requestedSymbol} · {requestedMarket} · {requestedTimeframe}；选择已有策略定义后可直接创建实验，没有定义时先完成新建。</span>
+        </div>
+      )}
 
       <div className={s.workflowStep}><span>01</span><div><h2>定义与版本</h2><p>策略身份、注册键与可复现参数</p></div></div>
       <div className={s.grid2}>

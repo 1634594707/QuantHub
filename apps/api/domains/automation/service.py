@@ -12,6 +12,8 @@ from zoneinfo import ZoneInfo
 
 from apscheduler.triggers.cron import CronTrigger
 
+from apps.api import store
+
 from . import repository
 
 
@@ -77,7 +79,7 @@ def list_jobs() -> dict:
     """列出全部配置任务，并合并持久化启停与 Cron 覆盖。"""
     try:
         jobs = _merged_jobs()
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - expose scheduler configuration failures to the UI
         return {"ok": False, "error": str(exc), "jobs": []}
     return {"ok": True, "count": len(jobs), "jobs": jobs}
 
@@ -203,6 +205,36 @@ def _result_log(job: dict, result) -> str:
     return "\n".join(lines)
 
 
+def _result_reference(result) -> tuple[str | None, str | None]:
+    """只提取明确、可复现的业务产出引用，不从日志文本猜测。"""
+    if isinstance(result, dict):
+        explicit_type = result.get("result_type")
+        explicit_id = result.get("result_id")
+        if isinstance(explicit_type, str) and isinstance(explicit_id, str):
+            return explicit_type, explicit_id
+        research_run_id = result.get("research_run_id")
+        if isinstance(research_run_id, str) and research_run_id:
+            run = store.get_research_run(research_run_id)
+            result_type = (
+                "factor_research"
+                if run and "factor_research" in run.get("modules", [])
+                else "research_run"
+            )
+            return result_type, research_run_id
+        signal_id = result.get("signal_id")
+        if isinstance(signal_id, str) and signal_id:
+            return "signal", signal_id
+        order_id = result.get("order_id")
+        if isinstance(order_id, str) and order_id:
+            return "simulation_order", order_id
+    if isinstance(result, (list, tuple)):
+        references = {_result_reference(item) for item in result}
+        references.discard((None, None))
+        if len(references) == 1:
+            return references.pop()
+    return None, None
+
+
 def _execute_run(run_id: str, actor: str = "local-user") -> None:
     run = repository.get_run(run_id)
     if run is None:
@@ -212,6 +244,7 @@ def _execute_run(run_id: str, actor: str = "local-user") -> None:
     try:
         job = _require_job(run["job_name"])
         result = _execute_job(job["func_name"])
+        result_type, result_id = _result_reference(result)
         finished_at = time.time()
         completed = repository.update_run(
             run_id,
@@ -221,6 +254,8 @@ def _execute_run(run_id: str, actor: str = "local-user") -> None:
                 "error": None,
                 "finished_at": finished_at,
                 "duration_ms": round((finished_at - started_at) * 1000),
+                "result_type": result_type,
+                "result_id": result_id,
             },
         )
         repository.add_audit(
@@ -232,7 +267,7 @@ def _execute_run(run_id: str, actor: str = "local-user") -> None:
             after=completed,
             result="succeeded",
         )
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - persist any background runner failure
         finished_at = time.time()
         failed = repository.update_run(
             run_id,
@@ -319,7 +354,10 @@ def recover_pending_runs() -> dict:
 
 
 def list_runs(
-    *, job_name: str | None = None, run_status: str | None = None, limit: int = 100,
+    *,
+    job_name: str | None = None,
+    run_status: str | None = None,
+    limit: int = 100,
     cursor: str | None = None,
 ) -> dict:
     page = repository.list_runs_page(

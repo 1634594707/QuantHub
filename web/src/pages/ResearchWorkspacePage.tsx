@@ -5,7 +5,9 @@ import type { AnalysisTask, ResearchRun, ResearchStatus } from '../api/types'
 import { useApi } from '../api/useApi'
 import DecisionPanel from '../components/DecisionPanel'
 import KlineCard from '../components/KlineCard'
+import { IconChart } from '../components/icons'
 import { AsyncStateBoundary } from '../components/ui/AsyncStateBoundary/AsyncStateBoundary'
+import { Button } from '../components/ui/Button/Button'
 import { RefreshControl } from '../components/ui/RefreshControl/RefreshControl'
 import { WorkspaceHeader } from '../components/WorkspaceHeader/WorkspaceHeader'
 import { setRecentResearchPath } from '../navigation/recentResearch'
@@ -67,6 +69,16 @@ const EVALUATION_PROFILE_LABELS: Record<string, string> = {
   quick: '快速筛查',
   balanced: '均衡评估',
   comprehensive: '全面评估',
+}
+
+const WORKSPACE_EVALUATION_METHODS = [
+  'trend', 'momentum', 'volatility', 'drawdown', 'mean_reversion',
+]
+const WORKSPACE_STRATEGY_LENSES = ['trend_following', 'mean_reversion', 'risk_first']
+const EVALUATION_HORIZONS: Record<WorkspaceTimeframe, string> = {
+  '1h': 'short',
+  '1d': 'swing',
+  '1w': 'medium',
 }
 
 function formatModules(modules: string[]) {
@@ -369,6 +381,8 @@ export default function ResearchWorkspacePage() {
   const [metadataMessage, setMetadataMessage] = useState('')
   const [historyLoadingMore, setHistoryLoadingMore] = useState(false)
   const [reportActionMessage, setReportActionMessage] = useState('')
+  const [evaluationStarting, setEvaluationStarting] = useState(false)
+  const [evaluationStartError, setEvaluationStartError] = useState('')
   const history = useApi(
     () => api.researchRuns(symbol, undefined, 50, favoritesOnly || undefined),
     [symbol, favoritesOnly, historyKey],
@@ -556,6 +570,43 @@ export default function ResearchWorkspacePage() {
     setSearchParams(query, { replace: true })
   }
 
+  async function startEvaluation() {
+    setEvaluationStarting(true)
+    setEvaluationStartError('')
+    try {
+      const modules = market === 'a_shares'
+        ? ['market', 'news', 'pa', 'ensemble']
+        : ['market', 'pa', 'ensemble']
+      const response = await api.createAnalysisTask({
+        kind: 'evaluation',
+        symbol,
+        market,
+        timeframe,
+        payload: {
+          modules,
+          evaluation_horizon: EVALUATION_HORIZONS[timeframe],
+          evaluation_profile: 'balanced',
+          market_methods: WORKSPACE_EVALUATION_METHODS,
+          strategy_lenses: WORKSPACE_STRATEGY_LENSES,
+          market_limit: 240,
+        },
+        timeout_seconds: 360,
+      })
+      const query = new URLSearchParams(searchParams)
+      query.set('evaluation_task_id', response.task.id)
+      query.set('view', 'overview')
+      query.delete('run_id')
+      query.delete('compare_run_id')
+      setActiveRunId(null)
+      setCompareRunId('')
+      setSearchParams(query, { replace: true })
+    } catch (error) {
+      setEvaluationStartError(error instanceof Error ? error.message : '综合评估任务创建失败')
+    } finally {
+      setEvaluationStarting(false)
+    }
+  }
+
   useEffect(() => {
     setNoteDraft(detailedRun?.note ?? '')
     setMetadataMessage('')
@@ -720,8 +771,25 @@ export default function ResearchWorkspacePage() {
             ))}
           </div>
           <button className="research-go" type="submit">切换</button>
+          <Button
+            className="research-evaluate"
+            type="button"
+            variant="primary"
+            icon={<IconChart size={16} />}
+            loading={evaluationStarting}
+            disabled={evaluation?.status === 'queued' || evaluation?.status === 'running'}
+            onClick={() => void startEvaluation()}
+          >
+            {evaluation?.status === 'queued' || evaluation?.status === 'running' ? '评估进行中' : '一键评估'}
+          </Button>
         </form>
       </ContextBar>
+      {evaluationStartError && (
+        <div className="evaluation-start-error" role="alert">
+          <strong>一键评估启动失败</strong>
+          <span>{evaluationStartError}。当前工作台数据未受影响，请检查分析服务后重试。</span>
+        </div>
+      )}
 
       <nav className="research-tabs" aria-label="综合评估视图">
         {VIEWS.map((item) => (

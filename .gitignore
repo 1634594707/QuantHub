@@ -136,10 +136,12 @@ temp/
 
 # ===== 本地规划与阶段性文档 =====
 /*ROADMAP*.md
+!BEGINNER_USABILITY_ROADMAP.md
 /design/*ROADMAP*.md
 /design/FRONTEND_REDESIGN_PLAN.md
 /design/PHASE_0_VISUAL_ACCEPTANCE.md
 
 # ===== 截图测试产物（UI 预览/对比用，不入仓）=====
+/demo_artifacts/
 web/screenshot-*.png
 screenshot-*.png

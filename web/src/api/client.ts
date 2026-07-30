@@ -34,6 +34,9 @@ import type {
   CreatedApiToken,
   EnsembleResp,
   FactorResearchResp,
+  FactorAiReviewResp,
+  FactorResearchRunDetailResp,
+  FactorResearchRunsResp,
   HealthResp,
   HoldingCRUDResp,
   Instrument,
@@ -619,6 +622,28 @@ export const api = {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   }),
+  factorAiReview: (payload: {
+    symbol: string
+    market: string
+    interval: string
+    limit: number
+    horizon: number
+    transaction_cost_bps: number
+    review_focus?: string
+    run_id?: string
+  }) => getJSON<FactorAiReviewResp>('/factor-research/ai-review', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }),
+  factorResearchRuns: (symbol?: string, limit = 20, cursor?: string) => {
+    const params = new URLSearchParams({ limit: String(limit) })
+    if (symbol?.trim()) params.set('symbol', symbol.trim().toUpperCase())
+    if (cursor) params.set('cursor', cursor)
+    return getJSON<FactorResearchRunsResp>(`/factor-research/runs?${params.toString()}`)
+  },
+  factorResearchRun: (runId: string) =>
+    getJSON<FactorResearchRunDetailResp>(`/factor-research/runs/${encodeURIComponent(runId)}`),
 
   // ---- G7 组合管理 ----
   portfolioManage: () => getJSON<PortfolioManageResp>('/portfolio/manage'),

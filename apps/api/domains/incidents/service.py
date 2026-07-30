@@ -15,6 +15,25 @@ def _analysis_incidents(limit: int) -> list[dict]:
         refreshed = tasks_service.refresh_timeout(task)
         if refreshed["status"] not in {"failed", "timeout"}:
             continue
+        result = refreshed.get("result") if isinstance(refreshed.get("result"), dict) else {}
+        request = refreshed.get("request") if isinstance(refreshed.get("request"), dict) else {}
+        research_run_id = result.get("research_run_id") or request.get("research_run_id")
+        actions = [
+            {
+                "type": "retry_analysis_task",
+                "task_id": refreshed["id"],
+                "label": "重试分析任务",
+            }
+        ]
+        if isinstance(research_run_id, str) and research_run_id:
+            actions.insert(
+                0,
+                {
+                    "type": "open_research_result",
+                    "research_run_id": research_run_id,
+                    "label": "查看已保留研究",
+                },
+            )
         incidents.append(
             {
                 "id": f"analysis:{refreshed['id']}",
@@ -28,14 +47,9 @@ def _analysis_incidents(limit: int) -> list[dict]:
                     "symbol": refreshed["symbol"],
                     "market": refreshed["market"],
                     "attempt": refreshed["attempt"],
+                    "research_run_id": research_run_id,
                 },
-                "actions": [
-                    {
-                        "type": "retry_analysis_task",
-                        "task_id": refreshed["id"],
-                        "label": "重试分析任务",
-                    }
-                ],
+                "actions": actions,
             }
         )
     return incidents
@@ -45,6 +59,15 @@ def _automation_incidents(limit: int) -> list[dict]:
     incidents = []
     for run in automation_repository.list_runs(status="failed", limit=limit):
         actions = [{"type": "retry_automation_run", "run_id": run["id"], "label": "重试自动化"}]
+        if run.get("result_type") in {"research_run", "factor_research"} and run.get("result_id"):
+            actions.insert(
+                0,
+                {
+                    "type": "open_research_result",
+                    "research_run_id": run["result_id"],
+                    "label": "查看已保留研究",
+                },
+            )
         if run["acknowledged_at"] is None:
             actions.append(
                 {
@@ -61,7 +84,11 @@ def _automation_incidents(limit: int) -> list[dict]:
                 "status": "acknowledged" if run["acknowledged_at"] else "failed",
                 "occurred_at": run["finished_at"] or run["created_at"],
                 "error": run["error"] or "自动化任务失败",
-                "context": {"job_name": run["job_name"], "attempt": run["attempt"]},
+                "context": {
+                    "job_name": run["job_name"],
+                    "attempt": run["attempt"],
+                    "research_run_id": run.get("result_id"),
+                },
                 "actions": actions,
             }
         )

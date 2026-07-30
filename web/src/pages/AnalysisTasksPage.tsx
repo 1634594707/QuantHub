@@ -7,6 +7,7 @@ import { ConfirmActionButton } from '../components/ui/ConfirmActionButton/Confir
 import { RefreshControl } from '../components/ui/RefreshControl/RefreshControl'
 import { ResponsiveDetails } from '../components/ui/ResponsiveDetails/ResponsiveDetails'
 import { WorkspaceHeader } from '../components/WorkspaceHeader/WorkspaceHeader'
+import { researchResultHref } from '../lib/researchResults'
 import '../styles/tasks.css'
 
 const KIND_META: Record<AnalysisTaskKind, string> = {
@@ -182,6 +183,15 @@ export default function AnalysisTasksPage() {
                 <span><b>{formatTime(task.created_at)}</b><small>{task.duration_ms == null ? '—' : `${(task.duration_ms / 1000).toFixed(1)} 秒`}</small></span>
                 <span title={task.error || undefined}><b>{task.error || (task.result ? '结果已保存' : '等待执行')}</b><small>{task.result && typeof task.result.research_run_id === 'string' ? `研究 ${task.result.research_run_id.slice(0, 10)}` : '—'}</small></span>
                 <span className="task-actions">
+                  {task.status === 'succeeded' && task.result && typeof task.result.research_run_id === 'string' && (
+                    <a href={researchResultHref({
+                      runId: task.result.research_run_id,
+                      modules: [task.kind],
+                      symbol: task.symbol,
+                      market: task.market,
+                      timeframe: task.timeframe,
+                    })}>查看结果</a>
+                  )}
                   {['queued', 'running'].includes(task.status) && (
                     <ConfirmActionButton
                       label="取消"

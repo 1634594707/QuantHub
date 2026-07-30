@@ -449,6 +449,10 @@ export interface FactorCurvePoint {
 export interface FactorResearchResp {
   ok: boolean
   error?: string
+  run_id?: string
+  saved?: boolean
+  saved_at?: number
+  persistence_error?: string
   symbol: string
   market: string
   interval: string
@@ -512,6 +516,62 @@ export interface FactorResearchResp {
     usable_rule: string
     warning: string
   }
+}
+
+export interface FactorAiReviewResp {
+  ok: boolean
+  error?: string
+  run_id?: string
+  saved?: boolean
+  review?: {
+    verdict: '支持继续研究' | '谨慎复核' | '证据不足'
+    confidence: number
+    statistical_alignment: '一致' | '部分一致' | '冲突'
+    summary: string
+    overfitting_risk: { level: '低' | '中' | '高'; reasons: string[] }
+    regime_risk: { level: '低' | '中' | '高'; reasons: string[] }
+    factor_reviews: Array<{
+      factor_key: string
+      label: string
+      statistical_status: FactorStatus
+      assessment: string
+      evidence: string[]
+      risks: string[]
+      regime_fit: string[]
+      next_test: string
+    }>
+    portfolio_review: { strengths: string[]; risks: string[] }
+    experiments: Array<{
+      title: string
+      hypothesis: string
+      design: string
+      success_criteria: string
+    }>
+    uncertainties: string[]
+  }
+  meta?: {
+    provider?: string
+    model?: string
+    generated_at?: string
+    input_fingerprint?: string
+    attempts: number
+    usage?: Record<string, number>
+    statistical_conclusions_locked?: boolean
+  }
+}
+
+export interface FactorResearchRunsResp {
+  ok: boolean
+  runs: ResearchRun[]
+  total: number
+  next_cursor: string | null
+}
+
+export interface FactorResearchRunDetailResp {
+  ok: boolean
+  run: ResearchRun
+  result: FactorResearchResp | null
+  ai_review: FactorAiReviewResp | null
 }
 
 // ---- G7 组合管理 ----
@@ -1163,6 +1223,8 @@ export interface AutomationRun {
   started_at: number | null
   finished_at: number | null
   duration_ms: number | null
+  result_type: string | null
+  result_id: string | null
   acknowledged_at: number | null
   acknowledged_by: string | null
 }
@@ -1280,6 +1342,7 @@ export interface AlertEvent {
   observed_value: number | null
   related_type: string | null
   related_id: string | null
+  related_modules?: string[]
   delivery: Record<string, boolean>
   triggered_at: number
   acknowledged_at: number | null
@@ -1390,12 +1453,14 @@ export interface IncidentAction {
     | 'open_data_source_status'
     | 'check_data_source'
     | 'acknowledge_data_source_recovery'
+    | 'open_research_result'
   label: string
   task_id?: string
   run_id?: string
   order_id?: string
   execution_id?: string
   incident_id?: string
+  research_run_id?: string
 }
 
 export interface IncidentRecord {

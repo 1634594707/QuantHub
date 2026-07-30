@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "quanthub-alphagpt"
-version = "0.1.0"
+version = "0.1.1"
 description = "AlphaGPT 因子 DSL 加 链上执行"
 requires-python = ">=3.11,<3.13"
 dependencies = ["quanthub-core", "torch>=2.0", "numpy>=1.26"]

@@ -23,6 +23,7 @@ import { WorkspaceHeader } from '../components/WorkspaceHeader/WorkspaceHeader'
 import { useRecordNavigation } from '../hooks/useRecordNavigation'
 import { dirBucket, dirLabel, matchDir } from '../lib/signal-utils'
 import s from './SignalsPage.module.css'
+import { researchRunHref } from '../lib/researchResults'
 
 type Dir = 'all' | 'buy' | 'sell' | 'hold'
 type StatusFilter = 'all' | SignalLifecycleStatus
@@ -713,8 +714,8 @@ export default function SignalsPage() {
                 <section className={s.reviewSection}>
                   <div className={s.sectionHeading}>
                     <div><h3>研究证据</h3><span>{researchRunId ? researchRunId : '当前信号未关联研究运行'}</span></div>
-                    {researchRunId && (
-                      <a className={s.textLink} href={`/research/${encodeURIComponent(selectedSignal.symbol)}?market=${encodeURIComponent(selectedSignal.market)}&tf=${encodeURIComponent(selectedSignal.timeframe)}&view=history`}>打开研究记录</a>
+                    {research && (
+                      <a className={s.textLink} href={researchRunHref(research)}>打开研究记录</a>
                     )}
                   </div>
                   {researchLoading && <div className={s.inlineState}>正在读取研究证据…</div>}

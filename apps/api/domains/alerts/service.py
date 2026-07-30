@@ -6,6 +6,7 @@ import threading
 import time
 import uuid
 from datetime import datetime
+from itertools import pairwise
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -39,6 +40,11 @@ def _rule_dict(row) -> dict:
 
 
 def _event_dict(row) -> dict:
+    try:
+        related_modules_json = row["related_modules_json"]
+    except (IndexError, KeyError):
+        related_modules_json = None
+    related_modules = json.loads(related_modules_json or "[]")
     return {
         "id": row["id"],
         "rule_id": row["rule_id"],
@@ -47,6 +53,7 @@ def _event_dict(row) -> dict:
         "observed_value": row["observed_value"],
         "related_type": row["related_type"],
         "related_id": row["related_id"],
+        "related_modules": related_modules,
         "delivery": json.loads(row["delivery_json"] or "{}"),
         "triggered_at": row["triggered_at"],
         "acknowledged_at": row["acknowledged_at"],
@@ -77,11 +84,21 @@ def create_rule(user_id: str, payload: dict[str, Any]) -> dict:
                 created_at, updated_at)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
-                rule_id, user_id, payload["name"], payload["rule_type"], payload["symbol"],
-                payload["market"], payload.get("threshold"), int(payload.get("enabled", True)),
-                payload.get("frequency_minutes", 15), payload.get("quiet_start"),
-                payload.get("quiet_end"), payload.get("expires_at"),
-                json.dumps(payload.get("context", {}), ensure_ascii=False), now, now,
+                rule_id,
+                user_id,
+                payload["name"],
+                payload["rule_type"],
+                payload["symbol"],
+                payload["market"],
+                payload.get("threshold"),
+                int(payload.get("enabled", True)),
+                payload.get("frequency_minutes", 15),
+                payload.get("quiet_start"),
+                payload.get("quiet_end"),
+                payload.get("expires_at"),
+                json.dumps(payload.get("context", {}), ensure_ascii=False),
+                now,
+                now,
             ),
         )
         row = connection.execute("SELECT * FROM alert_rules WHERE id=?", (rule_id,)).fetchone()
@@ -89,7 +106,15 @@ def create_rule(user_id: str, payload: dict[str, Any]) -> dict:
 
 
 def update_rule(rule_id: str, user_id: str, patch: dict[str, Any]) -> dict | None:
-    allowed = {"name", "enabled", "threshold", "frequency_minutes", "quiet_start", "quiet_end", "expires_at"}
+    allowed = {
+        "name",
+        "enabled",
+        "threshold",
+        "frequency_minutes",
+        "quiet_start",
+        "quiet_end",
+        "expires_at",
+    }
     values = {key: value for key, value in patch.items() if key in allowed}
     if not values:
         return get_rule(rule_id, user_id)
@@ -126,8 +151,9 @@ def delete_rule(rule_id: str, user_id: str) -> bool:
 
 def list_events(user_id: str, *, pending_only: bool = False, limit: int = 200) -> dict:
     sql = """SELECT e.*, r.name AS rule_name, r.symbol AS rule_symbol,
-                    r.market AS rule_market
+                    r.market AS rule_market, rr.modules_json AS related_modules_json
              FROM alert_events e JOIN alert_rules r ON r.id=e.rule_id
+             LEFT JOIN research_runs rr ON e.related_type='research_run' AND rr.id=e.related_id
              WHERE r.user_id=?"""
     params: list[Any] = [user_id]
     if pending_only:
@@ -152,8 +178,9 @@ def acknowledge_event(event_id: str, user_id: str) -> dict | None:
             return None
         row = connection.execute(
             """SELECT e.*, r.name AS rule_name, r.symbol AS rule_symbol,
-                      r.market AS rule_market
+                      r.market AS rule_market, rr.modules_json AS related_modules_json
                FROM alert_events e JOIN alert_rules r ON r.id=e.rule_id
+               LEFT JOIN research_runs rr ON e.related_type='research_run' AND rr.id=e.related_id
                WHERE e.id=?""",
             (event_id,),
         ).fetchone()
@@ -184,10 +211,14 @@ def _volatility(rule: dict) -> float | None:
     from apps.api.domains.market.service import fetch_kline
 
     result = fetch_kline(rule["symbol"], rule["market"], "1d", 21)
-    closes = [float(item["c"]) for item in result.get("candles", []) if isinstance(item.get("c"), (int, float))]
+    closes = [
+        float(item["c"])
+        for item in result.get("candles", [])
+        if isinstance(item.get("c"), (int, float))
+    ]
     if len(closes) < 2:
         return None
-    returns = [(current / previous - 1) * 100 for previous, current in zip(closes, closes[1:]) if previous]
+    returns = [(current / previous - 1) * 100 for previous, current in pairwise(closes) if previous]
     if not returns:
         return None
     mean = sum(returns) / len(returns)
@@ -219,14 +250,24 @@ def _evaluation_change(rule: dict) -> tuple[bool, str | None]:
     latest_direction = latest_summary.get("ensemble", {}).get("consensus", {}).get("direction")
     previous_direction = rule["context"].get("last_direction")
     rule["context"]["last_direction"] = latest_direction
-    changed = previous_direction is not None and latest_direction is not None and previous_direction != latest_direction
+    changed = (
+        previous_direction is not None
+        and latest_direction is not None
+        and previous_direction != latest_direction
+    )
     return changed, rows[0]["id"] if changed else None
 
 
 def _condition(rule: dict) -> tuple[bool, float | None, str | None, str | None]:
     rule_type = rule["rule_type"]
     threshold = rule["threshold"]
-    if rule_type in {"price_above", "price_below", "change_pct_above", "change_pct_below", "risk_invalidated"}:
+    if rule_type in {
+        "price_above",
+        "price_below",
+        "change_pct_above",
+        "change_pct_below",
+        "risk_invalidated",
+    }:
         price, change = _quote_observation(rule)
         if rule_type == "price_above":
             return price is not None and price >= threshold, price, "instrument", rule["symbol"]
@@ -237,7 +278,10 @@ def _condition(rule: dict) -> tuple[bool, float | None, str | None, str | None]:
         if rule_type == "change_pct_below":
             return change is not None and change <= threshold, change, "instrument", rule["symbol"]
         condition = rule["context"].get("condition")
-        triggered = price is not None and ((condition == "above" and price >= threshold) or (condition == "below" and price <= threshold))
+        triggered = price is not None and (
+            (condition == "above" and price >= threshold)
+            or (condition == "below" and price <= threshold)
+        )
         return triggered, price, "research_run", rule["context"].get("research_run_id")
     if rule_type == "volatility_above":
         value = _volatility(rule)
@@ -257,16 +301,31 @@ def _save_check(rule: dict, now: float, triggered: bool) -> None:
             """UPDATE alert_rules SET context_json=?, last_checked_at=?,
                last_triggered_at=CASE WHEN ? THEN ? ELSE last_triggered_at END,
                updated_at=? WHERE id=?""",
-            (json.dumps(rule["context"], ensure_ascii=False), now, int(triggered), now, now, rule["id"]),
+            (
+                json.dumps(rule["context"], ensure_ascii=False),
+                now,
+                int(triggered),
+                now,
+                now,
+                rule["id"],
+            ),
         )
 
 
-def _create_event(rule: dict, value: float | None, related_type: str | None, related_id: str | None, now: float) -> dict:
+def _create_event(
+    rule: dict, value: float | None, related_type: str | None, related_id: str | None, now: float
+) -> dict:
     from core.alert import AlertMessage, get_notifier
 
     message = f"{rule['name']}：{rule['symbol']} 已满足 {rule['rule_type']}"
     delivery = get_notifier().send(
-        AlertMessage(title=rule["name"], content=message, level="warning", source="alert_center", tags=[rule["symbol"]])
+        AlertMessage(
+            title=rule["name"],
+            content=message,
+            level="warning",
+            source="alert_center",
+            tags=[rule["symbol"]],
+        )
     )
     event_id = f"EVENT-{uuid.uuid4().hex[:12].upper()}"
     with store._lock, store._conn() as connection:
@@ -274,12 +333,22 @@ def _create_event(rule: dict, value: float | None, related_type: str | None, rel
             """INSERT INTO alert_events
                (id, rule_id, status, message, observed_value, related_type, related_id,
                 delivery_json, triggered_at) VALUES (?, ?, 'pending', ?, ?, ?, ?, ?, ?)""",
-            (event_id, rule["id"], message, value, related_type, related_id, json.dumps(delivery), now),
+            (
+                event_id,
+                rule["id"],
+                message,
+                value,
+                related_type,
+                related_id,
+                json.dumps(delivery),
+                now,
+            ),
         )
         row = connection.execute(
             """SELECT e.*, r.name AS rule_name, r.symbol AS rule_symbol,
-                      r.market AS rule_market
+                      r.market AS rule_market, rr.modules_json AS related_modules_json
                FROM alert_events e JOIN alert_rules r ON r.id=e.rule_id
+               LEFT JOIN research_runs rr ON e.related_type='research_run' AND rr.id=e.related_id
                WHERE e.id=?""",
             (event_id,),
         ).fetchone()
@@ -290,12 +359,20 @@ def check_rule(rule: dict, *, force: bool = False) -> dict:
     now = time.time()
     if not rule["enabled"] or (rule["expires_at"] is not None and rule["expires_at"] <= now):
         return {"ok": True, "checked": False, "triggered": False, "event": None}
-    if not force and rule["last_checked_at"] is not None and now - rule["last_checked_at"] < rule["frequency_minutes"] * 60:
+    if (
+        not force
+        and rule["last_checked_at"] is not None
+        and now - rule["last_checked_at"] < rule["frequency_minutes"] * 60
+    ):
         return {"ok": True, "checked": False, "triggered": False, "event": None}
     triggered, value, related_type, related_id = _condition(rule)
     quiet = _in_quiet_period(rule, now)
     _save_check(rule, now, triggered)
-    event = _create_event(rule, value, related_type, related_id, now) if triggered and not quiet else None
+    event = (
+        _create_event(rule, value, related_type, related_id, now)
+        if triggered and not quiet
+        else None
+    )
     return {"ok": True, "checked": True, "triggered": bool(event), "quiet": quiet, "event": event}
 
 
@@ -307,9 +384,13 @@ def check_all_rules(*, force: bool = False) -> dict:
         rule = _rule_dict(row)
         try:
             results.append({"rule_id": rule["id"], **check_rule(rule, force=force)})
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - isolate failures between independent rules
             results.append({"rule_id": rule["id"], "ok": False, "error": str(exc)})
-    return {"ok": all(item.get("ok") for item in results), "count": len(results), "results": results}
+    return {
+        "ok": all(item.get("ok") for item in results),
+        "count": len(results),
+        "results": results,
+    }
 
 
 def _monitor_loop() -> None:
@@ -322,7 +403,9 @@ def start_monitor() -> None:
     if _MONITOR_THREAD is not None and _MONITOR_THREAD.is_alive():
         return
     _STOP_EVENT.clear()
-    _MONITOR_THREAD = threading.Thread(target=_monitor_loop, name="quanthub-alert-monitor", daemon=True)
+    _MONITOR_THREAD = threading.Thread(
+        target=_monitor_loop, name="quanthub-alert-monitor", daemon=True
+    )
     _MONITOR_THREAD.start()
 
 

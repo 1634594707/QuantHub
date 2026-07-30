@@ -50,7 +50,7 @@ export function AsyncStateBoundary({
       <EmptyState
         variant="error"
         title="数据读取失败"
-        desc={error}
+        desc={`原因：${error}。影响：本区域尚未加载可用数据。处理：请重新读取；若持续失败，检查 API 与数据源状态。`}
         action={onRetry ? { label: '重新读取', onClick: onRetry } : undefined}
       />
     )
@@ -67,10 +67,10 @@ export function AsyncStateBoundary({
           {reconnecting
             ? '连接中断，正在重试；当前显示上次成功数据'
             : error
-              ? '更新失败；当前显示上次成功数据'
+              ? '更新失败；影响范围仅限本次刷新，当前仍显示上次成功数据'
               : '正在更新；当前数据仍可操作'}
         </span>
-        {error && <small>{error}</small>}
+        {error && <small>原因：{error} · 处理：重新读取或前往运行故障页检查</small>}
         {onRetry && !loading && !reconnecting && (
           <Button variant="link" size="sm" onClick={onRetry}>重新读取</Button>
         )}

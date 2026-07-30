@@ -78,6 +78,8 @@ def _run_dict(row) -> dict:
         "started_at": float(row["started_at"]) if row["started_at"] is not None else None,
         "finished_at": float(row["finished_at"]) if row["finished_at"] is not None else None,
         "duration_ms": row["duration_ms"],
+        "result_type": row["result_type"],
+        "result_id": row["result_id"],
         "acknowledged_at": (
             float(row["acknowledged_at"]) if row["acknowledged_at"] is not None else None
         ),
@@ -182,6 +184,8 @@ def update_run(run_id: str, patch: dict) -> dict | None:
         "started_at",
         "finished_at",
         "duration_ms",
+        "result_type",
+        "result_id",
         "acknowledged_at",
         "acknowledged_by",
     }
@@ -276,7 +280,11 @@ def list_audit_page(*, limit: int = 100, cursor: str | None = None) -> dict:
     sql += " ORDER BY created_at DESC, id DESC LIMIT ?"
     params.append(limit + 1)
     with store._lock, store._conn() as connection:
-        total = int(connection.execute("SELECT COUNT(*) AS total FROM automation_audit_logs").fetchone()["total"])
+        total = int(
+            connection.execute("SELECT COUNT(*) AS total FROM automation_audit_logs").fetchone()[
+                "total"
+            ]
+        )
         rows = connection.execute(sql, params).fetchall()
     has_more = len(rows) > limit
     page_rows = rows[:limit]

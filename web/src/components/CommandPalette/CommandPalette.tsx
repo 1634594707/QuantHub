@@ -12,6 +12,7 @@ import type {
   StrategyDefinition,
   StrategyExperiment,
 } from '../../api/types'
+import { researchRunHref } from '../../lib/researchResults'
 import { IconSearch } from '../icons'
 import styles from './CommandPalette.module.css'
 
@@ -64,7 +65,7 @@ const GROUP_LABELS: Record<CommandGroup, string> = {
   instruments: '标的',
   definitions: '策略定义',
   experiments: '策略实验',
-  research: '评估记录',
+  research: '研究记录',
   signals: '信号',
   orders: '模拟订单',
 }
@@ -189,7 +190,7 @@ function researchItems(rows: ResearchRun[], query: string): CommandItem[] {
       marker: '研',
       label: `${row.symbol} · ${row.modules.join(' + ') || '空白研究'}`,
       detail: `${row.status} · ${row.timeframe} · ${row.evidence_count} 证据`,
-      path: `/research/${encodeURIComponent(row.symbol)}?market=${encodeURIComponent(row.market)}&tf=${encodeURIComponent(row.timeframe)}&view=history&run_id=${encodeURIComponent(row.id)}`,
+      path: researchRunHref(row),
       keywords: `${row.id} ${row.note}`,
     }))
 }

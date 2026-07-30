@@ -89,6 +89,8 @@ class LLMClient:
         temperature: float = 0.7,
         max_tokens: int | None = None,
         response_format: dict | None = None,
+        request_timeout: float | None = None,
+        transport_max_retries: int | None = None,
         **kwargs: Any,
     ) -> LLMResponse:
         """对话接口。messages 为 OpenAI 格式。"""
@@ -106,7 +108,15 @@ class LLMClient:
                 params["max_tokens"] = max_tokens
             if response_format is not None:
                 params["response_format"] = response_format
-            return self._client.chat.completions.create(**params)
+            api_client = self._client
+            if request_timeout is not None or transport_max_retries is not None:
+                options: dict[str, Any] = {}
+                if request_timeout is not None:
+                    options["timeout"] = request_timeout
+                if transport_max_retries is not None:
+                    options["max_retries"] = max(0, transport_max_retries)
+                api_client = self._client.with_options(**options)
+            return api_client.chat.completions.create(**params)
 
         try:
             resp = _call()

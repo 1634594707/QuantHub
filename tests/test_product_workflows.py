@@ -14,9 +14,12 @@ from fastapi.testclient import TestClient
 
 from apps.api import database, store
 from apps.api.domains.alerts import service as alert_service
+from apps.api.domains.automation import repository as automation_repository
+from apps.api.domains.automation import service as automation_service
 from apps.api.domains.governance import repository as governance_repository
 from apps.api.domains.instrument import service as instrument_service
 from apps.api.domains.ledger import repository as ledger_repository
+from apps.api.domains.search import service as search_service
 from apps.api.domains.settings import service as settings_service
 from apps.api.domains.signals import service as signal_service
 from apps.api.domains.signals.schemas import PublishSignalRequest
@@ -66,6 +69,20 @@ class CursorPaginationTests(TemporaryStoreTestCase):
     def test_invalid_cursor_is_rejected(self) -> None:
         with self.assertRaisesRegex(ValueError, "分页游标无效"):
             store.list_simulation_orders_page(limit=2, cursor="not-a-cursor")
+
+    def test_factor_research_search_result_uses_factor_reader(self) -> None:
+        run = store.create_research_run(
+            symbol="AAPL",
+            market="us_stocks",
+            timeframe="1d",
+            modules=["factor_research"],
+            input_data={},
+        )
+
+        result = search_service.search(run["id"])
+        item = next(row for row in result["items"] if row["id"] == f"research:{run['id']}")
+
+        self.assertEqual(item["path"], f"/factor-research?run_id={run['id']}")
 
     def test_analysis_task_cursor_has_no_overlap_and_reports_total(self) -> None:
         for index in range(5):
@@ -119,6 +136,27 @@ class CursorPaginationTests(TemporaryStoreTestCase):
 
         self.assertEqual(seen, original_ids)
         self.assertNotIn(inserted["id"], seen)
+
+
+class AutomationResultLinkTests(TemporaryStoreTestCase):
+    def test_run_persists_structured_factor_result_reference(self) -> None:
+        research = store.create_research_run(
+            symbol="600519",
+            market="a_shares",
+            timeframe="1d",
+            modules=["factor_research"],
+            input_data={},
+        )
+        result_type, result_id = automation_service._result_reference(
+            {"research_run_id": research["id"]}
+        )
+        run = automation_repository.create_run("test_job", trigger_type="manual")
+        saved = automation_repository.update_run(
+            run["id"], {"result_type": result_type, "result_id": result_id}
+        )
+
+        self.assertEqual(saved["result_type"], "factor_research")
+        self.assertEqual(saved["result_id"], research["id"])
 
 
 class UnifiedEvaluationTests(TemporaryStoreTestCase):
@@ -512,6 +550,7 @@ class AlertCenterTests(TemporaryStoreTestCase):
         self.assertTrue(changed["triggered"])
         self.assertEqual(changed["event"]["related_type"], "research_run")
         self.assertEqual(changed["event"]["related_id"], second_run["id"])
+        self.assertEqual(changed["event"]["related_modules"], ["ensemble"])
 
 
 class GovernanceTests(TemporaryStoreTestCase):

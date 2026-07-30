@@ -113,6 +113,10 @@ def search(query: str, limit_per_group: int = 6) -> dict:
     for row in research_runs:
         modules = json.loads(row["modules_json"] or "[]")
         module_label = " + ".join(str(item) for item in modules) or "空白研究"
+        if "factor_research" in modules:
+            path = f"/factor-research?run_id={_path_segment(row['id'])}"
+        else:
+            path = f"/research/{_path_segment(row['symbol'])}?market={_path_segment(row['market'])}&tf={_path_segment(row['timeframe'])}&view=history&run_id={_path_segment(row['id'])}"
         items.append(
             {
                 "id": f"research:{row['id']}",
@@ -120,7 +124,7 @@ def search(query: str, limit_per_group: int = 6) -> dict:
                 "marker": "研",
                 "label": f"{row['symbol']} · {module_label}",
                 "detail": f"{row['status']} · {row['timeframe']}",
-                "path": f"/research/{_path_segment(row['symbol'])}?market={_path_segment(row['market'])}&tf={_path_segment(row['timeframe'])}&view=history&run_id={_path_segment(row['id'])}",
+                "path": path,
             }
         )
     items.extend(

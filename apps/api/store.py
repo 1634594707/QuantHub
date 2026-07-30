@@ -8,8 +8,8 @@
 
 from __future__ import annotations
 
-import hashlib
 import base64
+import hashlib
 import json
 import os
 import threading
@@ -549,6 +549,8 @@ def _init() -> None:
                 started_at REAL,
                 finished_at REAL,
                 duration_ms INTEGER,
+                result_type TEXT,
+                result_id TEXT,
                 acknowledged_at REAL,
                 acknowledged_by TEXT
             )"""
@@ -612,6 +614,8 @@ def _init() -> None:
         )
         _ensure_column(c, "simulation_executions", "ledger_trade_id", "TEXT")
         _ensure_column(c, "simulation_executions", "ledger_sync_error", "TEXT")
+        _ensure_column(c, "automation_runs", "result_type", "TEXT")
+        _ensure_column(c, "automation_runs", "result_id", "TEXT")
         _ensure_column(c, "holdings", "instrument_id", "TEXT")
         _ensure_column(c, "watchlist", "instrument_id", "TEXT")
         _ensure_column(c, "signals", "instrument_id", "TEXT")
@@ -1593,6 +1597,7 @@ def list_research_runs_page(
     symbol: str | None = None,
     status: str | None = None,
     favorite: bool | None = None,
+    module: str | None = None,
     cursor: str | None = None,
 ) -> dict:
     sql = """SELECT r.*, COUNT(e.id) AS evidence_count
@@ -1609,6 +1614,9 @@ def list_research_runs_page(
     if favorite is not None:
         clauses.append("r.favorite=?")
         params.append(1 if favorite else 0)
+    if module:
+        clauses.append("r.modules_json LIKE ?")
+        params.append(f'%"{module}"%')
     base_clauses = list(clauses)
     base_params = list(params)
     if cursor:

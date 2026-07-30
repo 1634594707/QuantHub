@@ -10,6 +10,7 @@ import { RefreshControl } from '../components/ui/RefreshControl/RefreshControl'
 import { Table, type Column } from '../components/ui/Table/Table'
 import { WorkspaceHeader } from '../components/WorkspaceHeader/WorkspaceHeader'
 import { useRecordNavigation } from '../hooks/useRecordNavigation'
+import { researchRunHref } from '../lib/researchResults'
 import s from './OperationsPages.module.css'
 
 const SOURCE_LABELS: Record<IncidentSource, string> = {
@@ -61,7 +62,11 @@ export default function IncidentsPage() {
     setMessage('')
     setError('')
     try {
-      if (action.type === 'retry_analysis_task' && action.task_id) {
+      if (action.type === 'open_research_result' && action.research_run_id) {
+        const response = await api.researchRun(action.research_run_id)
+        navigate(researchRunHref(response.run))
+        return
+      } else if (action.type === 'retry_analysis_task' && action.task_id) {
         await api.retryAnalysisTask(action.task_id)
       } else if (action.type === 'retry_automation_run' && action.run_id) {
         await api.retryAutomationRun(action.run_id)

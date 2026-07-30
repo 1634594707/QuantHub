@@ -25,3 +25,10 @@ class FactorResearchRequest(BaseModel):
         if value not in {"a_shares", "us_stocks", "crypto", "mt5"}:
             raise ValueError("不支持的市场")
         return value
+
+
+class FactorAiReviewRequest(FactorResearchRequest):
+    """AI review uses a saved server snapshot when run_id is provided."""
+
+    review_focus: str = Field(default="稳健性与失效风险", max_length=120)
+    run_id: str | None = Field(default=None, min_length=1, max_length=64)

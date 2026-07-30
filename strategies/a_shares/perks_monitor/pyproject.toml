@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "quanthub-perks-monitor"
-version = "0.1.0"
+version = "0.1.1"
 description = "A股股东回馈羊毛监控"
 requires-python = ">=3.11,<3.13"
 dependencies = ["quanthub-core"]
