@@ -566,7 +566,26 @@ export interface PaAnalyzeResp {
     stage2_complete: boolean
     gate_shortcircuited: boolean
     usage: Record<string, number>
+    validation_retries: number
+    validation: Record<string, PaValidationStageReport>
   }
+}
+
+export interface PaValidationIssue {
+  code: string
+  field: string
+  message: string
+  severity: 'error' | 'warning'
+}
+
+export interface PaValidationStageReport {
+  stage: 'stage1' | 'stage2'
+  valid: boolean
+  error_count: number
+  warning_count: number
+  attempts: number
+  source?: string
+  issues: PaValidationIssue[]
 }
 
 export interface DecisionView {
@@ -896,6 +915,59 @@ export interface LedgerPerformance {
     benchmark_name: string
     benchmark_code: string
   } | null
+}
+
+export interface LedgerTradeAnalyticsGroup {
+  key: string
+  count: number
+  wins: number
+  pnl: number
+  win_rate_pct: number
+}
+
+export interface LedgerTradeAnalytics {
+  ok: boolean
+  summary: {
+    closed_trades: number
+    total_pnl: number
+    return_pct: number
+    win_rate_pct: number
+    profit_factor: number | null
+    average_profit_loss_ratio: number | null
+    max_consecutive_losses: number
+    average_holding_seconds: number
+    max_stagnation_days: number
+  }
+  execution_quality: {
+    total_fees: number
+    average_fee: number
+    fee_drag_pct: number
+    slippage_available: boolean
+    slippage_note: string
+  }
+  matching: { open_lot_count: number; open_quantity: number }
+  cumulative_curve: Array<{ t: number; pnl: number; drawdown: number }>
+  monthly: LedgerTradeAnalyticsGroup[]
+  daily: LedgerTradeAnalyticsGroup[]
+  directions: LedgerTradeAnalyticsGroup[]
+  holding_buckets: Array<{ key: string; count: number; share_pct: number; pnl: number }>
+  closed_trade_rows: Array<{
+    instrument_id: string
+    code: string
+    market: string
+    direction: 'long' | 'short'
+    quantity: number
+    entry_price: number
+    exit_price: number
+    entry_at: number
+    exit_at: number
+    holding_seconds: number
+    gross_pnl: number
+    fees: number
+    pnl: number
+    return_pct: number
+    source: string
+  }>
 }
 
 export interface LedgerExposures {

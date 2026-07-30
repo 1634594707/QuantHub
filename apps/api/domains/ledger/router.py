@@ -61,9 +61,7 @@ def post_cash(req: CashEntryCreate) -> dict:
 
 
 @router.get("/cash")
-def get_cash(
-    limit: int = Query(default=200, ge=1, le=10_000), cursor: str | None = None
-) -> dict:
+def get_cash(limit: int = Query(default=200, ge=1, le=10_000), cursor: str | None = None) -> dict:
     """查询现金流水（按时间倒序）。"""
     try:
         return service.list_cash(limit=limit, cursor=cursor)
@@ -105,6 +103,12 @@ def get_performance() -> dict:
     基准对比需先用 ``POST /ledger/benchmarks`` 落库一条基准曲线。
     """
     return service.performance()
+
+
+@router.get("/trade-analytics")
+def get_trade_analytics() -> dict:
+    """胜率、盈亏质量、持仓时间、方向差异与费用侵蚀。"""
+    return service.get_trade_analytics()
 
 
 @router.get("/attribution")

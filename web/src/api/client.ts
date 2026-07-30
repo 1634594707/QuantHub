@@ -54,6 +54,7 @@ import type {
   LedgerPosition,
   LedgerSummary,
   LedgerTrade,
+  LedgerTradeAnalytics,
   LLMConfigResp,
   LLMConnectionTestResp,
   LLMSettingsUpdate,
@@ -748,6 +749,7 @@ export const api = {
     body: JSON.stringify(payload),
   }),
   ledgerPerformance: () => getJSON<LedgerPerformance>('/ledger/performance'),
+  ledgerTradeAnalytics: () => getJSON<LedgerTradeAnalytics>('/ledger/trade-analytics'),
   ledgerAttribution: (period: 'day' | 'week' | 'month' = 'month', startAt?: number, endAt?: number) => {
     const params = new URLSearchParams({ period })
     if (startAt !== undefined) params.set('start_at', String(startAt))

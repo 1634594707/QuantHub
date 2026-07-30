@@ -216,6 +216,7 @@ class PaAgentStrategy(StrategyBase):
             "terminal_outcome": outcome,
             "unpredictable": unpredictable,
             "error": result.error,
+            "validation": result.validation,
         }
         # 下单计划字段（仅在有单时填充）
         for fld in ("entry_price", "stop_loss_price", "take_profit_price", "estimated_win_rate"):
@@ -283,7 +284,7 @@ def run_scheduled() -> None:
     """
     try:
         cfg = get_config("ai_analysis").get("modules", {}).get("pa_agent", {})
-    except Exception:
+    except Exception:  # noqa: BLE001 - configuration fallback keeps scheduled analysis available
         cfg = {}
     symbols: list[str] = list(cfg.get("symbols", []) or [])
     if not symbols:

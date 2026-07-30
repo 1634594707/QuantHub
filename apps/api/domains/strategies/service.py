@@ -103,8 +103,8 @@ def signal_to_dict(signal: Any) -> dict:
     if hasattr(signal, "to_dict"):
         try:
             return signal.to_dict()
-        except Exception:
-            pass
+        except Exception:  # noqa: BLE001 - tolerate third-party signal serializers
+            logger.debug("signal.to_dict() failed", exc_info=True)
     if isinstance(signal, Signal):
         return {
             "symbol": signal.symbol,
@@ -128,7 +128,7 @@ def run(name: str, params: dict[str, Any]) -> dict:
         raw = call_produce(strategy, params)
         signals = repository.persist_signals([signal_to_dict(item) for item in raw])
         result = {"ok": True, "name": name, "count": len(signals), "signals": signals}
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - normalize data adapter failures for the API
         logger.exception("策略 %s 运行失败", name)
         result = {"ok": False, "name": name, "error": str(exc), "signals": []}
     repository.save_run(name, params, result)
@@ -216,7 +216,7 @@ def backtest(name: str, req: BacktestRequest) -> dict:
     strategy = get_strategy(name, config={"enabled": True})
     try:
         klines = get_data_source(req.market).get_kline(req.symbol, req.interval, limit=req.limit)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - normalize strategy plugin failures for the API
         return {"ok": False, "error": f"取 K 线失败: {exc}", "symbol": req.symbol}
     if klines is None or klines.empty:
         return {"ok": False, "error": "K 线为空（回测需要历史数据）", "symbol": req.symbol}
@@ -244,7 +244,7 @@ def backtest(name: str, req: BacktestRequest) -> dict:
             periods_per_year=periods_per_year,
             **req.params,
         )
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - normalize strategy plugin failures for the API
         return {"ok": False, "error": str(exc), "symbol": req.symbol}
     if hasattr(raw, "to_summary"):
         summary = raw.to_summary()
@@ -288,7 +288,7 @@ def live_tick(name: str) -> dict:
     info = strategy_info(name)
     try:
         state = get_strategy(name, config={"enabled": True}).live_tick()
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - live strategy adapters are third-party code
         return {"ok": False, "mode": "paper", "error": str(exc)}
     return {
         "ok": True,
@@ -333,7 +333,7 @@ def pa_analyze(
         if research_run_id:
             try:
                 fail_module(research_run_id, "pa", error)
-            except Exception:
+            except Exception:  # noqa: BLE001 - preserve the original analysis error
                 logger.warning("PA 失败时写 ResearchRun 失败: %s", error)
         return {
             "ok": False,
@@ -347,7 +347,7 @@ def pa_analyze(
     try:
         source = get_data_source(actual_market)
         frame = source.get_kline(symbol, timeframe, limit=300)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - research persistence must not discard analysis
         logger.exception("PA 分析取 K 线失败 %s/%s", actual_market, symbol)
         return _fail(f"取 K 线失败: {exc}")
 
@@ -422,6 +422,7 @@ def pa_analyze(
                 "pipeline_version": PA_PIPELINE_VERSION,
                 "prompt_version": PA_PROMPT_VERSION,
                 "usage": result.usage,
+                "validation": result.validation,
             },
         )
         complete_module(
@@ -432,9 +433,10 @@ def pa_analyze(
                 "prompt_version": PA_PROMPT_VERSION,
                 "stage1_complete": bool(stage1),
                 "stage2_complete": bool(stage2),
+                "validation": result.validation,
             },
         )
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - research persistence must not discard analysis
         logger.warning("PA 结果持久化失败 %s: %s", symbol, exc)
         run_id = research_run_id
 
@@ -451,7 +453,14 @@ def pa_analyze(
         "error": result.error,
         "research_run_id": run_id,
         "meta": {
+            "kline_count": len(frame),
             "stage1_complete": bool(stage1),
             "stage2_complete": bool(stage2),
+            "gate_shortcircuited": gate_shortcircuited,
+            "usage": result.usage,
+            "validation": result.validation,
+            "validation_retries": sum(
+                max(0, int(report.get("attempts", 0)) - 1) for report in result.validation.values()
+            ),
         },
     }

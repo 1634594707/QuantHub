@@ -270,10 +270,16 @@ export default function DecisionPanel({
   const dir = DIR_LABEL[d.direction]
   const [tab, setTab] = useState<'overview' | 'deep'>('overview')
   const details = data?.decision
+  const validationReports = Object.values(data?.meta?.validation ?? {})
+  const validationPassed = validationReports.every((report) => report.valid)
+  const validationWarnings = validationReports
+    .flatMap((report) => report.issues)
+    .filter((issue) => issue.severity === 'warning')
+  const validationRetries = data?.meta?.validation_retries ?? 0
   const priceText = (value: number | null | undefined) => value && value > 0 ? value : '—'
 
   const publishSignal = useCallback(async () => {
-    if (!data?.ok || !data.decision) return
+    if (!data?.ok || !data.decision || !validationPassed) return
     setPublishing(true)
     setPublishMessage('')
     try {
@@ -311,6 +317,7 @@ export default function DecisionPanel({
           tp2: data.decision.tp2,
           risk_reward: data.decision.risk_reward,
           reasoning: data.decision.reasoning,
+          validation: data.meta?.validation,
         },
       })
       if (runId) {
@@ -327,7 +334,7 @@ export default function DecisionPanel({
     } finally {
       setPublishing(false)
     }
-  }, [data, researchRunId])
+  }, [data, researchRunId, validationPassed])
 
   return (
     <div className="card">
@@ -335,7 +342,7 @@ export default function DecisionPanel({
         <div className="card-title">PA 决策面板</div>
         <div className="pa-panel-actions">
           {isReal && (
-            <button className="run-btn" onClick={() => void publishSignal()} disabled={publishing || loading}>
+            <button className="run-btn" onClick={() => void publishSignal()} disabled={publishing || loading || !validationPassed} title={validationPassed ? '生成一条待人工审核的信号' : '输出质量闸门未通过，不能生成信号'}>
               {publishing ? '发布中…' : '生成待审核信号'}
             </button>
           )}
@@ -483,14 +490,34 @@ export default function DecisionPanel({
               </div>
               {details?.risk_assessment && <div className="d-reason">{details.risk_assessment}</div>}
             </div>
+
+            {!!validationReports.length && (
+              <div className="d-section">
+                <div className="d-section-title">输出质量闸门</div>
+                <div className="d-quality-grid">
+                  {validationReports.map((report) => (
+                    <div className="d-quality-row" key={report.stage}>
+                      <span>{report.stage === 'stage1' ? '市场诊断' : '交易决策'}</span>
+                      <b className={report.valid ? 'passed' : 'failed'}>{report.valid ? '通过' : '阻断'}</b>
+                      <small>{report.attempts === 0 ? '程序短路生成' : `${report.attempts} 次模型输出`}</small>
+                    </div>
+                  ))}
+                </div>
+                {validationWarnings.length > 0 && (
+                  <ul className="d-quality-warnings">
+                    {validationWarnings.slice(0, 4).map((issue) => <li key={`${issue.field}:${issue.code}`}>{issue.field} · {issue.message}</li>)}
+                  </ul>
+                )}
+              </div>
+            )}
           </>
         )}
 
         {loading && <div className="run-status work" role="status">正在执行市场诊断与决策评估，最长等待 90 秒…</div>}
         {!loading && error && <div className="run-status err" role="alert">PA 分析失败：{error}</div>}
         {!loading && isReal && (
-          <div className="run-status success" role="status">
-            分析完成 · K线 {data?.meta?.kline_count ?? '—'} 根 · 阶段一/二均已生成
+          <div className={`run-status ${validationPassed ? 'success' : 'err'}`} role="status">
+            {validationPassed ? '质量闸门通过' : '质量闸门阻断'} · K线 {data?.meta?.kline_count ?? '—'} 根 · {validationRetries ? `自动修正 ${validationRetries} 次` : '无需自动修正'}
           </div>
         )}
         {publishMessage && (

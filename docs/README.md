@@ -8,6 +8,7 @@
 - [研究工作流与因子验证更新](posts/2026-07-30-research-factor-update.md)：本次研究、因子、AI 与数据源更新说明。
 - [部署与数据库迁移](DEPLOYMENT.md)：本机、局域网、PostgreSQL、认证、CORS 和 Alembic。
 - [升级与扩展](UPGRADE.md)：版本升级、配置迁移、扩展接口、备份恢复和回滚。
+- [PA Agent 能力审计与适配](PA_AGENT_ADAPTATION.md)：上游参考范围、输出质量闸门、交易质量分析和未迁移能力。
 
 ## 架构与质量
 

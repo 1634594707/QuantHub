@@ -9,13 +9,13 @@
         3. 组装 Stage2 prompt（携带 Stage1 诊断 JSON + 决策 schema）
         4. 调用 LLM → 解析 JSON → 得到 decision / terminal / next_bar_prediction
 
-【与原版差异（迁移简化，已标注）】
+【与原版差异（QuantHub 适配）】
     - LLM 客户端: 改用 ``core.llm.get_llm()`` 统一客户端，弃用原 deepseek_client
     - 流式回调 / 取消令牌 / QClaw fallback / 经验库 / 持久化记录: 全部省略
       （原 orchestrator 依赖 CancelToken / PendingWriter / ExperienceReader /
        QClawConnector / stream_chat 等大量辅助模块，本模块仅保留分析主流程）
-    - JSON 校验: 原版用 JsonValidator + validation_retry + 语义检查 + 不可变字段
-      作弊检测；此处简化为 ``json.loads`` + 关键字段存在性检查，复杂校验省略
+    - 输出校验: 使用独立 ``validation`` 模块检查结构、枚举、概率、跨阶段一致性、
+      空单不变量和交易几何；阻断错误最多触发一次字段级反馈重试
     - Prompt 组装: 原版由 PromptAssembler 生成（含 pattern_routing /
       kline_features / decision_stance / 几何特征等）；此处保留 PA 诊断/决策
       schema 的核心字段与中文术语约束，K 线表与指标直接内联
@@ -28,15 +28,24 @@ from __future__ import annotations
 import json
 import logging
 import math
+from collections.abc import Callable
 from dataclasses import dataclass, field
+from typing import Any, Literal
 
 import pandas as pd
 
 from core.llm import LLMClient, get_llm
+from strategies.ai_analysis.pa_agent.validation import (
+    ValidationReport,
+    invalid_json_report,
+    retry_feedback,
+    validate_stage1,
+    validate_stage2,
+)
 
 logger = logging.getLogger(__name__)
 
-PA_PIPELINE_VERSION = "pa-two-stage-v1"
+PA_PIPELINE_VERSION = "pa-two-stage-v2-quality-gate"
 PA_PROMPT_VERSION = "pa-prefix-cache-2026-07-29"
 
 _CYCLE_VALUES = (
@@ -64,6 +73,7 @@ class TwoStageResult:
     stage2_content: str = ""  # 阶段二原始正文（调试用）
     error: str | None = None  # 失败原因（成功时为 None）
     usage: dict[str, int] = field(default_factory=dict)
+    validation: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
 # ── Prompt 片段（保留原版 PA 术语与 schema 核心约束） ─────────────────────────
@@ -300,15 +310,14 @@ def _build_stage2_messages(
     ]
 
 
-# ── JSON 解析（简化校验） ─────────────────────────────────────────────────────
+# ── JSON 解析 ─────────────────────────────────────────────────────────────────
 
 
 def _extract_json(content: str) -> dict | None:
     """从 LLM 正文里提取首个 JSON 对象。
 
-    【简化说明】原版用 JsonValidator 做 schema 级校验 + 重试反馈 + 语义检查 +
-    不可变字段作弊检测；此处仅做 ``json.loads`` 与基本结构提取，复杂校验省略。
-    模型偶尔会把 JSON 包在 ```json 围栏里或附带前后说明，此处做容错剥离。
+    模型偶尔会把 JSON 包在 ```json 围栏里或附带前后说明，此处只负责容错提取；
+    结构与语义一致性由 ``validation`` 模块独立检查。
     """
     if not content:
         return None
@@ -361,11 +370,6 @@ def _extract_json(content: str) -> dict | None:
                 except json.JSONDecodeError:
                     return None
     return None
-
-
-def _has_required_keys(obj: dict, keys: list[str]) -> bool:
-    """检查 dict 是否含全部必填键（简化校验）。"""
-    return all(k in obj for k in keys)
 
 
 def _normalize_stage1(stage1: dict) -> dict:
@@ -473,6 +477,48 @@ def _call_llm(
     return resp.content or "", dict(usage)
 
 
+def _merge_usage(total: dict[str, int], current: dict[str, int]) -> None:
+    for key, value in current.items():
+        total[key] = total.get(key, 0) + int(value)
+
+
+def _call_with_quality_gate(
+    client: LLMClient,
+    messages: list[dict[str, str]],
+    *,
+    stage: Literal["stage1", "stage2"],
+    validator: Callable[[dict[str, Any]], ValidationReport],
+    max_validation_retries: int,
+) -> tuple[dict[str, Any] | None, str, dict[str, int], ValidationReport, int]:
+    """Call the model and retry with field-level deterministic feedback."""
+    working_messages = list(messages)
+    total_usage: dict[str, int] = {}
+    last_content = ""
+    report = invalid_json_report(stage)
+    attempts = 0
+    for attempt in range(max_validation_retries + 1):
+        attempts += 1
+        last_content, usage = _call_llm(
+            client,
+            working_messages,
+            temperature=0.3 if attempt == 0 else 0.1,
+        )
+        _merge_usage(total_usage, usage)
+        parsed = _extract_json(last_content)
+        report = validator(parsed) if parsed is not None else invalid_json_report(stage)
+        if parsed is not None and report.valid:
+            return parsed, last_content, total_usage, report, attempts
+        if attempt >= max_validation_retries:
+            break
+        working_messages.extend(
+            [
+                {"role": "assistant", "content": last_content[:12_000]},
+                {"role": "user", "content": retry_feedback(report)},
+            ]
+        )
+    return None, last_content, total_usage, report, attempts
+
+
 def run_two_stage(
     symbol: str,
     timeframe: str,
@@ -482,6 +528,7 @@ def run_two_stage(
     ema_period: int = 20,
     tail_bars: int = 60,
     llm: LLMClient | None = None,
+    max_validation_retries: int = 1,
 ) -> TwoStageResult:
     """执行两阶段 PA 分析，返回 TwoStageResult。
 
@@ -518,24 +565,27 @@ def run_two_stage(
     # 3. Stage 1: 市场诊断
     messages_s1 = _build_stage1_messages(symbol, timeframe, kline_text)
     try:
-        content_s1, usage_s1 = _call_llm(client, messages_s1)
+        stage1_json, content_s1, usage_s1, validation_s1, attempts_s1 = _call_with_quality_gate(
+            client,
+            messages_s1,
+            stage="stage1",
+            validator=validate_stage1,
+            max_validation_retries=max(0, max_validation_retries),
+        )
     except Exception as exc:  # noqa: BLE001 - normalize provider failures into the PA result
         result.error = f"阶段一 LLM 调用失败: {exc}"
         return result
     result.stage1_content = content_s1
     result.usage = {f"stage1_{k}": v for k, v in usage_s1.items()}
+    result.validation["stage1"] = {**validation_s1.to_dict(), "attempts": attempts_s1}
 
-    stage1_json = _extract_json(content_s1)
-    if stage1_json is None or not _has_required_keys(
-        stage1_json, ["cycle_position", "direction", "gate_result"]
-    ):
-        # 【简化说明】原版会触发 validation_retry 带 feedback 重试；此处直接判失败
+    if stage1_json is None:
         logger.warning(
-            "PA 阶段一 JSON 解析失败 symbol=%s; content(前300字): %.300s",
+            "PA 阶段一质量闸门失败 symbol=%s; content(前300字): %.300s",
             symbol,
             content_s1,
         )
-        result.error = "阶段一 JSON 解析或必填字段校验失败"
+        result.error = "阶段一输出未通过质量闸门"
         return result
     result.stage1_json = _normalize_stage1(stage1_json)
 
@@ -578,28 +628,38 @@ def run_two_stage(
             },
             stage1_json,
         )
+        gate_report = validate_stage2(result.stage2_json, stage1_json)
+        result.validation["stage2"] = {
+            **gate_report.to_dict(),
+            "attempts": 0,
+            "source": "deterministic_gate_shortcut",
+        }
         return result
 
     # 5. Stage 2: 决策评估
     messages_s2 = _build_stage2_messages(symbol, timeframe, kline_text, stage1_json)
     try:
-        content_s2, usage_s2 = _call_llm(client, messages_s2)
+        stage2_json, content_s2, usage_s2, validation_s2, attempts_s2 = _call_with_quality_gate(
+            client,
+            messages_s2,
+            stage="stage2",
+            validator=lambda payload: validate_stage2(payload, stage1_json),
+            max_validation_retries=max(0, max_validation_retries),
+        )
     except Exception as exc:  # noqa: BLE001 - normalize provider failures into the PA result
         result.error = f"阶段二 LLM 调用失败: {exc}"
         return result
     result.stage2_content = content_s2
     result.usage.update({f"stage2_{k}": v for k, v in usage_s2.items()})
+    result.validation["stage2"] = {**validation_s2.to_dict(), "attempts": attempts_s2}
 
-    stage2_json = _extract_json(content_s2)
-    if stage2_json is None or not _has_required_keys(
-        stage2_json, ["decision", "terminal", "next_bar_prediction"]
-    ):
+    if stage2_json is None:
         logger.warning(
-            "PA 阶段二 JSON 解析失败 symbol=%s; content(前300字): %.300s",
+            "PA 阶段二质量闸门失败 symbol=%s; content(前300字): %.300s",
             symbol,
             content_s2,
         )
-        result.error = "阶段二 JSON 解析或必填字段校验失败"
+        result.error = "阶段二输出未通过质量闸门"
         return result
     result.stage2_json = _normalize_stage2(stage2_json, stage1_json)
     return result

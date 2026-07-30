@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import asdict, dataclass, field
+from datetime import UTC, datetime
 from typing import Any
 
 
@@ -171,6 +173,198 @@ def compute_positions(trades: list[Trade]) -> dict[str, Position]:
             )
         positions[trade.instrument_id] = apply_trade(pos, trade)
     return positions
+
+
+def match_closed_trades(trades: list[Trade]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Match executions into FIFO closed trades without inventing broker fields."""
+    lots: dict[str, list[dict[str, Any]]] = {}
+    closed: list[dict[str, Any]] = []
+    for trade in sorted(trades, key=lambda item: (item.ts, item.id)):
+        sign = 1 if trade.direction == "buy" else -1
+        remaining = float(trade.quantity)
+        fee_per_unit = float(trade.fee) / remaining if remaining > 0 else 0.0
+        instrument_lots = lots.setdefault(trade.instrument_id, [])
+
+        while remaining > 1e-9 and instrument_lots and instrument_lots[0]["sign"] != sign:
+            lot = instrument_lots[0]
+            quantity = min(remaining, lot["quantity"])
+            entry_fee = lot["fee_per_unit"] * quantity
+            exit_fee = fee_per_unit * quantity
+            gross_pnl = (float(trade.price) - lot["price"]) * quantity * lot["sign"]
+            pnl = gross_pnl - entry_fee - exit_fee
+            entry_notional = lot["price"] * quantity
+            closed.append(
+                {
+                    "instrument_id": trade.instrument_id,
+                    "code": trade.code,
+                    "market": trade.market,
+                    "direction": "long" if lot["sign"] > 0 else "short",
+                    "quantity": round(quantity, 8),
+                    "entry_price": round(lot["price"], 8),
+                    "exit_price": round(float(trade.price), 8),
+                    "entry_at": lot["ts"],
+                    "exit_at": trade.ts,
+                    "holding_seconds": max(0.0, trade.ts - lot["ts"]),
+                    "gross_pnl": round(gross_pnl, 2),
+                    "fees": round(entry_fee + exit_fee, 2),
+                    "pnl": round(pnl, 2),
+                    "return_pct": round(pnl / entry_notional * 100, 4)
+                    if entry_notional > 0
+                    else 0.0,
+                    "source": lot["source"],
+                    "entry_trade_id": lot["trade_id"],
+                    "exit_trade_id": trade.id,
+                    "entry_notional": round(entry_notional, 2),
+                    "exit_notional": round(float(trade.price) * quantity, 2),
+                }
+            )
+            remaining -= quantity
+            lot["quantity"] -= quantity
+            if lot["quantity"] <= 1e-9:
+                instrument_lots.pop(0)
+
+        if remaining > 1e-9:
+            instrument_lots.append(
+                {
+                    "sign": sign,
+                    "quantity": remaining,
+                    "price": float(trade.price),
+                    "fee_per_unit": fee_per_unit,
+                    "ts": trade.ts,
+                    "source": trade.source or "manual",
+                    "trade_id": trade.id,
+                }
+            )
+
+    open_quantity = sum(
+        abs(float(lot["quantity"])) for instrument_lots in lots.values() for lot in instrument_lots
+    )
+    return closed, {
+        "open_lot_count": sum(len(instrument_lots) for instrument_lots in lots.values()),
+        "open_quantity": round(open_quantity, 8),
+    }
+
+
+def trade_analytics(trades: list[Trade]) -> dict[str, Any]:
+    closed, matching = match_closed_trades(trades)
+    wins = [item for item in closed if item["pnl"] > 0]
+    losses = [item for item in closed if item["pnl"] < 0]
+    total_pnl = sum(item["pnl"] for item in closed)
+    gross_profit = sum(item["pnl"] for item in wins)
+    gross_loss = abs(sum(item["pnl"] for item in losses))
+    entry_notional = sum(item["entry_notional"] for item in closed)
+    total_fees = sum(item["fees"] for item in closed)
+
+    consecutive_losses = 0
+    max_consecutive_losses = 0
+    cumulative = 0.0
+    peak = 0.0
+    peak_at: float | None = None
+    drawdown_started_at: float | None = None
+    max_stagnation_seconds = 0.0
+    cumulative_curve: list[dict[str, Any]] = []
+    for item in closed:
+        consecutive_losses = consecutive_losses + 1 if item["pnl"] < 0 else 0
+        max_consecutive_losses = max(max_consecutive_losses, consecutive_losses)
+        cumulative += item["pnl"]
+        if cumulative >= peak:
+            if drawdown_started_at is not None:
+                max_stagnation_seconds = max(
+                    max_stagnation_seconds, item["exit_at"] - drawdown_started_at
+                )
+            peak = cumulative
+            peak_at = item["exit_at"]
+            drawdown_started_at = None
+        elif drawdown_started_at is None:
+            drawdown_started_at = peak_at or item["exit_at"]
+        cumulative_curve.append(
+            {
+                "t": item["exit_at"],
+                "pnl": round(cumulative, 2),
+                "drawdown": round(cumulative - peak, 2),
+            }
+        )
+    if drawdown_started_at is not None and closed:
+        max_stagnation_seconds = max(
+            max_stagnation_seconds, closed[-1]["exit_at"] - drawdown_started_at
+        )
+
+    def grouped(key_of) -> list[dict[str, Any]]:
+        groups: dict[str, dict[str, Any]] = {}
+        for item in closed:
+            key = key_of(item)
+            group = groups.setdefault(key, {"key": key, "count": 0, "wins": 0, "pnl": 0.0})
+            group["count"] += 1
+            group["wins"] += item["pnl"] > 0
+            group["pnl"] += item["pnl"]
+        return [
+            {
+                **group,
+                "pnl": round(group["pnl"], 2),
+                "win_rate_pct": round(group["wins"] / group["count"] * 100, 2),
+            }
+            for group in sorted(groups.values(), key=lambda value: value["key"])
+        ]
+
+    monthly = grouped(lambda item: datetime.fromtimestamp(item["exit_at"], UTC).strftime("%Y-%m"))
+    daily = grouped(lambda item: datetime.fromtimestamp(item["exit_at"], UTC).strftime("%Y-%m-%d"))
+    directions = grouped(lambda item: item["direction"])
+
+    holding_ranges = (
+        ("≤15分钟", -1, 15 * 60),
+        ("15–60分钟", 15 * 60, 60 * 60),
+        ("1–2小时", 60 * 60, 2 * 60 * 60),
+        ("2–4小时", 2 * 60 * 60, 4 * 60 * 60),
+        (">4小时", 4 * 60 * 60, math.inf),
+    )
+    holding_buckets = []
+    for label, lower, upper in holding_ranges:
+        items = [item for item in closed if lower < item["holding_seconds"] <= upper]
+        holding_buckets.append(
+            {
+                "key": label,
+                "count": len(items),
+                "share_pct": round(len(items) / len(closed) * 100, 2) if closed else 0.0,
+                "pnl": round(sum(item["pnl"] for item in items), 2),
+            }
+        )
+
+    return {
+        "ok": True,
+        "summary": {
+            "closed_trades": len(closed),
+            "total_pnl": round(total_pnl, 2),
+            "return_pct": round(total_pnl / entry_notional * 100, 4) if entry_notional > 0 else 0.0,
+            "win_rate_pct": round(len(wins) / len(closed) * 100, 2) if closed else 0.0,
+            "profit_factor": round(gross_profit / gross_loss, 3) if gross_loss > 0 else None,
+            "average_profit_loss_ratio": round(
+                (gross_profit / len(wins)) / (gross_loss / len(losses)), 3
+            )
+            if wins and losses
+            else None,
+            "max_consecutive_losses": max_consecutive_losses,
+            "average_holding_seconds": round(
+                sum(item["holding_seconds"] for item in closed) / len(closed), 2
+            )
+            if closed
+            else 0.0,
+            "max_stagnation_days": round(max_stagnation_seconds / 86_400, 2),
+        },
+        "execution_quality": {
+            "total_fees": round(total_fees, 2),
+            "average_fee": round(total_fees / len(closed), 2) if closed else 0.0,
+            "fee_drag_pct": round(total_fees / max(1e-9, gross_profit + gross_loss) * 100, 2),
+            "slippage_available": False,
+            "slippage_note": "账本未记录预期成交价，无法可靠计算滑点",
+        },
+        "matching": matching,
+        "cumulative_curve": cumulative_curve,
+        "monthly": monthly,
+        "daily": daily,
+        "directions": directions,
+        "holding_buckets": holding_buckets,
+        "closed_trade_rows": list(reversed(closed[-200:])),
+    }
 
 
 def portfolio_metrics(positions: dict[str, Position], cash_balance: float) -> dict[str, Any]:

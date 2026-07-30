@@ -766,5 +766,49 @@
   accent-color: var(--accent);
 }
 
+/* ---------------- PA 输出质量闸门 ---------------- */
+.d-quality-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.d-quality-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 12px;
+  padding: 11px 12px;
+  background: var(--bg-card);
+}
+
+.d-quality-row span { color: var(--text-1); font-size: 12px; font-weight: 600; }
+.d-quality-row b { font-size: 11px; }
+.d-quality-row b.passed { color: var(--up); }
+.d-quality-row b.failed { color: var(--down); }
+.d-quality-row small { grid-column: 1 / -1; color: var(--text-3); font-size: 10px; }
+
+.d-quality-warnings {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--text-2);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.d-quality-warnings li::before {
+  content: '·';
+  margin-right: 6px;
+  color: var(--warn);
+}
+
+@media (max-width: 640px) {
+  .d-quality-grid { grid-template-columns: 1fr; }
+}
+
 /* ---------------- 板块签名：组合管理（靛蓝，避免与工作台蓝趋同） ---------------- */
 /* 组合管理沿用 tokens.css 的固定交互色。 */

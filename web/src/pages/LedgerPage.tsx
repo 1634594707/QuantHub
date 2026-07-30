@@ -10,6 +10,7 @@ import { Input } from '../components/ui/Input/Input'
 import { Select } from '../components/ui/Select/Select'
 import { Table, type Column } from '../components/ui/Table/Table'
 import { WorkspaceHeader } from '../components/WorkspaceHeader/WorkspaceHeader'
+import { TradeAnalyticsPanel } from '../components/ledger/TradeAnalyticsPanel'
 import s from './OperationsPages.module.css'
 
 type LedgerTab = 'positions' | 'trades' | 'cash' | 'performance'
@@ -46,6 +47,7 @@ export default function LedgerPage() {
   const trades = useApi(() => api.ledgerTrades(undefined, 100), [tick], { retry: false })
   const cash = useApi(() => api.ledgerCash(100), [tick], { enabled: !focusedTradeMode, retry: false })
   const performance = useApi(() => api.ledgerPerformance(), [tick], { enabled: !focusedTradeMode, retry: false })
+  const tradeAnalytics = useApi(() => api.ledgerTradeAnalytics(), [tick], { enabled: !focusedTradeMode, retry: false })
   const attribution = useApi(() => api.ledgerAttribution('month'), [tick], { enabled: !focusedTradeMode, retry: false })
   const exposures = useApi(() => api.ledgerExposures(), [tick], { enabled: !focusedTradeMode, retry: false })
   const benchmarks = useApi(() => api.ledgerBenchmarks(), [tick], { enabled: !focusedTradeMode, retry: false })
@@ -90,6 +92,7 @@ export default function LedgerPage() {
 
   function refetchPerformance() {
     void performance.refetch()
+    void tradeAnalytics.refetch()
     void exposures.refetch()
   }
 
@@ -364,16 +367,16 @@ export default function LedgerPage() {
           emptyTitle: '暂无现金流水',
         }
         : {
-          loading: performance.loading || exposures.loading,
-          error: performance.error || exposures.error,
-          reconnecting: performance.reconnecting || exposures.reconnecting,
-          hasData: performance.data !== null && exposures.data !== null,
+          loading: performance.loading || tradeAnalytics.loading || exposures.loading,
+          error: performance.error || tradeAnalytics.error || exposures.error,
+          reconnecting: performance.reconnecting || tradeAnalytics.reconnecting || exposures.reconnecting,
+          hasData: performance.data !== null && tradeAnalytics.data !== null && exposures.data !== null,
           isEmpty: false,
           refetch: refetchPerformance,
           emptyTitle: '暂无绩效数据',
         }
   const refreshing = summary.loading || positions.loading || trades.loading || cash.loading
-    || performance.loading || exposures.loading || benchmarks.loading
+    || performance.loading || tradeAnalytics.loading || exposures.loading || benchmarks.loading
 
   function clearTradeFocus() {
     const next = new URLSearchParams(searchParams)
@@ -537,6 +540,8 @@ export default function LedgerPage() {
             {cash.data?.next_cursor && <div className={s.formActions}><Button variant="secondary" loading={loadingMoreCash} onClick={() => void loadMoreCash()}>继续加载 · 已显示 {cash.data.entries.length} / {cash.data.total}</Button></div>}
           </>}
           {tab === 'performance' && (
+            <>
+            <TradeAnalyticsPanel data={tradeAnalytics.data} />
             <div className={s.grid2}>
               <div className={s.subsection}>
                 <div className={s.sectionHead}><h3>绩效</h3></div>
@@ -563,6 +568,7 @@ export default function LedgerPage() {
                 {[...(attribution.data?.by_direction ?? []), ...(attribution.data?.by_period ?? [])].map((item) => <div className={s.statusLine} key={`${item.key}:${item.trade_count}`}><span>{item.key} · {item.trade_count} 笔</span><b>{money(item.notional)}</b></div>)}
               </div>
             </div>
+            </>
           )}
         </AsyncStateBoundary>
       </section>

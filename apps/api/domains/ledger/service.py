@@ -26,6 +26,7 @@ from .domain import (
     max_drawdown,
     portfolio_metrics,
     time_weighted_return,
+    trade_analytics,
 )
 from .schemas import (
     BenchmarkCorrection,
@@ -72,9 +73,7 @@ def record_trade(req: TradeCreate) -> dict:
 def list_trades(
     instrument_id: str | None = None, limit: int = 200, cursor: str | None = None
 ) -> dict:
-    page = repository.list_trades_page(
-        instrument_id=instrument_id, limit=limit, cursor=cursor
-    )
+    page = repository.list_trades_page(instrument_id=instrument_id, limit=limit, cursor=cursor)
     return {
         "count": len(page["items"]),
         "total": page["total"],
@@ -168,7 +167,7 @@ def get_positions(*, refresh_prices: bool = True) -> dict:
                     price = _ledger_latest_close(pos.code, pos.market)
                     if price:
                         pos.last_price = price
-                except Exception:
+                except Exception:  # noqa: BLE001 - market adapters must not block ledger reads
                     logger.debug("回填最新价失败 %s", pos.code)
     items = [p.to_dict() for p in positions.values()]
     return {"count": len(items), "positions": items}
@@ -187,8 +186,8 @@ def get_position(instrument_id: str) -> dict:
             price = _ledger_latest_close(pos.code, pos.market)
             if price:
                 pos.last_price = price
-        except Exception:
-            pass
+        except Exception:  # noqa: BLE001 - market adapters must not block ledger reads
+            logger.debug("回填最新价失败 %s", pos.code, exc_info=True)
     return {"ok": True, "position": pos.to_dict()}
 
 
@@ -202,8 +201,8 @@ def portfolio_summary() -> dict:
                 price = _ledger_latest_close(pos.code, pos.market)
                 if price:
                     pos.last_price = price
-            except Exception:
-                pass
+            except Exception:  # noqa: BLE001 - market adapters must not block ledger reads
+                logger.debug("回填最新价失败 %s", pos.code, exc_info=True)
     cash = compute_cash_balance()
     metrics = portfolio_metrics(positions, cash)
     return {"ok": True, "summary": metrics}
@@ -272,8 +271,8 @@ def performance() -> dict:
                 price = _ledger_latest_close(pos.code, pos.market)
                 if price:
                     pos.last_price = price
-            except Exception:
-                pass
+            except Exception:  # noqa: BLE001 - market adapters must not block ledger reads
+                logger.debug("回填最新价失败 %s", pos.code, exc_info=True)
     final_market_value = sum(p.market_value for p in positions.values())
 
     equity_curve = _build_equity_curve(trades, cash_entries, final_market_value)
@@ -297,6 +296,11 @@ def performance() -> dict:
         "max_drawdown": mdd,
         "benchmark_excess": bench_info,
     }
+
+
+def get_trade_analytics() -> dict:
+    """Closed-trade quality report derived from immutable ledger executions."""
+    return trade_analytics(repository.list_trades(limit=10_000))
 
 
 def register_benchmark(req: BenchmarkCreate) -> dict:
@@ -356,8 +360,8 @@ def exposures() -> dict:
                 price = _ledger_latest_close(pos.code, pos.market)
                 if price:
                     pos.last_price = price
-            except Exception:
-                pass
+            except Exception:  # noqa: BLE001 - market adapters must not block ledger reads
+                logger.debug("回填最新价失败 %s", pos.code, exc_info=True)
     active = [p for p in positions.values() if abs(p.quantity) > 1e-9]
     by_market: dict[str, float] = {}
     by_direction = {"long": 0, "short": 0}

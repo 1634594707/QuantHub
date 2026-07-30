@@ -144,7 +144,7 @@ uv run python -m tools.backup_store prune backups --keep 14 --apply
 | 羊毛监控 | strategies/a_shares/perks_monitor | 27 关键词逐字搬运 |
 | OKX Grid Master | strategies/crypto/okx_grid | 选币因子保持 |
 | AlphaGPT | strategies/crypto/alphagpt | StackVM 12 指令集保持 |
-| PA_Agent | strategies/ai_analysis/pa_agent | ATR/EMA + 两阶段编排保持 |
+| PA_Agent | strategies/ai_analysis/pa_agent | ATR/EMA + 两阶段编排 + 独立输出质量闸门 |
 
 **替换的接入层**（原实现 → QuantHub 底座）：
 - akshare/东财爬虫 → `core.data_feed`
@@ -178,7 +178,8 @@ npm.cmd run build
 ## 8. 后续 TODO
 
 - [ ] A股数据源基本面数据接入（selector 的资金流/股票名称 TODO）
-- [ ] PA_Agent 的完整 JsonValidator/语义检查（当前简化版）
+- [x] PA_Agent 的结构、跨字段、概率、终局与交易几何质量闸门（QuantHub 独立适配）
+- [ ] PA_Agent 的逐 K 线引用语义检查与跨轮决策连续性
 - [ ] AlphaGPT Transformer 因子搜索（当前回退启发式公式）
 - [ ] 看板 Web 勾选二次确认（当前 CLI）
 - [ ] 看板登录鉴权（当前无）
