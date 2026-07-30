@@ -179,7 +179,8 @@ npm.cmd run build
 
 - [ ] A股数据源基本面数据接入（selector 的资金流/股票名称 TODO）
 - [x] PA_Agent 的结构、跨字段、概率、终局与交易几何质量闸门（QuantHub 独立适配）
-- [ ] PA_Agent 的逐 K 线引用语义检查与跨轮决策连续性
+- [x] PA_Agent 的 K 线引用格式、窗口范围与可审计性检查
+- [ ] PA_Agent 的 K 线形态事实核验与跨轮决策连续性
 - [ ] AlphaGPT Transformer 因子搜索（当前回退启发式公式）
 - [ ] 看板 Web 勾选二次确认（当前 CLI）
 - [ ] 看板登录鉴权（当前无）

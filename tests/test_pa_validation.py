@@ -5,7 +5,11 @@ import unittest
 from types import SimpleNamespace
 
 from strategies.ai_analysis.pa_agent.two_stage import _call_with_quality_gate
-from strategies.ai_analysis.pa_agent.validation import validate_stage1, validate_stage2
+from strategies.ai_analysis.pa_agent.validation import (
+    validate_bar_references,
+    validate_stage1,
+    validate_stage2,
+)
 
 
 def stage1_payload() -> dict:
@@ -118,6 +122,24 @@ class PaValidationTests(unittest.TestCase):
         self.assertEqual(usage["total_tokens"], 30)
         self.assertIn("direction", client.calls[1][-1]["content"])
         self.assertIn("只修正", client.calls[1][-1]["content"])
+
+    def test_bar_reference_rejects_window_overflow(self) -> None:
+        payload = {**stage1_payload(), "gate_trace": [{"node_id": "1.2", "bar_range": "K8-K1"}]}
+        self.assertTrue(validate_bar_references(payload, stage="stage1", max_bar=8).valid)
+
+        payload["gate_trace"][0]["bar_range"] = "K9-K1"
+        report = validate_bar_references(payload, stage="stage1", max_bar=8)
+
+        self.assertFalse(report.valid)
+        self.assertIn("bar_reference_range", {issue.code for issue in report.issues})
+
+    def test_bar_reference_missing_range_is_warning(self) -> None:
+        payload = {**no_order_payload(), "decision_trace": [{"node_id": "4.1"}]}
+        report = validate_bar_references(payload, stage="stage2", max_bar=12)
+
+        self.assertTrue(report.valid)
+        self.assertEqual(report.issues[0].severity, "warning")
+        self.assertEqual(report.issues[0].code, "bar_reference")
 
 
 if __name__ == "__main__":

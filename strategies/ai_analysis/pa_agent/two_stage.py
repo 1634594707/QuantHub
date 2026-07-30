@@ -15,7 +15,7 @@
       （原 orchestrator 依赖 CancelToken / PendingWriter / ExperienceReader /
        QClawConnector / stream_chat 等大量辅助模块，本模块仅保留分析主流程）
     - 输出校验: 使用独立 ``validation`` 模块检查结构、枚举、概率、跨阶段一致性、
-      空单不变量和交易几何；阻断错误最多触发一次字段级反馈重试
+      空单不变量、交易几何和 K 线引用范围；阻断错误最多触发一次字段级反馈重试
     - Prompt 组装: 原版由 PromptAssembler 生成（含 pattern_routing /
       kline_features / decision_stance / 几何特征等）；此处保留 PA 诊断/决策
       schema 的核心字段与中文术语约束，K 线表与指标直接内联
@@ -38,14 +38,16 @@ from core.llm import LLMClient, get_llm
 from strategies.ai_analysis.pa_agent.validation import (
     ValidationReport,
     invalid_json_report,
+    merge_reports,
     retry_feedback,
+    validate_bar_references,
     validate_stage1,
     validate_stage2,
 )
 
 logger = logging.getLogger(__name__)
 
-PA_PIPELINE_VERSION = "pa-two-stage-v2-quality-gate"
+PA_PIPELINE_VERSION = "pa-two-stage-v3-bar-reference-gate"
 PA_PROMPT_VERSION = "pa-prefix-cache-2026-07-29"
 
 _CYCLE_VALUES = (
@@ -553,7 +555,10 @@ def run_two_stage(
     if df.empty:
         result.error = "指标计算失败"
         return result
-    kline_text = _format_kline_table(df, tail=tail_bars)
+    effective_tail = max(1, tail_bars)
+    kline_text = _format_kline_table(df, tail=effective_tail)
+    # References use the same tail window and reverse numbering shown in the prompt.
+    kline_count = min(len(df), effective_tail)
 
     # 2. 取得 LLM 客户端
     try:
@@ -569,7 +574,10 @@ def run_two_stage(
             client,
             messages_s1,
             stage="stage1",
-            validator=validate_stage1,
+            validator=lambda payload: merge_reports(
+                validate_stage1(payload),
+                validate_bar_references(payload, stage="stage1", max_bar=kline_count),
+            ),
             max_validation_retries=max(0, max_validation_retries),
         )
     except Exception as exc:  # noqa: BLE001 - normalize provider failures into the PA result
@@ -643,7 +651,10 @@ def run_two_stage(
             client,
             messages_s2,
             stage="stage2",
-            validator=lambda payload: validate_stage2(payload, stage1_json),
+            validator=lambda payload: merge_reports(
+                validate_stage2(payload, stage1_json),
+                validate_bar_references(payload, stage="stage2", max_bar=kline_count),
+            ),
             max_validation_retries=max(0, max_validation_retries),
         )
     except Exception as exc:  # noqa: BLE001 - normalize provider failures into the PA result

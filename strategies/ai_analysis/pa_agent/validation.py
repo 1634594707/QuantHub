@@ -7,6 +7,7 @@ the machine-verifiable parts before QuantHub exposes or publishes that plan.
 from __future__ import annotations
 
 import math
+import re
 from dataclasses import asdict, dataclass
 from typing import Any, Literal
 
@@ -56,6 +57,16 @@ class ValidationReport:
             "warning_count": len(self.issues) - errors,
             "issues": [issue.to_dict() for issue in self.issues],
         }
+
+
+def merge_reports(*reports: ValidationReport) -> ValidationReport:
+    """Combine independent reports while preserving the stage label."""
+    if not reports:
+        raise ValueError("至少需要一个校验报告")
+    stage = reports[0].stage
+    if any(report.stage != stage for report in reports):
+        raise ValueError("不能合并不同阶段的校验报告")
+    return ValidationReport(stage, tuple(issue for report in reports for issue in report.issues))
 
 
 def invalid_json_report(stage: Stage) -> ValidationReport:
@@ -133,6 +144,64 @@ def validate_stage1(obj: dict[str, Any]) -> ValidationReport:
             )
         )
     return ValidationReport("stage1", tuple(issues))
+
+
+_BAR_REF_RE = re.compile(r"K\s*(\d+)(?:\s*[-~至到]\s*K?\s*(\d+))?", re.IGNORECASE)
+
+
+def validate_bar_references(obj: dict[str, Any], *, stage: Stage, max_bar: int) -> ValidationReport:
+    """Check trace bar ranges against the K-line window sent to the model.
+
+    K numbering is reverse chronological (K1 is the latest closed bar). The
+    check is deliberately limited to explicit trace ranges; prose such as a
+    pattern description is not treated as a machine-verifiable citation.
+    """
+    issues: list[ValidationIssue] = []
+    trace_fields = ("gate_trace",) if stage == "stage1" else ("decision_trace",)
+    for trace_field in trace_fields:
+        trace = obj.get(trace_field)
+        if trace is None:
+            continue
+        if not isinstance(trace, list):
+            continue  # structural validator owns the type error
+        for index, item in enumerate(trace):
+            if not isinstance(item, dict):
+                continue
+            field = f"{trace_field}[{index}].bar_range"
+            if "bar_range" not in item:
+                issues.append(
+                    ValidationIssue("bar_reference", field, "审计节点缺少 K 线范围", "warning")
+                )
+                continue
+            value = item.get("bar_range")
+            if value in (None, ""):
+                issues.append(
+                    ValidationIssue("bar_reference", field, "审计节点必须提供 K 线范围", "warning")
+                )
+                continue
+            if not isinstance(value, str):
+                issues.append(ValidationIssue("bar_reference", field, "K 线范围必须是文本"))
+                continue
+            matches = list(_BAR_REF_RE.finditer(value))
+            if not matches or "K" not in value.upper():
+                issues.append(
+                    ValidationIssue("bar_reference", field, "格式应为 K1 或 K8-K1 等 K 线范围")
+                )
+                continue
+            # Any non-whitespace text outside a simple range is accepted as
+            # surrounding prose, but every explicit K number must be in range.
+            for match in matches:
+                numbers = [int(group) for group in match.groups() if group is not None]
+                for number in numbers:
+                    if number < 1 or number > max_bar:
+                        issues.append(
+                            ValidationIssue(
+                                "bar_reference_range",
+                                field,
+                                f"K{number} 超出本次分析窗口 K1-K{max_bar}",
+                            )
+                        )
+    return ValidationReport(stage, tuple(issues))
 
 
 def _prediction_issues(
