@@ -3,7 +3,9 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-ENV_PATH = Path(__file__).resolve().parents[2] / ".env"
+from dotenv import set_key, unset_key
+
+ENV_PATH = Path(os.environ.get("QUANTHUB_ENV_PATH", Path(__file__).resolve().parents[2] / ".env"))
 
 
 def read_runtime_secret(env_name: str) -> str | None:
@@ -12,16 +14,19 @@ def read_runtime_secret(env_name: str) -> str | None:
 
 def write_secret(env_name: str, value: str) -> None:
     """Update one variable without removing unrelated local settings."""
-    lines = ENV_PATH.read_text(encoding="utf-8").splitlines() if ENV_PATH.exists() else []
-    prefix = f"{env_name}="
-    for index, line in enumerate(lines):
-        if line.startswith(prefix):
-            lines[index] = f"{env_name}={value}"
-            break
-    else:
-        lines.append(f"{env_name}={value}")
-    ENV_PATH.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    ENV_PATH.parent.mkdir(parents=True, exist_ok=True)
+    ENV_PATH.touch(exist_ok=True)
+    set_key(str(ENV_PATH), env_name, value, quote_mode="always")
+
+
+def delete_secret(env_name: str) -> None:
+    if ENV_PATH.exists():
+        unset_key(str(ENV_PATH), env_name)
 
 
 def set_runtime_secret(env_name: str, value: str) -> None:
     os.environ[env_name] = value
+
+
+def clear_runtime_secret(env_name: str) -> None:
+    os.environ.pop(env_name, None)

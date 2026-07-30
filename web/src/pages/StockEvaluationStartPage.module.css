@@ -394,6 +394,12 @@
   text-align: center;
 }
 
+.primaryActions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--sp-2);
+}
+
 .reuseNotice {
   display: grid;
   gap: var(--sp-3);
@@ -461,4 +467,5 @@
   .strategyField > div { grid-template-columns: 1fr; }
   .strategyField label { min-height: 54px; border-right: 0; border-bottom: 1px solid var(--divider); }
   .strategyField label:last-child { border-bottom: 0; }
+  .primaryActions { grid-template-columns: 1fr; }
 }

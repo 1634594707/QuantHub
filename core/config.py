@@ -71,6 +71,38 @@ def _migrate_schema(cfg: dict, current_schema: int) -> dict:
     return cfg
 
 
+def _apply_llm_env_overrides(cfg: dict) -> None:
+    llm = cfg.setdefault("llm", {})
+    provider = os.environ.get("QUANTHUB_LLM_PROVIDER", str(llm.get("provider", "deepseek")))
+    llm["provider"] = provider
+    provider_config = llm.setdefault(provider, {})
+    provider_config.setdefault(
+        "api_key_env",
+        {
+            "deepseek": "DEEPSEEK_API_KEY",
+            "openai": "OPENAI_API_KEY",
+            "custom": "QUANTHUB_CUSTOM_LLM_API_KEY",
+        }.get(provider, "QUANTHUB_LLM_API_KEY"),
+    )
+    string_overrides = {
+        "QUANTHUB_LLM_BASE_URL": "base_url",
+        "QUANTHUB_LLM_MODEL": "model",
+    }
+    integer_overrides = {
+        "QUANTHUB_LLM_TIMEOUT": "timeout",
+        "QUANTHUB_LLM_MAX_RETRIES": "max_retries",
+    }
+    for env_name, field in string_overrides.items():
+        if value := os.environ.get(env_name):
+            provider_config[field] = value
+    for env_name, field in integer_overrides.items():
+        if value := os.environ.get(env_name):
+            try:
+                provider_config[field] = int(value)
+            except ValueError:
+                pass
+
+
 # maxsize=None：market 取值有限（None/a_shares/crypto），不会膨胀；
 # 多市场交替调用时避免反复重读 base.yaml + 重跑 _resolve_env_placeholders。
 # cache_clear() 语义保留，set_api_key 等场景仍可一键失效。
@@ -103,6 +135,8 @@ def get_config(market: str | None = None) -> dict:
     # schema 升级
     schema_ver = int(cfg.get("schema_version", 1))
     cfg = _migrate_schema(cfg, schema_ver)
+
+    _apply_llm_env_overrides(cfg)
 
     # 解析环境变量占位符
     cfg = _resolve_env_placeholders(cfg)

@@ -368,7 +368,7 @@ export default function StrategyLabPage() {
   return (
     <div className={s.page}>
       <WorkspaceHeader
-        context="策略 / 策略实验室"
+        context="策略 / 策略实验"
         title="可复现策略实验"
         metrics={[
           { label: '策略定义', value: definitions.data?.count ?? 0 },

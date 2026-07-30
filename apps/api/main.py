@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -39,6 +40,7 @@ from .domains.alerts import router as alerts_router
 from .domains.automation import router as automation_router
 from .domains.backups import router as backups_router
 from .domains.ensemble import router as ensemble_router
+from .domains.factor_research import router as factor_research_router
 from .domains.governance import auth as governance_auth
 from .domains.governance import repository as governance_repository
 from .domains.governance import router as governance_router
@@ -59,7 +61,7 @@ from .domains.strategy_lab import router as strategy_lab_router
 from .domains.tasks import router as tasks_router
 
 # 加载 apps/api/.env（含 DEEPSEEK_API_KEY 等密钥）；文件缺失时静默跳过
-load_dotenv(Path(__file__).resolve().parent / ".env")
+load_dotenv(Path(os.environ.get("QUANTHUB_ENV_PATH", Path(__file__).resolve().parent / ".env")))
 
 logger = logging.getLogger(__name__)
 
@@ -171,6 +173,7 @@ app.include_router(portfolio_router)
 app.include_router(strategies_router)
 app.include_router(market_router)
 app.include_router(ensemble_router)
+app.include_router(factor_research_router)
 app.include_router(instrument_router)
 app.include_router(incidents_router)
 app.include_router(strategy_lab_router)

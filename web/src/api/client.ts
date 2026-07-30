@@ -33,6 +33,7 @@ import type {
   DataSourceOperation,
   CreatedApiToken,
   EnsembleResp,
+  FactorResearchResp,
   HealthResp,
   HoldingCRUDResp,
   Instrument,
@@ -53,6 +54,9 @@ import type {
   LedgerPosition,
   LedgerSummary,
   LedgerTrade,
+  LLMConfigResp,
+  LLMConnectionTestResp,
+  LLMSettingsUpdate,
   PositionDecisionContext,
   MarketBreadthResp,
   NewsAnalyzeResp,
@@ -602,6 +606,19 @@ export const api = {
       body: JSON.stringify(payload),
     }),
 
+  factorResearch: (payload: {
+    symbol: string
+    market: string
+    interval: string
+    limit: number
+    horizon: number
+    transaction_cost_bps: number
+  }) => getJSON<FactorResearchResp>('/factor-research/analyze', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }),
+
   // ---- G7 组合管理 ----
   portfolioManage: () => getJSON<PortfolioManageResp>('/portfolio/manage'),
   saveAlloc: (payload: Record<string, unknown>) =>
@@ -643,6 +660,20 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ api_key: apiKey }),
     }),
+
+  llmConfig: () => getJSON<LLMConfigResp>('/config/llm'),
+
+  updateLLMConfig: (payload: LLMSettingsUpdate) =>
+    getJSON<LLMConfigResp>('/config/llm', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }),
+
+  removeLLMKey: () => getJSON<LLMConfigResp>('/config/llm/key', { method: 'DELETE' }),
+
+  testLLMConnection: () =>
+    getJSON<LLMConnectionTestResp>('/config/llm/test', { method: 'POST' }),
 
   // ---- Instrument 标的主数据 ----
   instruments: (q = '', limit = 50, market?: string) => {

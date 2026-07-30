@@ -130,7 +130,7 @@ class DataSourceProxy(DataSource):
                     latency_ms=(time.perf_counter() - started) * 1000,
                     error="empty_result",
                 )
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - isolate failures from third-party adapters
                 telemetry.record_source(
                     src.name,
                     "get_kline",
@@ -255,6 +255,10 @@ def _build_source(
         from core.data_feed.tencent_source import TencentSource
 
         return TencentSource(market=market)
+    if name == "yahoo":
+        from core.data_feed.yahoo_source import YahooSource
+
+        return YahooSource(market=market)
     if name == "local_parquet":
         from core.config import get_repo_root
         from core.data_feed.local_parquet import LocalParquetSource
@@ -295,7 +299,7 @@ def get_data_source(market: str = "a_shares", **kwargs: Any) -> DataSourceProxy:
             built_sources.append(
                 _build_source(source_name, cfg=cfg, market=market, **source_kwargs)
             )
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - optional adapters may fail during construction
             role = "primary" if index == 0 else "fallback"
             logger.warning(
                 "构建 %s 数据源 %s 失败，继续尝试后续数据源: %s",

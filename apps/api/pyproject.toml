@@ -14,6 +14,7 @@ dependencies = [
     "uvicorn>=0.29",
     "apscheduler>=3.10",
     "pydantic>=2.7",
+    "openai>=1.40",
     "sqlalchemy>=2.0,<3",
     "alembic>=1.13,<2",
     "psycopg[binary]>=3.2,<4",

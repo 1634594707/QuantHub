@@ -298,7 +298,7 @@ export default function AutomationPage() {
   return (
     <div className={s.page}>
       <WorkspaceHeader
-        context="运营 / 自动化中心"
+        context="运营 / 作业调度"
         title="任务运行控制台"
         metrics={[
           { label: '启用任务', value: `${status.data?.enabled_count ?? 0} / ${status.data?.total ?? rows.length}` },

@@ -208,8 +208,8 @@ export default function StrategyDetailPage() {
   return (
     <>
       <WorkspaceHeader
-        context="策略 / 策略工作台"
-        title={`${strategy?.name ?? '策略'} 工作台`}
+        context="策略 / 策略运行"
+        title={`${strategy?.name ?? '策略'} 运行工作台`}
         description={strategy?.description}
         metrics={[
           { label: '市场', value: marketBadge(strategy?.market ?? '') },

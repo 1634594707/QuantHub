@@ -36,6 +36,7 @@ COPY --from=frontend-builder /app/web/dist /app/web/dist
 ENV PATH="/app/.venv/bin:${PATH}" \
     PYTHONUNBUFFERED=1 \
     QUANTHUB_DEPLOYMENT_MODE=local \
+    QUANTHUB_ENV_PATH=/data/quanthub.env \
     QUANTHUB_STORE_PATH=/data/quanthub.db
 
 VOLUME ["/data"]

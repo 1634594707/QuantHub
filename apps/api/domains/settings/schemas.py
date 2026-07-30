@@ -23,6 +23,51 @@ class ApiKeyUpdate(BaseModel):
         return normalized
 
 
+LLMProvider = Literal["deepseek", "openai", "custom"]
+
+
+class LLMSettingsUpdate(BaseModel):
+    provider: LLMProvider
+    api_key: str | None = Field(default=None, max_length=20_000)
+    base_url: str = Field(min_length=1, max_length=2_000)
+    model: str = Field(min_length=1, max_length=300)
+    timeout: int = Field(ge=5, le=600)
+    max_retries: int = Field(ge=0, le=10)
+
+    @field_validator("api_key")
+    @classmethod
+    def normalize_optional_key(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        if not normalized:
+            return None
+        if "\n" in normalized or "\r" in normalized:
+            raise ValueError("API Key 不能包含换行")
+        return normalized
+
+    @field_validator("base_url")
+    @classmethod
+    def validate_base_url(cls, value: str) -> str:
+        from urllib.parse import urlsplit
+
+        normalized = value.strip().rstrip("/")
+        parsed = urlsplit(normalized)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            raise ValueError("API 地址必须是有效的 http(s) URL")
+        if parsed.username or parsed.password:
+            raise ValueError("API 地址不能包含用户名或密码")
+        return normalized
+
+    @field_validator("model")
+    @classmethod
+    def normalize_model(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized or "\n" in normalized or "\r" in normalized:
+            raise ValueError("默认模型无效")
+        return normalized
+
+
 NotificationChannel = Literal["wecom", "webhook", "telegram"]
 
 

@@ -35,14 +35,14 @@ const PERMISSION_LABELS: Record<string, string> = {
 }
 
 const DOMAIN_LABELS: Record<string, string> = {
-  auth: '成员与访问',
+  auth: '成员权限',
   automation: '自动化',
   backups: '备份',
   config: '系统设置',
   ledger: '账本',
   market: '行情',
   'market-data': '数据源',
-  news: '新闻分析',
+  news: '新闻 AI',
   portfolio: '投资组合',
   research: '研究',
   signals: '信号',
@@ -230,8 +230,8 @@ export default function GovernancePage() {
   return (
     <div className={common.page}>
       <WorkspaceHeader
-        context="运营 / 成员与访问"
-        title="成员与访问"
+        context="运营 / 成员权限"
+        title="成员权限"
         description="添加成员，分配职责，管理外部访问"
         metrics={[
           { label: '当前身份', value: session.data?.user.display_name ?? '未连接' },

@@ -10,10 +10,10 @@ import { WorkspaceHeader } from '../components/WorkspaceHeader/WorkspaceHeader'
 import '../styles/tasks.css'
 
 const KIND_META: Record<AnalysisTaskKind, string> = {
-  pa: 'PA 分析',
-  news: '新闻分析',
-  ensemble: '协同预测',
-  evaluation: '股票评估',
+  pa: '价格结构 AI',
+  news: '新闻 AI',
+  ensemble: '模型共识',
+  evaluation: '综合评估',
 }
 
 const STATUS_META: Record<AnalysisTaskStatus, string> = {
@@ -137,8 +137,8 @@ export default function AnalysisTasksPage() {
   return (
     <div className="tasks-page">
       <WorkspaceHeader
-        context="研究 / 分析任务"
-        title="分析任务"
+        context="研究 / 研究任务"
+        title="研究任务"
         metrics={[
           { label: '任务总数', value: tasks.data?.total ?? 0 },
           { label: '活动任务', value: loadedTasks.filter((task) => ['queued', 'running'].includes(task.status)).length },

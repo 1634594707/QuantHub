@@ -227,8 +227,8 @@ export default function SimulationOrdersPage() {
   return (
     <div className="simulation-page">
       <WorkspaceHeader
-        context="执行 / 模拟执行"
-        title="模拟执行"
+        context="执行 / 模拟交易"
+        title="模拟交易"
         description="本地订单与成交记录，不连接真实券商"
         metrics={[
           { label: '账户权益', value: `¥${account.data?.equity.toLocaleString('zh-CN') ?? '—'}` },

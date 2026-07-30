@@ -18,7 +18,7 @@ export default function MobileNavigation({ menuOpen, onOpenMenu, interfaceMode }
   if (interfaceMode === 'beginner') {
     return <nav className="mobile-navigation beginner" aria-label="移动端导航">
       <NavLink to="/" end className={({ isActive }) => `mobile-nav-item ${isActive && !hash ? 'active' : ''}`}><IconGrid size={19} /><span>驾驶舱</span></NavLink>
-      <NavLink to="/evaluate" className={`mobile-nav-item ${pathname === '/evaluate' || pathname.startsWith('/research/') ? 'active' : ''}`}><IconChart size={19} /><span>评估</span></NavLink>
+      <NavLink to="/evaluate" className={`mobile-nav-item ${['/evaluate', '/news', '/pa', '/ensemble'].includes(pathname) || pathname.startsWith('/research/') ? 'active' : ''}`}><IconChart size={19} /><span>评估</span></NavLink>
       <NavLink to="/#watchlist" className={`mobile-nav-item ${pathname === '/' && hash === '#watchlist' ? 'active' : ''}`}><IconSearch size={19} /><span>自选</span></NavLink>
       <NavLink to="/simulation" className={`mobile-nav-item ${pathname === '/simulation' ? 'active' : ''}`}><IconBeaker size={19} /><span>模拟</span></NavLink>
       <NavLink to="/config" className={`mobile-nav-item ${pathname === '/config' ? 'active' : ''}`}><IconCog size={19} /><span>设置</span></NavLink>

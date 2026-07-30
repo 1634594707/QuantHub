@@ -231,7 +231,7 @@ export default function EnsemblePage({
           payload: { signal: response.signal },
         })
       }
-      setPublishMessage(response.ok ? '信号已进入信号中心' : '信号发布失败')
+      setPublishMessage(response.ok ? '信号已进入审核队列' : '信号发布失败')
     } catch (reason) {
       setPublishMessage(reason instanceof Error ? reason.message : '信号发布失败')
     } finally {
@@ -243,8 +243,8 @@ export default function EnsemblePage({
     <div className={s.page}>
       {!embedded && (
         <WorkspaceHeader
-          context="策略 / 协同预测"
-          title="多算法协同预测"
+          context="研究 / 综合评估 / 模型共识"
+          title="模型共识"
           metrics={[
             { label: '数据源', value: srcLabel },
             { label: '参与算法', value: cons?.n ?? 0 },
@@ -317,7 +317,7 @@ export default function EnsemblePage({
             <Button variant="primary" size="sm" onClick={() => void publishConsensus()} loading={publishing}>
               生成待审核信号
             </Button>
-            {publishMessage && <span>{publishMessage} · <a href="/signals">打开信号中心</a></span>}
+            {publishMessage && <span>{publishMessage} · <a href="/signals">打开信号审核</a></span>}
           </div>
         )}
 

@@ -79,8 +79,8 @@ export default function PortfolioPage() {
   return (
     <div className={s.page}>
       <WorkspaceHeader
-        context="策略 / 策略分配"
-        title="策略分配"
+        context="策略 / 策略组合"
+        title="策略组合配置"
         metrics={[
           { label: '绑定配置', value: allocs.length },
           { label: '可选策略', value: list.length },

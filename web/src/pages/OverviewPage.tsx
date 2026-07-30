@@ -25,7 +25,7 @@ import { alertEventHref } from '../lib/alerts'
 import s from './OverviewPage.module.css'
 
 const DASHBOARD_MODULES = [
-  { id: 'evaluation', label: '股票评估入口' },
+  { id: 'evaluation', label: '综合评估入口' },
   { id: 'market', label: '关注与市场' },
   { id: 'actions', label: '待处理事项' },
   { id: 'account', label: '账户指标' },
@@ -254,12 +254,12 @@ export default function OverviewPage() {
       <section className={s.evaluationEntry} aria-labelledby="evaluation-entry-title">
         <div className={s.entryCopy}>
           <span>新手入口</span>
-          <h2 id="evaluation-entry-title">评估一只股票</h2>
-          <p>输入股票名称或代码，选择关注周期，然后查看行情、新闻和多模型分析。</p>
+          <h2 id="evaluation-entry-title">综合评估一个标的</h2>
+          <p>量化快照、新闻 AI、价格结构 AI 与模型共识汇总到同一份研究记录。</p>
         </div>
         <div className={s.entryActions}>
           <Button variant="primary" size="lg" icon={<IconChart size={18} />} onClick={() => navigate('/evaluate')}>
-            开始股票评估
+            开始综合评估
           </Button>
           <Button size="lg" onClick={() => navigate('/example')}>
             查看示例报告

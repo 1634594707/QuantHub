@@ -401,7 +401,7 @@ export default function LedgerPage() {
   return (
     <div className={s.page}>
       <WorkspaceHeader
-        context="执行 / 账户与账本"
+        context="执行 / 账户账本"
         title="流水驱动的组合账户"
         metrics={[
           { label: 'NAV', value: `¥${money(metrics?.nav)}` },

@@ -24,6 +24,7 @@ from apps.api.domains.simulation import service as simulation_service
 from apps.api.domains.simulation.schemas import SimulationFillCreate, SimulationOrderCreate
 from apps.api.domains.tasks import service as task_service
 from apps.api.domains.tasks.router import retry_task
+from core import config as core_config
 
 
 class TemporaryStoreTestCase(unittest.TestCase):
@@ -591,6 +592,97 @@ class NotificationSettingsTests(unittest.TestCase):
             ],
             "http...-key",
         )
+
+
+class LLMSettingsTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.config = {
+            "llm": {
+                "provider": "deepseek",
+                "deepseek": {
+                    "api_key_env": "DEEPSEEK_API_KEY",
+                    "base_url": "https://api.deepseek.com",
+                    "model": "deepseek-chat",
+                    "timeout": 60,
+                    "max_retries": 3,
+                },
+                "openai": {"api_key_env": "OPENAI_API_KEY"},
+            }
+        }
+
+    def test_credential_status_exposes_settings_without_secret(self) -> None:
+        secrets = {"DEEPSEEK_API_KEY": "fixture-secret-value", "OPENAI_API_KEY": None}
+        with (
+            patch.object(settings_service, "get_config", return_value=self.config),
+            patch.object(
+                settings_service.repository,
+                "read_runtime_secret",
+                side_effect=lambda env_name: secrets.get(env_name),
+            ),
+        ):
+            status = settings_service.credential_status()
+
+        self.assertTrue(status["configured"])
+        self.assertEqual(status["masked"], "fixt...alue")
+        self.assertEqual(status["models_endpoint"], "https://api.deepseek.com/models")
+        self.assertNotIn("fixture-secret-value", repr(status))
+        self.assertEqual(
+            [item["id"] for item in status["providers"]], ["deepseek", "openai", "custom"]
+        )
+
+    def test_update_llm_settings_persists_runtime_overrides(self) -> None:
+        secrets: dict[str, str] = {}
+        with (
+            patch.object(settings_service, "get_config", return_value=self.config) as get_config,
+            patch.object(settings_service.repository, "write_secret") as write_secret,
+            patch.object(
+                settings_service.repository,
+                "read_runtime_secret",
+                side_effect=lambda env_name: secrets.get(env_name),
+            ),
+            patch.object(
+                settings_service.repository,
+                "set_runtime_secret",
+                side_effect=lambda env_name, value: secrets.__setitem__(env_name, value),
+            ),
+            patch.object(settings_service, "reset_clients") as reset_clients,
+        ):
+            payload = {
+                "provider": "deepseek",
+                "base_url": "https://gateway.example/v1",
+                "model": "deepseek-chat",
+                "timeout": 90,
+                "max_retries": 4,
+            }
+            payload["api_key"] = "fixture-new-secret"
+            result = settings_service.update_llm_settings(payload)
+
+        self.assertTrue(result["configured"])
+        self.assertEqual(secrets["DEEPSEEK_API_KEY"], "fixture-new-secret")
+        write_secret.assert_any_call("QUANTHUB_LLM_BASE_URL", "https://gateway.example/v1")
+        write_secret.assert_any_call("QUANTHUB_LLM_TIMEOUT", "90")
+        get_config.cache_clear.assert_called_once()
+        reset_clients.assert_called_once()
+
+    def test_config_loader_applies_llm_runtime_overrides(self) -> None:
+        with patch.dict(
+            os.environ,
+            {
+                "QUANTHUB_LLM_PROVIDER": "custom",
+                "QUANTHUB_LLM_BASE_URL": "http://localhost:9000/v1",
+                "QUANTHUB_LLM_MODEL": "local-test-model",
+                "QUANTHUB_LLM_TIMEOUT": "45",
+                "QUANTHUB_LLM_MAX_RETRIES": "1",
+            },
+        ):
+            core_config.get_config.cache_clear()
+            config = core_config.get_config()
+        core_config.get_config.cache_clear()
+
+        self.assertEqual(config["llm"]["provider"], "custom")
+        self.assertEqual(config["llm"]["custom"]["base_url"], "http://localhost:9000/v1")
+        self.assertEqual(config["llm"]["custom"]["model"], "local-test-model")
+        self.assertEqual(config["llm"]["custom"]["timeout"], 45)
 
 
 if __name__ == "__main__":

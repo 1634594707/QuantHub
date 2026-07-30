@@ -37,7 +37,7 @@ from core.llm import LLMClient, get_llm
 logger = logging.getLogger(__name__)
 
 PA_PIPELINE_VERSION = "pa-two-stage-v1"
-PA_PROMPT_VERSION = "pa-inline-schema-2026-07-25"
+PA_PROMPT_VERSION = "pa-prefix-cache-2026-07-29"
 
 _CYCLE_VALUES = (
     "spike",
@@ -269,32 +269,34 @@ def _build_stage2_messages(
     timeframe: str,
     kline_text: str,
     stage1_json: dict,
-    stage1_content: str,
 ) -> list[dict[str, str]]:
     """组装阶段二消息列表（system + user，含阶段一诊断）。
 
     采用「多轮续写」形式：把阶段一的 assistant 回复嵌入对话历史，
     与原 build_stage2_continuation 一致，便于模型沿用阶段一上下文。
     """
-    stage1_brief = json.dumps(stage1_json, ensure_ascii=False)
-    user = f"""# 分析标的
+    market_context = f"""# 分析标的
 - symbol: {symbol}
 - timeframe: {timeframe}
 
 # K 线与指标
 {kline_text}
 
-# 阶段一诊断结果（JSON）
-{stage1_brief}
-
-请基于阶段一诊断，按阶段二 schema 输出决策 JSON。若阶段一 gate_result 非 proceed，
-应输出 order_type=不下单、terminal.outcome=wait。"""
+请读取以上行情上下文，阶段一诊断结果将在下一条 assistant 消息中给出。"""
+    stage1_brief = json.dumps(stage1_json, ensure_ascii=False)
     return [
         {"role": "system", "content": _stage2_system_prompt()},
-        # 阶段一对话历史（续写模式）
-        {"role": "user", "content": "（阶段一已完成市场诊断）"},
-        {"role": "assistant", "content": stage1_content},
-        {"role": "user", "content": user},
+        # 稳定行情位于动态诊断前，重复评估时可复用更长的提示词前缀。
+        {"role": "user", "content": market_context},
+        {"role": "assistant", "content": stage1_brief},
+        {
+            "role": "user",
+            "content": (
+                "请基于以上阶段一诊断，按阶段二 schema 输出决策 JSON。"
+                "若 gate_result 非 proceed，应输出 order_type=不下单、"
+                "terminal.outcome=wait。"
+            ),
+        },
     ]
 
 
@@ -509,7 +511,7 @@ def run_two_stage(
     # 2. 取得 LLM 客户端
     try:
         client = llm or get_llm()
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - return provider initialization errors to the caller
         result.error = f"LLM 客户端初始化失败: {exc}"
         return result
 
@@ -517,7 +519,7 @@ def run_two_stage(
     messages_s1 = _build_stage1_messages(symbol, timeframe, kline_text)
     try:
         content_s1, usage_s1 = _call_llm(client, messages_s1)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - normalize provider failures into the PA result
         result.error = f"阶段一 LLM 调用失败: {exc}"
         return result
     result.stage1_content = content_s1
@@ -579,10 +581,10 @@ def run_two_stage(
         return result
 
     # 5. Stage 2: 决策评估
-    messages_s2 = _build_stage2_messages(symbol, timeframe, kline_text, stage1_json, content_s1)
+    messages_s2 = _build_stage2_messages(symbol, timeframe, kline_text, stage1_json)
     try:
         content_s2, usage_s2 = _call_llm(client, messages_s2)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - normalize provider failures into the PA result
         result.error = f"阶段二 LLM 调用失败: {exc}"
         return result
     result.stage2_content = content_s2

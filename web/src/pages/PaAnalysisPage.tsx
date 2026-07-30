@@ -39,8 +39,8 @@ export default function PaAnalysisPage() {
   return (
     <div className="stack-4">
       <WorkspaceHeader
-        context="研究 / PA 分析"
-        title="价格行为分析"
+        context="研究 / 综合评估 / 价格结构"
+        title="AI 价格结构分析"
         metrics={[
           { label: '当前标的', value: active.symbol },
           { label: '周期', value: active.timeframe },
@@ -51,7 +51,7 @@ export default function PaAnalysisPage() {
         <div className="card-head">
           <div className="card-title">
             PA 分析工作台
-            <span className="sub">价格行为两阶段分析</span>
+            <span className="sub">价格结构两阶段推理</span>
           </div>
         </div>
         <div className={s.formArea}>

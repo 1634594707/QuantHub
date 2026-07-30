@@ -1,4 +1,4 @@
-// 新闻分析页：语义情绪分析 + 可选 API 结构化增强结果展示。
+// 新闻证据模块：语义情绪分析 + 可选 API 结构化增强结果展示。
 // 数据流：GET /news/health 引擎状态（自动重试） + POST /news/analyze 按需分析（手动触发）。
 // 布局：WorkspaceHeader → NewsToolbar → NewsKpiRow → news-grid（概览 + 列表）。
 // 降级：degraded=true 时 KPI 区与卡片 foot 显示降级角标，engine!=semantic+api 时 foot 徽标转 warn。
@@ -130,8 +130,8 @@ export default function NewsPage({
     <div className={s.page}>
       {!embedded && (
         <WorkspaceHeader
-          context="研究 / 新闻分析"
-          title="新闻语义分析"
+          context="研究 / 综合评估 / 新闻证据"
+          title="新闻语义证据"
           metrics={[
             { label: 'API 增强', value: apiEnhanced ? '已启用' : '未启用·仅语义' },
             { label: '引擎', value: engineLabel },
@@ -189,7 +189,7 @@ export default function NewsPage({
       ) : !data ? (
         <EmptyState
           title="输入标的代码开始分析"
-          desc="新闻分析不会在页面打开时自动运行。选择市场并输入标的代码后，由你决定是否启用 API 增强并手动开始。"
+          desc="新闻证据不会在页面打开时自动生成。选择市场并输入标的代码后，由你决定是否启用 API 增强并手动开始。"
         />
       ) : data.items.length === 0 ? (
         <EmptyState

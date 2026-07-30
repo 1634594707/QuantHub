@@ -2,7 +2,7 @@
 
 > 面向个人投资者与量化研究者的多市场量化研究、策略验证和模拟交易工作台。
 
-QuantHub 将行情研究、股票评估、新闻与价格行为分析、策略回测、信号审核、模拟执行、组合账本和运行治理整合到一个本地优先的 Web 应用中。项目采用 React + FastAPI，支持 A 股、加密资产与 MT5 数据，并通过插件机制扩展策略。
+QuantHub 将综合评估、因子验证、AI 研究证据、策略回测、信号审核、模拟交易、账户账本和运行治理整合到一个本地优先的 Web 应用中。项目采用 React + FastAPI，支持 A 股、美股、加密资产与 MT5 数据，并通过插件机制扩展策略。
 
 ![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12-3776AB?logo=python&logoColor=white)
 ![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=111827)
@@ -16,25 +16,29 @@ QuantHub 将行情研究、股票评估、新闻与价格行为分析、策略�
 
 ## 为什么使用 QuantHub
 
-- **一站式研究流程**：从标的搜索、行情查看、新闻分析和 PA 分析，到策略判断与研究记录。
-- **多市场统一工作台**：统一管理 A 股、加密资产和 MT5 数据及策略。
+- **单一综合评估入口**：量化快照、新闻 AI、价格结构 AI 和模型共识写入同一份研究记录。
+- **严格的因子验证**：使用训练、隔离和样本外区间评估 14 个趋势、反转、量价与风险因子。
+- **多市场统一工作台**：统一管理 A 股、美股、加密资产和 MT5 数据及策略，美股历史行情支持 Yahoo 回退。
+- **可配置 AI 能力**：在系统设置中切换 DeepSeek、OpenAI 或兼容 API，配置模型并执行连接测试。
 - **插件式策略系统**：策略独立注册，共享行情、信号、回测、LLM 与告警能力。
 - **审核优先的执行链路**：信号先进入审核中心，再进入模拟订单与账户账本。
 - **本地优先与安全默认值**：默认使用本地 SQLite，密钥只从环境变量读取，实盘开关默认关闭。
 - **完整运营视角**：提供自动化任务、故障状态、备份、访问治理和运行健康检查。
-- **新手 / 高级界面模式**：新手模式聚焦股票评估与模拟执行，高级模式开放完整研究和策略工作区。
+- **新手 / 高级界面模式**：新手模式聚焦综合评估与模拟交易，高级模式开放完整研究、策略、执行和运营工作区。
 
 ## 功能概览
 
 | 工作区 | 主要能力 |
 | --- | --- |
 | 驾驶舱 | 账户净值、持仓、自选、行情状态、行动队列与 PA 决策摘要 |
-| 研究 | 股票评估、新闻分析、价格行为分析、分析任务与提醒中心 |
-| 策略 | 策略库、策略实验室、回测、多模型判断与策略分配 |
-| 执行 | 信号审核、模拟订单、成交记录、持仓与资金账本 |
-| 运营 | 标的主数据、自动化、故障状态、备份、成员权限与系统配置 |
+| 研究 | 综合评估、因子验证与研究任务；新闻 AI、价格结构 AI 和模型共识作为综合评估内部模块 |
+| 策略 | 已安装策略运行、可复现策略实验与策略组合 |
+| 执行 | 信号审核、模拟交易、账户账本与价格提醒 |
+| 运营 | 标的与数据、作业调度、运行故障、成员权限、备份与系统设置 |
 
 内置策略覆盖情绪分析、新闻扫描、选股、SuperTrend、早报、实时分析、OKX 网格、AlphaGPT、PA Agent 和 AlphaMaster 等方向。
+
+本次研究工作流更新加入了因子样本外验证、回撤动作、风险指标、美股 Yahoo 历史数据和多供应商 AI 设置。完整说明见 [QuantHub 研究工作流与因子验证更新](docs/posts/2026-07-30-research-factor-update.md)，长期职责边界见 [功能边界](docs/FUNCTION_BOUNDARIES.md)。
 
 ## 技术栈
 
@@ -55,11 +59,9 @@ QuantHub 将行情研究、股票评估、新闻与价格行为分析、策略�
 ### 1. 获取项目
 
 ```bash
-git clone https://github.com/<your-name>/quanthub.git
-cd quanthub
+git clone https://github.com/1634594707/QuantHub.git
+cd QuantHub
 ```
-
-将 `<your-name>` 替换为仓库所有者名称。
 
 ### 2. Windows 一键启动
 
@@ -148,7 +150,7 @@ uv sync --locked --extra a_shares --extra ai --extra backtest
 
 ### 本地环境变量
 
-基础功能无需 API Key。若要启用真实的 AI 分析，复制环境变量模板并填写自己的密钥：
+基础量化与因子验证无需 API Key。若要启用 AI 研究证据，可直接在“系统设置 → 模型供应商”中配置 DeepSeek、OpenAI 或 OpenAI 兼容服务，也可以复制环境变量模板：
 
 ```powershell
 Copy-Item apps/api/.env.example apps/api/.env
@@ -156,9 +158,13 @@ Copy-Item apps/api/.env.example apps/api/.env
 
 ```dotenv
 DEEPSEEK_API_KEY=your-key-here
+# 或
+OPENAI_API_KEY=your-key-here
+# 或
+QUANTHUB_CUSTOM_LLM_API_KEY=your-key-here
 ```
 
-`apps/api/.env` 已被 Git 忽略。请勿将 API Key、数据库密码、交易所密钥或访问令牌提交到仓库。
+界面支持配置 API 地址、默认模型、超时、重试次数和连接测试。密钥仅写入运行时环境，不会回显明文；`apps/api/.env` 已被 Git 忽略。请勿将 API Key、数据库密码、交易所密钥或访问令牌提交到仓库。
 
 ### 主要配置文件
 
@@ -166,6 +172,7 @@ DEEPSEEK_API_KEY=your-key-here
 | --- | --- |
 | `configs/base.yaml` | 全局开关、缓存、信号权重、告警、LLM 与回测配置 |
 | `configs/a_shares.yaml` | A 股数据源与策略配置 |
+| `configs/us_stocks.yaml` | 美股腾讯、Yahoo 与本地 Parquet 数据源顺序 |
 | `configs/crypto.yaml` | 加密资产数据源与策略配置 |
 | `configs/mt5.yaml` | MT5 数据与 AlphaMaster 配置 |
 | `configs/ai_analysis.yaml` | PA Agent 分析配置 |
@@ -248,6 +255,8 @@ uv run python tools/scaffold_strategy.py \
 
 - [文档索引](docs/README.md)
 - [架构设计](docs/ARCHITECTURE.md)
+- [功能边界](docs/FUNCTION_BOUNDARIES.md)
+- [研究工作流与因子验证更新](docs/posts/2026-07-30-research-factor-update.md)
 - [部署与数据库迁移](docs/DEPLOYMENT.md)
 - [质量门禁](docs/QUALITY_GATES.md)
 - [升级与扩展](docs/UPGRADE.md)

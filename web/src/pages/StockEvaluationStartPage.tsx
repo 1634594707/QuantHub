@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
 import type { AnalysisTask, Instrument } from '../api/types'
 import { useApi } from '../api/useApi'
-import { IconChart, IconCog, IconSearch } from '../components/icons'
+import { IconChart, IconChevron, IconCog, IconSearch } from '../components/icons'
 import { AsyncStateBoundary } from '../components/ui/AsyncStateBoundary/AsyncStateBoundary'
 import { Button } from '../components/ui/Button/Button'
 import { Input } from '../components/ui/Input/Input'
@@ -71,7 +71,7 @@ const EVALUATION_PROFILES: Record<EvaluationProfile, {
   },
   balanced: {
     label: '均衡评估',
-    description: '加入回撤与均值偏离，并结合新闻和价格行为。',
+    description: '加入回撤与均值偏离，并结合新闻 AI 和价格结构 AI。',
     modules: ['market', 'news', 'pa', 'ensemble'],
     methods: ['trend', 'momentum', 'volatility', 'drawdown', 'mean_reversion'],
     defaultLenses: ['trend_following', 'mean_reversion', 'risk_first'],
@@ -109,10 +109,10 @@ const STRATEGY_METHODS: Record<StrategyLens, string[]> = {
 }
 
 const MODULE_LABELS: Record<string, string> = {
-  market: '行情量化',
-  news: '新闻',
-  pa: '价格行为',
-  ensemble: '多模型判断',
+  market: '量化快照',
+  news: '新闻 AI',
+  pa: '价格结构 AI',
+  ensemble: '模型共识',
 }
 
 const SAMPLE_INSTRUMENTS: Record<EvaluationMarket, Instrument> = {
@@ -179,7 +179,7 @@ export default function StockEvaluationStartPage() {
     [profileConfig, strategyLenses],
   )
   const profileDescription = market !== 'a_shares' && profile === 'balanced'
-    ? '加入回撤与均值偏离，并结合价格行为和多模型判断。'
+    ? '加入回撤与均值偏离，并结合价格结构 AI 和模型共识。'
     : profileConfig.description
 
   function search(event: React.FormEvent) {
@@ -235,6 +235,18 @@ export default function StockEvaluationStartPage() {
     navigate(`/research/${encodeURIComponent(instrument.code)}?${params.toString()}`)
   }
 
+  function openWorkspace(instrument = selected, targetHorizon = horizon) {
+    if (!instrument) return
+    const timeframe = HORIZONS[instrument.market as EvaluationMarket][targetHorizon].timeframe
+    const params = new URLSearchParams({
+      market: instrument.market,
+      tf: timeframe,
+      from: 'evaluate',
+      view: 'overview',
+    })
+    navigate(`/research/${encodeURIComponent(instrument.code)}?${params.toString()}`)
+  }
+
   async function beginEvaluation(instrument = selected, targetHorizon = horizon, createNew = false) {
     if (!instrument) return
     setStarting(true)
@@ -276,7 +288,7 @@ export default function StockEvaluationStartPage() {
       setRecentTask(null)
       openTask(instrument, timeframe, created.task.id)
     } catch (error) {
-      setStartError(error instanceof Error ? error.message : '股票评估任务创建失败')
+      setStartError(error instanceof Error ? error.message : '综合评估任务创建失败')
     } finally {
       setStarting(false)
     }
@@ -296,9 +308,9 @@ export default function StockEvaluationStartPage() {
   return (
     <div className={s.page}>
       <WorkspaceHeader
-        context="研究 / 股票评估"
-        title="评估股票或数字资产"
-        description="选择市场与标的，再配置关注周期和评估规模"
+        context="研究 / 综合评估"
+        title="单标的综合评估"
+        description="量化快照、AI 证据与模型共识统一归档"
         metrics={[
           { label: '当前市场', value: MARKETS[market].label },
           { label: '当前模式', value: '研究模式' },
@@ -390,8 +402,8 @@ export default function StockEvaluationStartPage() {
               onRetry={directory.refetch}
               loadingTitle="正在查找股票…"
               emptyTitle="没有找到这只股票"
-              emptyDescription="请检查名称或代码；也可以前往股票与市场登记。"
-              emptyAction={{ label: '前往股票与市场', onClick: () => navigate('/instruments') }}
+              emptyDescription="请检查名称或代码；也可以前往标的与数据登记。"
+              emptyAction={{ label: '前往标的与数据', onClick: () => navigate('/instruments') }}
             >
               <div className={s.resultList} aria-label="标的搜索结果">
                 {results.map((instrument) => (
@@ -492,15 +504,25 @@ export default function StockEvaluationStartPage() {
             <div><span className={strategyLenses.length ? s.readyDot : s.pendingDot} /><strong>策略视角</strong><em>{strategyLenses.length ? `${strategyLenses.length} 种` : '至少选择一种'}</em></div>
           </div>
 
-          <Button
-            variant="primary"
-            size="lg"
-            fullWidth
-            icon={<IconChart size={18} />}
-            disabled={!selected || starting || strategyLenses.length === 0}
-            loading={starting}
-            onClick={() => void beginEvaluation()}
-          >进入评估工作区</Button>
+          <div className={s.primaryActions}>
+            <Button
+              variant="secondary"
+              size="lg"
+              fullWidth
+              icon={<IconChevron size={18} />}
+              disabled={!selected || starting}
+              onClick={() => openWorkspace()}
+            >进入评估工作区</Button>
+            <Button
+              variant="primary"
+              size="lg"
+              fullWidth
+              icon={<IconChart size={18} />}
+              disabled={!selected || starting || strategyLenses.length === 0}
+              loading={starting}
+              onClick={() => void beginEvaluation()}
+            >开始评估</Button>
+          </div>
           {recentTask && selected && (
             <div className={s.reuseNotice} role="status">
               <div>

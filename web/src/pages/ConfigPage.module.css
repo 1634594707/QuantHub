@@ -4,7 +4,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--sp-4);
-  max-width: 720px;
+  max-width: 920px;
 }
 
 .form {
@@ -80,37 +80,6 @@
   border-radius: var(--r-sm);
   background: var(--bg-subtle);
   padding: 0 var(--sp-2);
-  color: var(--text-1);
-}
-
-/* API Key 配置状态徽标 */
-.keyBadge {
-  font-size: var(--fs-caption);
-  padding: 2px 8px;
-  border-radius: var(--r-pill);
-}
-
-.keyBadgeConfigured {
-  background: var(--up-weak);
-  color: var(--up-ink);
-}
-
-.keyBadgePending {
-  background: var(--accent-weak);
-  color: var(--accent-strong);
-}
-
-/* 密码输入框右侧显示/隐藏按钮 */
-.keyToggleBtn {
-  background: none;
-  border: none;
-  color: var(--text-2);
-  cursor: pointer;
-  font-size: var(--fs-caption);
-  padding: 0;
-}
-
-.keyToggleBtn:hover {
   color: var(--text-1);
 }
 

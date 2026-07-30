@@ -12,6 +12,7 @@ import { setRecentResearchPath } from '../navigation/recentResearch'
 import { ContextBar } from '../components/ContextBar/ContextBar'
 import { EvidenceRail } from '../components/EvidenceRail/EvidenceRail'
 import { useRecordNavigation } from '../hooks/useRecordNavigation'
+import { shouldAdoptEvaluationRun } from '../lib/researchRunNavigation'
 import EnsemblePage from './EnsemblePage'
 import NewsPage from './NewsPage'
 import '../styles/research.css'
@@ -19,9 +20,9 @@ import '../styles/research.css'
 const VIEWS = [
   { key: 'overview', label: '概览' },
   { key: 'chart', label: '行情' },
-  { key: 'news', label: '新闻' },
-  { key: 'pa', label: '价格行为' },
-  { key: 'ensemble', label: '多模型判断' },
+  { key: 'news', label: '新闻证据' },
+  { key: 'pa', label: '价格结构' },
+  { key: 'ensemble', label: '模型共识' },
   { key: 'history', label: '评估记录' },
 ] as const
 type View = (typeof VIEWS)[number]['key']
@@ -38,10 +39,10 @@ const MARKET_LABELS: Record<WorkspaceMarket, string> = {
 
 const EVALUATION_STEP_LABELS: Record<string, string> = {
   prepare: '准备数据',
-  market: '行情分析',
-  news: '新闻分析',
-  pa: '价格行为',
-  ensemble: '多模型汇总',
+  market: '量化快照',
+  news: '新闻 AI',
+  pa: '价格结构 AI',
+  ensemble: '模型共识',
   report: '生成报告',
 }
 
@@ -56,10 +57,10 @@ const TIMEFRAME_LABELS: Record<WorkspaceTimeframe, string> = {
 }
 
 const MODULE_LABELS: Record<string, string> = {
-  news: '新闻',
-  pa: '价格行为',
-  ensemble: '多模型判断',
-  market: '行情',
+  news: '新闻 AI',
+  pa: '价格结构 AI',
+  ensemble: '模型共识',
+  market: '量化快照',
 }
 
 const EVALUATION_PROFILE_LABELS: Record<string, string> = {
@@ -310,7 +311,7 @@ function ResearchHistory({
       onRetry={onRetry}
       loadingTitle="正在读取评估记录…"
       emptyTitle="还没有评估记录"
-      emptyDescription="完成新闻、价格行为或多模型判断后，分析依据会出现在这里。"
+      emptyDescription="完成新闻 AI、价格结构 AI 或模型共识后，分析依据会出现在这里。"
     >
       <div className="research-run-list" tabIndex={0} onKeyDown={handleKeyDown} aria-label="可用方向键选择评估记录">
         {runs.map((run) => {
@@ -531,7 +532,7 @@ export default function ResearchWorkspacePage() {
   }, [searchParams, symbol])
 
   useEffect(() => {
-    if (!evaluationRunId || requestedRunId === evaluationRunId) return
+    if (!shouldAdoptEvaluationRun(requestedRunId, evaluationRunId)) return
     const query = new URLSearchParams(searchParams)
     query.set('run_id', evaluationRunId)
     if (evaluation && !['queued', 'running'].includes(evaluation.status)) query.set('view', 'history')
@@ -564,6 +565,7 @@ export default function ResearchWorkspacePage() {
     setActiveRunId(runId)
     const query = new URLSearchParams(searchParams)
     query.set('run_id', runId)
+    query.delete('evaluation_task_id')
     setSearchParams(query, { replace: true })
   }, [searchParams, setSearchParams])
 
@@ -625,7 +627,7 @@ export default function ResearchWorkspacePage() {
   return (
     <div className="research-page">
       <WorkspaceHeader
-        context="研究 / 股票评估"
+        context="研究 / 综合评估"
         title={symbol}
         metrics={[
           { label: '市场', value: MARKET_LABELS[market] ?? market },
@@ -634,7 +636,7 @@ export default function ResearchWorkspacePage() {
         ]}
       />
       {evaluationTaskId && (
-        <section className="evaluation-progress" aria-label="股票评估进度">
+        <section className="evaluation-progress" aria-label="综合评估进度">
           <div className="evaluation-progress-head">
             <div>
               <span>统一标的评估</span>
@@ -721,7 +723,7 @@ export default function ResearchWorkspacePage() {
         </form>
       </ContextBar>
 
-      <nav className="research-tabs" aria-label="股票评估视图">
+      <nav className="research-tabs" aria-label="综合评估视图">
         {VIEWS.map((item) => (
           <button
             type="button"

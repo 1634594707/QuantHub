@@ -22,6 +22,21 @@ from core.config import get_config
 logger = logging.getLogger(__name__)
 
 
+def _usage_dict(usage: Any) -> dict[str, int] | None:
+    if not usage:
+        return None
+    result = {
+        "prompt_tokens": int(usage.prompt_tokens),
+        "completion_tokens": int(usage.completion_tokens),
+        "total_tokens": int(usage.total_tokens),
+    }
+    prompt_details = getattr(usage, "prompt_tokens_details", None)
+    cached_tokens = getattr(prompt_details, "cached_tokens", None)
+    if cached_tokens is not None:
+        result["cached_prompt_tokens"] = int(cached_tokens)
+    return result
+
+
 @dataclass
 class LLMResponse:
     """LLM 响应封装。"""
@@ -95,18 +110,12 @@ class LLMClient:
 
         try:
             resp = _call()
-        except Exception:
+        except Exception:  # noqa: BLE001 - log and preserve provider-specific failures
             logger.exception("LLM 调用失败 (%s)", self._provider)
             raise
 
         choice = resp.choices[0]
-        usage = None
-        if resp.usage:
-            usage = {
-                "prompt_tokens": resp.usage.prompt_tokens,
-                "completion_tokens": resp.usage.completion_tokens,
-                "total_tokens": resp.usage.total_tokens,
-            }
+        usage = _usage_dict(resp.usage)
         return LLMResponse(
             content=choice.message.content or "",
             model=use_model,
@@ -121,7 +130,7 @@ class LLMClient:
 
             enc = tiktoken.get_encoding("cl100k_base")
             return len(enc.encode(text))
-        except Exception:
+        except Exception:  # noqa: BLE001 - optional tokenizer errors use estimator fallback
             # fallback: 字符数 / 2
             return max(1, len(text) // 2)
 

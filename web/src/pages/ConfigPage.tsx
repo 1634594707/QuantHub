@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api, getBase } from '../api/client'
-import type { ApiKeyResp, BackupRetentionResult, BackupVerification, DataSourceCheckResult, DataSourceOperation, NotificationChannelName } from '../api/types'
+import type { BackupRetentionResult, BackupVerification, DataSourceCheckResult, DataSourceOperation, NotificationChannelName } from '../api/types'
 import { useApi } from '../api/useApi'
 import { AsyncStateBoundary } from '../components/ui/AsyncStateBoundary/AsyncStateBoundary'
 import { Button } from '../components/ui/Button/Button'
@@ -11,6 +11,7 @@ import { Toggle } from '../components/ui/Toggle/Toggle'
 import { WorkspaceHeader } from '../components/WorkspaceHeader/WorkspaceHeader'
 import { useInterfaceMode } from '../hooks/useInterfaceMode'
 import { SegmentedControl } from '../components/ui/SegmentedControl/SegmentedControl'
+import { LLMProviderSettings } from '../components/settings/LLMProviderSettings'
 import s from './ConfigPage.module.css'
 
 const API_BASE_KEY = 'quanthub:api-base'
@@ -21,12 +22,6 @@ export default function ConfigPage() {
   const [baseSaved, setBaseSaved] = useState('')
   const [baseError, setBaseError] = useState('')
 
-  const [key, setKey] = useState('')
-  const [showKey, setShowKey] = useState(false)
-  const [keyStatus, setKeyStatus] = useState<ApiKeyResp | null>(null)
-  const [keyLoading, setKeyLoading] = useState(false)
-  const [keySaved, setKeySaved] = useState('')
-  const [keyError, setKeyError] = useState('')
   const [resetting, setResetting] = useState(false)
   const [backupBusy, setBackupBusy] = useState<string | null>(null)
   const [backupMessage, setBackupMessage] = useState('')
@@ -66,10 +61,6 @@ export default function ConfigPage() {
   const notifications = useApi(() => api.notificationStatus(), [], { retry: false })
 
   useEffect(() => {
-    fetchKeyStatus()
-  }, [])
-
-  useEffect(() => {
     if (!notifications.data) return
     setNotificationEnabled(notifications.data.enabled)
     setChannelEnabled({
@@ -78,15 +69,6 @@ export default function ConfigPage() {
       telegram: notifications.data.channels.find((item) => item.channel === 'telegram')?.enabled ?? false,
     })
   }, [notifications.data])
-
-  async function fetchKeyStatus() {
-    try {
-      const resp = await api.getApiKey()
-      setKeyStatus(resp)
-    } catch {
-      setKeyStatus({ ok: false, configured: false, provider: 'deepseek', key_env: 'DEEPSEEK_API_KEY', masked: null })
-    }
-  }
 
   function saveBase(e: React.FormEvent) {
     e.preventDefault()
@@ -102,25 +84,6 @@ export default function ConfigPage() {
       setTimeout(() => setBaseSaved(''), 4000)
     } catch (error) {
       setBaseError(error instanceof Error ? error.message : '网关地址保存失败')
-    }
-  }
-
-  async function saveKey(e: React.FormEvent) {
-    e.preventDefault()
-    const trimmed = key.trim()
-    if (!trimmed) return
-    setKeyLoading(true)
-    setKeyError('')
-    try {
-      const resp = await api.setApiKey(trimmed)
-      setKeyStatus(resp)
-      setKeySaved(`${resp.provider} · ${resp.key_env} · ${resp.masked ?? '未返回掩码'}`)
-      setKey('')
-      setTimeout(() => setKeySaved(''), 4000)
-    } catch (err) {
-      setKeyError(err instanceof Error ? err.message : '保存失败')
-    } finally {
-      setKeyLoading(false)
     }
   }
 
@@ -248,7 +211,7 @@ export default function ConfigPage() {
   return (
     <div className={s.page}>
       <WorkspaceHeader
-        context="运营 / 系统配置"
+        context="运营 / 系统设置"
         title="本地运行参数"
         description="网关地址、数据源与运行偏好"
         metrics={[{
@@ -305,7 +268,7 @@ export default function ConfigPage() {
               { value: 'advanced', label: '高级模式' },
             ]}
           />
-          <span>{interfaceMode === 'beginner' ? '显示驾驶舱、股票评估、自选、模拟执行和设置。' : '显示研究、策略、信号、账本和运营的完整工作区。'}</span>
+          <span>{interfaceMode === 'beginner' ? '显示驾驶舱、综合评估、自选、模拟交易和设置。' : '显示研究、策略、执行和运营的完整工作区。'}</span>
         </div>
       </div>
       <div className="card">
@@ -534,14 +497,14 @@ export default function ConfigPage() {
         <div className="card-head">
           <div className="card-title">
             运行管理
-            <span className="sub">主数据、账本、实验与调度</span>
+            <span className="sub">标的数据、账户、实验与作业</span>
           </div>
         </div>
         <div className={s.linkGrid}>
-          <a href="/instruments"><b>标的中心</b><span>Instrument 搜索与登记</span></a>
-          <a href="/ledger"><b>账户与账本</b><span>现金、成交、持仓与绩效</span></a>
-          <a href="/strategy-lab"><b>策略实验室</b><span>版本、实验、回测与对比</span></a>
-          <a href="/automation"><b>自动化中心</b><span>调度配置清单与状态边界</span></a>
+          <a href="/instruments"><b>标的与数据</b><span>Instrument 搜索与登记</span></a>
+          <a href="/ledger"><b>账户账本</b><span>现金、成交、持仓与绩效</span></a>
+          <a href="/strategy-lab"><b>策略实验</b><span>版本、实验、回测与对比</span></a>
+          <a href="/automation"><b>作业调度</b><span>调度配置、运行与告警</span></a>
         </div>
       </div>
 
@@ -577,60 +540,7 @@ export default function ConfigPage() {
       </div>
 
       <div className="card">
-        <div className="card-head">
-          <div className="card-title">
-            API Key
-            <span className="sub">{keyStatus?.configured ? '已配置' : '未配置'}</span>
-          </div>
-          {keyStatus && (
-            <span
-              className={[
-                s.keyBadge,
-                keyStatus.configured ? s.keyBadgeConfigured : s.keyBadgePending,
-              ].join(' ')}
-            >
-              {keyStatus.configured ? keyStatus.masked : '未设置'}
-            </span>
-          )}
-        </div>
-        <form onSubmit={saveKey} className={s.form}>
-          <div className={s.fieldGroup}>
-            <label className={s.fieldLabel}>DeepSeek API Key</label>
-            <Input
-              type={showKey ? 'text' : 'password'}
-              variant="mono"
-              value={key}
-              onChange={(e) => setKey(e.target.value)}
-              placeholder="sk-..."
-              suffix={
-                <button
-                  type="button"
-                  className={s.keyToggleBtn}
-                  onClick={() => setShowKey((v) => !v)}
-                  aria-label={showKey ? '隐藏密钥' : '显示密钥'}
-                >
-                  {showKey ? '隐藏' : '显示'}
-                </button>
-              }
-            />
-          </div>
-
-          {key.trim() && <div className={s.impactNotice}>影响范围：后端环境变量 <b>{keyStatus?.key_env ?? '等待配置状态'}</b> 与后续模型请求；不会写入 Git。</div>}
-
-          <div className={s.submitRow}>
-            <Button
-              type="submit"
-              variant="primary"
-              size="sm"
-              loading={keyLoading}
-              disabled={keyLoading || !key.trim()}
-            >
-              {keyLoading ? '保存中…' : '保存并热重载'}
-            </Button>
-            {keySaved && <span className={s.statusOk}>已生效：{keySaved}</span>}
-            {keyError && <span className={s.statusErr}>{keyError}</span>}
-          </div>
-        </form>
+        <LLMProviderSettings onChanged={systemStatus.refetch} />
       </div>
 
       <div className="card">

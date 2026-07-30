@@ -1,16 +1,16 @@
 # 美股市场专属配置
 # 继承 base.yaml，覆盖/扩展美股相关项
-# 环境说明：本机代理仅放行腾讯 web.ifzq.gtimg.cn（us 前缀可出美股日线），
-# akshare/东财经代理不可用，故美股 primary 用 tencent。
+# 腾讯负责实时行情；其美股历史不足时使用 Yahoo Chart 公共接口回退。
 
 market: "us_stocks"
 
 # ===== 美股数据源 =====
 data_sources:
-  # 腾讯负责可用的在线数据；历史不足时回退已有 MT5 Parquet。
+  # 腾讯历史不足时先回退 Yahoo，离线环境最终回退已有 MT5 Parquet。
   primary: "tencent"
-  fallback: ["local_parquet"]
+  fallback: ["yahoo", "local_parquet"]
   tencent: {}
+  yahoo: {}
   local_parquet:
     root: "data"
     time_mode: "auto"

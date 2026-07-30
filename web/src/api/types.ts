@@ -382,6 +382,138 @@ export interface BacktestResp {
   equity: Array<{ t: string | null; equity: number }>
 }
 
+// ---- 因子研究 ----
+export type FactorStatus = 'usable' | 'watch' | 'reject'
+export type DrawdownLevel = 'normal' | 'watch' | 'reduce' | 'risk_off' | 'recovery'
+
+export interface FactorEvaluation {
+  key: string
+  label: string
+  category: string
+  description: string
+  direction: 'positive' | 'inverse'
+  status: FactorStatus
+  score: number
+  ic: number
+  rank_ic: number
+  pearson_ic: number
+  train_ic: number
+  test_ic: number
+  rolling_ic_mean: number
+  rolling_ic_std: number
+  icir: number
+  positive_ic_ratio: number
+  p_value: number
+  decay: Array<{ horizon: number; ic: number }>
+  hit_rate: number
+  observations: number
+  test_observations: number
+  stable: boolean
+  selected: boolean
+  weight: number
+}
+
+export interface QuantMethodResult {
+  key: string
+  label: string
+  total_return: number
+  annual_return: number
+  sharpe: number
+  annual_volatility: number
+  downside_deviation: number
+  sortino: number
+  calmar: number
+  risk_adjusted_score: number
+  max_drawdown: number
+  var_95: number
+  cvar_95: number
+  ulcer_index: number
+  profit_factor: number
+  max_drawdown_duration: number
+  average_holding_period: number
+  win_rate: number
+  turnover: number
+  trades: number
+  exposure: number
+}
+
+export interface FactorCurvePoint {
+  t: string
+  asset?: number | null
+  multifactor?: number | null
+  asset_drawdown?: number | null
+  strategy_drawdown?: number | null
+  equity?: number | null
+}
+
+export interface FactorResearchResp {
+  ok: boolean
+  error?: string
+  symbol: string
+  market: string
+  interval: string
+  source: string
+  quality: {
+    status: string
+    usable: boolean
+    row_count: number
+    missing_rate: number
+    invalid_rows: number
+    latest_time: string | null
+    reason?: string | null
+  }
+  summary: {
+    rows: number
+    train_rows: number
+    purged_rows: number
+    test_rows: number
+    horizon: number
+    transaction_cost_bps: number
+    usable_factors: number
+    selected_factors: string[]
+    best_factor: string | null
+    best_method: string | null
+    evaluation_scope: 'out_of_sample'
+  }
+  factors: FactorEvaluation[]
+  methods: QuantMethodResult[]
+  indicators: Array<{
+    key: string
+    label: string
+    value: number | null
+    state: 'positive' | 'negative' | 'neutral'
+    interpretation: string
+  }>
+  current_signal: {
+    level: DrawdownLevel
+    label: string
+    drawdown: number
+    strategy_drawdown: number
+    asset_peak_drawdown: number
+    guidance: string
+  }
+  signal_events: Array<{
+    t: string
+    level: DrawdownLevel
+    label: string
+    drawdown: number
+    guidance: string
+  }>
+  latest: {
+    close: number
+    multifactor_position: number
+    multifactor_return: number
+  }
+  curve: FactorCurvePoint[]
+  method_curves: Record<string, FactorCurvePoint[]>
+  methodology: {
+    split: string
+    execution: string
+    usable_rule: string
+    warning: string
+  }
+}
+
 // ---- G7 组合管理 ----
 export interface PortfolioManageResp {
   allocations: Array<{
@@ -632,12 +764,54 @@ export interface EnsembleResp {
 
 // ---------- 配置（API Key 等） ----------
 
-export interface ApiKeyResp {
+export type LLMProviderId = 'deepseek' | 'openai' | 'custom'
+
+export interface LLMProviderPreset {
+  id: LLMProviderId
+  label: string
+  description: string
+  official_url: string
+  base_url: string
+  model: string
+  key_env: string
+  configured: boolean
+}
+
+export interface LLMConfigResp {
   ok: boolean
   configured: boolean
-  provider: string
+  provider: LLMProviderId
+  provider_label: string
+  official_url: string
   key_env: string
   masked: string | null
+  base_url: string
+  models_endpoint: string
+  model: string
+  timeout: number
+  max_retries: number
+  providers: LLMProviderPreset[]
+}
+
+export type ApiKeyResp = LLMConfigResp
+
+export interface LLMSettingsUpdate {
+  provider: LLMProviderId
+  api_key?: string
+  base_url: string
+  model: string
+  timeout: number
+  max_retries: number
+}
+
+export interface LLMConnectionTestResp {
+  ok: boolean
+  provider: LLMProviderId
+  endpoint: string
+  latency_ms: number
+  status_code: number | null
+  models: string[]
+  error: string | null
 }
 
 // ---------- Instrument 标的主数据 ----------

@@ -136,7 +136,7 @@ export default function AlertsPage() {
   ]
 
   return <div className={s.page}>
-    <WorkspaceHeader context="研究 / 提醒中心" title="提醒中心" metrics={[
+    <WorkspaceHeader context="执行 / 价格提醒" title="价格提醒" metrics={[
       { label: '提醒规则', value: ruleRows.length },
       { label: '已启用', value: ruleRows.filter((rule) => rule.enabled).length },
       { label: '待确认', value: pendingCount },

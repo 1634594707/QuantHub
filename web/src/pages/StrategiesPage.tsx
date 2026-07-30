@@ -97,8 +97,8 @@ export default function StrategiesPage() {
   return (
     <>
       <WorkspaceHeader
-        context="策略 / 策略库"
-        title="策略库"
+        context="策略 / 策略运行"
+        title="已安装策略"
         metrics={[
           { label: '已注册', value: list.length },
           { label: '当前筛选', value: filtered.length },

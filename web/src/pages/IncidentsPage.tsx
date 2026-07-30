@@ -169,7 +169,7 @@ export default function IncidentsPage() {
   return (
     <div className={s.page}>
       <WorkspaceHeader
-        context="运营 / 故障状态"
+        context="运营 / 运行故障"
         title="异常处理队列"
         metrics={[
           { label: '全部异常', value: incidents.data?.total ?? 0 },

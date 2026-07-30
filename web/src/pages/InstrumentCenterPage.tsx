@@ -73,7 +73,7 @@ export default function InstrumentCenterPage() {
   return (
     <div className={s.page}>
       <WorkspaceHeader
-        context="运营 / 标的中心"
+        context="运营 / 标的与数据"
         title="标的主数据"
         metrics={[
           { label: '当前结果', value: instruments.data?.count ?? 0 },

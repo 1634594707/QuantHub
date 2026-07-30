@@ -5,12 +5,14 @@
 ## 使用与部署
 
 - [项目说明](../README.md)：功能介绍、环境要求、安装、启动和验证命令。
+- [研究工作流与因子验证更新](posts/2026-07-30-research-factor-update.md)：本次研究、因子、AI 与数据源更新说明。
 - [部署与数据库迁移](DEPLOYMENT.md)：本机、局域网、PostgreSQL、认证、CORS 和 Alembic。
 - [升级与扩展](UPGRADE.md)：版本升级、配置迁移、扩展接口、备份恢复和回滚。
 
 ## 架构与质量
 
 - [架构设计](ARCHITECTURE.md)：系统分层、数据流、策略插件、信号和执行安全边界。
+- [功能边界](FUNCTION_BOUNDARIES.md)：产品能力归属、AI 模块边界和防重复准入规则。
 - [代码质量规范](CODE_QUALITY.md)：模块边界、测试要求、危险操作和评审清单。
 - [数据质量](DATA_QUALITY.md)：数据核查、修复工具和质量边界。
 - [质量门禁](QUALITY_GATES.md)：性能基线、数据量门禁、恢复演练和发布检查。

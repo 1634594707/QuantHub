@@ -35,6 +35,7 @@ const router = createBrowserRouter([
       { path: 'ledger', lazy: async () => ({ Component: (await import('./pages/LedgerPage')).default }) },
       { path: 'instruments', lazy: async () => ({ Component: (await import('./pages/InstrumentCenterPage')).default }) },
       { path: 'strategy-lab', lazy: async () => ({ Component: (await import('./pages/StrategyLabPage')).default }) },
+      { path: 'factor-research', lazy: async () => ({ Component: (await import('./pages/FactorResearchPage')).default }) },
       { path: 'automation', lazy: async () => ({ Component: (await import('./pages/AutomationPage')).default }) },
       { path: 'incidents', lazy: async () => ({ Component: (await import('./pages/IncidentsPage')).default }) },
       { path: 'governance', lazy: async () => ({ Component: (await import('./pages/GovernancePage')).default }) },

@@ -533,8 +533,8 @@ export default function SignalsPage() {
   return (
     <>
       <WorkspaceHeader
-        context="执行 / 信号中心"
-        title="实时信号中心"
+        context="执行 / 信号审核"
+        title="信号审核队列"
         metrics={[
           { label: '待审核', value: rows.filter((row) => signalStatus(row) === 'new').length },
           { label: '待执行', value: rows.filter((row) => signalStatus(row) === 'accepted').length },
@@ -569,7 +569,7 @@ export default function SignalsPage() {
         {showPublish && (
           <section className={s.publishPanel} aria-label="发布手动信号">
             <div className={s.sectionHeading}>
-              <div><h2>发布手动信号</h2><span>写入信号中心并进入审核队列</span></div>
+              <div><h2>发布手动信号</h2><span>写入统一信号总线并进入审核队列</span></div>
             </div>
             <div className={s.publishGrid}>
               <label>标的代码<Input placeholder="如 600519" value={publishForm.symbol} onChange={(event) => setPublishForm((form) => ({ ...form, symbol: event.target.value }))} /></label>
@@ -646,7 +646,7 @@ export default function SignalsPage() {
                 isEmpty={rows.length === 0}
                 onRetry={signals.refetch}
                 loadingTitle="正在读取信号…"
-                emptyTitle="信号中心为空"
+                emptyTitle="信号审核队列为空"
                 emptyAction={{ label: '运行默认扫描', onClick: runDefaultScan, loading: filling }}
               >
                 {rows.length > 0 && !filtered.length && <div className={s.queueEmpty}>没有符合筛选条件的信号</div>}
@@ -790,7 +790,7 @@ export default function SignalsPage() {
             )}
           </section>
 
-          <aside className={s.executionPanel} aria-label="模拟执行影响">
+          <aside className={s.executionPanel} aria-label="模拟交易影响">
             <div className={s.panelHeading}><div><h2>执行影响</h2><span>模拟账户 · 下单前预览</span></div></div>
             {!selectedSignal && <div className={s.inlineState}>选择信号后查看执行影响</div>}
             {selectedSignal && signalStatus(selectedSignal) === 'new' && <div className={s.executionNotice}>完成审核后才能创建模拟订单。</div>}
@@ -800,7 +800,7 @@ export default function SignalsPage() {
               <div className={s.convertedState}>
                 <span className={`${s.status} ${s.status_converted}`} title="已关联模拟订单">已转订单</span>
                 <b>{selectedSignal.order_id ?? '—'}</b>
-                <a className={s.textLink} href="/simulation">打开模拟执行</a>
+                <a className={s.textLink} href="/simulation">打开模拟交易</a>
                 {relatedOrderLoading && <span className={s.convertedHint}>正在读取成交与账本结果…</span>}
                 {relatedOrderError && <span className={s.convertedError}>{relatedOrderError}</span>}
                 {relatedOrder && (
