@@ -127,6 +127,63 @@ def _ledger_incidents(limit: int) -> list[dict]:
     return incidents[-limit:]
 
 
+def _research_incidents(limit: int) -> list[dict]:
+    """把统计验证失败和无法建立研究记录的持久化失败统一放入故障页。"""
+    incidents = []
+    for run in store.list_research_runs(limit=limit, status="failed"):
+        modules = run.get("modules") or []
+        if not any(
+            module in {"factor_research", "cross_sectional_factor_research"} for module in modules
+        ):
+            continue
+        incidents.append(
+            {
+                "id": f"research_run:{run['id']}",
+                "source": "research_run",
+                "entity_id": run["id"],
+                "status": "failed",
+                "occurred_at": run["updated_at"],
+                "error": run.get("error") or "因子统计验证失败",
+                "context": {
+                    "kind": "statistical_validation",
+                    "symbol": run["symbol"],
+                    "market": run["market"],
+                    "modules": ",".join(modules),
+                },
+                "actions": [
+                    {
+                        "type": "open_research_result",
+                        "research_run_id": run["id"],
+                        "label": "查看研究记录",
+                    }
+                ],
+            }
+        )
+    for persisted in repository.list_research_incidents(limit=limit):
+        actions = []
+        if persisted.get("research_run_id"):
+            actions.append(
+                {
+                    "type": "open_research_result",
+                    "research_run_id": persisted["research_run_id"],
+                    "label": "查看关联研究",
+                }
+            )
+        incidents.append(
+            {
+                "id": f"research_persistence:{persisted['id']}",
+                "source": "research_persistence",
+                "entity_id": persisted["id"],
+                "status": "failed",
+                "occurred_at": persisted["updated_at"],
+                "error": persisted["error"],
+                "context": {"kind": persisted["kind"], **persisted["context"]},
+                "actions": actions,
+            }
+        )
+    return incidents
+
+
 def _data_source_incidents() -> list[dict]:
     snapshot = data_source_status()
     incidents = []
@@ -230,6 +287,7 @@ def list_incidents(*, limit: int = 100, cursor: str | None = None) -> dict:
         *_analysis_incidents(10_000),
         *_automation_incidents(10_000),
         *_ledger_incidents(10_000),
+        *_research_incidents(10_000),
         *_data_source_incidents(),
     ]
     incidents.sort(key=lambda item: (item["occurred_at"], item["id"]), reverse=True)

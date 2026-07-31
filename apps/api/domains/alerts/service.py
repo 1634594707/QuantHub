@@ -258,6 +258,101 @@ def _evaluation_change(rule: dict) -> tuple[bool, str | None]:
     return changed, rows[0]["id"] if changed else None
 
 
+def _latest_factor_snapshot(rule: dict) -> tuple[dict | None, dict | None]:
+    symbol = rule["symbol"]
+    universe_id = rule.get("context", {}).get("universe_id")
+    if isinstance(universe_id, str) and universe_id:
+        symbol = f"UNIVERSE:{universe_id}"
+    with store._lock, store._conn() as connection:
+        row = connection.execute(
+            """SELECT id FROM research_runs
+               WHERE symbol=? AND market=? AND status IN ('succeeded','partial')
+                 AND EXISTS (
+                   SELECT 1 FROM json_each(research_runs.modules_json)
+                   WHERE value IN ('factor_research', 'cross_sectional_factor_research')
+                 )
+               ORDER BY updated_at DESC, id DESC LIMIT 1""",
+            (symbol, rule["market"]),
+        ).fetchone()
+    if row is None:
+        return None, None
+    run = store.get_research_run(row["id"])
+    result = next(
+        (
+            item.get("payload")
+            for item in reversed(run.get("evidence", []))
+            if item.get("kind") == "factor_research_result"
+        ),
+        None,
+    )
+    if isinstance(result, dict):
+        return run, result
+    cross_result = next(
+        (
+            item.get("payload")
+            for item in reversed(run.get("evidence", []))
+            if item.get("kind") == "cross_sectional_factor_result"
+        ),
+        None,
+    )
+    if isinstance(cross_result, dict) and isinstance(cross_result.get("factor"), dict):
+        # 归一化为因子提醒的只读快照；横截面结果没有回撤字段，相关规则自然不触发。
+        return run, {"factors": [cross_result["factor"]]}
+    return run, result
+
+
+def _factor_condition(rule: dict) -> tuple[bool, float | None, str | None, str | None]:
+    run, result = _latest_factor_snapshot(rule)
+    if run is None or not isinstance(result, dict):
+        return False, None, None, None
+    factor_key = rule["context"]["factor_key"]
+    factor = next(
+        (item for item in result.get("factors", []) if item.get("key") == factor_key),
+        None,
+    )
+    if factor is None:
+        return False, None, "research_run", run["id"]
+    rule_type = rule["rule_type"]
+    if rule_type == "factor_status_changed":
+        current_status = factor.get("status")
+        previous_status = rule["context"].get("last_factor_status")
+        rule["context"]["last_factor_status"] = current_status
+        return (
+            previous_status is not None and current_status != previous_status,
+            None,
+            "research_run",
+            run["id"],
+        )
+    if rule_type == "factor_ic_decay":
+        current_ic = factor.get("test_ic")
+        baseline = rule["context"]["baseline_test_ic"]
+        if not isinstance(current_ic, (int, float)):
+            return False, None, "research_run", run["id"]
+        return (
+            float(baseline) - float(current_ic) >= float(rule["threshold"]),
+            float(current_ic),
+            "research_run",
+            run["id"],
+        )
+    if rule_type == "factor_drawdown_breach":
+        drawdown = result.get("current_signal", {}).get("strategy_drawdown")
+        if not isinstance(drawdown, (int, float)):
+            return False, None, "research_run", run["id"]
+        return (
+            float(drawdown) <= -abs(float(rule["threshold"])),
+            float(drawdown),
+            "research_run",
+            run["id"],
+        )
+    age_hours = max(0.0, (time.time() - float(run["updated_at"])) / 3600)
+    return (
+        age_hours >= float(rule["threshold"]),
+        round(age_hours, 4),
+        "research_run",
+        run["id"],
+    )
+
+
 def _condition(rule: dict) -> tuple[bool, float | None, str | None, str | None]:
     rule_type = rule["rule_type"]
     threshold = rule["threshold"]
@@ -292,6 +387,13 @@ def _condition(rule: dict) -> tuple[bool, float | None, str | None, str | None]:
     if rule_type == "evaluation_changed":
         triggered, related_id = _evaluation_change(rule)
         return triggered, None, "research_run", related_id
+    if rule_type in {
+        "factor_status_changed",
+        "factor_ic_decay",
+        "factor_drawdown_breach",
+        "factor_data_stale",
+    }:
+        return _factor_condition(rule)
     return False, None, None, None
 
 

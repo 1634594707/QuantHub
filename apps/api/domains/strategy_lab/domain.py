@@ -53,6 +53,7 @@ class Experiment:
     market: str
     timeframe: str = "1d"
     version_id: str | None = None
+    research_run_id: str | None = None
     status: str = "pending"
     params: dict[str, Any] = field(default_factory=dict)
     note: str = ""

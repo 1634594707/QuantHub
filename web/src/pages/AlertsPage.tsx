@@ -21,11 +21,20 @@ const RULE_LABELS: Record<AlertRuleType, string> = {
   signal_created: '出现新信号',
   evaluation_changed: '评估结论变化',
   risk_invalidated: '风险失效位触发',
+  factor_status_changed: '因子状态变化',
+  factor_ic_decay: '因子 IC 衰减',
+  factor_drawdown_breach: '因子回撤越界',
+  factor_data_stale: '因子数据过期',
 }
 
 const THRESHOLD_TYPES = new Set<AlertRuleType>([
   'price_above', 'price_below', 'change_pct_above', 'change_pct_below',
-  'volatility_above', 'risk_invalidated',
+  'volatility_above', 'risk_invalidated', 'factor_ic_decay',
+  'factor_drawdown_breach', 'factor_data_stale',
+])
+
+const FACTOR_RULE_TYPES = new Set<AlertRuleType>([
+  'factor_status_changed', 'factor_ic_decay', 'factor_drawdown_breach', 'factor_data_stale',
 ])
 
 function formatTime(value: number | null) {
@@ -52,6 +61,9 @@ export default function AlertsPage() {
     quietEnd: '',
     expiresAt: '',
     riskCondition: searchParams.get('condition') === 'below' ? 'below' : 'above',
+    factorKey: searchParams.get('factor_key') || '',
+    researchRunId: searchParams.get('research_run_id') || '',
+    baselineTestIc: searchParams.get('baseline_test_ic') || '',
   })
   const [saving, setSaving] = useState(false)
   const [busy, setBusy] = useState('')
@@ -78,12 +90,21 @@ export default function AlertsPage() {
     setError('')
     setMessage('')
     try {
+      const context: Record<string, unknown> = form.ruleType === 'risk_invalidated'
+        ? { condition: form.riskCondition }
+        : FACTOR_RULE_TYPES.has(form.ruleType)
+          ? {
+              factor_key: form.factorKey.trim(),
+              ...(form.researchRunId ? { research_run_id: form.researchRunId } : {}),
+              ...(form.ruleType === 'factor_ic_decay' ? { baseline_test_ic: Number(form.baselineTestIc) } : {}),
+            }
+          : {}
       await api.createAlertRule({
         name: form.name.trim(), rule_type: form.ruleType, symbol: form.symbol.trim().toUpperCase(),
         market: form.market, threshold, frequency_minutes: Number(form.frequencyMinutes),
         quiet_start: form.quietStart || null, quiet_end: form.quietEnd || null,
         expires_at: form.expiresAt ? new Date(`${form.expiresAt}T23:59:59`).getTime() / 1000 : null,
-        context: form.ruleType === 'risk_invalidated' ? { condition: form.riskCondition } : {},
+        context,
       })
       setForm((current) => ({ ...current, name: '', threshold: '' }))
       setMessage('提醒规则已创建，后台检查器会按频率执行')
@@ -150,6 +171,8 @@ export default function AlertsPage() {
         <label>市场<select value={form.market} onChange={(event) => setForm({ ...form, market: event.target.value })}><option value="a_shares">a_shares</option><option value="us_stocks">us_stocks</option><option value="crypto">crypto</option><option value="mt5">mt5</option></select></label>
         {THRESHOLD_TYPES.has(form.ruleType) && <label>阈值<input type="number" step="any" value={form.threshold} onChange={(event) => setForm({ ...form, threshold: event.target.value })} /></label>}
         {form.ruleType === 'risk_invalidated' && <label>触发方向<select value={form.riskCondition} onChange={(event) => setForm({ ...form, riskCondition: event.target.value })}><option value="below">价格低于失效位</option><option value="above">价格高于失效位</option></select></label>}
+        {FACTOR_RULE_TYPES.has(form.ruleType) && <label>因子键<input required value={form.factorKey} onChange={(event) => setForm({ ...form, factorKey: event.target.value })} /></label>}
+        {form.ruleType === 'factor_ic_decay' && <label>基准样本外 IC<input required type="number" step="any" value={form.baselineTestIc} onChange={(event) => setForm({ ...form, baselineTestIc: event.target.value })} /></label>}
         <label>检查频率（分钟）<input type="number" min="1" max="10080" value={form.frequencyMinutes} onChange={(event) => setForm({ ...form, frequencyMinutes: event.target.value })} /></label>
         <label>静默开始<input type="time" value={form.quietStart} onChange={(event) => setForm({ ...form, quietStart: event.target.value })} /></label>
         <label>静默结束<input type="time" value={form.quietEnd} onChange={(event) => setForm({ ...form, quietEnd: event.target.value })} /></label>

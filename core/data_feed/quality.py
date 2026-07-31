@@ -6,6 +6,27 @@ from typing import Any
 import pandas as pd
 
 
+def normalize_ohlcv_rows(df: pd.DataFrame, *, time_column: str = "datetime") -> pd.DataFrame:
+    """按适配器统一契约清理缺失 OHLC、重复时间和逆序数据。"""
+    if df is None or df.empty:
+        return pd.DataFrame() if df is None else df.copy()
+    result = df.copy()
+    required = ["open", "high", "low", "close"]
+    if (
+        any(column not in result.columns for column in required)
+        or time_column not in result.columns
+    ):
+        return result
+    for column in [*required, "volume"]:
+        if column in result.columns:
+            result[column] = pd.to_numeric(result[column], errors="coerce")
+    if time_column == "datetime":
+        result[time_column] = pd.to_datetime(result[time_column], errors="coerce")
+    result = result.dropna(subset=[time_column, *required])
+    result = result.sort_values(time_column).drop_duplicates(time_column, keep="last")
+    return result.reset_index(drop=True)
+
+
 @dataclass(frozen=True)
 class DataQualityReport:
     status: str

@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import logging
 from collections.abc import Iterable
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 import pandas as pd
 import requests
@@ -22,6 +22,7 @@ from core.data_feed.base import (
     Interval,
     News,
 )
+from core.data_feed.quality import normalize_ohlcv_rows
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +85,7 @@ class EastmoneySource(DataSource):
         if interval not in _INTERVAL_MAP:
             raise ValueError(f"eastmoney 不支持周期: {interval}")
         secid = self._symbol_to_secid(symbol)
-        end = end or datetime.now()
+        end = end or datetime.now(UTC)
         start = start or (end - timedelta(days=limit))
 
         params = {
@@ -139,7 +140,9 @@ class EastmoneySource(DataSource):
                 continue
         if not rows:
             return pd.DataFrame()
-        return pd.DataFrame(rows).sort_values("datetime").reset_index(drop=True)
+        result = normalize_ohlcv_rows(pd.DataFrame(rows))
+        result.attrs["corporate_action_adjustment"] = "qfq"
+        return result
 
     def get_announcements(self, symbol: str, limit: int = 50) -> list[Announcement]:
         """东财公告接口（简化实现，如需更完整复用羊毛监控爬虫）。"""
@@ -168,7 +171,7 @@ class EastmoneySource(DataSource):
         anns: list[Announcement] = []
         for item in data.get("data", {}).get("list", [])[:limit]:
             ts = item.get("notice_date")
-            ts_dt = pd.to_datetime(ts) if ts else datetime.now()
+            ts_dt = pd.to_datetime(ts) if ts else datetime.now(UTC)
             anns.append(
                 Announcement(
                     symbol=symbol,
@@ -248,8 +251,8 @@ class EastmoneySource(DataSource):
         for item in items[:limit]:
             try:
                 published = pd.to_datetime(item.get("date")).to_pydatetime()
-            except Exception:
-                published = datetime.now()
+            except (TypeError, ValueError, OverflowError):
+                published = datetime.now(UTC)
             article_code = str(item.get("code", "") or "")
             news.append(
                 News(

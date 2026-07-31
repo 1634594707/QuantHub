@@ -58,8 +58,8 @@ describe('StockEvaluationStartPage', () => {
     fireEvent.click(screen.getByRole('button', { name: '开始评估' }))
 
     await waitFor(() => expect(createTask).toHaveBeenCalledTimes(1))
-    expect(screen.getByLabelText('current location').textContent).toContain(
+    await waitFor(() => expect(screen.getByLabelText('current location').textContent).toContain(
       'evaluation_task_id=evaluation-task-1',
-    )
+    ))
   })
 })

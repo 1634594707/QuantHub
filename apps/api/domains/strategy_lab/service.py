@@ -10,9 +10,14 @@ import logging
 import sqlite3
 import time
 import uuid
+from copy import deepcopy
+from typing import Any
 
+import pandas as pd
+
+from apps.api import store
 from apps.api.domains.instrument import service as instrument_service
-from apps.api.domains.research.service import dataframe_snapshot
+from apps.api.domains.research.service import dataframe_snapshot, snapshot_hash
 from apps.api.domains.strategies import service as strategies_service
 from apps.api.domains.strategies.schemas import BacktestRequest
 from core.data_feed.factory import get_data_source
@@ -34,6 +39,108 @@ from .schemas import (
 )
 
 logger = logging.getLogger(__name__)
+
+RESEARCH_CONTRACT_KEY = "research_contract"
+FACTOR_RESEARCH_MODULE = "factor_research"
+MARKET_SNAPSHOT_KIND = "market_snapshot"
+FACTOR_RESULT_KIND = "factor_research_result"
+
+
+def _research_evidence(run: dict[str, Any], kind: str) -> dict[str, Any] | None:
+    return next(
+        (item for item in reversed(run.get("evidence") or []) if item.get("kind") == kind),
+        None,
+    )
+
+
+def _build_research_contract(
+    research_run_id: str,
+    *,
+    symbol: str,
+    market: str,
+    timeframe: str,
+) -> dict[str, Any]:
+    run = store.get_research_run(research_run_id)
+    if run is None:
+        raise ValueError("关联的因子研究记录不存在")
+    expected_context = (run.get("symbol"), run.get("market"), run.get("timeframe"))
+    actual_context = (symbol, market, timeframe)
+    if expected_context != actual_context:
+        raise ValueError("策略实验与因子研究的标的、市场、周期必须完全一致")
+    if FACTOR_RESEARCH_MODULE not in run.get("modules", []) or run.get("status") != "succeeded":
+        raise ValueError("关联的因子研究未完成，不能创建策略实验")
+    result_evidence = _research_evidence(run, FACTOR_RESULT_KIND)
+    snapshot_evidence = _research_evidence(run, MARKET_SNAPSHOT_KIND)
+    result = (result_evidence or {}).get("payload") or {}
+    snapshot = (snapshot_evidence or {}).get("payload") or {}
+    summary = result.get("summary") or {}
+    bars = snapshot.get("bars")
+    expected_sha256 = snapshot.get("sha256")
+    actual_sha256 = snapshot_hash(bars) if isinstance(bars, list) else None
+    if (
+        not result_evidence
+        or not snapshot_evidence
+        or not expected_sha256
+        or expected_sha256 != actual_sha256
+    ):
+        raise ValueError("因子研究行情快照缺失或哈希校验失败")
+    if summary.get("data_fingerprint") and snapshot.get("data_fingerprint") != summary.get(
+        "data_fingerprint"
+    ):
+        raise ValueError("因子研究数据指纹与行情快照不一致")
+    factors: list[dict[str, Any]] = []
+    for factor in result.get("factors") or []:
+        required = ("key", "label", "formula", "formula_version", "direction", "weight")
+        if any(field not in factor for field in required):
+            raise ValueError("因子研究结果缺少不可变因子定义")
+        factors.append(
+            {
+                "key": factor["key"],
+                "label": factor["label"],
+                "formula": factor["formula"],
+                "formula_version": factor["formula_version"],
+                "direction": factor["direction"],
+                "weight": factor["weight"],
+                "selected": bool(factor.get("selected")),
+                "status": factor.get("status"),
+            }
+        )
+    input_config = (run.get("input") or {}).get(FACTOR_RESEARCH_MODULE) or {}
+    return {
+        "version": 1,
+        "research_run_id": research_run_id,
+        "data_fingerprint": summary.get("data_fingerprint") or snapshot.get("data_fingerprint"),
+        "market_snapshot_sha256": expected_sha256,
+        "engine_version": summary.get("engine_version"),
+        "factor_formula_version": summary.get("factor_formula_version"),
+        "factors": factors,
+        "horizon": summary.get("horizon", input_config.get("horizon")),
+        "transaction_cost_bps": summary.get(
+            "transaction_cost_bps", input_config.get("transaction_cost_bps")
+        ),
+        "walk_forward_mode": summary.get(
+            "walk_forward_mode", input_config.get("walk_forward_mode")
+        ),
+        "walk_forward_folds": summary.get(
+            "walk_forward_folds", input_config.get("walk_forward_folds")
+        ),
+        "thresholds": deepcopy(summary.get("thresholds") or {}),
+    }
+
+
+def _snapshot_frame(snapshot: dict[str, Any]) -> pd.DataFrame:
+    bars = snapshot.get("bars")
+    columns = snapshot.get("columns")
+    if not isinstance(bars, list) or not isinstance(columns, list):
+        raise TypeError("研究行情快照格式不完整")
+    if snapshot.get("sha256") != snapshot_hash(bars):
+        raise ValueError("研究行情快照哈希校验失败")
+    frame = pd.DataFrame(bars, columns=columns)
+    for field in ("datetime", "bar_time"):
+        if field in frame.columns:
+            frame[field] = pd.to_datetime(frame[field], errors="coerce")
+    frame.attrs["_source"] = snapshot.get("source", "research_snapshot")
+    return frame
 
 
 def create_definition(req: DefinitionCreate) -> dict:
@@ -167,10 +274,26 @@ def archive_version(version_id: str) -> dict:
 def create_experiment(definition_id: str, req: ExperimentCreate) -> dict:
     if not repository.get_definition(definition_id):
         return {"ok": False, "error": "策略定义不存在"}
+    if req.version_id:
+        version = repository.get_version(req.version_id)
+        if not version or version.definition_id != definition_id:
+            return {"ok": False, "error": "策略版本不存在或不属于当前策略定义"}
     try:
         instrument = instrument_service.resolve_strict(req.symbol, req.market)
     except instrument_service.InstrumentResolutionError as exc:
         return {"ok": False, "error": str(exc)}
+    params = dict(req.params)
+    params.pop(RESEARCH_CONTRACT_KEY, None)
+    if req.research_run_id:
+        try:
+            params[RESEARCH_CONTRACT_KEY] = _build_research_contract(
+                req.research_run_id,
+                symbol=instrument.code,
+                market=instrument.market,
+                timeframe=req.timeframe,
+            )
+        except ValueError as exc:
+            return {"ok": False, "error": str(exc)}
     experiment = repository.create_experiment(
         definition_id=definition_id,
         instrument_id=instrument.instrument_id,
@@ -178,7 +301,8 @@ def create_experiment(definition_id: str, req: ExperimentCreate) -> dict:
         market=instrument.market,
         timeframe=req.timeframe,
         version_id=req.version_id,
-        params=req.params,
+        research_run_id=req.research_run_id,
+        params=params,
         note=req.note,
     )
     return {"ok": True, "experiment": experiment.to_dict()}
@@ -196,14 +320,48 @@ def list_experiments(
 
 
 def update_experiment(experiment_id: str, req: ExperimentUpdate) -> dict:
-    if not repository.get_experiment(experiment_id):
+    current = repository.get_experiment(experiment_id)
+    if not current:
         return {"ok": False, "error": "实验不存在"}
-    if req.version_id and not repository.get_version(req.version_id):
-        return {"ok": False, "error": "策略版本不存在"}
+    if req.version_id:
+        version = repository.get_version(req.version_id)
+        if not version or version.definition_id != current.definition_id:
+            return {"ok": False, "error": "策略版本不存在或不属于当前策略定义"}
     try:
         instrument = instrument_service.resolve_strict(req.symbol, req.market)
     except instrument_service.InstrumentResolutionError as exc:
         return {"ok": False, "error": str(exc)}
+    if current.research_run_id:
+        if req.research_run_id and req.research_run_id != current.research_run_id:
+            return {"ok": False, "error": "已关联研究的实验不能更换研究运行"}
+        if (instrument.code, instrument.market, req.timeframe) != (
+            current.symbol,
+            current.market,
+            current.timeframe,
+        ):
+            return {"ok": False, "error": "已关联研究的实验不能修改标的、市场或周期"}
+        contract = current.params.get(RESEARCH_CONTRACT_KEY)
+        if not isinstance(contract, dict):
+            return {"ok": False, "error": "实验缺少不可变研究契约"}
+        research_run_id = current.research_run_id
+    elif req.research_run_id:
+        try:
+            contract = _build_research_contract(
+                req.research_run_id,
+                symbol=instrument.code,
+                market=instrument.market,
+                timeframe=req.timeframe,
+            )
+        except ValueError as exc:
+            return {"ok": False, "error": str(exc)}
+        research_run_id = req.research_run_id
+    else:
+        contract = None
+        research_run_id = None
+    params = dict(req.params)
+    params.pop(RESEARCH_CONTRACT_KEY, None)
+    if contract is not None:
+        params[RESEARCH_CONTRACT_KEY] = deepcopy(contract)
     experiment = repository.update_experiment(
         experiment_id,
         instrument_id=instrument.instrument_id,
@@ -211,7 +369,8 @@ def update_experiment(experiment_id: str, req: ExperimentUpdate) -> dict:
         market=instrument.market,
         timeframe=req.timeframe,
         version_id=req.version_id,
-        params=req.params,
+        research_run_id=research_run_id,
+        params=params,
         note=req.note,
     )
     return {"ok": True, "experiment": experiment.to_dict()}
@@ -228,6 +387,7 @@ def copy_experiment(experiment_id: str, req: ExperimentCopy) -> dict:
         source.market,
         source.timeframe,
         source.version_id,
+        source.research_run_id,
         dict(source.params),
         req.note or source.note,
     )
@@ -255,14 +415,7 @@ def run_backtest(experiment_id: str, req: BacktestRunCreate) -> dict:
     started_at = time.time()
     run_id = str(uuid.uuid4())
 
-    # 取 K 线并生成数据快照（哈希）
-    try:
-        frame = get_data_source(experiment.market).get_kline(
-            experiment.symbol,
-            experiment.timeframe,
-            limit=req.limit,
-        )
-    except Exception as exc:
+    def fail(error: str, snapshot: dict[str, Any] | None = None) -> dict:
         repository.update_experiment_status(experiment_id, "failed")
         run = BacktestRun(
             id=run_id,
@@ -271,21 +424,56 @@ def run_backtest(experiment_id: str, req: BacktestRunCreate) -> dict:
             market=experiment.market,
             timeframe=experiment.timeframe,
             params=experiment.params,
+            data_snapshot=snapshot or {},
             initial_capital=req.initial_capital,
+            seed=req.seed,
             status="failed",
-            error=f"取 K 线失败: {exc}",
+            error=error,
             started_at=started_at,
             finished_at=time.time(),
         )
         repository.save_run(run)
-        return {"ok": False, "error": run.error, "run_id": run_id}
+        return {"ok": False, "error": error, "run_id": run_id}
+
+    snapshot: dict[str, Any]
+    try:
+        if experiment.research_run_id:
+            contract = experiment.params.get(RESEARCH_CONTRACT_KEY)
+            if not isinstance(contract, dict):
+                return fail("实验缺少不可变研究契约")
+            if contract.get("research_run_id") != experiment.research_run_id:
+                return fail("实验研究运行与不可变契约不一致")
+            research_run = store.get_research_run(experiment.research_run_id)
+            if research_run is None:
+                return fail("关联的因子研究记录不存在")
+            if (
+                research_run.get("symbol"),
+                research_run.get("market"),
+                research_run.get("timeframe"),
+            ) != (experiment.symbol, experiment.market, experiment.timeframe):
+                return fail("实验上下文与关联研究记录不一致")
+            snapshot_evidence = _research_evidence(research_run, MARKET_SNAPSHOT_KIND)
+            snapshot = deepcopy((snapshot_evidence or {}).get("payload") or {})
+            if snapshot.get("sha256") != contract.get("market_snapshot_sha256"):
+                return fail("实验契约与关联研究行情快照哈希不一致", snapshot)
+            if snapshot.get("data_fingerprint") != contract.get("data_fingerprint"):
+                return fail("实验契约与关联研究数据指纹不一致", snapshot)
+            frame = _snapshot_frame(snapshot)
+        else:
+            frame = get_data_source(experiment.market).get_kline(
+                experiment.symbol,
+                experiment.timeframe,
+                limit=req.limit,
+            )
+            snapshot = dataframe_snapshot(frame) if frame is not None and not frame.empty else {}
+    except Exception as exc:  # noqa: BLE001 - normalize snapshot and adapter failures
+        message = str(exc) if experiment.research_run_id else f"取 K 线失败: {exc}"
+        return fail(message)
 
     if frame is None or frame.empty:
-        repository.update_experiment_status(experiment_id, "failed")
-        return {"ok": False, "error": "K 线为空"}
+        return fail("K 线为空", snapshot)
 
     quality = assess_ohlcv(frame)
-    snapshot = dataframe_snapshot(frame)
     snapshot["quality"] = quality.to_dict()
 
     # 复用现有回测引擎
@@ -295,28 +483,14 @@ def run_backtest(experiment_id: str, req: BacktestRunCreate) -> dict:
         interval=experiment.timeframe,
         limit=req.limit,
         initial_capital=req.initial_capital,
-        params=experiment.params,
+        params={
+            key: value for key, value in experiment.params.items() if key != RESEARCH_CONTRACT_KEY
+        },
     )
-    result = strategies_service.backtest(definition.strategy_key, bt_req)
+    result = strategies_service.backtest(definition.strategy_key, bt_req, klines=frame)
 
     if not result.get("ok"):
-        repository.update_experiment_status(experiment_id, "failed")
-        run = BacktestRun(
-            id=run_id,
-            experiment_id=experiment_id,
-            symbol=experiment.symbol,
-            market=experiment.market,
-            timeframe=experiment.timeframe,
-            params=experiment.params,
-            data_snapshot=snapshot,
-            initial_capital=req.initial_capital,
-            status="failed",
-            error=result.get("error", "回测失败"),
-            started_at=started_at,
-            finished_at=time.time(),
-        )
-        repository.save_run(run)
-        return {"ok": False, "error": run.error, "run_id": run_id}
+        return fail(result.get("error", "回测失败"), snapshot)
 
     summary = result.get("summary", {})
     metrics = {k: v for k, v in summary.items() if k != "metrics"}

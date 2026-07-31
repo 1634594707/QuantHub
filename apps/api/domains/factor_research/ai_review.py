@@ -82,8 +82,22 @@ def _review_context(result: dict[str, Any], focus: str) -> dict[str, Any]:
             "positive_ic_ratio": item["positive_ic_ratio"],
             "hit_rate": item["hit_rate"],
             "p_value": item["p_value"],
+            "adjusted_p_value": item.get("adjusted_p_value", item["p_value"]),
+            "statistically_significant": item.get("statistically_significant"),
             "decay": item["decay"],
             "test_observations": item["test_observations"],
+            "effective_observations": item.get("effective_observations", item["test_observations"]),
+            "p_value_method": item.get("p_value_method", "legacy_correlation_test"),
+            "window_pass_rate": item.get("window_pass_rate"),
+            "passed_windows": item.get("passed_windows"),
+            "window_count": item.get("window_count"),
+            "worst_window_ic": item.get("worst_window_ic"),
+            "median_window_ic": item.get("median_window_ic"),
+            "window_ic_iqr": item.get("window_ic_iqr"),
+            "status_transitions": item.get("status_transitions"),
+            "direction_flips": item.get("direction_flips"),
+            "multi_window_consistent": item.get("multi_window_consistent"),
+            "windows": item.get("windows", []),
         }
         for item in review_candidates[:4]
     ]
@@ -95,6 +109,14 @@ def _review_context(result: dict[str, Any], focus: str) -> dict[str, Any]:
             "train_ic": item["train_ic"],
             "test_ic": item["test_ic"],
             "p_value": item["p_value"],
+            "adjusted_p_value": item.get("adjusted_p_value", item["p_value"]),
+            "statistically_significant": item.get("statistically_significant"),
+            "window_pass_rate": item.get("window_pass_rate"),
+            "worst_window_ic": item.get("worst_window_ic"),
+            "median_window_ic": item.get("median_window_ic"),
+            "status_transitions": item.get("status_transitions"),
+            "direction_flips": item.get("direction_flips"),
+            "multi_window_consistent": item.get("multi_window_consistent"),
         }
         for item in result["factors"]
     ]
@@ -106,6 +128,15 @@ def _review_context(result: dict[str, Any], focus: str) -> dict[str, Any]:
             "max_drawdown": item["max_drawdown"],
             "cvar_95": item["cvar_95"],
             "trades": item["trades"],
+            "closed_trades": item.get("closed_trades"),
+            "profit_factor": item.get("profit_factor"),
+            "profit_factor_basis": item.get("profit_factor_basis", "legacy_period_returns"),
+            "win_rate": item.get("win_rate"),
+            "win_rate_basis": item.get("win_rate_basis", "legacy_period_returns"),
+            "average_trade_return": item.get("average_trade_return"),
+            "average_win": item.get("average_win"),
+            "average_loss": item.get("average_loss"),
+            "payoff_ratio": item.get("payoff_ratio"),
         }
         for item in result["methods"]
     ]
@@ -127,6 +158,7 @@ def _review_context(result: dict[str, Any], focus: str) -> dict[str, Any]:
         "review_factors": review_factors,
         "factor_screen": factor_screen,
         "methods": methods,
+        "cost_analysis": result.get("cost_analysis"),
     }
 
 

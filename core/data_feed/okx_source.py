@@ -14,6 +14,7 @@ from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_ex
 
 from core.config import get_config
 from core.data_feed.base import DataSource, Interval
+from core.data_feed.quality import normalize_ohlcv_rows
 
 logger = logging.getLogger(__name__)
 
@@ -124,18 +125,22 @@ class OkxSource(DataSource):
         df["interval"] = interval.value
         df["amount"] = None
         df["turnover"] = None
-        return df[
-            [
-                "symbol",
-                "market",
-                "interval",
-                "datetime",
-                "open",
-                "high",
-                "low",
-                "close",
-                "volume",
-                "amount",
-                "turnover",
+        result = normalize_ohlcv_rows(
+            df[
+                [
+                    "symbol",
+                    "market",
+                    "interval",
+                    "datetime",
+                    "open",
+                    "high",
+                    "low",
+                    "close",
+                    "volume",
+                    "amount",
+                    "turnover",
+                ]
             ]
-        ]
+        )
+        result.attrs["corporate_action_adjustment"] = "not_applicable"
+        return result

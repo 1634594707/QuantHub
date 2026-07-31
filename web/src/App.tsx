@@ -10,6 +10,7 @@ import type { ConnectionState } from './api/connection'
 import { useApi } from './api/useApi'
 import { presentationForPath, workspaceForPath } from './navigation/workspaces'
 import { useInterfaceMode } from './hooks/useInterfaceMode'
+import { ApiRestartNotice } from './components/ApiRestartNotice'
 
 export default function App() {
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('quanthub.sidebar.collapsed') === 'true')
@@ -100,6 +101,7 @@ export default function App() {
           workspaceLabel={workspace.label}
           pageLabel={presentation.label}
         />
+        <ApiRestartNotice health={health.data} checking={health.loading} onCheck={health.refetch} />
         <main id="main-content" className="content" tabIndex={-1}>
           <Outlet />
         </main>

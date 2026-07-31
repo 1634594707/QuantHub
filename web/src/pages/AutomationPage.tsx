@@ -40,6 +40,8 @@ export default function AutomationPage() {
   const navigate = useNavigate()
   const status = useApi(() => api.automationStatus(), [], { retry: false })
   const jobs = useApi(() => api.automationJobs(), [], { retry: false })
+  const factorJobs = useApi(() => api.factorResearchJobs(), [], { retry: false })
+  const universes = useApi(() => api.factorUniverses(), [], { retry: false })
   const runs = useApi(() => api.automationRuns(), [], { retry: false })
   const alerts = useApi(() => api.automationAlerts(), [], { retry: false })
   const audit = useApi(() => api.automationAudit(), [], { retry: false })
@@ -51,6 +53,11 @@ export default function AutomationPage() {
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
   const [loadingMoreRuns, setLoadingMoreRuns] = useState(false)
   const [loadingMoreAudit, setLoadingMoreAudit] = useState(false)
+  const [factorJobForm, setFactorJobForm] = useState({
+    name: '', frequency: 'daily' as 'daily' | 'weekly' | 'monthly', hour: 18, minute: 0,
+    day_of_week: 0, day_of_month: 1, universe_id: '', factor_key: 'trend_strength',
+    limit: 500, horizon: 5, transaction_cost_bps: 10, participation_rate: 0.1,
+  })
 
   const rows = useMemo(() => jobs.data?.jobs ?? [], [jobs.data])
   const runRows = useMemo(() => runs.data?.runs ?? [], [runs.data])
@@ -86,9 +93,32 @@ export default function AutomationPage() {
   function refresh() {
     void status.refetch()
     void jobs.refetch()
+    void factorJobs.refetch()
+    void universes.refetch()
     void runs.refetch()
     void alerts.refetch()
     void audit.refetch()
+  }
+
+  async function createFactorJob(event: React.FormEvent) {
+    event.preventDefault()
+    if (!factorJobForm.name.trim() || !factorJobForm.universe_id) return
+    await act('create-factor-job', '因子复验作业已创建', async () => {
+      await api.createFactorResearchJob({
+        name: factorJobForm.name.trim(), frequency: factorJobForm.frequency,
+        hour: factorJobForm.hour, minute: factorJobForm.minute,
+        day_of_week: factorJobForm.day_of_week, day_of_month: factorJobForm.day_of_month,
+        request: {
+          universe_id: factorJobForm.universe_id, factor_key: factorJobForm.factor_key,
+          interval: '1d', limit: factorJobForm.limit, horizon: factorJobForm.horizon,
+          transaction_cost_bps: factorJobForm.transaction_cost_bps,
+          participation_rate: factorJobForm.participation_rate,
+          quantiles: 5, min_assets: 5, neutralize_industry: true,
+          neutralize_market_cap: true, neutralize_beta: true, retry_attempts: 2,
+        }, actor: ACTOR,
+      })
+      setFactorJobForm((current) => ({ ...current, name: '' }))
+    })
   }
 
   async function act(key: string, notice: string, action: () => Promise<unknown>) {
@@ -257,7 +287,7 @@ export default function AutomationPage() {
         <span className={`${s.runState} ${s[`runState_${row.status}`]}`}>{runStatusLabel(row.status)}</span>
       ),
     },
-    { key: 'trigger_type', header: '触发', width: 72, render: (row) => row.trigger_type === 'retry' ? '重试' : '手动' },
+    { key: 'trigger_type', header: '触发', width: 72, render: (row) => row.trigger_type === 'retry' ? '重试' : row.trigger_type === 'scheduled' ? '定时' : '手动' },
     { key: 'attempt', header: '次数', width: 64, render: (row) => <span className={s.code}>{row.attempt}</span> },
     { key: 'created_at', header: '创建时间', width: 170, render: (row) => formatTime(row.created_at) },
     { key: 'duration_ms', header: '耗时', width: 90, render: (row) => row.duration_ms === null ? '—' : `${row.duration_ms} ms` },
@@ -316,7 +346,7 @@ export default function AutomationPage() {
 
   const consoleState = tab === 'runs' ? runs : tab === 'alerts' ? alerts : audit
   const consoleCount = tab === 'runs' ? runRows.length : tab === 'alerts' ? alertRows.length : auditRows.length
-  const refreshing = status.loading || jobs.loading || runs.loading || alerts.loading || audit.loading
+  const refreshing = status.loading || jobs.loading || factorJobs.loading || universes.loading || runs.loading || alerts.loading || audit.loading
 
   return (
     <div className={s.page}>
@@ -369,6 +399,28 @@ export default function AutomationPage() {
         >
           <Table columns={jobColumns} rows={rows} rowKey={(row) => row.name} density="compact" />
         </AsyncStateBoundary>
+      </section>
+
+      <section className={s.section}>
+        <div className={s.sectionHead}>
+          <div><h2>新增因子复验作业</h2><span>按上海时区运行，结果自动写入因子研究历史</span></div>
+          <span className={s.meta}>{factorJobs.data?.count ?? 0} 个因子作业</span>
+        </div>
+        <form className={s.formGrid} onSubmit={createFactorJob}>
+          <label>名称<input value={factorJobForm.name} onChange={(event) => setFactorJobForm({ ...factorJobForm, name: event.target.value })} /></label>
+          <label>股票池<select value={factorJobForm.universe_id} onChange={(event) => setFactorJobForm({ ...factorJobForm, universe_id: event.target.value })}><option value="">选择股票池</option>{(universes.data?.universes ?? []).map((item) => <option key={item.id} value={item.id}>{item.name} · {item.market}</option>)}</select></label>
+          <label>频率<select value={factorJobForm.frequency} onChange={(event) => setFactorJobForm({ ...factorJobForm, frequency: event.target.value as typeof factorJobForm.frequency })}><option value="daily">每日</option><option value="weekly">每周</option><option value="monthly">每月</option></select></label>
+          {factorJobForm.frequency === 'weekly' && <label>星期<select value={factorJobForm.day_of_week} onChange={(event) => setFactorJobForm({ ...factorJobForm, day_of_week: Number(event.target.value) })}><option value="0">星期一</option><option value="1">星期二</option><option value="2">星期三</option><option value="3">星期四</option><option value="4">星期五</option><option value="5">星期六</option><option value="6">星期日</option></select></label>}
+          {factorJobForm.frequency === 'monthly' && <label>每月日期<input type="number" min="1" max="28" value={factorJobForm.day_of_month} onChange={(event) => setFactorJobForm({ ...factorJobForm, day_of_month: Number(event.target.value) })} /></label>}
+          <label>小时<input type="number" min="0" max="23" value={factorJobForm.hour} onChange={(event) => setFactorJobForm({ ...factorJobForm, hour: Number(event.target.value) })} /></label>
+          <label>分钟<input type="number" min="0" max="59" value={factorJobForm.minute} onChange={(event) => setFactorJobForm({ ...factorJobForm, minute: Number(event.target.value) })} /></label>
+          <label>因子键<input value={factorJobForm.factor_key} onChange={(event) => setFactorJobForm({ ...factorJobForm, factor_key: event.target.value })} /></label>
+          <label>历史长度<input type="number" min="120" max="5000" value={factorJobForm.limit} onChange={(event) => setFactorJobForm({ ...factorJobForm, limit: Number(event.target.value) })} /></label>
+          <label>预测窗口<input type="number" min="1" max="60" value={factorJobForm.horizon} onChange={(event) => setFactorJobForm({ ...factorJobForm, horizon: Number(event.target.value) })} /></label>
+          <label>单边成本<input type="number" min="0" max="200" value={factorJobForm.transaction_cost_bps} onChange={(event) => setFactorJobForm({ ...factorJobForm, transaction_cost_bps: Number(event.target.value) })} /></label>
+          <label>参与率<input type="number" min="0.01" max="0.5" step="0.01" value={factorJobForm.participation_rate} onChange={(event) => setFactorJobForm({ ...factorJobForm, participation_rate: Number(event.target.value) })} /></label>
+          <div className={s.formActions}><Button type="submit" variant="primary" loading={busy === 'create-factor-job'} disabled={!factorJobForm.name.trim() || !factorJobForm.universe_id}>创建复验作业</Button></div>
+        </form>
       </section>
 
       <section className={s.section}>

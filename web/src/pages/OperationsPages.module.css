@@ -113,6 +113,20 @@
   overflow-wrap: anywhere;
 }
 
+.contextNotice a,
+.sectionHead a {
+  flex: 0 0 auto;
+  color: var(--accent);
+  font-size: var(--fs-caption);
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.contextNotice a:hover,
+.sectionHead a:hover {
+  text-decoration: underline;
+}
+
 .metrics {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

@@ -104,7 +104,7 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 deployment = load_settings()
-app = FastAPI(title="QuantHub API", version="0.1.1", lifespan=_lifespan)
+app = FastAPI(title="QuantHub API", version="0.2.0", lifespan=_lifespan)
 
 
 @app.middleware("http")
@@ -191,6 +191,7 @@ def health() -> dict:
     """健康检查：返回服务状态、已注册策略数和版本信息。"""
     _ensure_discovered()
     cfg = get_config()
+    current_source_build_id = _source_build_id()
     return {
         "status": "ok",
         "time": datetime.now().astimezone().isoformat(timespec="seconds"),
@@ -200,6 +201,8 @@ def health() -> dict:
         "deployment_mode": deployment.mode,
         "started_at": PROCESS_STARTED_AT,
         "build_id": SOURCE_BUILD_ID,
+        "current_source_build_id": current_source_build_id,
+        "restart_required": current_source_build_id != SOURCE_BUILD_ID,
     }
 
 

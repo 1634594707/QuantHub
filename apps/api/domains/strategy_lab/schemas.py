@@ -27,6 +27,7 @@ class ExperimentCreate(BaseModel):
     market: str = Field(default="a_shares")
     timeframe: str = Field(default="1d")
     version_id: str | None = Field(default=None)
+    research_run_id: str | None = Field(default=None, min_length=1, max_length=64)
     params: dict[str, Any] = Field(default_factory=dict)
     note: str = Field(default="")
 
@@ -65,6 +66,7 @@ class ExperimentUpdate(BaseModel):
     market: str = Field(default="a_shares")
     timeframe: str = Field(default="1d")
     version_id: str | None = Field(default=None)
+    research_run_id: str | None = Field(default=None, min_length=1, max_length=64)
     params: dict[str, Any] = Field(default_factory=dict)
     note: str = Field(default="")
 

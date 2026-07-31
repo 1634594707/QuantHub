@@ -19,6 +19,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from . import database
 
@@ -212,6 +213,7 @@ def _init() -> None:
                 id TEXT PRIMARY KEY,
                 definition_id TEXT NOT NULL,
                 version_id TEXT,
+                research_run_id TEXT,
                 instrument_id TEXT,
                 symbol TEXT NOT NULL,
                 market TEXT NOT NULL,
@@ -320,6 +322,20 @@ def _init() -> None:
                 last_check_json TEXT,
                 updated_at REAL NOT NULL,
                 UNIQUE (source, operation, started_at)
+            )"""
+        )
+        c.execute(
+            """CREATE TABLE IF NOT EXISTS research_incidents (
+                id TEXT PRIMARY KEY,
+                kind TEXT NOT NULL,
+                fingerprint TEXT NOT NULL,
+                status TEXT NOT NULL,
+                error TEXT NOT NULL,
+                research_run_id TEXT,
+                context_json TEXT NOT NULL DEFAULT '{}',
+                started_at REAL NOT NULL,
+                updated_at REAL NOT NULL,
+                UNIQUE (kind, fingerprint, status)
             )"""
         )
         c.execute(
@@ -437,6 +453,7 @@ def _init() -> None:
         _ensure_column(c, "strategy_versions", "archived_at", "REAL")
         _ensure_column(c, "experiments", "archived_at", "REAL")
         _ensure_column(c, "experiments", "updated_at", "REAL")
+        _ensure_column(c, "experiments", "research_run_id", "TEXT")
         c.execute("UPDATE experiments SET updated_at=created_at WHERE updated_at IS NULL")
         c.execute("UPDATE signals SET received_at=ts_epoch WHERE received_at IS NULL")
         # 研究运行是行情、新闻、PA 与 Ensemble 的统一可追溯容器。
@@ -458,6 +475,8 @@ def _init() -> None:
         )
         _ensure_column(c, "research_runs", "note", "TEXT NOT NULL DEFAULT ''")
         _ensure_column(c, "research_runs", "favorite", "INTEGER NOT NULL DEFAULT 0")
+        _ensure_column(c, "research_runs", "tags_json", "TEXT NOT NULL DEFAULT '[]'")
+        _ensure_column(c, "research_runs", "archived_at", "REAL")
         c.execute(
             """CREATE TABLE IF NOT EXISTS research_evidence (
                 id TEXT PRIMARY KEY,
@@ -469,6 +488,37 @@ def _init() -> None:
                 payload_json TEXT NOT NULL DEFAULT '{}',
                 captured_at REAL NOT NULL,
                 FOREIGN KEY (run_id) REFERENCES research_runs(id) ON DELETE CASCADE
+            )"""
+        )
+        c.execute(
+            """CREATE TABLE IF NOT EXISTS factor_universes (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL UNIQUE,
+                market TEXT NOT NULL,
+                description TEXT NOT NULL DEFAULT '',
+                created_at REAL NOT NULL,
+                updated_at REAL NOT NULL
+            )"""
+        )
+        c.execute(
+            """CREATE TABLE IF NOT EXISTS factor_universe_members (
+                id TEXT PRIMARY KEY,
+                universe_id TEXT NOT NULL,
+                instrument_id TEXT NOT NULL,
+                symbol TEXT NOT NULL,
+                effective_from TEXT NOT NULL,
+                effective_to TEXT,
+                status TEXT NOT NULL DEFAULT 'active',
+                industry TEXT NOT NULL DEFAULT '',
+                market_cap REAL,
+                beta REAL,
+                is_st INTEGER NOT NULL DEFAULT 0,
+                listed_at TEXT,
+                delisted_at TEXT,
+                created_at REAL NOT NULL,
+                updated_at REAL NOT NULL,
+                UNIQUE (universe_id, symbol, effective_from),
+                FOREIGN KEY (universe_id) REFERENCES factor_universes(id) ON DELETE CASCADE
             )"""
         )
         c.execute(
@@ -533,6 +583,20 @@ def _init() -> None:
                 cron TEXT NOT NULL,
                 updated_at REAL NOT NULL,
                 updated_by TEXT NOT NULL DEFAULT 'local-user'
+            )"""
+        )
+        c.execute(
+            """CREATE TABLE IF NOT EXISTS factor_research_jobs (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL UNIQUE,
+                universe_id TEXT NOT NULL,
+                cron TEXT NOT NULL,
+                enabled INTEGER NOT NULL DEFAULT 1,
+                request_json TEXT NOT NULL,
+                created_at REAL NOT NULL,
+                updated_at REAL NOT NULL,
+                updated_by TEXT NOT NULL DEFAULT 'local-user',
+                FOREIGN KEY (universe_id) REFERENCES factor_universes(id)
             )"""
         )
         c.execute(
@@ -655,10 +719,22 @@ def _init() -> None:
         c.execute("CREATE INDEX IF NOT EXISTS idx_research_symbol ON research_runs(symbol)")
         c.execute("CREATE INDEX IF NOT EXISTS idx_research_updated ON research_runs(updated_at)")
         c.execute("CREATE INDEX IF NOT EXISTS idx_research_favorite ON research_runs(favorite)")
+        c.execute("CREATE INDEX IF NOT EXISTS idx_research_archived ON research_runs(archived_at)")
+        c.execute(
+            "CREATE INDEX IF NOT EXISTS idx_factor_research_jobs_enabled "
+            "ON factor_research_jobs(enabled)"
+        )
         c.execute(
             "CREATE INDEX IF NOT EXISTS idx_research_instrument ON research_runs(instrument_id)"
         )
         c.execute("CREATE INDEX IF NOT EXISTS idx_evidence_run ON research_evidence(run_id)")
+        c.execute(
+            "CREATE INDEX IF NOT EXISTS idx_factor_universe_market ON factor_universes(market)"
+        )
+        c.execute(
+            "CREATE INDEX IF NOT EXISTS idx_factor_members_universe "
+            "ON factor_universe_members(universe_id, effective_from, effective_to)"
+        )
         c.execute("CREATE INDEX IF NOT EXISTS idx_analysis_tasks_status ON analysis_tasks(status)")
         c.execute(
             "CREATE INDEX IF NOT EXISTS idx_analysis_tasks_fingerprint "
@@ -691,6 +767,10 @@ def _init() -> None:
         c.execute(
             "CREATE INDEX IF NOT EXISTS idx_data_source_incidents_status "
             "ON data_source_incidents(status, updated_at)"
+        )
+        c.execute(
+            "CREATE INDEX IF NOT EXISTS idx_research_incidents_status "
+            "ON research_incidents(status, updated_at)"
         )
         c.execute("CREATE INDEX IF NOT EXISTS idx_api_tokens_hash ON api_tokens(token_hash)")
         c.execute("CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON audit_logs(created_at)")
@@ -1534,6 +1614,8 @@ def _research_run_dict(row: sqlite3.Row, evidence_count: int | None = None) -> d
         "error": row["error"],
         "note": row["note"],
         "favorite": bool(row["favorite"]),
+        "tags": json.loads(row["tags_json"] or "[]"),
+        "archived_at": float(row["archived_at"]) if row["archived_at"] is not None else None,
         "created_at": float(row["created_at"]),
         "updated_at": float(row["updated_at"]),
     }
@@ -1583,12 +1665,30 @@ def list_research_runs(
     symbol: str | None = None,
     status: str | None = None,
     favorite: bool | None = None,
+    market: str | None = None,
+    timeframe: str | None = None,
+    created_from: float | None = None,
+    created_to: float | None = None,
+    factor_limit: int | None = None,
+    factor_horizon: int | None = None,
+    factor_transaction_cost_bps: float | None = None,
+    factor_walk_forward_mode: str | None = None,
+    factor_walk_forward_folds: int | None = None,
 ) -> list[dict]:
     return list_research_runs_page(
         limit=limit,
         symbol=symbol,
         status=status,
         favorite=favorite,
+        market=market,
+        timeframe=timeframe,
+        created_from=created_from,
+        created_to=created_to,
+        factor_limit=factor_limit,
+        factor_horizon=factor_horizon,
+        factor_transaction_cost_bps=factor_transaction_cost_bps,
+        factor_walk_forward_mode=factor_walk_forward_mode,
+        factor_walk_forward_folds=factor_walk_forward_folds,
     )["items"]
 
 
@@ -1597,6 +1697,18 @@ def list_research_runs_page(
     symbol: str | None = None,
     status: str | None = None,
     favorite: bool | None = None,
+    market: str | None = None,
+    timeframe: str | None = None,
+    created_from: float | None = None,
+    created_to: float | None = None,
+    factor_limit: int | None = None,
+    factor_horizon: int | None = None,
+    factor_transaction_cost_bps: float | None = None,
+    factor_walk_forward_mode: str | None = None,
+    factor_walk_forward_folds: int | None = None,
+    cross_section_factor_key: str | None = None,
+    tag: str | None = None,
+    archived: bool | None = False,
     module: str | None = None,
     cursor: str | None = None,
 ) -> dict:
@@ -1614,6 +1726,39 @@ def list_research_runs_page(
     if favorite is not None:
         clauses.append("r.favorite=?")
         params.append(1 if favorite else 0)
+    if archived is not None:
+        clauses.append("r.archived_at IS NOT NULL" if archived else "r.archived_at IS NULL")
+    if tag:
+        clauses.append("EXISTS (SELECT 1 FROM json_each(r.tags_json) WHERE value=?)")
+        params.append(tag)
+    if market:
+        clauses.append("r.market=?")
+        params.append(market)
+    if timeframe:
+        clauses.append("r.timeframe=?")
+        params.append(timeframe)
+    if created_from is not None:
+        clauses.append("r.created_at>=?")
+        params.append(created_from)
+    if created_to is not None:
+        clauses.append("r.created_at<?")
+        params.append(created_to)
+    factor_filters = (
+        ("$.factor_research.limit", factor_limit),
+        ("$.factor_research.horizon", factor_horizon),
+        ("$.factor_research.transaction_cost_bps", factor_transaction_cost_bps),
+        ("$.factor_research.walk_forward_mode", factor_walk_forward_mode),
+        ("$.factor_research.walk_forward_folds", factor_walk_forward_folds),
+    )
+    for path, value in factor_filters:
+        if value is not None:
+            clauses.append("json_extract(r.input_json, ?)=?")
+            params.extend([path, value])
+    if cross_section_factor_key is not None:
+        clauses.append(
+            "json_extract(r.input_json, '$.cross_sectional_factor_research.factor_key')=?"
+        )
+        params.append(cross_section_factor_key)
     if module:
         clauses.append("r.modules_json LIKE ?")
         params.append(f'%"{module}"%')
@@ -1689,6 +1834,8 @@ def update_research_run(run_id: str, patch: dict) -> dict | None:
         "error": "error",
         "note": "note",
         "favorite": "favorite",
+        "tags": "tags_json",
+        "archived": "archived_at",
     }
     sets: list[str] = []
     params: list = []
@@ -1698,7 +1845,13 @@ def update_research_run(run_id: str, patch: dict) -> dict | None:
         value = patch[key]
         if key == "favorite":
             value = 1 if value else 0
-        if key in {"modules", "input", "summary"}:
+        if key == "archived":
+            value = _now() if value else None
+        if key == "tags":
+            value = list(
+                dict.fromkeys(str(item).strip() for item in (value or []) if str(item).strip())
+            )
+        if key in {"modules", "input", "summary", "tags"}:
             value = json.dumps(value, ensure_ascii=False, default=str)
         sets.append(f"{column}=?")
         params.append(value)
@@ -1714,6 +1867,15 @@ def update_research_run(run_id: str, patch: dict) -> dict | None:
     if cursor.rowcount == 0:
         return None
     return get_research_run(run_id)
+
+
+def update_research_runs(run_ids: list[str], patch: dict) -> list[dict]:
+    updated: list[dict] = []
+    for run_id in run_ids:
+        run = update_research_run(run_id, patch)
+        if run is not None:
+            updated.append(run)
+    return updated
 
 
 def add_research_evidence(
@@ -1951,3 +2113,186 @@ def update_analysis_task(task_id: str, patch: dict) -> dict | None:
             params,
         )
     return get_analysis_task(task_id) if cursor.rowcount else None
+
+
+# ---------------------------------------------------------------------------
+# 因子股票池 factor_universes / factor_universe_members
+# ---------------------------------------------------------------------------
+def _factor_universe_dict(row) -> dict:
+    return {
+        "id": row["id"],
+        "name": row["name"],
+        "market": row["market"],
+        "description": row["description"],
+        "created_at": float(row["created_at"]),
+        "updated_at": float(row["updated_at"]),
+    }
+
+
+def _factor_universe_member_dict(row) -> dict:
+    return {
+        "id": row["id"],
+        "universe_id": row["universe_id"],
+        "instrument_id": row["instrument_id"],
+        "symbol": row["symbol"],
+        "effective_from": row["effective_from"],
+        "effective_to": row["effective_to"],
+        "status": row["status"],
+        "industry": row["industry"],
+        "market_cap": row["market_cap"],
+        "beta": row["beta"],
+        "is_st": bool(row["is_st"]),
+        "listed_at": row["listed_at"],
+        "delisted_at": row["delisted_at"],
+        "created_at": float(row["created_at"]),
+        "updated_at": float(row["updated_at"]),
+    }
+
+
+def create_factor_universe(name: str, market: str, description: str) -> dict:
+    universe_id = uuid.uuid4().hex
+    now = _now()
+    with _lock, _conn() as c:
+        c.execute(
+            """INSERT INTO factor_universes
+               (id, name, market, description, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (universe_id, name, market, description, now, now),
+        )
+        row = c.execute("SELECT * FROM factor_universes WHERE id=?", (universe_id,)).fetchone()
+    return _factor_universe_dict(row)
+
+
+def get_factor_universe(universe_id: str) -> dict | None:
+    with _lock, _conn() as c:
+        row = c.execute("SELECT * FROM factor_universes WHERE id=?", (universe_id,)).fetchone()
+    return _factor_universe_dict(row) if row else None
+
+
+def list_factor_universes(market: str | None = None) -> list[dict]:
+    with _lock, _conn() as c:
+        if market:
+            rows = c.execute(
+                "SELECT * FROM factor_universes WHERE market=? ORDER BY updated_at DESC",
+                (market,),
+            ).fetchall()
+        else:
+            rows = c.execute("SELECT * FROM factor_universes ORDER BY updated_at DESC").fetchall()
+    return [_factor_universe_dict(row) for row in rows]
+
+
+def upsert_factor_universe_member(
+    *,
+    universe_id: str,
+    instrument_id: str,
+    symbol: str,
+    effective_from: str,
+    effective_to: str | None,
+    status: str,
+    industry: str,
+    market_cap: float | None,
+    beta: float | None,
+    is_st: bool,
+    listed_at: str | None,
+    delisted_at: str | None,
+) -> dict:
+    now = _now()
+    with _lock, _conn() as c:
+        existing = c.execute(
+            """SELECT id FROM factor_universe_members
+               WHERE universe_id=? AND symbol=? AND effective_from=?""",
+            (universe_id, symbol, effective_from),
+        ).fetchone()
+        member_id = existing["id"] if existing else uuid.uuid4().hex
+        overlap = c.execute(
+            """SELECT id FROM factor_universe_members
+               WHERE universe_id=? AND symbol=? AND id<>?
+                 AND effective_from<=?
+                 AND (effective_to IS NULL OR effective_to>=?)
+               LIMIT 1""",
+            (
+                universe_id,
+                symbol,
+                member_id,
+                effective_to or "9999-12-31",
+                effective_from,
+            ),
+        ).fetchone()
+        if overlap:
+            raise ValueError("成分生效区间与已有记录重叠")
+        if existing:
+            c.execute(
+                """UPDATE factor_universe_members SET instrument_id=?, effective_to=?,
+                   status=?, industry=?, market_cap=?, beta=?, is_st=?, listed_at=?,
+                   delisted_at=?, updated_at=? WHERE id=?""",
+                (
+                    instrument_id,
+                    effective_to,
+                    status,
+                    industry,
+                    market_cap,
+                    beta,
+                    1 if is_st else 0,
+                    listed_at,
+                    delisted_at,
+                    now,
+                    member_id,
+                ),
+            )
+        else:
+            c.execute(
+                """INSERT INTO factor_universe_members
+                   (id, universe_id, instrument_id, symbol, effective_from, effective_to,
+                    status, industry, market_cap, beta, is_st, listed_at, delisted_at,
+                    created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    member_id,
+                    universe_id,
+                    instrument_id,
+                    symbol,
+                    effective_from,
+                    effective_to,
+                    status,
+                    industry,
+                    market_cap,
+                    beta,
+                    1 if is_st else 0,
+                    listed_at,
+                    delisted_at,
+                    now,
+                    now,
+                ),
+            )
+        c.execute("UPDATE factor_universes SET updated_at=? WHERE id=?", (now, universe_id))
+        row = c.execute("SELECT * FROM factor_universe_members WHERE id=?", (member_id,)).fetchone()
+    return _factor_universe_member_dict(row)
+
+
+def list_factor_universe_members(
+    universe_id: str,
+    *,
+    active_on: str | None = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
+) -> list[dict]:
+    clauses = ["universe_id=?"]
+    params: list[Any] = [universe_id]
+    if active_on:
+        clauses.extend(["effective_from<=?", "(effective_to IS NULL OR effective_to>=?)"])
+        params.extend([active_on, active_on])
+    else:
+        if start_date:
+            clauses.append("(effective_to IS NULL OR effective_to>=?)")
+            params.append(start_date)
+        if end_date:
+            clauses.append("effective_from<=?")
+            params.append(end_date)
+    with _lock, _conn() as c:
+        rows = c.execute(
+            f"""SELECT * FROM factor_universe_members
+                WHERE {" AND ".join(clauses)}
+                ORDER BY symbol, effective_from""",
+            params,
+        ).fetchall()
+    return [_factor_universe_member_dict(row) for row in rows]

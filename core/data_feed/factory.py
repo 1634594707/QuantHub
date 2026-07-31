@@ -36,9 +36,16 @@ def _cached(fn):
             symbol = args[0]
             interval = args[1] if len(args) > 1 else kwargs.get("interval")
             interval = Interval(interval).value if not isinstance(interval, str) else interval
+            start = args[2] if len(args) > 2 else kwargs.get("start")
+            end = args[3] if len(args) > 3 else kwargs.get("end")
             limit = args[4] if len(args) > 4 else kwargs.get("limit", 500)
+            bounded_request = start is not None or end is not None
             date = cache_key_date()
-            hit = cache.get_kline(symbol, self.market, interval, date, limit)
+            hit = (
+                None
+                if bounded_request
+                else cache.get_kline(symbol, self.market, interval, date, limit)
+            )
             if (
                 hit is not None
                 and self.market == "us_stocks"
@@ -58,7 +65,7 @@ def _cached(fn):
                 return hit
             telemetry.record_cache(hit=False)
             df = fn(self, *args, **kwargs)
-            if df is not None and not df.empty:
+            if df is not None and not df.empty and not bounded_request:
                 cache.set_kline(symbol, self.market, interval, date, df, limit)
             return df
 
@@ -214,6 +221,21 @@ class DataSourceProxy(DataSource):
 
 
 _REGISTRY: dict[str, type[DataSource]] = {}
+_OPTIONAL_DEPENDENCY_FAILURES: set[tuple[str, str]] = set()
+
+
+def _log_source_construction_failure(name: str, role: str, exc: Exception) -> None:
+    """同一可选依赖故障每个进程只记录一次可见告警。"""
+    message = str(exc)
+    if not isinstance(exc, (ImportError, ModuleNotFoundError)):
+        logger.warning("构建 %s 数据源 %s 失败，继续尝试后续数据源: %s", role, name, message)
+        return
+    fingerprint = (name, message)
+    if fingerprint in _OPTIONAL_DEPENDENCY_FAILURES:
+        logger.debug("已聚合可选依赖故障 %s: %s", name, message)
+        return
+    _OPTIONAL_DEPENDENCY_FAILURES.add(fingerprint)
+    logger.warning("可选依赖不可用，已聚合本进程后续同类告警；数据源 %s: %s", name, message)
 
 
 def register_source(name: str, cls: type[DataSource]) -> None:
@@ -301,12 +323,7 @@ def get_data_source(market: str = "a_shares", **kwargs: Any) -> DataSourceProxy:
             )
         except Exception as exc:  # noqa: BLE001 - optional adapters may fail during construction
             role = "primary" if index == 0 else "fallback"
-            logger.warning(
-                "构建 %s 数据源 %s 失败，继续尝试后续数据源: %s",
-                role,
-                source_name,
-                exc,
-            )
+            _log_source_construction_failure(source_name, role, exc)
 
     if not built_sources:
         configured = ", ".join(source_names)

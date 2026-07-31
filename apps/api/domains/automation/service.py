@@ -15,6 +15,7 @@ from apscheduler.triggers.cron import CronTrigger
 from apps.api import store
 
 from . import repository
+from .schemas import FactorResearchJobCreate
 
 
 class AutomationNotFoundError(LookupError):
@@ -57,7 +58,7 @@ def _merged_jobs() -> list[dict]:
     for row in _configured_jobs():
         override = overrides.get(row["name"])
         cron = override["cron"] if override else row["cron"]
-        enabled = override["enabled"] if override else True
+        enabled = override["enabled"] if override else bool(row.get("enabled", True))
         jobs.append(
             {
                 "name": row["name"],
@@ -93,6 +94,61 @@ def get_job(name: str) -> dict:
         if job["name"] == name:
             return {"ok": True, "job": job}
     return {"ok": False, "error": f"未找到任务: {name}"}
+
+
+def list_factor_research_jobs() -> dict:
+    jobs = repository.list_factor_research_jobs()
+    return {"ok": True, "count": len(jobs), "jobs": jobs, "timezone": str(_TIMEZONE)}
+
+
+def create_factor_research_job(payload: FactorResearchJobCreate) -> dict:
+    universe = store.get_factor_universe(payload.request.universe_id)
+    if universe is None:
+        raise AutomationNotFoundError(f"股票池不存在: {payload.request.universe_id}")
+    if payload.request.transaction_cost_profile is not None:
+        if payload.request.transaction_cost_profile.market != universe["market"]:
+            raise ValueError("transaction_cost_profile.market 与股票池市场不一致")
+    request = payload.request.model_dump(mode="json", exclude_none=True)
+    try:
+        job = repository.create_factor_research_job(
+            name=payload.name,
+            universe_id=payload.request.universe_id,
+            cron=payload.cron(),
+            enabled=payload.enabled,
+            request=request,
+            actor=payload.actor,
+        )
+    except Exception as exc:
+        if "UNIQUE constraint failed" in str(exc):
+            raise AutomationConflictError(f"因子研究作业名称已存在: {payload.name}") from exc
+        raise
+    repository.add_audit(
+        action="create_factor_research_job",
+        entity_type="factor_research_job",
+        entity_id=job["id"],
+        actor=payload.actor,
+        before=None,
+        after=job,
+        result="succeeded",
+    )
+    return job
+
+
+def update_factor_research_job(job_id: str, patch: dict, *, actor: str) -> dict:
+    before = repository.get_factor_research_job(job_id)
+    if before is None:
+        raise AutomationNotFoundError(f"因子研究作业不存在: {job_id}")
+    after = repository.update_factor_research_job(job_id, patch, actor)
+    repository.add_audit(
+        action="update_factor_research_job",
+        entity_type="factor_research_job",
+        entity_id=job_id,
+        actor=actor,
+        before=before,
+        after=after,
+        result="succeeded",
+    )
+    return after
 
 
 def _require_job(name: str) -> dict:
@@ -172,6 +228,24 @@ def update_job(
 
 
 def _execute_job(func_name: str):
+    if func_name.startswith("__run_factor_research__:"):
+        from apps.api.domains.factor_research.schemas import CrossSectionResearchRequest
+        from apps.api.domains.factor_research.service import run_cross_sectional_research
+
+        job_id = func_name.split(":", 1)[1]
+        job = repository.get_factor_research_job(job_id)
+        if job is None:
+            raise AutomationNotFoundError(f"因子研究作业不存在: {job_id}")
+        result = run_cross_sectional_research(CrossSectionResearchRequest(**job["request"]))
+        if not result.get("ok"):
+            raise RuntimeError(result.get("error") or "因子研究作业失败")
+        from apps.api.domains.alerts.service import check_all_rules
+
+        check_all_rules(force=True)
+        return {
+            "research_run_id": result["run_id"],
+            "factor_research_job_id": job_id,
+        }
     if func_name.startswith("__run_strategy__:"):
         from strategies import get_strategy
 
@@ -217,7 +291,11 @@ def _result_reference(result) -> tuple[str | None, str | None]:
             run = store.get_research_run(research_run_id)
             result_type = (
                 "factor_research"
-                if run and "factor_research" in run.get("modules", [])
+                if run
+                and any(
+                    module in run.get("modules", [])
+                    for module in ("factor_research", "cross_sectional_factor_research")
+                )
                 else "research_run"
             )
             return result_type, research_run_id

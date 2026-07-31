@@ -45,6 +45,88 @@ def save_override(name: str, *, enabled: bool, cron: str, actor: str) -> dict:
     }
 
 
+def _factor_job_dict(row) -> dict:
+    return {
+        "id": row["id"],
+        "name": row["name"],
+        "universe_id": row["universe_id"],
+        "cron": row["cron"],
+        "enabled": bool(row["enabled"]),
+        "request": json.loads(row["request_json"]),
+        "created_at": float(row["created_at"]),
+        "updated_at": float(row["updated_at"]),
+        "updated_by": row["updated_by"],
+    }
+
+
+def create_factor_research_job(
+    *, name: str, universe_id: str, cron: str, enabled: bool, request: dict, actor: str
+) -> dict:
+    job_id = f"FACTOR-{uuid.uuid4().hex[:12].upper()}"
+    now = time.time()
+    with store._lock, store._conn() as connection:
+        connection.execute(
+            """INSERT INTO factor_research_jobs
+               (id, name, universe_id, cron, enabled, request_json, created_at, updated_at,
+                updated_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                job_id,
+                name,
+                universe_id,
+                cron,
+                int(enabled),
+                json.dumps(request, ensure_ascii=False),
+                now,
+                now,
+                actor,
+            ),
+        )
+        row = connection.execute(
+            "SELECT * FROM factor_research_jobs WHERE id=?", (job_id,)
+        ).fetchone()
+    return _factor_job_dict(row)
+
+
+def list_factor_research_jobs() -> list[dict]:
+    with store._lock, store._conn() as connection:
+        rows = connection.execute(
+            "SELECT * FROM factor_research_jobs ORDER BY created_at DESC, id DESC"
+        ).fetchall()
+    return [_factor_job_dict(row) for row in rows]
+
+
+def get_factor_research_job(job_id: str) -> dict | None:
+    with store._lock, store._conn() as connection:
+        row = connection.execute(
+            "SELECT * FROM factor_research_jobs WHERE id=?", (job_id,)
+        ).fetchone()
+    return _factor_job_dict(row) if row else None
+
+
+def update_factor_research_job(job_id: str, patch: dict, actor: str) -> dict | None:
+    allowed = {"name", "cron", "enabled", "request", "universe_id"}
+    values = {key: value for key, value in patch.items() if key in allowed}
+    if not values:
+        return get_factor_research_job(job_id)
+    assignments: list[str] = []
+    params: list = []
+    for key, value in values.items():
+        column = "request_json" if key == "request" else key
+        if key == "request":
+            value = json.dumps(value, ensure_ascii=False)
+        if key == "enabled":
+            value = int(value)
+        assignments.append(f"{column}=?")
+        params.append(value)
+    assignments.extend(["updated_at=?", "updated_by=?"])
+    params.extend([time.time(), actor, job_id])
+    with store._lock, store._conn() as connection:
+        result = connection.execute(
+            f"UPDATE factor_research_jobs SET {', '.join(assignments)} WHERE id=?", params
+        )
+    return get_factor_research_job(job_id) if result.rowcount else None
+
+
 def create_run(
     job_name: str,
     *,

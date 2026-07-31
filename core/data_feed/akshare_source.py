@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import logging
 from collections.abc import Iterable
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 import pandas as pd
 import requests
@@ -22,6 +22,7 @@ from core.data_feed.base import (
     Interval,
     News,
 )
+from core.data_feed.quality import normalize_ohlcv_rows
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +79,7 @@ class AkshareSource(DataSource):
         if interval not in _INTERVAL_MAP:
             raise ValueError(f"akshare 不支持周期: {interval}")
         ak_period = _INTERVAL_MAP[interval]
-        end = end or datetime.now()
+        end = end or datetime.now(UTC)
         start = start or (end - timedelta(days=limit))
 
         @self._retryer()
@@ -140,7 +141,9 @@ class AkshareSource(DataSource):
             "amount",
             "turnover",
         ]
-        return df[[c for c in keep if c in df.columns]].reset_index(drop=True)
+        result = normalize_ohlcv_rows(df[[c for c in keep if c in df.columns]])
+        result.attrs["corporate_action_adjustment"] = "qfq"
+        return result
 
     def get_news(self, symbol: str | None = None, limit: int = 50) -> list[News]:
         """获取财经新闻（优先按股票代码查东财个股新闻，否则回退全球快讯）。"""
@@ -165,7 +168,7 @@ class AkshareSource(DataSource):
             return []
         news: list[News] = []
         for _, row in df.head(limit).iterrows():
-            ts = pd.to_datetime(row.get("发布时间", row.get("datetime", datetime.now())))
+            ts = pd.to_datetime(row.get("发布时间", row.get("datetime", datetime.now(UTC))))
             news.append(
                 News(
                     title=str(row.get("标题", row.get("title", ""))),
@@ -237,11 +240,11 @@ class AkshareSource(DataSource):
 
         news: list[News] = []
         for it in items[:limit]:
-            ts_raw = it.get("date", datetime.now().isoformat())
+            ts_raw = it.get("date", datetime.now(UTC).isoformat())
             try:
                 ts = pd.to_datetime(ts_raw).to_pydatetime()
-            except Exception:
-                ts = datetime.now()
+            except (TypeError, ValueError, OverflowError):
+                ts = datetime.now(UTC)
             news.append(
                 News(
                     title=_clean(it.get("title", "")),
@@ -271,7 +274,7 @@ class AkshareSource(DataSource):
             return []
         anns: list[Announcement] = []
         for _, row in df.head(limit).iterrows():
-            ts = pd.to_datetime(row.get("公告日期", datetime.now()))
+            ts = pd.to_datetime(row.get("公告日期", datetime.now(UTC)))
             anns.append(
                 Announcement(
                     symbol=symbol,

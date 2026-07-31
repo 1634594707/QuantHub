@@ -1,0 +1,46 @@
+.notice {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 9px var(--sp-5);
+  border-bottom: 1px solid var(--warn);
+  background: var(--warn-weak);
+  color: var(--warn-ink);
+}
+
+.notice > svg { align-self: start; margin-top: 2px; }
+.notice div { display: grid; gap: 2px; min-width: 0; }
+.notice strong { color: var(--text-1); font-size: var(--fs-13); }
+.notice div span {
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: var(--fs-11);
+  color: var(--text-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.notice button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 4px 9px;
+  border: 1px solid currentColor;
+  border-radius: var(--r-md);
+  background: var(--bg-elevated);
+  color: inherit;
+  cursor: pointer;
+  font-size: var(--fs-12);
+  font-weight: 700;
+}
+.notice button:disabled { cursor: wait; opacity: 0.65; }
+.spinning { animation: spin 0.8s linear infinite; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 767px) {
+  .notice { grid-template-columns: auto minmax(0, 1fr); padding: 8px var(--sp-3); }
+  .notice button { grid-column: 2; justify-self: start; }
+  .notice div span { white-space: normal; overflow-wrap: anywhere; }
+}

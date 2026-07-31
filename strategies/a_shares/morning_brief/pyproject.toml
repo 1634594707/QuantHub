@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "quanthub-morning-brief"
-version = "0.1.1"
+version = "0.2.0"
 description = "A股晨会简报自动生成"
 requires-python = ">=3.11,<3.13"
 dependencies = ["quanthub-core", "openai>=1.40"]

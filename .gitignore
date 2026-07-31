@@ -72,6 +72,7 @@ data/*.db
 apps/api/store.db
 apps/api/store.db-shm
 apps/api/store.db-wal
+/backups/
 
 # ===== 大模型权重（FinBERT2 .safetensors 等）=====
 models/
@@ -137,6 +138,7 @@ temp/
 # ===== 本地规划与阶段性文档 =====
 /*ROADMAP*.md
 !BEGINNER_USABILITY_ROADMAP.md
+!FACTOR_RESEARCH_ROADMAP.md
 /design/*ROADMAP*.md
 /design/FRONTEND_REDESIGN_PLAN.md
 /design/PHASE_0_VISUAL_ACCEPTANCE.md

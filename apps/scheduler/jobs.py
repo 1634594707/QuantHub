@@ -71,6 +71,33 @@ def _build_jobs() -> list[dict]:
             jobs.append(
                 {"name": f"{market}_{name}", "market": market, "cron": cron, "func_name": func_name}
             )
+    from apps.api import store
+    from apps.api.domains.automation import repository as automation_repository
+
+    for factor_job in automation_repository.list_factor_research_jobs():
+        universe = store.get_factor_universe(factor_job["universe_id"])
+        if universe is None:
+            logger.error(
+                "跳过缺少股票池的因子研究作业 %s: %s",
+                factor_job["id"],
+                factor_job["universe_id"],
+            )
+            continue
+        jobs.append(
+            {
+                "name": f"factor_research_{factor_job['id']}",
+                "market": universe["market"],
+                "cron": factor_job["cron"],
+                "func_name": f"__run_factor_research__:{factor_job['id']}",
+                "enabled": factor_job["enabled"],
+            }
+        )
+    overrides = automation_repository.list_overrides()
+    for job in jobs:
+        override = overrides.get(job["name"])
+        if override is not None:
+            job["cron"] = override["cron"]
+            job["enabled"] = override["enabled"]
     return jobs
 
 
@@ -85,6 +112,8 @@ def start() -> None:
     scheduler = BlockingScheduler(timezone="Asia/Shanghai")
     jobs = _build_jobs()
     for job in jobs:
+        if not job.get("enabled", True):
+            continue
         # 解析 cron: "0 18 * * 1-5" -> CronTrigger
         parts = job["cron"].split()
         if len(parts) != 5:

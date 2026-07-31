@@ -211,13 +211,23 @@ def _equity(raw: Any, initial: float) -> list[dict]:
     return points
 
 
-def backtest(name: str, req: BacktestRequest) -> dict:
+def backtest(
+    name: str,
+    req: BacktestRequest,
+    *,
+    klines: pd.DataFrame | None = None,
+) -> dict:
     strategy_info(name)
     strategy = get_strategy(name, config={"enabled": True})
-    try:
-        klines = get_data_source(req.market).get_kline(req.symbol, req.interval, limit=req.limit)
-    except Exception as exc:  # noqa: BLE001 - normalize strategy plugin failures for the API
-        return {"ok": False, "error": f"取 K 线失败: {exc}", "symbol": req.symbol}
+    if klines is None:
+        try:
+            klines = get_data_source(req.market).get_kline(
+                req.symbol,
+                req.interval,
+                limit=req.limit,
+            )
+        except Exception as exc:  # noqa: BLE001 - normalize strategy plugin failures for the API
+            return {"ok": False, "error": f"取 K 线失败: {exc}", "symbol": req.symbol}
     if klines is None or klines.empty:
         return {"ok": False, "error": "K 线为空（回测需要历史数据）", "symbol": req.symbol}
     quality = assess_ohlcv(klines)

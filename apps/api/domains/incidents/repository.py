@@ -9,6 +9,87 @@ import uuid
 from apps.api import store
 
 
+def observe_research_failure(
+    *,
+    kind: str,
+    fingerprint: str,
+    error: str,
+    research_run_id: str | None = None,
+    context: dict | None = None,
+) -> dict:
+    """按明确故障指纹聚合研究错误，重复观测只更新时间和上下文。"""
+    now = time.time()
+    with store._lock, store._conn() as connection:
+        row = connection.execute(
+            """SELECT id FROM research_incidents
+               WHERE kind=? AND fingerprint=? AND status='open' LIMIT 1""",
+            (kind, fingerprint),
+        ).fetchone()
+        incident_id = row["id"] if row else uuid.uuid4().hex
+        if row:
+            connection.execute(
+                """UPDATE research_incidents
+                   SET error=?, research_run_id=?, context_json=?, updated_at=? WHERE id=?""",
+                (
+                    error,
+                    research_run_id,
+                    json.dumps(context or {}, ensure_ascii=False, default=str),
+                    now,
+                    incident_id,
+                ),
+            )
+        else:
+            connection.execute(
+                """INSERT INTO research_incidents
+                   (id, kind, fingerprint, status, error, research_run_id, context_json,
+                    started_at, updated_at)
+                   VALUES (?, ?, ?, 'open', ?, ?, ?, ?, ?)""",
+                (
+                    incident_id,
+                    kind,
+                    fingerprint,
+                    error,
+                    research_run_id,
+                    json.dumps(context or {}, ensure_ascii=False, default=str),
+                    now,
+                    now,
+                ),
+            )
+    return get_research_incident(incident_id) or {}
+
+
+def get_research_incident(incident_id: str) -> dict | None:
+    with store._lock, store._conn() as connection:
+        row = connection.execute(
+            "SELECT * FROM research_incidents WHERE id=?", (incident_id,)
+        ).fetchone()
+    return _research_row(row) if row else None
+
+
+def list_research_incidents(*, limit: int = 200) -> list[dict]:
+    with store._lock, store._conn() as connection:
+        rows = connection.execute(
+            """SELECT * FROM research_incidents WHERE status='open'
+               ORDER BY updated_at DESC, id DESC LIMIT ?""",
+            (limit,),
+        ).fetchall()
+    return [_research_row(row) for row in rows]
+
+
+def _research_row(row) -> dict:
+    return {
+        "id": row["id"],
+        "kind": row["kind"],
+        "fingerprint": row["fingerprint"],
+        "status": row["status"],
+        "error": row["error"],
+        "research_run_id": row["research_run_id"],
+        "context": json.loads(row["context_json"] or "{}"),
+        "started_at": float(row["started_at"]),
+        "updated_at": float(row["updated_at"]),
+    }
+
+
 def observe_data_source_failure(
     source: str, operation: str, error: str, occurred_at: float
 ) -> dict:

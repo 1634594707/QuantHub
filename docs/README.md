@@ -5,7 +5,9 @@
 ## 使用与部署
 
 - [项目说明](../README.md)：功能介绍、环境要求、安装、启动和验证命令。
-- [研究工作流与因子验证更新](posts/2026-07-30-research-factor-update.md)：本次研究、因子、AI 与数据源更新说明。
+- [v0.2.0 发布说明](releases/v0.2.0.md)：多窗口、跨标的、成本执行、持续复验和升级说明。
+- [v0.2.0 社区更新帖子](posts/2026-07-31-quanthub-v0.2.0.md)：可直接用于“工具与项目”板块的发布内容。
+- [交易成本来源与录入边界](TRADING_COST_SOURCES.md)：A 股、中国结算、SEC、FINRA、OKX 与 MT5 来源及禁止推断的参数边界。
 - [部署与数据库迁移](DEPLOYMENT.md)：本机、局域网、PostgreSQL、认证、CORS 和 Alembic。
 - [升级与扩展](UPGRADE.md)：版本升级、配置迁移、扩展接口、备份恢复和回滚。
 - [PA Agent 能力审计与适配](PA_AGENT_ADAPTATION.md)：上游参考范围、输出质量闸门、交易质量分析和未迁移能力。

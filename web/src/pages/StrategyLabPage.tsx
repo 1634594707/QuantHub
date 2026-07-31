@@ -33,6 +33,7 @@ export default function StrategyLabPage() {
   const requestedSymbol = (searchParams.get('symbol') || '600519').toUpperCase()
   const requestedMarket = searchParams.get('market') || 'a_shares'
   const requestedTimeframe = searchParams.get('timeframe') || '1d'
+  const requestedResearchRunId = searchParams.get('research_run_id') || ''
   const experimentFormRef = useRef<HTMLFormElement>(null)
   const [tick, setTick] = useState(0)
   const definitions = useApi(() => api.strategyLabDefinitions(200), [tick], { retry: false })
@@ -65,7 +66,8 @@ export default function StrategyLabPage() {
   })
   const [versionForm, setVersionForm] = useState({ version: 'v1', changelog: '' })
   const [experimentForm, setExperimentForm] = useState({
-    symbol: requestedSymbol, market: requestedMarket, timeframe: requestedTimeframe, version_id: '', note: '',
+    symbol: requestedSymbol, market: requestedMarket, timeframe: requestedTimeframe,
+    version_id: '', research_run_id: requestedResearchRunId, note: '',
   })
   const [versionParams, setVersionParams] = useState<Record<string, unknown>>({})
   const [experimentParams, setExperimentParams] = useState<Record<string, unknown>>({})
@@ -77,12 +79,13 @@ export default function StrategyLabPage() {
   const [versionEditForm, setVersionEditForm] = useState({ version: '', changelog: '', copy_version: '' })
   const [versionEditParams, setVersionEditParams] = useState<Record<string, unknown>>({})
   const [experimentEditForm, setExperimentEditForm] = useState({
-    symbol: '', market: 'a_shares', timeframe: '1d', version_id: '', note: '',
+    symbol: '', market: 'a_shares', timeframe: '1d', version_id: '', research_run_id: '', note: '',
   })
   const [experimentEditParams, setExperimentEditParams] = useState<Record<string, unknown>>({})
 
   const currentDefinition = definition.data?.definition
   const currentExperiment = experiments.data?.experiments.find((item) => item.id === experimentId)
+  const experimentContextLocked = Boolean(currentExperiment?.research_run_id)
   const strategyOptions = useMemo(() => [
     { value: '', label: '选择已注册策略' },
     ...(strategies.data?.strategies ?? []).map((item) => ({ value: item.name, label: `${item.name} · ${item.market}` })),
@@ -98,12 +101,23 @@ export default function StrategyLabPage() {
   }, [requestedDefinitionId, requestedExperimentId])
 
   useEffect(() => {
+    if (requestedAction !== 'create_experiment') return
+    setExperimentForm((current) => ({
+      ...current,
+      symbol: requestedSymbol,
+      market: requestedMarket,
+      timeframe: requestedTimeframe,
+      research_run_id: requestedResearchRunId,
+    }))
+  }, [requestedAction, requestedMarket, requestedResearchRunId, requestedSymbol, requestedTimeframe])
+
+  useEffect(() => {
     if (requestedAction !== 'create_experiment' || definitionId || !definitions.data?.definitions.length) return
-    const candidate = definitions.data.definitions.find((item) => item.market === requestedMarket)
+    const matchingDefinition = definitions.data.definitions.find((item) => item.market === requestedMarket)
       ?? definitions.data.definitions[0]
-    setDefinitionId(candidate.id)
+    setDefinitionId(matchingDefinition.id)
     const query = new URLSearchParams(searchParams)
-    query.set('definition_id', candidate.id)
+    query.set('definition_id', matchingDefinition.id)
     setSearchParams(query, { replace: true })
   }, [definitionId, definitions.data?.definitions, requestedAction, requestedMarket, searchParams, setSearchParams])
 
@@ -141,6 +155,7 @@ export default function StrategyLabPage() {
     setExperimentEditForm({
       symbol: currentExperiment.symbol, market: currentExperiment.market,
       timeframe: currentExperiment.timeframe, version_id: currentExperiment.version_id ?? '',
+      research_run_id: currentExperiment.research_run_id ?? '',
       note: currentExperiment.note,
     })
     setExperimentEditParams(currentExperiment.params)
@@ -226,6 +241,7 @@ export default function StrategyLabPage() {
       const response = await api.createStrategyExperiment(definitionId, {
         symbol: experimentForm.symbol.trim().toUpperCase(), market: experimentForm.market,
         timeframe: experimentForm.timeframe, version_id: experimentForm.version_id || null,
+        research_run_id: experimentForm.research_run_id || null,
         params: experimentParams, note: experimentForm.note.trim(),
       })
       selectExperiment(response.experiment.id)
@@ -330,6 +346,7 @@ export default function StrategyLabPage() {
     await api.updateStrategyExperiment(experimentId, {
       symbol: experimentEditForm.symbol.trim().toUpperCase(), market: experimentEditForm.market,
       timeframe: experimentEditForm.timeframe, version_id: experimentEditForm.version_id || null,
+      research_run_id: experimentEditForm.research_run_id || null,
       params: experimentEditParams, note: experimentEditForm.note.trim(),
     })
     changed('策略实验已更新')
@@ -356,6 +373,7 @@ export default function StrategyLabPage() {
   const experimentColumns: Column<StrategyExperiment>[] = [
     { key: 'symbol', header: '实验', render: (row) => <><b className={s.code}>{row.symbol}</b><div className={s.meta}>{row.market} · {row.timeframe}</div></> },
     { key: 'status', header: '状态', render: (row) => row.status },
+    { key: 'research_run_id', header: '研究来源', render: (row) => row.research_run_id ? <a href={`/factor-research?run_id=${encodeURIComponent(row.research_run_id)}`} className={s.code} onClick={(event) => event.stopPropagation()}>{row.research_run_id.slice(0, 12)}</a> : '独立实验' },
     { key: 'version_id', header: '版本', render: (row) => row.version_id ? <span className={s.code}>{row.version_id.slice(0, 12)}</span> : '未绑定' },
     { key: 'created_at', header: '创建时间', render: (row) => formatTime(row.created_at) },
     { key: 'note', header: '备注', render: (row) => row.note || '—' },
@@ -394,7 +412,12 @@ export default function StrategyLabPage() {
       {requestedAction === 'create_experiment' && (
         <div className={s.contextNotice} role="status">
           <strong>已带入因子研究上下文</strong>
-          <span>{requestedSymbol} · {requestedMarket} · {requestedTimeframe}；选择已有策略定义后可直接创建实验，没有定义时先完成新建。</span>
+          <span>
+            {requestedSymbol} · {requestedMarket} · {requestedTimeframe}
+            {requestedResearchRunId ? ` · 研究 ${requestedResearchRunId}` : ''}
+            ；选择已有策略定义后可直接创建实验，没有定义时先完成新建。
+          </span>
+          {requestedResearchRunId && <a href={`/factor-research?run_id=${encodeURIComponent(requestedResearchRunId)}`}>返回因子研究</a>}
         </div>
       )}
 
@@ -463,9 +486,10 @@ export default function StrategyLabPage() {
           <form ref={experimentFormRef} className={s.section} onSubmit={createExperiment}>
             <div className={s.sectionHead}><div><h2>创建实验</h2><span>定义、版本、标的和周期组成实验上下文</span></div></div>
             <div className={s.formGrid}>
-              <label>标的<Input value={experimentForm.symbol} onChange={(event) => setExperimentForm({ ...experimentForm, symbol: event.target.value })} /></label>
-              <label>市场<Select options={MARKETS} value={experimentForm.market} onChange={(event) => setExperimentForm({ ...experimentForm, market: event.target.value })} /></label>
-              <label>周期<Input value={experimentForm.timeframe} onChange={(event) => setExperimentForm({ ...experimentForm, timeframe: event.target.value })} /></label>
+              <label>标的<Input value={experimentForm.symbol} disabled={Boolean(experimentForm.research_run_id)} onChange={(event) => setExperimentForm({ ...experimentForm, symbol: event.target.value })} /></label>
+              <label>市场<Select options={MARKETS} value={experimentForm.market} disabled={Boolean(experimentForm.research_run_id)} onChange={(event) => setExperimentForm({ ...experimentForm, market: event.target.value })} /></label>
+              <label>周期<Input value={experimentForm.timeframe} disabled={Boolean(experimentForm.research_run_id)} onChange={(event) => setExperimentForm({ ...experimentForm, timeframe: event.target.value })} /></label>
+              {experimentForm.research_run_id && <label className={s.grow}>研究运行<Input value={experimentForm.research_run_id} readOnly variant="mono" /></label>}
               <label>版本<Select options={versionOptions} value={experimentForm.version_id} onChange={(event) => {
                 const versionId = event.target.value
                 setExperimentForm({ ...experimentForm, version_id: versionId })
@@ -538,11 +562,20 @@ export default function StrategyLabPage() {
         <>
         <div className={s.workflowStep}><span>03</span><div><h2>运行与比较</h2><p>保留数据快照、种子、结果与指标差异</p></div></div>
         <section className={s.section}>
-          <div className={s.sectionHead}><div><h2>运行回测</h2><span>{currentExperiment.symbol} · {currentExperiment.market} · {currentExperiment.timeframe}</span></div></div>
+          <div className={s.sectionHead}>
+            <div><h2>运行回测</h2><span>{currentExperiment.symbol} · {currentExperiment.market} · {currentExperiment.timeframe}</span></div>
+            {currentExperiment.research_run_id && <a href={`/factor-research?run_id=${encodeURIComponent(currentExperiment.research_run_id)}`}>返回因子研究</a>}
+          </div>
+          {currentExperiment.research_run_id && (
+            <div className={s.contextNotice} role="status">
+              <strong>研究上下文已锁定</strong>
+              <span>回测固定使用研究运行 {currentExperiment.research_run_id} 的行情快照，标的、市场、周期和数据哈希不可修改。</span>
+            </div>
+          )}
           <div className={s.formGrid}>
-            <label>实验标的<Input value={experimentEditForm.symbol} onChange={(event) => setExperimentEditForm({ ...experimentEditForm, symbol: event.target.value })} /></label>
-            <label>市场<Select options={MARKETS} value={experimentEditForm.market} onChange={(event) => setExperimentEditForm({ ...experimentEditForm, market: event.target.value })} /></label>
-            <label>周期<Input value={experimentEditForm.timeframe} onChange={(event) => setExperimentEditForm({ ...experimentEditForm, timeframe: event.target.value })} /></label>
+            <label>实验标的<Input value={experimentEditForm.symbol} disabled={experimentContextLocked} onChange={(event) => setExperimentEditForm({ ...experimentEditForm, symbol: event.target.value })} /></label>
+            <label>市场<Select options={MARKETS} value={experimentEditForm.market} disabled={experimentContextLocked} onChange={(event) => setExperimentEditForm({ ...experimentEditForm, market: event.target.value })} /></label>
+            <label>周期<Input value={experimentEditForm.timeframe} disabled={experimentContextLocked} onChange={(event) => setExperimentEditForm({ ...experimentEditForm, timeframe: event.target.value })} /></label>
             <label>版本<Select options={versionOptions} value={experimentEditForm.version_id} onChange={(event) => setExperimentEditForm({ ...experimentEditForm, version_id: event.target.value })} /></label>
             <label className={s.grow}>备注<Input value={experimentEditForm.note} onChange={(event) => setExperimentEditForm({ ...experimentEditForm, note: event.target.value })} /></label>
             <div className={s.controlledParams}><StructuredParamsEditor name={currentDefinition?.strategy_key ?? ''} params={experimentEditParams} onChange={setExperimentEditParams} /></div>
@@ -554,7 +587,7 @@ export default function StrategyLabPage() {
           </div>
           <form className={s.toolbar} onSubmit={runBacktest}>
             <label className={s.compact}>初始资金<Input type="number" min="1" value={runForm.initial_capital} onChange={(event) => setRunForm({ ...runForm, initial_capital: Number(event.target.value) })} /></label>
-            <label className={s.compact}>K线数量<Input type="number" min="2" max="10000" value={runForm.limit} onChange={(event) => setRunForm({ ...runForm, limit: Number(event.target.value) })} /></label>
+            <label className={s.compact}>{experimentContextLocked ? 'K线数量（研究快照）' : 'K线数量'}<Input type="number" min="2" max="10000" value={runForm.limit} disabled={experimentContextLocked} onChange={(event) => setRunForm({ ...runForm, limit: Number(event.target.value) })} /></label>
             <label className={s.grow}>随机种子<Input value={runForm.seed} onChange={(event) => setRunForm({ ...runForm, seed: event.target.value })} placeholder="可留空" /></label>
             <Button type="submit" variant="primary" loading={busy === 'run'}>运行并保存</Button>
           </form>

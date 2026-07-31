@@ -18,6 +18,8 @@ const SOURCE_LABELS: Record<IncidentSource, string> = {
   automation_run: '自动化',
   ledger_sync: '账本同步',
   data_source: '数据源',
+  research_run: '统计验证',
+  research_persistence: '研究持久化',
 }
 
 function isDataSourceOperation(value: unknown): value is DataSourceOperation {
@@ -46,6 +48,8 @@ export default function IncidentsPage() {
       automation_run: 0,
       ledger_sync: 0,
       data_source: 0,
+      research_run: 0,
+      research_persistence: 0,
     }
     ;(incidents.data?.incidents ?? []).forEach((item) => { result[item.source] += 1 })
     return result

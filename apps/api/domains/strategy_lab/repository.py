@@ -47,6 +47,7 @@ def _exp_row(row) -> Experiment:
         symbol=row["symbol"],
         market=row["market"],
         timeframe=row["timeframe"],
+        research_run_id=row["research_run_id"],
         status=row["status"],
         params=json.loads(row["params"]) if row["params"] else {},
         note=row["note"],
@@ -251,6 +252,7 @@ def create_experiment(
     market: str,
     timeframe: str,
     version_id: str | None,
+    research_run_id: str | None,
     params: dict,
     note: str,
 ) -> Experiment:
@@ -258,12 +260,13 @@ def create_experiment(
     eid = str(uuid.uuid4())
     with store._lock, store._conn() as c:
         c.execute(
-            """INSERT INTO experiments (id, definition_id, version_id, instrument_id, symbol, market, timeframe, status, params, note, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)""",
+            """INSERT INTO experiments (id, definition_id, version_id, research_run_id, instrument_id, symbol, market, timeframe, status, params, note, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)""",
             (
                 eid,
                 definition_id,
                 version_id,
+                research_run_id,
                 instrument_id,
                 symbol,
                 market,
@@ -283,6 +286,7 @@ def create_experiment(
         symbol=symbol,
         market=market,
         timeframe=timeframe,
+        research_run_id=research_run_id,
         params=params,
         note=note,
         created_at=now,
@@ -322,6 +326,7 @@ def update_experiment(
     timeframe: str,
     instrument_id: str,
     version_id: str | None,
+    research_run_id: str | None,
     params: dict,
     note: str,
 ) -> Experiment | None:
@@ -329,13 +334,14 @@ def update_experiment(
     with store._lock, store._conn() as c:
         c.execute(
             """UPDATE experiments SET instrument_id=?, symbol=?, market=?, timeframe=?, version_id=?,
-               params=?, note=?, updated_at=? WHERE id=?""",
+               research_run_id=?, params=?, note=?, updated_at=? WHERE id=?""",
             (
                 instrument_id,
                 symbol,
                 market,
                 timeframe,
                 version_id,
+                research_run_id,
                 json.dumps(params),
                 note,
                 now,

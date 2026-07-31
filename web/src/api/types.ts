@@ -39,6 +39,8 @@ export interface HealthResp {
   deployment_mode: string
   started_at: string
   build_id: string
+  current_source_build_id: string
+  restart_required: boolean
 }
 
 export interface DataSourceStatusResp {
@@ -138,6 +140,8 @@ export interface ResearchRun {
   error: string | null
   note: string
   favorite: boolean
+  tags: string[]
+  archived_at: number | null
   created_at: number
   updated_at: number
   evidence_count: number
@@ -391,6 +395,8 @@ export interface FactorEvaluation {
   label: string
   category: string
   description: string
+  formula: string
+  formula_version: string
   direction: 'positive' | 'inverse'
   status: FactorStatus
   score: number
@@ -404,13 +410,55 @@ export interface FactorEvaluation {
   icir: number
   positive_ic_ratio: number
   p_value: number
+  adjusted_p_value?: number
+  statistically_significant?: boolean
   decay: Array<{ horizon: number; ic: number }>
   hit_rate: number
   observations: number
   test_observations: number
+  effective_observations?: number
+  effective_observations_basis?: 'hac_implied'
+  p_value_method?: 'newey_west_hac'
+  hac_lags?: number
+  window_pass_rate?: number
+  passed_windows?: number
+  window_count?: number
+  worst_window_ic?: number
+  median_window_ic?: number
+  window_ic_iqr?: number
+  status_transitions?: number
+  direction_flips?: number
+  multi_window_consistent?: boolean
+  windows?: FactorValidationWindow[]
   stable: boolean
   selected: boolean
   weight: number
+}
+
+export interface FactorWindowRange {
+  start_index: number
+  end_index: number
+  start: string | null
+  end: string | null
+  rows: number
+}
+
+export interface FactorValidationWindow {
+  fold: number
+  mode: 'expanding' | 'rolling'
+  train: FactorWindowRange
+  purge: FactorWindowRange
+  test: FactorWindowRange
+  direction?: 'positive' | 'inverse'
+  train_observations?: number
+  test_observations?: number
+  train_ic?: number
+  test_ic?: number
+  hit_rate?: number
+  p_value?: number
+  effective_observations?: number
+  hac_lags?: number
+  status?: 'pass' | 'watch' | 'reject'
 }
 
 export interface QuantMethodResult {
@@ -429,9 +477,17 @@ export interface QuantMethodResult {
   cvar_95: number
   ulcer_index: number
   profit_factor: number
+  profit_factor_basis?: 'holding_period_returns' | 'closed_trades'
   max_drawdown_duration: number
   average_holding_period: number
   win_rate: number
+  win_rate_basis?: 'holding_period_returns' | 'closed_trades'
+  closed_trades?: number
+  open_trade?: boolean
+  average_trade_return?: number
+  average_win?: number
+  average_loss?: number
+  payoff_ratio?: number
   turnover: number
   trades: number
   exposure: number
@@ -457,6 +513,10 @@ export interface FactorResearchResp {
   market: string
   interval: string
   source: string
+  requested_period?: {
+    start_date: string | null
+    end_date: string | null
+  }
   quality: {
     status: string
     usable: boolean
@@ -471,13 +531,26 @@ export interface FactorResearchResp {
     train_rows: number
     purged_rows: number
     test_rows: number
+    walk_forward_test_rows?: number
     horizon: number
     transaction_cost_bps: number
+    significance_level?: number
     usable_factors: number
     selected_factors: string[]
     best_factor: string | null
     best_method: string | null
-    evaluation_scope: 'out_of_sample'
+    evaluation_scope: 'out_of_sample' | 'walk_forward_out_of_sample'
+    significance_method?: 'newey_west_hac_benjamini_hochberg'
+    walk_forward_mode?: 'expanding' | 'rolling'
+    requested_walk_forward_folds?: number
+    walk_forward_folds?: number
+    window_pass_requirement?: 'strict_majority'
+    engine_version?: string
+    factor_formula_version?: string
+    data_fingerprint?: string
+    research_period?: { start: string; end: string }
+    thresholds?: Record<string, number | string>
+    windows?: FactorValidationWindow[]
   }
   factors: FactorEvaluation[]
   methods: QuantMethodResult[]
@@ -510,11 +583,23 @@ export interface FactorResearchResp {
   }
   curve: FactorCurvePoint[]
   method_curves: Record<string, FactorCurvePoint[]>
+  cost_analysis?: {
+    basis: 'multifactor_final_out_of_sample_window'
+    curve: Array<{ transaction_cost_bps: number; total_return: number }>
+    breakeven_transaction_cost_bps: number | null
+  }
   methodology: {
     split: string
     execution: string
     usable_rule: string
     warning: string
+    metric_definitions?: Array<{
+      key: string
+      label: string
+      formula: string
+      unit: string
+      source: string
+    }>
   }
 }
 
@@ -572,6 +657,128 @@ export interface FactorResearchRunDetailResp {
   run: ResearchRun
   result: FactorResearchResp | null
   ai_review: FactorAiReviewResp | null
+}
+
+export interface FactorUniverse {
+  id: string
+  name: string
+  market: 'a_shares' | 'us_stocks' | 'crypto' | 'mt5'
+  description: string
+  created_at: number
+  updated_at: number
+}
+
+export interface FactorUniverseMember {
+  id: string
+  universe_id: string
+  instrument_id: string
+  symbol: string
+  effective_from: string
+  effective_to: string | null
+  status: 'active' | 'suspended' | 'delisted'
+  industry: string
+  market_cap: number | null
+  beta: number | null
+  is_st: boolean
+  listed_at: string | null
+  delisted_at: string | null
+  created_at: number
+  updated_at: number
+}
+
+export interface FactorResearchJob {
+  id: string
+  name: string
+  universe_id: string
+  cron: string
+  enabled: boolean
+  request: {
+    universe_id: string
+    factor_key: string
+    interval: '1d'
+    limit: number
+    horizon: number
+    transaction_cost_bps: number
+    participation_rate: number
+  }
+  created_at: number
+  updated_at: number
+  updated_by: string
+}
+
+export interface CrossSectionResearchResp {
+  ok: boolean
+  error?: string
+  run_id: string
+  engine_version?: string
+  universe?: FactorUniverse
+  loaded_symbols?: number
+  failed_symbols?: number
+  failures: Array<{ symbol: string; attempts: number; error: string }>
+  factor?: {
+    key: string
+    label: string
+    category: string
+    description: string
+    formula: string
+    formula_version: string
+    status: FactorStatus
+  }
+  summary?: {
+    dates: number
+    rank_ic_mean: number
+    rank_ic_median: number
+    rank_ic_std: number
+    icir: number
+    positive_rank_ic_ratio: number
+    long_short_total_return: number
+    coverage: number
+    missing_rate: number
+    average_turnover: number
+    median_capacity: number
+    median_crowding_hhi: number
+    neutralization_failures: number
+    minimum_valid_assets: number
+    median_valid_assets: number
+    data_fingerprint: string
+  }
+  quantile_returns?: Array<{ quantile: number; mean_forward_return: number }>
+  series?: Array<{
+    date: string
+    eligible_assets: number
+    valid_assets: number
+    coverage: number
+    rank_ic: number
+    long_short_return: number
+    net_long_short_return: number
+    turnover: number
+    capacity: number
+    crowding_hhi: number | null
+    long_symbols: string[]
+    short_symbols: string[]
+  }>
+  methodology?: Record<string, unknown>
+}
+
+export interface CrossMarketFactorStatus {
+  ok: boolean
+  factor_key: string
+  trading_validation_status: 'passed' | 'insufficient_evidence'
+  trading_validation_passed: boolean
+  required_markets: string[]
+  rule: string
+  rows: Array<{
+    market: string
+    state: 'passed' | 'failed' | 'missing'
+    run_id: string | null
+    run_status: string | null
+    factor_status: FactorStatus | null
+    dates: number | null
+    minimum_valid_assets: number | null
+    rank_ic_mean: number | null
+    coverage: number | null
+    updated_at: number | null
+  }>
 }
 
 // ---- G7 组合管理 ----
@@ -1131,6 +1338,7 @@ export interface StrategyDefinition {
 export interface StrategyExperiment {
   id: string
   definition_id: string
+  research_run_id?: string | null
   symbol: string
   market: string
   timeframe: string
@@ -1214,7 +1422,7 @@ export interface AutomationRun {
   id: string
   job_name: string
   status: AutomationRunStatus
-  trigger_type: 'manual' | 'retry'
+  trigger_type: 'manual' | 'scheduled' | 'retry'
   attempt: number
   parent_run_id: string | null
   log: string
@@ -1313,6 +1521,10 @@ export type AlertRuleType =
   | 'signal_created'
   | 'evaluation_changed'
   | 'risk_invalidated'
+  | 'factor_status_changed'
+  | 'factor_ic_decay'
+  | 'factor_drawdown_breach'
+  | 'factor_data_stale'
 
 export interface AlertRule {
   id: string
@@ -1442,7 +1654,7 @@ export interface BackupRetentionResult {
   actor: string
 }
 
-export type IncidentSource = 'analysis_task' | 'automation_run' | 'ledger_sync' | 'data_source'
+export type IncidentSource = 'analysis_task' | 'automation_run' | 'ledger_sync' | 'data_source' | 'research_run' | 'research_persistence'
 
 export interface IncidentAction {
   type:
@@ -1472,6 +1684,48 @@ export interface IncidentRecord {
   error: string
   context: Record<string, string | number | boolean | null>
   actions: IncidentAction[]
+}
+
+export interface FactorStatusMatrixRow {
+  dimension: 'window' | 'cross_symbol' | 'market'
+  key: string
+  label: string
+  state: 'passed' | 'failed' | 'missing'
+  rule: string
+  evidence: Record<string, unknown>
+  run_id: string | null
+  updated_at: number | null
+}
+
+export interface FactorStatusMatrix {
+  ok: boolean
+  factor_key: string
+  dimensions: string[]
+  rows: FactorStatusMatrixRow[]
+  counts: Record<'passed' | 'failed' | 'missing', number>
+}
+
+export interface FactorResearchAttentionItem {
+  run_id: string
+  symbol: string
+  market: string
+  timeframe: string
+  states: Array<'needs_revalidation' | 'invalidated' | 'data_stale'>
+  updated_at: number
+  age_hours: number
+  evidence: {
+    watch_factors: string[]
+    inconsistent_factors: string[]
+    rejected_factors: string[]
+  }
+}
+
+export interface FactorResearchAttention {
+  ok: boolean
+  stale_hours: number
+  rules: Record<string, string>
+  counts: Record<'needs_revalidation' | 'invalidated' | 'data_stale', number>
+  items: FactorResearchAttentionItem[]
 }
 
 // ---------- 新闻结构化分析（Phase 1：本地 LM Studio） ----------

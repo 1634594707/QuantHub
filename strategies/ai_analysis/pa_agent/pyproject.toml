@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "quanthub-pa-agent"
-version = "0.1.1"
+version = "0.2.0"
 description = "价格行为两阶段 LLM 分析（Al Brooks PA Agent 迁移版）"
 requires-python = ">=3.11,<3.13"
 dependencies = [

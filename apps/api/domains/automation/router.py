@@ -5,7 +5,12 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Query
 
 from . import service
-from .schemas import AutomationActionRequest, AutomationJobUpdate
+from .schemas import (
+    AutomationActionRequest,
+    AutomationJobUpdate,
+    FactorResearchJobCreate,
+    FactorResearchJobUpdate,
+)
 
 router = APIRouter(prefix="/automation", tags=["automation"])
 
@@ -30,6 +35,33 @@ def list_jobs() -> dict:
     return service.list_jobs()
 
 
+@router.get("/factor-research-jobs")
+def list_factor_research_jobs() -> dict:
+    return service.list_factor_research_jobs()
+
+
+@router.post("/factor-research-jobs", status_code=201)
+def create_factor_research_job(payload: FactorResearchJobCreate) -> dict:
+    try:
+        job = service.create_factor_research_job(payload)
+    except Exception as exc:  # noqa: BLE001 - map service failures to HTTP responses
+        _raise_service_error(exc)
+    return {"ok": True, "job": job}
+
+
+@router.patch("/factor-research-jobs/{job_id}")
+def update_factor_research_job(job_id: str, payload: FactorResearchJobUpdate) -> dict:
+    try:
+        job = service.update_factor_research_job(
+            job_id,
+            payload.model_dump(exclude_unset=True, exclude={"actor"}),
+            actor=payload.actor,
+        )
+    except Exception as exc:  # noqa: BLE001 - map service failures to HTTP responses
+        _raise_service_error(exc)
+    return {"ok": True, "job": job}
+
+
 @router.get("/jobs/{name}")
 def get_job(name: str) -> dict:
     result = service.get_job(name)
@@ -49,7 +81,7 @@ def update_job(name: str, payload: AutomationJobUpdate) -> dict:
             cron=payload.cron,
             actor=payload.actor,
         )
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - map service failures to HTTP responses
         _raise_service_error(exc)
     return {"ok": True, "job": job}
 
@@ -58,7 +90,7 @@ def update_job(name: str, payload: AutomationJobUpdate) -> dict:
 def run_job(name: str, payload: AutomationActionRequest) -> dict:
     try:
         run = service.submit_run(name, actor=payload.actor)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - map service failures to HTTP responses
         _raise_service_error(exc)
     return {"ok": True, "run": run}
 
@@ -80,7 +112,7 @@ def list_runs(
 def get_run(run_id: str) -> dict:
     try:
         run = service.get_run(run_id)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - map service failures to HTTP responses
         _raise_service_error(exc)
     return {"ok": True, "run": run}
 
@@ -89,7 +121,7 @@ def get_run(run_id: str) -> dict:
 def retry_run(run_id: str, payload: AutomationActionRequest) -> dict:
     try:
         run = service.retry_run(run_id, actor=payload.actor)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - map service failures to HTTP responses
         _raise_service_error(exc)
     return {"ok": True, "run": run}
 
@@ -98,7 +130,7 @@ def retry_run(run_id: str, payload: AutomationActionRequest) -> dict:
 def acknowledge_run(run_id: str, payload: AutomationActionRequest) -> dict:
     try:
         run = service.acknowledge_run(run_id, actor=payload.actor)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - map service failures to HTTP responses
         _raise_service_error(exc)
     return {"ok": True, "run": run}
 
@@ -109,9 +141,7 @@ def list_alerts(limit: int = Query(default=100, ge=1, le=500)) -> dict:
 
 
 @router.get("/audit")
-def list_audit(
-    limit: int = Query(default=100, ge=1, le=500), cursor: str | None = None
-) -> dict:
+def list_audit(limit: int = Query(default=100, ge=1, le=500), cursor: str | None = None) -> dict:
     try:
         return service.audit_logs(limit=limit, cursor=cursor)
     except ValueError as exc:

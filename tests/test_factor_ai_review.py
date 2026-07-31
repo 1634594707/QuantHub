@@ -39,6 +39,17 @@ def research_result() -> dict:
                 "positive_ic_ratio": 0.6,
                 "hit_rate": 0.55,
                 "p_value": 0.04,
+                "p_value_method": "newey_west_hac",
+                "window_pass_rate": 0.6667,
+                "passed_windows": 2,
+                "window_count": 3,
+                "worst_window_ic": -0.01,
+                "median_window_ic": 0.09,
+                "window_ic_iqr": 0.04,
+                "status_transitions": 1,
+                "direction_flips": 0,
+                "multi_window_consistent": True,
+                "windows": [{"fold": 1, "test_ic": 0.08, "status": "pass"}],
                 "decay": [{"horizon": 5, "ic": 0.09}],
                 "test_observations": 145,
             }
@@ -123,6 +134,13 @@ class FactorAiReviewTests(unittest.TestCase):
         self.assertEqual(kwargs["request_timeout"], 120)
         self.assertEqual(kwargs["max_tokens"], 1200)
         self.assertEqual(kwargs["transport_max_retries"], 0)
+        encoded_context = json.loads(response_client.calls[0][0][-1]["content"].split("\n", 1)[1])
+        reviewed_factor = encoded_context["review_factors"][0]
+        self.assertEqual(reviewed_factor["p_value_method"], "newey_west_hac")
+        self.assertEqual(reviewed_factor["passed_windows"], 2)
+        self.assertEqual(reviewed_factor["window_count"], 3)
+        self.assertEqual(reviewed_factor["worst_window_ic"], -0.01)
+        self.assertTrue(reviewed_factor["multi_window_consistent"])
 
     def test_unknown_factor_key_triggers_one_correction(self) -> None:
         client = SequenceClient([valid_review("invented_factor"), valid_review()])

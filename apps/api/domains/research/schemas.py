@@ -51,6 +51,42 @@ class ResearchRunUpdate(BaseModel):
     error: str | None = None
     note: str | None = Field(default=None, max_length=4000)
     favorite: bool | None = None
+    tags: list[str] | None = Field(default=None, max_length=20)
+    archived: bool | None = None
+
+    @field_validator("tags")
+    @classmethod
+    def normalize_tags(cls, value: list[str] | None) -> list[str] | None:
+        if value is None:
+            return None
+        normalized = list(dict.fromkeys(item.strip() for item in value if item.strip()))
+        if any(len(item) > 40 for item in normalized):
+            raise ValueError("单个标签不能超过 40 个字符")
+        return normalized
+
+
+class ResearchRunsBatchUpdate(BaseModel):
+    run_ids: list[str] = Field(min_length=1, max_length=100)
+    tags: list[str] | None = Field(default=None, max_length=20)
+    archived: bool | None = None
+
+    @field_validator("run_ids")
+    @classmethod
+    def normalize_run_ids(cls, value: list[str]) -> list[str]:
+        normalized = list(dict.fromkeys(item.strip() for item in value if item.strip()))
+        if not normalized:
+            raise ValueError("至少需要一个研究运行 ID")
+        return normalized
+
+    @field_validator("tags")
+    @classmethod
+    def normalize_batch_tags(cls, value: list[str] | None) -> list[str] | None:
+        if value is None:
+            return None
+        normalized = list(dict.fromkeys(item.strip() for item in value if item.strip()))
+        if any(len(item) > 40 for item in normalized):
+            raise ValueError("单个标签不能超过 40 个字符")
+        return normalized
 
 
 class ResearchEvidenceCreate(BaseModel):

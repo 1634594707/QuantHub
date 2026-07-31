@@ -11,6 +11,7 @@ import pandas as pd
 import requests
 
 from core.data_feed.base import DataSource, Interval
+from core.data_feed.quality import normalize_ohlcv_rows
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +23,8 @@ _INTERVALS = {
     Interval.DAILY: "1d",
     Interval.WEEKLY: "1wk",
 }
+_CORPORATE_ACTION_RATIO_CHANGE_THRESHOLD = 0.05
+_ADJUSTED_RETURN_DISCONTINUITY_THRESHOLD = 0.35
 
 
 class YahooSource(DataSource):
@@ -111,6 +114,8 @@ def _chart_to_frame(payload: dict, symbol: str, interval: Interval, limit: int) 
         return pd.DataFrame()
 
     volume = quote_data.get("volume") or []
+    adjusted_sets = result.get("indicators", {}).get("adjclose") or []
+    adjusted_close = adjusted_sets[0].get("adjclose") or [] if adjusted_sets else []
     frame = pd.DataFrame(
         {
             "datetime": pd.to_datetime(timestamps[:row_count], unit="s", utc=True).tz_convert(None),
@@ -118,16 +123,30 @@ def _chart_to_frame(payload: dict, symbol: str, interval: Interval, limit: int) 
             "high": quote_data["high"][:row_count],
             "low": quote_data["low"][:row_count],
             "close": quote_data["close"][:row_count],
+            "adjusted_close": [
+                adjusted_close[index] if index < len(adjusted_close) else pd.NA
+                for index in range(row_count)
+            ],
             "volume": [
                 volume[index] if index < len(volume) else pd.NA for index in range(row_count)
             ],
         }
     )
-    numeric_columns = ["open", "high", "low", "close", "volume"]
+    numeric_columns = ["open", "high", "low", "close", "adjusted_close", "volume"]
     frame[numeric_columns] = frame[numeric_columns].apply(pd.to_numeric, errors="coerce")
     frame = frame.dropna(subset=["datetime", "open", "high", "low", "close"])
     frame = frame[(frame[["open", "high", "low", "close"]] > 0).all(axis=1)]
-    frame = frame.sort_values("datetime").drop_duplicates("datetime", keep="last")
+    frame = normalize_ohlcv_rows(frame)
+    adjustment_ratio = frame["adjusted_close"].div(frame["close"])
+    adjustment_ratio = adjustment_ratio.where(
+        frame["adjusted_close"].gt(0) & adjustment_ratio.gt(0),
+        1.0,
+    )
+    _validate_adjustment_continuity(frame, adjustment_ratio, symbol)
+    frame[["open", "high", "low", "close"]] = frame[["open", "high", "low", "close"]].mul(
+        adjustment_ratio, axis=0
+    )
+    frame = frame.drop(columns=["adjusted_close"])
     if limit > 0:
         frame = frame.tail(limit)
     frame["symbol"] = symbol.strip().upper()
@@ -135,7 +154,7 @@ def _chart_to_frame(payload: dict, symbol: str, interval: Interval, limit: int) 
     frame["interval"] = interval.value
     frame["amount"] = pd.NA
     frame["turnover"] = pd.NA
-    return frame[
+    result = frame[
         [
             "symbol",
             "market",
@@ -150,3 +169,25 @@ def _chart_to_frame(payload: dict, symbol: str, interval: Interval, limit: int) 
             "turnover",
         ]
     ].reset_index(drop=True)
+    result.attrs["corporate_action_adjustment"] = "adjclose_ratio"
+    return result
+
+
+def _validate_adjustment_continuity(
+    frame: pd.DataFrame,
+    adjustment_ratio: pd.Series,
+    symbol: str,
+) -> None:
+    ratio_change = adjustment_ratio.pct_change().abs()
+    adjusted_return = frame["adjusted_close"].pct_change().abs()
+    discontinuity = ratio_change.ge(_CORPORATE_ACTION_RATIO_CHANGE_THRESHOLD) & adjusted_return.ge(
+        _ADJUSTED_RETURN_DISCONTINUITY_THRESHOLD
+    )
+    if not discontinuity.any():
+        return
+    index = discontinuity[discontinuity].index[0]
+    timestamp = frame.loc[index, "datetime"]
+    raise ValueError(
+        f"Yahoo 复权连续性检查失败: {symbol.strip().upper()} {timestamp.isoformat()} "
+        f"复权比例变化 {ratio_change.loc[index]:.2%}，复权收盘变化 {adjusted_return.loc[index]:.2%}"
+    )

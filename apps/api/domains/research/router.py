@@ -10,6 +10,7 @@ from .schemas import (
     ResearchCompareRequest,
     ResearchEvidenceCreate,
     ResearchRunCreate,
+    ResearchRunsBatchUpdate,
     ResearchRunUpdate,
 )
 
@@ -78,6 +79,17 @@ def get_run(run_id: str) -> dict:
     if run is None:
         raise HTTPException(status_code=404, detail=f"研究运行不存在: {run_id}")
     return {"ok": True, "run": run}
+
+
+@router.patch("/runs/batch")
+def update_runs_batch(req: ResearchRunsBatchUpdate) -> dict:
+    patch = req.model_dump(exclude_unset=True, exclude={"run_ids"})
+    existing = {run_id for run_id in req.run_ids if store.get_research_run(run_id) is not None}
+    if len(existing) != len(req.run_ids):
+        missing = [run_id for run_id in req.run_ids if run_id not in existing]
+        raise HTTPException(status_code=404, detail=f"研究运行不存在: {', '.join(missing)}")
+    runs = store.update_research_runs(req.run_ids, patch)
+    return {"ok": True, "count": len(runs), "runs": runs}
 
 
 @router.get("/runs/{run_id}/export")

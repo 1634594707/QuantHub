@@ -1885,7 +1885,7 @@ wheels = [
 
 [[package]]
 name = "quanthub"
-version = "0.1.1"
+version = "0.2.0"
 source = { editable = "." }
 dependencies = [
     { name = "alembic" },
@@ -1984,7 +1984,7 @@ test = [{ name = "httpx2", specifier = ">=2.7,<3" }]
 
 [[package]]
 name = "quanthub-alphagpt"
-version = "0.1.1"
+version = "0.2.0"
 source = { editable = "strategies/crypto/alphagpt" }
 dependencies = [
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
@@ -2011,7 +2011,7 @@ provides-extras = ["solana"]
 
 [[package]]
 name = "quanthub-alphamaster"
-version = "0.1.1"
+version = "0.2.0"
 source = { editable = "strategies/mt5/alphamaster" }
 dependencies = [
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
@@ -2029,7 +2029,7 @@ requires-dist = [
 
 [[package]]
 name = "quanthub-api"
-version = "0.1.1"
+version = "0.2.0"
 source = { editable = "apps/api" }
 dependencies = [
     { name = "alembic" },
@@ -2060,12 +2060,12 @@ requires-dist = [
 
 [[package]]
 name = "quanthub-apps-pa-agent"
-version = "0.1.1"
+version = "0.2.0"
 source = { editable = "apps/pa_agent" }
 
 [[package]]
 name = "quanthub-core"
-version = "0.1.1"
+version = "0.2.0"
 source = { editable = "core" }
 dependencies = [
     { name = "pydantic" },
@@ -2103,7 +2103,7 @@ provides-extras = ["data-feed", "llm", "backtest"]
 
 [[package]]
 name = "quanthub-dispatcher"
-version = "0.1.1"
+version = "0.2.0"
 source = { editable = "apps/dispatcher" }
 dependencies = [
     { name = "quanthub-core" },
@@ -2114,7 +2114,7 @@ requires-dist = [{ name = "quanthub-core", editable = "core" }]
 
 [[package]]
 name = "quanthub-morning-brief"
-version = "0.1.1"
+version = "0.2.0"
 source = { editable = "strategies/a_shares/morning_brief" }
 dependencies = [
     { name = "openai" },
@@ -2129,7 +2129,7 @@ requires-dist = [
 
 [[package]]
 name = "quanthub-news-analyzer"
-version = "0.1.1"
+version = "0.2.0"
 source = { editable = "strategies/a_shares/news_analyzer" }
 dependencies = [
     { name = "openai" },
@@ -2146,7 +2146,7 @@ requires-dist = [
 
 [[package]]
 name = "quanthub-news-scanner"
-version = "0.1.1"
+version = "0.2.0"
 source = { editable = "strategies/a_shares/news_scanner" }
 dependencies = [
     { name = "openai" },
@@ -2163,7 +2163,7 @@ requires-dist = [
 
 [[package]]
 name = "quanthub-okx-grid"
-version = "0.1.1"
+version = "0.2.0"
 source = { editable = "strategies/crypto/okx_grid" }
 dependencies = [
     { name = "ccxt" },
@@ -2183,7 +2183,7 @@ requires-dist = [
 
 [[package]]
 name = "quanthub-pa-agent"
-version = "0.1.1"
+version = "0.2.0"
 source = { editable = "strategies/ai_analysis/pa_agent" }
 dependencies = [
     { name = "jsonschema" },
@@ -2202,7 +2202,7 @@ requires-dist = [
 
 [[package]]
 name = "quanthub-perks-monitor"
-version = "0.1.1"
+version = "0.2.0"
 source = { editable = "strategies/a_shares/perks_monitor" }
 dependencies = [
     { name = "quanthub-core" },
@@ -2213,7 +2213,7 @@ requires-dist = [{ name = "quanthub-core", editable = "core" }]
 
 [[package]]
 name = "quanthub-realtime-analyzer"
-version = "0.1.1"
+version = "0.2.0"
 source = { editable = "strategies/a_shares/realtime_analyzer" }
 dependencies = [
     { name = "openai" },
@@ -2228,7 +2228,7 @@ requires-dist = [
 
 [[package]]
 name = "quanthub-scheduler"
-version = "0.1.1"
+version = "0.2.0"
 source = { editable = "apps/scheduler" }
 dependencies = [
     { name = "apscheduler" },
@@ -2243,7 +2243,7 @@ requires-dist = [
 
 [[package]]
 name = "quanthub-selector"
-version = "0.1.1"
+version = "0.2.0"
 source = { editable = "strategies/a_shares/selector" }
 dependencies = [
     { name = "akshare" },
@@ -2263,7 +2263,7 @@ requires-dist = [
 
 [[package]]
 name = "quanthub-sentiment"
-version = "0.1.1"
+version = "0.2.0"
 source = { editable = "strategies/a_shares/sentiment" }
 dependencies = [
     { name = "quanthub-core" },
@@ -2280,7 +2280,7 @@ requires-dist = [
 
 [[package]]
 name = "quanthub-supertrend"
-version = "0.1.1"
+version = "0.2.0"
 source = { editable = "strategies/a_shares/supertrend" }
 dependencies = [
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },

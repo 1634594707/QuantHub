@@ -66,6 +66,7 @@ export default function OverviewPage() {
   )
   const pendingSignals = useApi(() => api.signals(50, undefined, 'new'), [], { retry: false })
   const pendingIncidents = useApi(() => api.incidents(50), [], { retry: false })
+  const factorAttention = useApi(() => api.factorResearchAttention(), [], { retry: false, pollInterval: 60000 })
   const automationAlerts = useApi(() => api.automationAlerts(50), [], { retry: false })
   const userAlerts = useApi(() => api.alertEvents(true, 50), [], { retry: false, pollInterval: 60000 })
   const firstPendingAlert = userAlerts.data?.events[0]
@@ -300,12 +301,12 @@ export default function OverviewPage() {
       </div>
       <div style={{ order: moduleOrder.indexOf('actions') }} hidden={dashboardLayout.hidden.includes('actions')}>
       <AsyncStateBoundary
-        loading={pendingSignals.loading || pendingIncidents.loading || automationAlerts.loading || userAlerts.loading || failedTasks.loading || simulationOrders.loading}
-        error={pendingSignals.error || pendingIncidents.error || automationAlerts.error || userAlerts.error || failedTasks.error || simulationOrders.error}
-        reconnecting={pendingSignals.reconnecting || pendingIncidents.reconnecting || automationAlerts.reconnecting || userAlerts.reconnecting || failedTasks.reconnecting || simulationOrders.reconnecting}
-        hasData={pendingSignals.data !== null && pendingIncidents.data !== null && automationAlerts.data !== null && userAlerts.data !== null && failedTasks.data !== null && simulationOrders.data !== null}
+        loading={pendingSignals.loading || pendingIncidents.loading || factorAttention.loading || automationAlerts.loading || userAlerts.loading || failedTasks.loading || simulationOrders.loading}
+        error={pendingSignals.error || pendingIncidents.error || factorAttention.error || automationAlerts.error || userAlerts.error || failedTasks.error || simulationOrders.error}
+        reconnecting={pendingSignals.reconnecting || pendingIncidents.reconnecting || factorAttention.reconnecting || automationAlerts.reconnecting || userAlerts.reconnecting || failedTasks.reconnecting || simulationOrders.reconnecting}
+        hasData={pendingSignals.data !== null && pendingIncidents.data !== null && factorAttention.data !== null && automationAlerts.data !== null && userAlerts.data !== null && failedTasks.data !== null && simulationOrders.data !== null}
         isEmpty={false}
-        onRetry={() => { void pendingSignals.refetch(); void pendingIncidents.refetch(); void automationAlerts.refetch(); void userAlerts.refetch(); void failedTasks.refetch(); void simulationOrders.refetch() }}
+        onRetry={() => { void pendingSignals.refetch(); void pendingIncidents.refetch(); void factorAttention.refetch(); void automationAlerts.refetch(); void userAlerts.refetch(); void failedTasks.refetch(); void simulationOrders.refetch() }}
         loadingTitle="正在读取待处理事项…"
         emptyTitle="暂无待处理事项"
       >
@@ -314,6 +315,9 @@ export default function OverviewPage() {
           { id: 'alerts', label: '待确认提醒', count: userAlerts.data?.count ?? 0, detail: firstPendingAlert ? `${firstPendingAlert.symbol} · ${firstPendingAlert.rule_name}` : '查看触发条件和关联记录', to: firstPendingAlert ? alertEventHref(firstPendingAlert) : '/alerts', tone: 'warning' },
           { id: 'tasks', label: '失败分析任务', count: failedTasks.data?.total ?? 0, detail: '查看错误并重试', to: '/tasks?status=failed', tone: 'danger' },
           { id: 'orders', label: '需处理订单', count: simulationAttentionCount, detail: '待成交或账本同步失败', to: '/simulation', tone: 'warning' },
+          { id: 'factor-revalidation', label: '需要复验研究', count: factorAttention.data?.counts.needs_revalidation ?? 0, detail: factorAttention.data?.items.find((item) => item.states.includes('needs_revalidation')) ? `${factorAttention.data.items.find((item) => item.states.includes('needs_revalidation'))?.symbol} · 查看窗口证据` : '查看多窗口一致性和观察状态', to: factorAttention.data?.items.find((item) => item.states.includes('needs_revalidation')) ? `/factor-research?run_id=${encodeURIComponent(factorAttention.data.items.find((item) => item.states.includes('needs_revalidation'))!.run_id)}` : '/factor-research', tone: 'warning' },
+          { id: 'factor-invalidated', label: '已失效研究', count: factorAttention.data?.counts.invalidated ?? 0, detail: factorAttention.data?.items.find((item) => item.states.includes('invalidated')) ? `${factorAttention.data.items.find((item) => item.states.includes('invalidated'))?.symbol} · 查看淘汰因子` : '查看已标记淘汰的因子证据', to: factorAttention.data?.items.find((item) => item.states.includes('invalidated')) ? `/factor-research?run_id=${encodeURIComponent(factorAttention.data.items.find((item) => item.states.includes('invalidated'))!.run_id)}` : '/factor-research', tone: 'danger' },
+          { id: 'factor-stale', label: '数据过期研究', count: factorAttention.data?.counts.data_stale ?? 0, detail: factorAttention.data?.items.find((item) => item.states.includes('data_stale')) ? `${factorAttention.data.items.find((item) => item.states.includes('data_stale'))?.symbol} · 已超过 ${factorAttention.data.stale_hours} 小时` : '查看超过时效阈值的研究', to: factorAttention.data?.items.find((item) => item.states.includes('data_stale')) ? `/factor-research?run_id=${encodeURIComponent(factorAttention.data.items.find((item) => item.states.includes('data_stale'))!.run_id)}` : '/factor-research', tone: 'warning' },
           { id: 'automation', label: '自动化告警', count: automationAlerts.data?.count ?? 0, detail: '确认或重试失败运行', to: '/automation', tone: 'warning' },
           { id: 'incidents', label: '全部故障', count: pendingIncidents.data?.total ?? 0, detail: '跨域故障统一处置', to: '/incidents', tone: 'danger' },
         ]} />

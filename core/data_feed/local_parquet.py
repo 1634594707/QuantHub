@@ -31,6 +31,7 @@ from typing import Any
 import pandas as pd
 
 from core.data_feed.base import DataSource, Interval
+from core.data_feed.quality import normalize_ohlcv_rows
 
 logger = logging.getLogger(__name__)
 
@@ -178,7 +179,7 @@ class LocalParquetSource(DataSource):
     ) -> pd.DataFrame | None:
         try:
             df = pd.read_parquet(path)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - parquet engines expose backend-specific errors
             logger.warning("[LocalParquet] 读取失败 %s: %s", path.name, exc)
             return None
 
@@ -213,6 +214,10 @@ class LocalParquetSource(DataSource):
         df["interval"] = interval
         df["amount"] = pd.NA
         df["turnover"] = pd.NA
+        if df["datetime"].notna().any():
+            df = normalize_ohlcv_rows(df)
+        else:
+            df = normalize_ohlcv_rows(df, time_column="bar_time")
         return df
 
     def _clip(self, df: pd.DataFrame, start, end, limit: int) -> pd.DataFrame:

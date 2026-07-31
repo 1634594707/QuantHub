@@ -8,12 +8,13 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Iterable
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 import pandas as pd
 import requests
 
 from core.data_feed.base import DataSource, Interval
+from core.data_feed.quality import normalize_ohlcv_rows
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +69,7 @@ class TencentSource(DataSource):
             raise ValueError(f"腾讯数据源仅支持日线/周线: {interval}")
 
         code = _to_tencent_code(symbol, self.market)
-        end = end or datetime.now()
+        end = end or datetime.now(UTC)
         start = start or (end - timedelta(days=limit * 2))
         start_str = start.strftime("%Y-%m-%d")
         end_str = end.strftime("%Y-%m-%d")
@@ -133,10 +134,13 @@ class TencentSource(DataSource):
                 "turnover",
             ]
         ]
+        df = normalize_ohlcv_rows(df)
         if start:
             df = df[df["datetime"] >= pd.to_datetime(start)]
         if end:
             df = df[df["datetime"] <= pd.to_datetime(end)]
         if limit and len(df) > limit:
             df = df.tail(limit).reset_index(drop=True)
-        return df.reset_index(drop=True)
+        df = df.reset_index(drop=True)
+        df.attrs["corporate_action_adjustment"] = "qfq"
+        return df

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "quanthub-selector"
-version = "0.1.1"
+version = "0.2.0"
 description = "A股选股神器"
 requires-python = ">=3.11,<3.13"
 dependencies = ["quanthub-core", "akshare>=1.16", "pandas>=2.2", "numpy>=1.26"]

@@ -13,12 +13,17 @@ const response = {
   summary: {
     rows: 500, train_rows: 345, purged_rows: 5, test_rows: 150, horizon: 5, transaction_cost_bps: 10,
     usable_factors: 1, selected_factors: ['trend_strength'], best_factor: 'trend_strength', best_method: 'multifactor',
-    evaluation_scope: 'out_of_sample',
+    evaluation_scope: 'walk_forward_out_of_sample', walk_forward_mode: 'expanding', walk_forward_folds: 3,
+    engine_version: '2.0.0', factor_formula_version: '1.0.0', data_fingerprint: 'a'.repeat(64),
+    research_period: { start: '2024-01-01T00:00:00', end: '2026-01-01T00:00:00' },
   },
   factors: [{
     key: 'trend_strength', label: '趋势强度', category: '趋势', description: '趋势描述', direction: 'positive', status: 'usable',
     score: 18.2, ic: 0.18, rank_ic: 0.18, pearson_ic: 0.16, train_ic: 0.12, test_ic: 0.21,
     rolling_ic_mean: 0.16, rolling_ic_std: 0.08, icir: 2, positive_ic_ratio: 0.72, p_value: 0.02,
+    window_pass_rate: 0.3333, passed_windows: 1, window_count: 3, worst_window_ic: -0.02,
+    median_window_ic: 0.21, window_ic_iqr: 0.12, status_transitions: 1, direction_flips: 0,
+    multi_window_consistent: false,
     decay: [{ horizon: 1, ic: 0.08 }, { horizon: 3, ic: 0.14 }, { horizon: 5, ic: 0.21 }, { horizon: 10, ic: 0.12 }, { horizon: 20, ic: -0.02 }],
     hit_rate: 0.58, observations: 435, test_observations: 145, stable: true, selected: true, weight: 1,
   }],
@@ -27,7 +32,9 @@ const response = {
     annual_volatility: 0.14, downside_deviation: 0.08, sortino: 1.48, calmar: 1.38,
     risk_adjusted_score: 1.34, max_drawdown: -0.08, var_95: -0.012, cvar_95: -0.019,
     ulcer_index: 0.035, profit_factor: 1.42, max_drawdown_duration: 18, average_holding_period: 12.4,
-    win_rate: 0.54, turnover: 10, trades: 5, exposure: 0.62,
+    profit_factor_basis: 'closed_trades', win_rate: 0.54, win_rate_basis: 'closed_trades',
+    closed_trades: 4, open_trade: true, average_trade_return: 0.03, average_win: 0.08,
+    average_loss: -0.04, payoff_ratio: 2, turnover: 10, trades: 5, exposure: 0.62,
   }],
   indicators: [
     { key: 'rsi_14', label: 'RSI(14)', value: 42.6, state: 'neutral', interpretation: '中性' },
@@ -44,11 +51,21 @@ const response = {
     { t: '2026-01-01', asset: 1.2, multifactor: 1.24, asset_drawdown: -0.03, strategy_drawdown: -0.02 },
   ],
   method_curves: {},
+  cost_analysis: {
+    basis: 'multifactor_final_out_of_sample_window',
+    curve: [{ transaction_cost_bps: 0, total_return: 0.25 }, { transaction_cost_bps: 20, total_return: 0.22 }],
+    breakeven_transaction_cost_bps: 146.25,
+  },
   methodology: {
     split: '前 70% 样本确定因子方向，后 30% 样本验证',
     execution: '信号延迟一个周期执行',
     usable_rule: '样本外 Rank IC >= 0.03',
     warning: '历史统计不代表未来收益',
+    metric_definitions: [{
+      key: 'transaction_cost_bps', label: '单边交易成本',
+      formula: '每单位换手扣除 transaction_cost_bps / 10000',
+      unit: 'basis_points_per_side', source: '研究请求参数',
+    }],
   },
 } as const
 
@@ -74,6 +91,10 @@ describe('FactorResearchPage', () => {
     expect(screen.getByText('多因子组合')).toBeTruthy()
     expect(screen.getByText('RSI(14)')).toBeTruthy()
     expect(screen.getByText('多因子风险诊断')).toBeTruthy()
+    expect(screen.getByRole('region', { name: '交易成本敏感度' })).toBeTruthy()
+    expect(screen.getByText('交易指标定义')).toBeTruthy()
+    expect(screen.getByText('每单位换手扣除 transaction_cost_bps / 10000')).toBeTruthy()
+    expect(screen.getByText('1/3')).toBeTruthy()
     expect(screen.getAllByText('1.48')).toHaveLength(2)
     expect(screen.getAllByText('历史统计不代表未来收益')).toHaveLength(2)
     expect(screen.getByText('因子组合具备继续研究价值')).toBeTruthy()
@@ -82,6 +103,103 @@ describe('FactorResearchPage', () => {
     const professionalDetails = screen.getByText('专业统计与方法细节').closest('details')
     expect(professionalDetails?.open).toBe(false)
     expect(screen.getByRole('link', { name: '设置提醒' }).getAttribute('href')).toContain('symbol=AAPL')
+  })
+
+  it('opens strategy lab with the exact saved research run id', async () => {
+    vi.spyOn(api, 'factorResearch').mockResolvedValue({
+      ...response,
+      run_id: 'factor-run-for-strategy',
+      saved: true,
+    } as never)
+    render(<FactorResearchPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: '运行研究' }))
+
+    const link = await screen.findByRole('link', { name: '策略实验' })
+    expect(link.getAttribute('href')).toBe(
+      '/strategy-lab?action=create_experiment&symbol=AAPL&market=us_stocks&timeframe=1d&research_run_id=factor-run-for-strategy',
+    )
+  })
+
+  it('runs cross-sectional research from a point-in-time universe', async () => {
+    const universe = {
+      id: 'universe-1', name: '美股历史池', market: 'us_stocks', description: '历史成分',
+      created_at: 1_785_400_000, updated_at: 1_785_400_000,
+    }
+    const members = Array.from({ length: 5 }, (_, index) => ({
+      id: `member-${index}`, universe_id: universe.id, instrument_id: `us_stocks:S${index}`,
+      symbol: `S${index}`, effective_from: '2024-01-01', effective_to: null,
+      status: 'active', industry: index % 2 ? '科技' : '金融', market_cap: 1_000_000_000 + index,
+      beta: 1, is_st: false, listed_at: '2020-01-01', delisted_at: null,
+      created_at: 1_785_400_000, updated_at: 1_785_400_000,
+    }))
+    vi.spyOn(api, 'factorUniverses').mockResolvedValue({ ok: true, count: 1, universes: [universe] } as never)
+    vi.spyOn(api, 'factorUniverseMembers').mockResolvedValue({ ok: true, universe, count: 5, members } as never)
+    const run = vi.spyOn(api, 'crossSectionResearch').mockResolvedValue({
+      ok: true, run_id: 'cross-run-1', engine_version: '1.0.0', universe,
+      loaded_symbols: 5, failed_symbols: 0, failures: [],
+      factor: {
+        key: 'trend_strength', label: '趋势强度', category: '趋势', description: '趋势描述',
+        formula: 'EMA(close,20) / EMA(close,60) - 1', formula_version: '1.0.0', status: 'usable',
+      },
+      summary: {
+        dates: 30, rank_ic_mean: 0.08, rank_ic_median: 0.07, rank_ic_std: 0.04, icir: 1.4,
+        positive_rank_ic_ratio: 0.7, long_short_total_return: 0.12, coverage: 0.95,
+        missing_rate: 0.05, average_turnover: 0.2, median_capacity: 2_000_000,
+        median_crowding_hhi: 0.24, neutralization_failures: 0, minimum_valid_assets: 5,
+        median_valid_assets: 5, data_fingerprint: 'f'.repeat(64),
+      },
+      quantile_returns: [
+        { quantile: 1, mean_forward_return: -0.01 },
+        { quantile: 5, mean_forward_return: 0.02 },
+      ],
+      series: [], methodology: {},
+    } as never)
+    const insufficientStatus = vi.spyOn(api, 'crossMarketFactorStatus').mockResolvedValue({
+      ok: true,
+      factor_key: 'trend_strength',
+      trading_validation_status: 'insufficient_evidence',
+      trading_validation_passed: false,
+      required_markets: ['a_shares', 'us_stocks', 'crypto', 'mt5'],
+      rule: '四个市场最新横截面结果均为 usable，且每个市场至少 20 个有效日期、每日最少 3 个有效标的',
+      rows: [
+        { market: 'a_shares', state: 'passed', run_id: 'a-run', run_status: 'succeeded', factor_status: 'usable', dates: 30, minimum_valid_assets: 5, rank_ic_mean: 0.08, coverage: 0.95, updated_at: 1 },
+        { market: 'us_stocks', state: 'missing', run_id: null, run_status: null, factor_status: null, dates: null, minimum_valid_assets: null, rank_ic_mean: null, coverage: null, updated_at: null },
+        { market: 'crypto', state: 'missing', run_id: null, run_status: null, factor_status: null, dates: null, minimum_valid_assets: null, rank_ic_mean: null, coverage: null, updated_at: null },
+        { market: 'mt5', state: 'missing', run_id: null, run_status: null, factor_status: null, dates: null, minimum_valid_assets: null, rank_ic_mean: null, coverage: null, updated_at: null },
+      ],
+    } as never)
+    render(<FactorResearchPage />)
+
+    fireEvent.click(screen.getByRole('tab', { name: '横截面' }))
+    expect(await screen.findByText('历史股票池')).toBeTruthy()
+    await waitFor(() => expect(api.factorUniverseMembers).toHaveBeenCalledWith('universe-1'))
+    fireEvent.submit(screen.getByRole('button', { name: '运行横截面研究' }).closest('form') as HTMLFormElement)
+
+    await waitFor(() => expect(run).toHaveBeenCalledWith(expect.objectContaining({
+      universe_id: 'universe-1', factor_key: 'trend_strength', interval: '1d',
+      neutralize_industry: true, neutralize_market_cap: true, neutralize_beta: true,
+    })))
+    expect(await screen.findByText('0.080')).toBeTruthy()
+    expect(screen.getByText('12.00%')).toBeTruthy()
+    expect(screen.getByText('95.00%')).toBeTruthy()
+    expect(screen.getByText('跨市场证据不足')).toBeTruthy()
+    expect(insufficientStatus).toHaveBeenCalledWith('trend_strength')
+
+    insufficientStatus.mockResolvedValue({
+      ok: true,
+      factor_key: 'trend_strength',
+      trading_validation_status: 'passed',
+      trading_validation_passed: true,
+      required_markets: ['a_shares', 'us_stocks', 'crypto', 'mt5'],
+      rule: '四个市场最新横截面结果均为 usable，且每个市场至少 20 个有效日期、每日最少 3 个有效标的',
+      rows: ['a_shares', 'us_stocks', 'crypto', 'mt5'].map((market) => ({
+        market, state: 'passed', run_id: `${market}-run`, run_status: 'succeeded', factor_status: 'usable', dates: 30,
+        minimum_valid_assets: 5, rank_ic_mean: 0.08, coverage: 0.95, updated_at: 1,
+      })),
+    } as never)
+    fireEvent.submit(screen.getByRole('button', { name: '运行横截面研究' }).closest('form') as HTMLFormElement)
+    expect(await screen.findByText('交易验证通过')).toBeTruthy()
   })
 
   it('applies beginner research templates without exposing raw cycle codes first', async () => {
@@ -96,6 +214,24 @@ describe('FactorResearchPage', () => {
     expect(request).toHaveBeenCalledWith(expect.objectContaining({
       interval: '1d', horizon: 3, limit: 300, transaction_cost_bps: 10,
     }))
+  })
+
+  it('submits date range and rolling walk-forward settings exactly', async () => {
+    const request = vi.spyOn(api, 'factorResearch').mockResolvedValue(response as never)
+    render(<FactorResearchPage />)
+
+    fireEvent.change(screen.getByLabelText('开始日期'), { target: { value: '2024-01-01' } })
+    fireEvent.change(screen.getByLabelText('结束日期'), { target: { value: '2025-12-31' } })
+    fireEvent.change(screen.getByLabelText('验证模式'), { target: { value: 'rolling' } })
+    fireEvent.change(screen.getByLabelText(/^验证窗口/), { target: { value: '5' } })
+    fireEvent.click(screen.getByRole('button', { name: '运行研究' }))
+
+    await waitFor(() => expect(request).toHaveBeenCalledWith(expect.objectContaining({
+      start_date: '2024-01-01',
+      end_date: '2025-12-31',
+      walk_forward_mode: 'rolling',
+      walk_forward_folds: 5,
+    })))
   })
 
   it('provides purpose templates, examples, term help, and a permanently dismissible first guide', async () => {
@@ -151,10 +287,12 @@ describe('FactorResearchPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '运行研究' }))
     await screen.findByText('因子组合具备继续研究价值')
-    fireEvent.click(screen.getByRole('button', { name: '与上次对比' }))
+    fireEvent.click(screen.getByRole('button', { name: '选择历史对比' }))
+    expect(await screen.findByLabelText('对比记录')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '开始对比' }))
 
-    const panel = await screen.findByRole('region', { name: '与上次因子研究对比' })
-    expect(within(panel).getByText('上次研究')).toBeTruthy()
+    const panel = await screen.findByRole('region', { name: '历史因子研究对比' })
+    expect(within(panel).getByText('所选研究')).toBeTruthy()
     expect(within(panel).getByText('10.0%')).toBeTruthy()
     expect(within(panel).getByText('可用 · +0.210')).toBeTruthy()
     expect(within(panel).getByText('未入选 · —')).toBeTruthy()
@@ -268,5 +406,108 @@ describe('FactorResearchPage', () => {
     expect(await screen.findByText('历史 AI 复核结果。')).toBeTruthy()
     expect(screen.getByText('研究记录已保存')).toBeTruthy()
     expect(window.location.search).toContain('run_id=factor-history-1')
+  })
+
+  it('filters history by saved run fields and research parameters', async () => {
+    const request = vi.spyOn(api, 'factorResearchRuns').mockResolvedValue({
+      ok: true, runs: [], total: 0, next_cursor: null,
+    } as never)
+    render(<FactorResearchPage />)
+
+    fireEvent.click(screen.getByRole('tab', { name: '历史记录' }))
+    await waitFor(() => expect(request).toHaveBeenCalledTimes(1))
+    fireEvent.change(screen.getByLabelText('标的'), { target: { value: 'aapl' } })
+    fireEvent.change(screen.getByLabelText('市场'), { target: { value: 'us_stocks' } })
+    fireEvent.change(screen.getByLabelText('周期'), { target: { value: '1d' } })
+    fireEvent.change(screen.getByLabelText('状态'), { target: { value: 'succeeded' } })
+    fireEvent.click(screen.getByLabelText('仅显示收藏'))
+    fireEvent.change(screen.getByLabelText('创建日期起'), { target: { value: '2025-01-01' } })
+    fireEvent.change(screen.getByLabelText('创建日期止'), { target: { value: '2025-12-31' } })
+    fireEvent.change(screen.getByLabelText('历史长度'), { target: { value: '500' } })
+    fireEvent.change(screen.getByLabelText('预测窗口'), { target: { value: '5' } })
+    fireEvent.change(screen.getByLabelText('单边成本'), { target: { value: '10' } })
+    fireEvent.change(screen.getByLabelText('验证模式'), { target: { value: 'rolling' } })
+    fireEvent.change(screen.getByLabelText('验证窗口'), { target: { value: '4' } })
+    fireEvent.click(screen.getByRole('button', { name: '应用筛选' }))
+
+    await waitFor(() => expect(request).toHaveBeenLastCalledWith({
+      symbol: 'aapl',
+      market: 'us_stocks',
+      interval: '1d',
+      status: 'succeeded',
+      favorite: true,
+      created_from: '2025-01-01',
+      created_to: '2025-12-31',
+      research_limit: 500,
+      horizon: 5,
+      transaction_cost_bps: 10,
+      walk_forward_mode: 'rolling',
+      walk_forward_folds: 4,
+    }, 20, undefined))
+  })
+
+  it('favorites a saved run and edits its note from factor history', async () => {
+    const run = {
+      id: 'factor-history-meta', symbol: 'AAPL', market: 'us_stocks', timeframe: '1d', status: 'succeeded',
+      modules: ['factor_research'], input: {},
+      summary: { factor_research: { selected_factors: [], drawdown: -0.02, best_method: 'multifactor' } },
+      error: null, note: '', favorite: false, tags: [], archived_at: null,
+      created_at: 1_785_400_000, updated_at: 1_785_400_100, evidence_count: 1,
+    }
+    vi.spyOn(api, 'factorResearchRuns').mockResolvedValue({
+      ok: true, runs: [run], total: 1, next_cursor: null,
+    } as never)
+    const update = vi.spyOn(api, 'updateResearchRun').mockImplementation(async (_id, patch) => ({
+      ok: true, run: { ...run, ...patch },
+    }) as never)
+    render(<FactorResearchPage />)
+
+    fireEvent.click(screen.getByRole('tab', { name: '历史记录' }))
+    fireEvent.click(await screen.findByRole('button', { name: '收藏 AAPL' }))
+    await waitFor(() => expect(update).toHaveBeenCalledWith('factor-history-meta', { favorite: true }))
+
+    fireEvent.click(screen.getByRole('button', { name: '编辑 AAPL 备注' }))
+    fireEvent.change(screen.getByLabelText('AAPL 研究备注'), { target: { value: '等待跨市场复验' } })
+    fireEvent.click(screen.getByRole('button', { name: '保存备注与标签' }))
+    await waitFor(() => expect(update).toHaveBeenLastCalledWith('factor-history-meta', { note: '等待跨市场复验', tags: [] }))
+  })
+
+  it('filters by tag and batch updates tags before archiving selected history', async () => {
+    const run = {
+      id: 'factor-history-batch', symbol: 'AAPL', market: 'us_stocks', timeframe: '1d', status: 'succeeded',
+      modules: ['factor_research'], input: {},
+      summary: { factor_research: { selected_factors: [], drawdown: -0.02, best_method: 'multifactor' } },
+      error: null, note: '', favorite: false, tags: [], archived_at: null,
+      created_at: 1_785_400_000, updated_at: 1_785_400_100, evidence_count: 1,
+    }
+    const list = vi.spyOn(api, 'factorResearchRuns').mockResolvedValue({
+      ok: true, runs: [run], total: 1, next_cursor: null,
+    } as never)
+    const batch = vi.spyOn(api, 'updateResearchRunsBatch').mockImplementation(async (_ids, patch) => ({
+      ok: true, count: 1, runs: [{ ...run, ...patch, archived_at: patch.archived ? 1_785_500_000 : null }],
+    }) as never)
+    render(<FactorResearchPage />)
+
+    fireEvent.click(screen.getByRole('tab', { name: '历史记录' }))
+    await screen.findByRole('checkbox', { name: '选择 AAPL 研究记录' })
+    fireEvent.change(screen.getByLabelText('标签'), { target: { value: '待复验' } })
+    fireEvent.click(screen.getByRole('button', { name: '应用筛选' }))
+    await waitFor(() => expect(list).toHaveBeenLastCalledWith(
+      expect.objectContaining({ tag: '待复验' }), 20, undefined,
+    ))
+
+    fireEvent.click(screen.getByRole('checkbox', { name: '选择 AAPL 研究记录' }))
+    fireEvent.change(screen.getByLabelText('批量标签'), { target: { value: '待复验, 趋势' } })
+    fireEvent.click(screen.getByRole('button', { name: '应用标签' }))
+    await waitFor(() => expect(batch).toHaveBeenCalledWith(
+      ['factor-history-batch'], { tags: ['待复验', '趋势'] },
+    ))
+
+    fireEvent.click(screen.getByRole('checkbox', { name: '选择 AAPL 研究记录' }))
+    fireEvent.click(screen.getByRole('button', { name: '归档所选' }))
+    await waitFor(() => expect(batch).toHaveBeenLastCalledWith(
+      ['factor-history-batch'], { archived: true },
+    ))
+    expect(screen.queryByRole('checkbox', { name: '选择 AAPL 研究记录' })).toBeNull()
   })
 })

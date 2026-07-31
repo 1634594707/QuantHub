@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   ChevronDown,
   Database,
+  Download,
   FlaskConical,
   Gauge,
   History,
@@ -22,6 +23,8 @@ import {
   ShieldAlert,
   ShieldCheck,
   Sparkles,
+  Star,
+  StickyNote,
   Waves,
   X,
 } from 'lucide-react'
@@ -42,6 +45,8 @@ import { Input } from '../components/ui/Input/Input'
 import { SegmentedControl } from '../components/ui/SegmentedControl/SegmentedControl'
 import { Select } from '../components/ui/Select/Select'
 import { classifyResearchError, recordUsabilityEvent } from '../lib/usabilityMetrics'
+import { buildFactorResearchExport, type FactorResearchExportFormat } from '../lib/factorResearchExport'
+import { CrossSectionResearchPanel } from './CrossSectionResearchPanel'
 import s from './FactorResearchPage.module.css'
 
 const MARKETS = [
@@ -64,18 +69,44 @@ const HORIZONS = [
   { value: '20', label: '未来 20 周期' },
 ]
 
+const WALK_FORWARD_MODES = [
+  { value: 'expanding', label: '扩展窗口' },
+  { value: 'rolling', label: '滚动窗口' },
+]
+
+const EXPORT_FORMATS = [
+  { value: 'json', label: 'JSON 快照' },
+  { value: 'csv', label: 'CSV 因子表' },
+  { value: 'md', label: 'Markdown 报告' },
+]
+
 const VIEW_OPTIONS = [
   { value: 'current', label: '当前研究' },
+  { value: 'cross_section', label: '横截面' },
   { value: 'history', label: '历史记录' },
 ]
 
 const RUN_STATUS_LABEL: Record<string, string> = {
+  queued: '排队中',
   succeeded: '已完成',
   partial: '统计完成 / AI 未完成',
   failed: '失败',
   running: '运行中',
   draft: '准备中',
+  cancelled: '已取消',
+  timeout: '超时',
 }
+
+const HISTORY_MARKETS = [{ value: '', label: '全部市场' }, ...MARKETS]
+const HISTORY_INTERVALS = [{ value: '', label: '全部周期' }, ...INTERVALS]
+const HISTORY_STATUSES = [
+  { value: '', label: '全部状态' },
+  ...Object.entries(RUN_STATUS_LABEL).map(([value, label]) => ({ value, label })),
+]
+const HISTORY_WALK_FORWARD_MODES = [
+  { value: '', label: '全部验证模式' },
+  ...WALK_FORWARD_MODES,
+]
 
 type ResearchForm = {
   market: string
@@ -84,6 +115,27 @@ type ResearchForm = {
   limit: number
   horizon: number
   transaction_cost_bps: number
+  start_date?: string
+  end_date?: string
+  walk_forward_mode: 'expanding' | 'rolling'
+  walk_forward_folds: number
+}
+
+type HistoryFilters = {
+  symbol: string
+  market: string
+  interval: string
+  status: string
+  favorite_only: boolean
+  archived_only: boolean
+  tag: string
+  created_from: string
+  created_to: string
+  research_limit: string
+  horizon: string
+  transaction_cost_bps: string
+  walk_forward_mode: '' | 'expanding' | 'rolling'
+  walk_forward_folds: string
 }
 
 type ResearchTemplateKey = 'short' | 'swing' | 'medium' | 'custom'
@@ -237,7 +289,7 @@ function researchConclusion(result: FactorResearchResp): {
   return {
     tone: 'caution',
     title: '存在有效因子，但稳健性仍需确认',
-    description: '保留当前候选组合，优先完成滚动样本外和成本压力测试。',
+    description: '保留当前因子组合，优先完成滚动样本外和成本压力测试。',
   }
 }
 
@@ -321,6 +373,7 @@ function DrawdownChart({ points }: { points: FactorCurvePoint[] }) {
 }
 
 function FactorRow({ factor }: { factor: FactorEvaluation }) {
+  const adjustedPValue = factor.adjusted_p_value ?? factor.p_value
   return (
     <tr>
       <td>
@@ -329,9 +382,31 @@ function FactorRow({ factor }: { factor: FactorEvaluation }) {
           <span>{factor.category} · {factor.description}</span>
         </div>
       </td>
-      <td><span className={`${s.status} ${s[factor.status]}`}>{STATUS_LABEL[factor.status]}</span></td>
+      <td>
+        <details className={s.statusEvidence}>
+          <summary><span className={`${s.status} ${s[factor.status]}`}>{STATUS_LABEL[factor.status]}</span></summary>
+          <div>
+            <strong>计算规则</strong>
+            <p>可用要求有效样本充足、多数窗口通过、窗口 IC 中位数至少 0.03、命中率至少 50%，且 Benjamini-Hochberg 校正显著性通过；样本不足或窗口 IC 中位数不大于 0 时淘汰，其余进入观察。</p>
+            <dl>
+              <div><dt>窗口通过</dt><dd>{factor.passed_windows ?? 0} / {factor.window_count ?? 0}</dd></div>
+              <div><dt>IC 中位数</dt><dd>{signed(factor.test_ic)}</dd></div>
+              <div><dt>命中率</dt><dd>{pct(factor.hit_rate)}</dd></div>
+              <div><dt>校正显著性</dt><dd>{adjustedPValue.toFixed(4)}</dd></div>
+            </dl>
+          </div>
+        </details>
+      </td>
       <td className={s.numeric}>{factor.score.toFixed(1)}</td>
       <td className={`${s.numeric} ${factor.test_ic > 0 ? s.positive : s.negative}`}>{signed(factor.test_ic)}</td>
+      <td
+        className={`${s.numeric} ${factor.multi_window_consistent === true ? s.positive : s.negative}`}
+        title={factor.window_count === undefined ? '旧记录没有多窗口验证结果' : `最差窗口 IC ${signed(factor.worst_window_ic ?? 0)}`}
+      >{factor.window_count === undefined ? '—' : `${factor.passed_windows}/${factor.window_count}`}</td>
+      <td
+        className={`${s.numeric} ${factor.statistically_significant === true ? s.positive : s.negative}`}
+        title={factor.adjusted_p_value === undefined ? '旧记录仅保存原始显著性' : 'Benjamini-Hochberg 校正结果'}
+      >{adjustedPValue.toFixed(4)}</td>
       <td className={`${s.numeric} ${factor.icir > 0 ? s.positive : s.negative}`}>{signed(factor.icir, 2)}</td>
       <td className={s.numeric}>{pct(factor.positive_ic_ratio, 0)}</td>
       <td className={s.numeric}>{pct(factor.hit_rate)}</td>
@@ -380,6 +455,7 @@ function ErrorExplanation({
 export default function FactorResearchPage() {
   const [form, setForm] = useState<ResearchForm>({
     market: 'a_shares', symbol: '600519', interval: '1d', limit: 500, horizon: 5, transaction_cost_bps: 10,
+    walk_forward_mode: 'expanding', walk_forward_folds: 3,
   })
   const [researchTemplate, setResearchTemplate] = useState<ResearchTemplateKey>('swing')
   const [lastRequest, setLastRequest] = useState<ResearchForm | null>(null)
@@ -389,18 +465,32 @@ export default function FactorResearchPage() {
   const [aiReview, setAiReview] = useState<FactorAiReviewResp | null>(null)
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState('')
-  const [viewMode, setViewMode] = useState<'current' | 'history'>('current')
+  const [viewMode, setViewMode] = useState<'current' | 'cross_section' | 'history'>('current')
   const [historyRuns, setHistoryRuns] = useState<ResearchRun[]>([])
   const [historyTotal, setHistoryTotal] = useState(0)
   const [historyCursor, setHistoryCursor] = useState<string | null>(null)
-  const [historySymbol, setHistorySymbol] = useState('')
+  const [historyFilters, setHistoryFilters] = useState<HistoryFilters>({
+    symbol: '', market: '', interval: '', status: '', favorite_only: false, archived_only: false, tag: '', created_from: '', created_to: '',
+    research_limit: '', horizon: '', transaction_cost_bps: '', walk_forward_mode: '', walk_forward_folds: '',
+  })
   const [historyLoading, setHistoryLoading] = useState(false)
   const [historyLoaded, setHistoryLoaded] = useState(false)
   const [historyError, setHistoryError] = useState('')
   const [openingRunId, setOpeningRunId] = useState('')
+  const [metadataSavingRunId, setMetadataSavingRunId] = useState('')
+  const [editingNoteRunId, setEditingNoteRunId] = useState('')
+  const [noteDraft, setNoteDraft] = useState('')
+  const [tagDraft, setTagDraft] = useState('')
+  const [selectedHistoryRunIds, setSelectedHistoryRunIds] = useState<string[]>([])
+  const [bulkTagDraft, setBulkTagDraft] = useState('')
+  const [bulkSaving, setBulkSaving] = useState(false)
   const [comparison, setComparison] = useState<{ run: ResearchRun; result: FactorResearchResp } | null>(null)
+  const [comparisonRuns, setComparisonRuns] = useState<ResearchRun[]>([])
+  const [comparisonRunId, setComparisonRunId] = useState('')
+  const [showComparisonPicker, setShowComparisonPicker] = useState(false)
   const [comparisonLoading, setComparisonLoading] = useState(false)
   const [comparisonError, setComparisonError] = useState('')
+  const [exportFormat, setExportFormat] = useState<FactorResearchExportFormat>('json')
   const [researchGoal, setResearchGoal] = useState<ResearchGoalKey>('robust')
   const [showFirstGuide, setShowFirstGuide] = useState(
     () => typeof localStorage === 'undefined' || localStorage.getItem(FIRST_READ_GUIDE_KEY) !== 'true',
@@ -467,13 +557,29 @@ export default function FactorResearchPage() {
     setHistoryError('')
     try {
       const response = await api.factorResearchRuns(
-        historySymbol,
+        {
+          symbol: historyFilters.symbol,
+          market: historyFilters.market || undefined,
+          interval: historyFilters.interval || undefined,
+          status: historyFilters.status || undefined,
+          favorite: historyFilters.favorite_only || undefined,
+          archived: historyFilters.archived_only || undefined,
+          tag: historyFilters.tag || undefined,
+          created_from: historyFilters.created_from || undefined,
+          created_to: historyFilters.created_to || undefined,
+          research_limit: historyFilters.research_limit ? Number(historyFilters.research_limit) : undefined,
+          horizon: historyFilters.horizon ? Number(historyFilters.horizon) : undefined,
+          transaction_cost_bps: historyFilters.transaction_cost_bps ? Number(historyFilters.transaction_cost_bps) : undefined,
+          walk_forward_mode: historyFilters.walk_forward_mode || undefined,
+          walk_forward_folds: historyFilters.walk_forward_folds ? Number(historyFilters.walk_forward_folds) : undefined,
+        },
         20,
         reset ? undefined : historyCursor ?? undefined,
       )
       setHistoryRuns((current) => reset ? response.runs : [...current, ...response.runs])
       setHistoryTotal(response.total)
       setHistoryCursor(response.next_cursor)
+      if (reset) setSelectedHistoryRunIds([])
       setHistoryLoaded(true)
     } catch (reason) {
       setHistoryError(reason instanceof Error ? reason.message : '读取因子研究历史失败')
@@ -482,7 +588,57 @@ export default function FactorResearchPage() {
     }
   }
 
-  async function compareWithPrevious() {
+  function updateHistoryFilters(patch: Partial<HistoryFilters>) {
+    setHistoryFilters((current) => ({ ...current, ...patch }))
+  }
+
+  function parseTags(value: string): string[] {
+    return [...new Set(value.split(',').map((item) => item.trim()).filter(Boolean))]
+  }
+
+  function toggleHistorySelection(runId: string, selected: boolean) {
+    setSelectedHistoryRunIds((current) => selected
+      ? [...new Set([...current, runId])]
+      : current.filter((item) => item !== runId))
+  }
+
+  async function updateHistoryMetadata(runId: string, patch: { favorite?: boolean; note?: string; tags?: string[] }) {
+    setMetadataSavingRunId(runId)
+    setHistoryError('')
+    try {
+      const response = await api.updateResearchRun(runId, patch)
+      setHistoryRuns((current) => current.map((run) => run.id === runId ? response.run : run))
+      if (patch.note !== undefined) setEditingNoteRunId('')
+    } catch (reason) {
+      setHistoryError(reason instanceof Error ? reason.message : '保存研究记录信息失败')
+    } finally {
+      setMetadataSavingRunId('')
+    }
+  }
+
+  async function updateSelectedHistoryRuns(patch: { tags?: string[]; archived?: boolean }) {
+    if (!selectedHistoryRunIds.length) return
+    setBulkSaving(true)
+    setHistoryError('')
+    try {
+      const response = await api.updateResearchRunsBatch(selectedHistoryRunIds, patch)
+      if (patch.archived !== undefined) {
+        setHistoryRuns((current) => current.filter((run) => !selectedHistoryRunIds.includes(run.id)))
+        setHistoryTotal((current) => Math.max(0, current - response.count))
+      } else {
+        const updated = new Map(response.runs.map((run) => [run.id, run]))
+        setHistoryRuns((current) => current.map((run) => updated.get(run.id) ?? run))
+      }
+      setSelectedHistoryRunIds([])
+      setBulkTagDraft('')
+    } catch (reason) {
+      setHistoryError(reason instanceof Error ? reason.message : '批量更新研究记录失败')
+    } finally {
+      setBulkSaving(false)
+    }
+  }
+
+  async function openComparisonPicker() {
     if (!result?.run_id) {
       setComparisonError('当前研究尚未保存，无法与历史记录比较')
       return
@@ -490,12 +646,28 @@ export default function FactorResearchPage() {
     setComparisonLoading(true)
     setComparisonError('')
     try {
-      const history = await api.factorResearchRuns(result.symbol, 20)
-      const previous = history.runs.find((run) => run.id !== result.run_id)
-      if (!previous) throw new Error('当前标的还没有上一条可比较的因子研究记录')
-      const detail = await api.factorResearchRun(previous.id)
-      if (!detail.result) throw new Error('上一条记录缺少可比较的统计结果')
+      const history = await api.factorResearchRuns({ symbol: result.symbol }, 50)
+      const available = history.runs.filter((run) => run.id !== result.run_id)
+      if (!available.length) throw new Error('当前标的还没有其他可比较的因子研究记录')
+      setComparisonRuns(available)
+      setComparisonRunId((current) => available.some((run) => run.id === current) ? current : available[0].id)
+      setShowComparisonPicker(true)
+    } catch (reason) {
+      setComparisonError(reason instanceof Error ? reason.message : '历史研究比较失败')
+    } finally {
+      setComparisonLoading(false)
+    }
+  }
+
+  async function compareWithSelectedRun() {
+    if (!comparisonRunId) return
+    setComparisonLoading(true)
+    setComparisonError('')
+    try {
+      const detail = await api.factorResearchRun(comparisonRunId)
+      if (!detail.result) throw new Error('所选记录缺少可比较的统计结果')
       setComparison({ run: detail.run, result: detail.result })
+      setShowComparisonPicker(false)
     } catch (reason) {
       setComparison(null)
       setComparisonError(reason instanceof Error ? reason.message : '历史研究比较失败')
@@ -504,8 +676,21 @@ export default function FactorResearchPage() {
     }
   }
 
+  function downloadResult() {
+    if (!result) return
+    const artifact = buildFactorResearchExport(result, exportFormat)
+    const url = URL.createObjectURL(new Blob([artifact.content], { type: artifact.mimeType }))
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = artifact.filename
+    document.body.appendChild(anchor)
+    anchor.click()
+    anchor.remove()
+    URL.revokeObjectURL(url)
+  }
+
   function changeView(value: string) {
-    const next = value === 'history' ? 'history' : 'current'
+    const next = value === 'history' ? 'history' : value === 'cross_section' ? 'cross_section' : 'current'
     setViewMode(next)
     if (next === 'history' && !historyLoaded) void loadHistory(true)
   }
@@ -525,6 +710,10 @@ export default function FactorResearchPage() {
         limit: Number(input.limit ?? 500),
         horizon: Number(input.horizon ?? 5),
         transaction_cost_bps: Number(input.transaction_cost_bps ?? 10),
+        start_date: input.start_date ? String(input.start_date) : undefined,
+        end_date: input.end_date ? String(input.end_date) : undefined,
+        walk_forward_mode: input.walk_forward_mode === 'rolling' ? 'rolling' : 'expanding',
+        walk_forward_folds: Number(input.walk_forward_folds ?? 3),
       }
       setForm(restoredForm)
       setResearchTemplate(inferResearchTemplate(restoredForm))
@@ -556,7 +745,12 @@ export default function FactorResearchPage() {
     researchCompleted.current = false
     recordUsabilityEvent({ name: 'research_started', step: 'setup' })
     try {
-      const request = { ...form, symbol: form.symbol.trim().toUpperCase() }
+      const request = {
+        ...form,
+        symbol: form.symbol.trim().toUpperCase(),
+        start_date: form.start_date || undefined,
+        end_date: form.end_date || undefined,
+      }
       const response = await api.factorResearch(request)
       if (!response.ok) throw new Error(response.error || '因子验证失败')
       setResult(response)
@@ -672,7 +866,7 @@ export default function FactorResearchPage() {
         description="训练期锁定 · 样本外检验 · 成本后回测"
         metrics={result ? [
           { label: '可用因子', value: result.summary.usable_factors },
-          { label: '候选因子', value: result.factors.length },
+          { label: '已检验因子', value: result.factors.length },
           { label: '样本外区间', value: result.summary.test_rows },
         ] : []}
       />
@@ -715,7 +909,9 @@ export default function FactorResearchPage() {
         />
       )}
 
-      {viewMode === 'history' ? (
+      {viewMode === 'cross_section' ? (
+        <CrossSectionResearchPanel />
+      ) : viewMode === 'history' ? (
         <section className={s.historyPanel} aria-label="因子研究历史记录">
           <header className={s.historyHead}>
             <div>
@@ -724,20 +920,47 @@ export default function FactorResearchPage() {
               <p>恢复当时的参数、统计结果和最近一次 AI 科研复核。</p>
             </div>
             <div className={s.historyTools}>
-              <Input
-                variant="mono"
-                value={historySymbol}
-                onChange={(event) => setHistorySymbol(event.target.value)}
-                placeholder="按标的筛选"
-              />
               <Button type="button" variant="secondary" size="sm" loading={historyLoading} icon={<Search size={15} />} onClick={() => void loadHistory(true)}>
-                筛选
+                应用筛选
               </Button>
               <Button type="button" variant="ghost" size="sm" icon={<RefreshCw size={15} />} onClick={() => void loadHistory(true)} aria-label="刷新历史记录" />
             </div>
           </header>
 
+          <div className={s.historyFilters} aria-label="历史记录筛选条件">
+            <label><span>标的</span><Input variant="mono" value={historyFilters.symbol} onChange={(event) => updateHistoryFilters({ symbol: event.target.value })} placeholder="600519 / AAPL" /></label>
+            <label><span>市场</span><Select value={historyFilters.market} options={HISTORY_MARKETS} onChange={(event) => updateHistoryFilters({ market: event.target.value })} /></label>
+            <label><span>周期</span><Select value={historyFilters.interval} options={HISTORY_INTERVALS} onChange={(event) => updateHistoryFilters({ interval: event.target.value })} /></label>
+            <label><span>状态</span><Select value={historyFilters.status} options={HISTORY_STATUSES} onChange={(event) => updateHistoryFilters({ status: event.target.value })} /></label>
+            <label className={s.historyFavoriteFilter}><input type="checkbox" checked={historyFilters.favorite_only} onChange={(event) => updateHistoryFilters({ favorite_only: event.target.checked })} /><span>仅显示收藏</span></label>
+            <label className={s.historyFavoriteFilter}><input type="checkbox" checked={historyFilters.archived_only} onChange={(event) => updateHistoryFilters({ archived_only: event.target.checked })} /><span>查看归档</span></label>
+            <label><span>标签</span><Input aria-label="标签" value={historyFilters.tag} placeholder="例如：待复验" onChange={(event) => updateHistoryFilters({ tag: event.target.value })} /></label>
+            <label><span>创建日期起</span><Input type="date" value={historyFilters.created_from} max={historyFilters.created_to || undefined} onChange={(event) => updateHistoryFilters({ created_from: event.target.value })} /></label>
+            <label><span>创建日期止</span><Input type="date" value={historyFilters.created_to} min={historyFilters.created_from || undefined} onChange={(event) => updateHistoryFilters({ created_to: event.target.value })} /></label>
+            <label><span>历史长度</span><Input type="number" min={120} max={5000} value={historyFilters.research_limit} placeholder="全部" onChange={(event) => updateHistoryFilters({ research_limit: event.target.value })} /></label>
+            <label><span>预测窗口</span><Input type="number" min={1} max={60} value={historyFilters.horizon} placeholder="全部" onChange={(event) => updateHistoryFilters({ horizon: event.target.value })} /></label>
+            <label><span>单边成本</span><Input aria-label="单边成本" type="number" min={0} max={200} value={historyFilters.transaction_cost_bps} placeholder="全部" suffix="bp" onChange={(event) => updateHistoryFilters({ transaction_cost_bps: event.target.value })} /></label>
+            <label><span>验证模式</span><Select value={historyFilters.walk_forward_mode} options={HISTORY_WALK_FORWARD_MODES} onChange={(event) => updateHistoryFilters({ walk_forward_mode: event.target.value as HistoryFilters['walk_forward_mode'] })} /></label>
+            <label><span>验证窗口</span><Input type="number" min={1} max={10} value={historyFilters.walk_forward_folds} placeholder="全部" onChange={(event) => updateHistoryFilters({ walk_forward_folds: event.target.value })} /></label>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setHistoryFilters({
+                symbol: '', market: '', interval: '', status: '', favorite_only: false, archived_only: false, tag: '', created_from: '', created_to: '',
+                research_limit: '', horizon: '', transaction_cost_bps: '', walk_forward_mode: '', walk_forward_folds: '',
+              })}
+            >重置条件</Button>
+          </div>
+
           {historyError && <ErrorExplanation title="历史记录读取失败" cause={historyError} impact="当前研究仍可继续，但暂时不能恢复或比较历史结果。" action="重新筛选或刷新；若持续失败，检查 API 与研究数据库。" />}
+
+          {selectedHistoryRunIds.length > 0 && <div className={s.historyBatchActions} aria-label="批量管理研究记录">
+            <strong>已选择 {selectedHistoryRunIds.length} 条</strong>
+            <Input aria-label="批量标签" value={bulkTagDraft} placeholder="标签以逗号分隔" onChange={(event) => setBulkTagDraft(event.target.value)} />
+            <Button type="button" size="sm" variant="secondary" loading={bulkSaving} disabled={!parseTags(bulkTagDraft).length} onClick={() => void updateSelectedHistoryRuns({ tags: parseTags(bulkTagDraft) })}>应用标签</Button>
+            <Button type="button" size="sm" variant={historyFilters.archived_only ? 'secondary' : 'danger'} loading={bulkSaving} onClick={() => void updateSelectedHistoryRuns({ archived: !historyFilters.archived_only })}>{historyFilters.archived_only ? '恢复所选' : '归档所选'}</Button>
+          </div>}
 
           {!historyLoading && historyLoaded && historyRuns.length === 0 ? (
             <EmptyState title="还没有因子研究记录" desc="切换到当前研究并运行一次验证，系统会自动保存结果。" icon={<History size={30} />} />
@@ -749,33 +972,68 @@ export default function FactorResearchPage() {
                 const selected = Array.isArray(factorSummary.selected_factors) ? factorSummary.selected_factors : []
                 const drawdown = typeof factorSummary.drawdown === 'number' ? pct(factorSummary.drawdown) : '—'
                 const aiState = aiSummary.ok === true ? 'AI 已复核' : aiSummary.ok === false ? 'AI 未完成' : '尚未复核'
+                const runTags = run.tags ?? []
                 return (
-                  <button
-                    type="button"
-                    className={s.historyCard}
-                    key={run.id}
-                    onClick={() => void restoreRun(run.id)}
-                    disabled={openingRunId === run.id}
-                  >
-                    <div className={s.historyIdentity}>
-                      <span>{marketLabel(run.market)} · {run.timeframe}</span>
-                      <strong>{run.symbol}</strong>
-                      <small>{formatRunTime(run.updated_at)}</small>
+                  <article className={s.historyCard} key={run.id}>
+                    <button
+                      type="button"
+                      className={s.historyCardOpen}
+                      onClick={() => void restoreRun(run.id)}
+                      disabled={openingRunId === run.id}
+                    >
+                      <div className={s.historyIdentity}>
+                        <span>{marketLabel(run.market)} · {run.timeframe}</span>
+                        <strong>{run.symbol}</strong>
+                        <small>{formatRunTime(run.updated_at)}</small>
+                        {runTags.length > 0 && <span className={s.historyTags}>{runTags.map((tag) => <i key={tag}>{tag}</i>)}</span>}
+                      </div>
+                      <div className={s.historyMetrics}>
+                        <span><small>入选因子</small><b>{selected.length}</b></span>
+                        <span><small>当前回撤</small><b>{drawdown}</b></span>
+                        <span><small>最佳方法</small><b>{String(factorSummary.best_method || '—')}</b></span>
+                      </div>
+                      <div className={s.historyOutcome}>
+                        <span data-status={run.status}>{RUN_STATUS_LABEL[run.status] || run.status}</span>
+                        <small>{aiState}</small>
+                        {run.note && <small title={run.note}>{run.note}</small>}
+                      </div>
+                      <div className={s.historyOpen}>
+                        <span>{openingRunId === run.id ? '恢复中' : '打开结果'}</span>
+                        <ArrowRight size={17} />
+                      </div>
+                    </button>
+                    <div className={s.historyRecordActions}>
+                      <label className={s.historySelect}>
+                        <input aria-label={`选择 ${run.symbol} 研究记录`} type="checkbox" checked={selectedHistoryRunIds.includes(run.id)} onChange={(event) => toggleHistorySelection(run.id, event.target.checked)} />
+                      </label>
+                      <button
+                        type="button"
+                        data-active={run.favorite}
+                        aria-label={`${run.favorite ? '取消收藏' : '收藏'} ${run.symbol}`}
+                        title={run.favorite ? '取消收藏' : '收藏研究记录'}
+                        disabled={metadataSavingRunId === run.id}
+                        onClick={() => void updateHistoryMetadata(run.id, { favorite: !run.favorite })}
+                      ><Star size={17} fill={run.favorite ? 'currentColor' : 'none'} /></button>
+                      <button
+                        type="button"
+                        aria-label={`编辑 ${run.symbol} 备注`}
+                        title="编辑研究备注"
+                        onClick={() => {
+                          setEditingNoteRunId((current) => current === run.id ? '' : run.id)
+                          setNoteDraft(run.note)
+                          setTagDraft(runTags.join(', '))
+                        }}
+                      ><StickyNote size={17} /></button>
                     </div>
-                    <div className={s.historyMetrics}>
-                      <span><small>入选因子</small><b>{selected.length}</b></span>
-                      <span><small>当前回撤</small><b>{drawdown}</b></span>
-                      <span><small>最佳方法</small><b>{String(factorSummary.best_method || '—')}</b></span>
-                    </div>
-                    <div className={s.historyOutcome}>
-                      <span data-status={run.status}>{RUN_STATUS_LABEL[run.status] || run.status}</span>
-                      <small>{aiState}</small>
-                    </div>
-                    <div className={s.historyOpen}>
-                      <span>{openingRunId === run.id ? '恢复中' : '打开结果'}</span>
-                      <ArrowRight size={17} />
-                    </div>
-                  </button>
+                    {editingNoteRunId === run.id && (
+                      <div className={s.historyNoteEditor}>
+                        <textarea aria-label={`${run.symbol} 研究备注`} value={noteDraft} maxLength={4000} rows={3} onChange={(event) => setNoteDraft(event.target.value)} />
+                        <Input aria-label={`${run.symbol} 研究标签`} value={tagDraft} placeholder="标签以逗号分隔" onChange={(event) => setTagDraft(event.target.value)} />
+                        <span>{noteDraft.length}/4000</span>
+                        <Button type="button" size="sm" loading={metadataSavingRunId === run.id} disabled={noteDraft.trim() === run.note && parseTags(tagDraft).join(',') === runTags.join(',')} onClick={() => void updateHistoryMetadata(run.id, { note: noteDraft.trim(), tags: parseTags(tagDraft) })}>保存备注与标签</Button>
+                      </div>
+                    )}
+                  </article>
                 )
               })}
             </div>
@@ -814,12 +1072,16 @@ export default function FactorResearchPage() {
           <Button type="submit" variant="primary" loading={loading} icon={<Play size={16} />}>运行研究</Button>
         </div>
         <details className={s.advancedParams}>
-          <summary><span>高级参数</span><small>{form.interval} · {form.horizon} 周期 · {form.transaction_cost_bps} bp</small><ChevronDown size={16} /></summary>
+          <summary><span>高级参数</span><small>{form.interval} · {form.horizon} 周期 · {form.walk_forward_mode === 'rolling' ? '滚动' : '扩展'} {form.walk_forward_folds} 窗口 · {form.transaction_cost_bps} bp</small><ChevronDown size={16} /></summary>
           <div className={s.advancedGrid}>
             <label><span>K 线周期</span><Select value={form.interval} options={INTERVALS} onChange={(event) => updateAdvancedForm({ interval: event.target.value })} /></label>
             <label><span>预测窗口</span><Select value={String(form.horizon)} options={HORIZONS} onChange={(event) => updateAdvancedForm({ horizon: Number(event.target.value) })} /></label>
             <label><span>历史长度</span><Input type="number" min={120} max={5000} step={20} value={form.limit} suffix="根" onChange={(event) => updateAdvancedForm({ limit: Number(event.target.value) })} /></label>
             <label><span>单边成本</span><Input type="number" min={0} max={200} value={form.transaction_cost_bps} suffix="bp" onChange={(event) => updateAdvancedForm({ transaction_cost_bps: Number(event.target.value) })} /></label>
+            <label><span>开始日期</span><Input type="date" value={form.start_date ?? ''} max={form.end_date} onChange={(event) => updateAdvancedForm({ start_date: event.target.value || undefined })} /></label>
+            <label><span>结束日期</span><Input type="date" value={form.end_date ?? ''} min={form.start_date} onChange={(event) => updateAdvancedForm({ end_date: event.target.value || undefined })} /></label>
+            <label><span>验证模式</span><Select value={form.walk_forward_mode} options={WALK_FORWARD_MODES} onChange={(event) => updateAdvancedForm({ walk_forward_mode: event.target.value === 'rolling' ? 'rolling' : 'expanding' })} /></label>
+            <label><span>验证窗口</span><Input type="number" min={1} max={10} value={form.walk_forward_folds} suffix="个" onChange={(event) => updateAdvancedForm({ walk_forward_folds: Number(event.target.value) })} /></label>
           </div>
         </details>
       </form>
@@ -869,24 +1131,37 @@ export default function FactorResearchPage() {
             <div className={s.nextActions}>
               <div><span>NEXT ACTION</span><strong>继续验证，而不是直接交易</strong></div>
               <div className={s.actionButtons}>
-                <button type="button" disabled={comparisonLoading} onClick={() => void compareWithPrevious()}><RefreshCw size={16} /><span>{comparisonLoading ? '比较中' : '与上次对比'}</span></button>
+                <button type="button" disabled={comparisonLoading} onClick={() => void openComparisonPicker()}><RefreshCw size={16} /><span>{comparisonLoading ? '读取记录中' : '选择历史对比'}</span></button>
                 <button type="button" onClick={() => changeView('history')}><History size={16} /><span>查看历史</span></button>
-                <a href={`/alerts?action=create&type=signal_created&symbol=${encodeURIComponent(result.symbol)}&market=${encodeURIComponent(result.market)}`}><Bell size={16} /><span>设置提醒</span></a>
-                <a href={`/strategy-lab?action=create_experiment&symbol=${encodeURIComponent(result.symbol)}&market=${encodeURIComponent(result.market)}&timeframe=${encodeURIComponent(result.interval)}`}><FlaskConical size={16} /><span>策略实验</span></a>
+                {result.summary.best_factor
+                  ? <a href={`/alerts?action=create&type=factor_status_changed&symbol=${encodeURIComponent(result.symbol)}&market=${encodeURIComponent(result.market)}&factor_key=${encodeURIComponent(result.summary.best_factor)}${result.run_id ? `&research_run_id=${encodeURIComponent(result.run_id)}` : ''}`}><Bell size={16} /><span>设置提醒</span></a>
+                  : <button type="button" disabled title="当前研究没有可设置提醒的最佳因子"><Bell size={16} /><span>设置提醒</span></button>}
+                <a href={`/strategy-lab?action=create_experiment&symbol=${encodeURIComponent(result.symbol)}&market=${encodeURIComponent(result.market)}&timeframe=${encodeURIComponent(result.interval)}${result.run_id ? `&research_run_id=${encodeURIComponent(result.run_id)}` : ''}`}><FlaskConical size={16} /><span>策略实验</span></a>
+                <div className={s.exportControl}>
+                  <Select value={exportFormat} options={EXPORT_FORMATS} selectSize="sm" aria-label="导出格式" onChange={(event) => setExportFormat(event.target.value as FactorResearchExportFormat)} />
+                  <button type="button" onClick={downloadResult} title="下载研究结果"><Download size={16} /><span>导出</span></button>
+                </div>
               </div>
+              {showComparisonPicker && (
+                <div className={s.comparisonPicker}>
+                  <label><span>对比记录</span><Select value={comparisonRunId} options={comparisonRuns.map((run) => ({ value: run.id, label: `${formatRunTime(run.updated_at)} · ${run.id.slice(0, 10)}` }))} onChange={(event) => setComparisonRunId(event.target.value)} /></label>
+                  <Button type="button" size="sm" loading={comparisonLoading} onClick={() => void compareWithSelectedRun()}>开始对比</Button>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setShowComparisonPicker(false)}>取消</Button>
+                </div>
+              )}
             </div>
           </section>
 
-          {comparisonError && <ErrorExplanation title="历史比较未完成" cause={comparisonError} impact="当前研究结果保持可读，只缺少与上一条记录的差异。" action="先确认当前结果已保存且同标的存在更早记录，再重新比较。" tone="warning" />}
+          {comparisonError && <ErrorExplanation title="历史比较未完成" cause={comparisonError} impact="当前研究结果保持可读，只缺少与所选记录的差异。" action="先确认当前结果已保存且同标的存在其他记录，再重新比较。" tone="warning" />}
 
           {comparison && (
-            <section className={s.comparisonPanel} aria-label="与上次因子研究对比">
+            <section className={s.comparisonPanel} aria-label="历史因子研究对比">
               <header>
-                <div><span>PREVIOUS RUN DELTA</span><h2>与上次研究对比</h2><p>{result.symbol} · 当前记录与 {formatRunTime(comparison.run.updated_at)} 的统计快照</p></div>
+                <div><span>SELECTED RUN DELTA</span><h2>历史研究对比</h2><p>{result.symbol} · 当前记录与 {formatRunTime(comparison.run.updated_at)} · {comparison.run.id.slice(0, 10)}</p></div>
                 <button type="button" onClick={() => setComparison(null)} aria-label="关闭研究对比"><X size={17} /></button>
               </header>
               <div className={s.comparisonMetrics}>
-                <div><span>指标</span><strong>当前研究</strong><strong>上次研究</strong></div>
+                <div><span>指标</span><strong>当前研究</strong><strong>所选研究</strong></div>
                 <div><span>入选因子</span><b>{result.summary.selected_factors.length}</b><b>{comparison.result.summary.selected_factors.length}</b></div>
                 <div><span>组合收益</span><b className={(bestMethod?.total_return ?? 0) >= 0 ? s.positive : s.negative}>{bestMethod ? pct(bestMethod.total_return) : '—'}</b><b className={(comparisonBestMethod?.total_return ?? 0) >= 0 ? s.positive : s.negative}>{comparisonBestMethod ? pct(comparisonBestMethod.total_return) : '—'}</b></div>
                 <div><span>当前回撤</span><b>{pct(result.current_signal.strategy_drawdown)}</b><b>{pct(comparison.result.current_signal.strategy_drawdown)}</b></div>
@@ -968,6 +1243,10 @@ export default function FactorResearchPage() {
                 <div><dt>训练 / 隔离 / 验证</dt><dd>{result.summary.train_rows} / {result.summary.purged_rows} / {result.summary.test_rows}</dd></div>
                 <div><dt>未来收益窗口</dt><dd>{result.summary.horizon} 周期</dd></div>
                 <div><dt>交易成本</dt><dd>{result.summary.transaction_cost_bps} bp</dd></div>
+                <div><dt>窗口验证</dt><dd>{result.summary.walk_forward_folds ?? 1} 个 · {result.summary.walk_forward_mode === 'rolling' ? '滚动' : result.summary.walk_forward_mode === 'expanding' ? '扩展' : '单次'}</dd></div>
+                <div><dt>研究区间</dt><dd>{result.summary.research_period ? `${result.summary.research_period.start.slice(0, 10)} / ${result.summary.research_period.end.slice(0, 10)}` : '旧记录未保存'}</dd></div>
+                <div><dt>引擎 / 公式</dt><dd>{result.summary.engine_version && result.summary.factor_formula_version ? `${result.summary.engine_version} / ${result.summary.factor_formula_version}` : '旧记录未保存'}</dd></div>
+                <div><dt>数据指纹</dt><dd title={result.summary.data_fingerprint}>{result.summary.data_fingerprint?.slice(0, 12) ?? '旧记录未保存'}</dd></div>
                 <div><dt>数据质量</dt><dd>{result.quality.status === 'ok' ? '通过' : result.quality.status}</dd></div>
               </dl>
               <div className={s.methodNote}><Info size={16} /><span>组合因子与权重只由训练段确定；表格结论再按样本外数据独立检验。{result.methodology.usable_rule}</span></div>
@@ -983,7 +1262,7 @@ export default function FactorResearchPage() {
             <div className={s.sectionHead}><div><span>03 / FACTOR SCREEN</span><h2>因子有效性与衰减</h2></div><small>方向由训练段确定 · 按样本外结果排序</small></div>
             <div className={s.tableScroll}>
               <table className={s.table}>
-                <thead><tr><th>因子</th><th>结论</th><th className={s.numeric}>评分</th><th className={s.numeric}>样本外 IC</th><th className={s.numeric}>ICIR</th><th className={s.numeric}>滚动 IC 正值</th><th className={s.numeric}>命中率</th><th>IC 衰减 1/3/5/10/20</th></tr></thead>
+                <thead><tr><th>因子</th><th>结论</th><th className={s.numeric}>评分</th><th className={s.numeric}>窗口 IC 中位数</th><th className={s.numeric}>窗口通过</th><th className={s.numeric}>校正显著性</th><th className={s.numeric}>ICIR</th><th className={s.numeric}>滚动 IC 正值</th><th className={s.numeric}>命中率</th><th>IC 衰减 1/3/5/10/20</th></tr></thead>
                 <tbody>{result.factors.map((factor) => <FactorRow key={factor.key} factor={factor} />)}</tbody>
               </table>
             </div>
@@ -999,17 +1278,48 @@ export default function FactorResearchPage() {
                 <div><dt>95% CVaR</dt><dd className={s.negative}>{pct(multifactorMethod.cvar_95, 2)}</dd></div>
                 <div><dt>Ulcer Index</dt><dd>{pct(multifactorMethod.ulcer_index, 2)}</dd></div>
                 <div><dt>最长回撤</dt><dd>{multifactorMethod.max_drawdown_duration} 周期</dd></div>
-                <div><dt>利润因子</dt><dd>{multifactorMethod.profit_factor.toFixed(2)}</dd></div>
+                <div><dt>闭合交易利润因子</dt><dd>{multifactorMethod.profit_factor.toFixed(2)}</dd></div>
                 <div><dt>平均持有</dt><dd>{multifactorMethod.average_holding_period.toFixed(1)} 周期</dd></div>
+                <div><dt>盈亏平衡成本</dt><dd>{result.cost_analysis?.breakeven_transaction_cost_bps === null ? '> 1000 bp' : result.cost_analysis?.breakeven_transaction_cost_bps === undefined ? '旧记录未保存' : `${result.cost_analysis.breakeven_transaction_cost_bps.toFixed(2)} bp`}</dd></div>
               </dl>
             </section>
+          )}
+
+          {result.cost_analysis && (
+            <section className={s.panel} aria-label="交易成本敏感度">
+              <div className={s.sectionHead}>
+                <div><span>TRANSACTION COST STRESS</span><h2>交易成本敏感度</h2></div>
+                <small>多因子 · 最后一个样本外窗口</small>
+              </div>
+              <div className={s.costCurve}>
+                {result.cost_analysis.curve.map((point) => (
+                  <div key={point.transaction_cost_bps}>
+                    <span>{point.transaction_cost_bps} bp</span>
+                    <strong className={point.total_return >= 0 ? s.positive : s.negative}>{pct(point.total_return)}</strong>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {result.methodology.metric_definitions && (
+            <details className={s.metricDefinitions}>
+              <summary><span>交易指标定义</span><small>公式、单位与数据来源</small><ChevronDown size={16} /></summary>
+              <div className={s.metricDefinitionGrid}>
+                {result.methodology.metric_definitions.map((item) => (
+                  <article key={item.key}>
+                    <strong>{item.label}</strong><span>{item.formula}</span><small>{item.unit} · {item.source}</small>
+                  </article>
+                ))}
+              </div>
+            </details>
           )}
 
           <section className={s.panel}>
             <div className={s.sectionHead}><div><span>04 / METHOD BENCHMARK</span><h2>量化方法对比</h2></div><small>仅样本外 · 信号延迟一周期 · 已计成本</small></div>
             <div className={s.tableScroll}>
               <table className={s.table}>
-                <thead><tr><th>方法</th><th className={s.numeric}>总收益</th><th className={s.numeric}>年化</th><th className={s.numeric}>夏普</th><th className={s.numeric}>Sortino</th><th className={s.numeric}>Calmar</th><th className={s.numeric}>最大回撤</th><th className={s.numeric}>CVaR</th><th className={s.numeric}>胜率</th><th className={s.numeric}>交易</th><th className={s.numeric}>敞口</th></tr></thead>
+                <thead><tr><th>方法</th><th className={s.numeric}>总收益</th><th className={s.numeric}>年化</th><th className={s.numeric}>夏普</th><th className={s.numeric}>Sortino</th><th className={s.numeric}>Calmar</th><th className={s.numeric}>最大回撤</th><th className={s.numeric}>CVaR</th><th className={s.numeric}>闭合交易胜率</th><th className={s.numeric}>闭合交易</th><th className={s.numeric}>敞口</th></tr></thead>
                 <tbody>{result.methods.map((method, index) => (
                   <tr key={method.key}>
                     <td><div className={s.methodName}><strong>{method.label}</strong>{index === 0 && <span>风险调整后最优</span>}</div></td>
@@ -1021,7 +1331,7 @@ export default function FactorResearchPage() {
                     <td className={`${s.numeric} ${s.negative}`}>{pct(method.max_drawdown)}</td>
                     <td className={`${s.numeric} ${s.negative}`}>{pct(method.cvar_95, 2)}</td>
                     <td className={s.numeric}>{pct(method.win_rate)}</td>
-                    <td className={s.numeric}>{method.trades}</td>
+                    <td className={s.numeric}>{method.closed_trades ?? method.trades}</td>
                     <td className={s.numeric}>{pct(method.exposure)}</td>
                   </tr>
                 ))}</tbody>

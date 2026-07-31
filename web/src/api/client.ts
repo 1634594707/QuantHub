@@ -37,6 +37,13 @@ import type {
   FactorAiReviewResp,
   FactorResearchRunDetailResp,
   FactorResearchRunsResp,
+  FactorUniverse,
+  FactorUniverseMember,
+  FactorResearchJob,
+  FactorResearchAttention,
+  FactorStatusMatrix,
+  CrossSectionResearchResp,
+  CrossMarketFactorStatus,
   HealthResp,
   HoldingCRUDResp,
   Instrument,
@@ -371,12 +378,24 @@ export const api = {
       error?: string | null
       note?: string
       favorite?: boolean
+      tags?: string[]
+      archived?: boolean
     },
   ) =>
     getJSON<{ ok: boolean; run: ResearchRun }>(`/research/runs/${encodeURIComponent(id)}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(patch),
+    }),
+
+  updateResearchRunsBatch: (
+    runIds: string[],
+    patch: { tags?: string[]; archived?: boolean },
+  ) =>
+    getJSON<{ ok: boolean; count: number; runs: ResearchRun[] }>('/research/runs/batch', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ run_ids: runIds, ...patch }),
     }),
 
   addResearchEvidence: (
@@ -617,6 +636,10 @@ export const api = {
     limit: number
     horizon: number
     transaction_cost_bps: number
+    start_date?: string
+    end_date?: string
+    walk_forward_mode: 'expanding' | 'rolling'
+    walk_forward_folds: number
   }) => getJSON<FactorResearchResp>('/factor-research/analyze', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -629,6 +652,10 @@ export const api = {
     limit: number
     horizon: number
     transaction_cost_bps: number
+    start_date?: string
+    end_date?: string
+    walk_forward_mode: 'expanding' | 'rolling'
+    walk_forward_folds: number
     review_focus?: string
     run_id?: string
   }) => getJSON<FactorAiReviewResp>('/factor-research/ai-review', {
@@ -636,14 +663,102 @@ export const api = {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   }),
-  factorResearchRuns: (symbol?: string, limit = 20, cursor?: string) => {
+  factorResearchRuns: (filters: {
+    symbol?: string
+    market?: string
+    interval?: string
+    status?: string
+    favorite?: boolean
+    archived?: boolean
+    tag?: string
+    created_from?: string
+    created_to?: string
+    research_limit?: number
+    horizon?: number
+    transaction_cost_bps?: number
+    walk_forward_mode?: 'expanding' | 'rolling'
+    walk_forward_folds?: number
+  } = {}, limit = 20, cursor?: string) => {
     const params = new URLSearchParams({ limit: String(limit) })
-    if (symbol?.trim()) params.set('symbol', symbol.trim().toUpperCase())
+    if (filters.symbol?.trim()) params.set('symbol', filters.symbol.trim().toUpperCase())
+    if (filters.market) params.set('market', filters.market)
+    if (filters.interval) params.set('interval', filters.interval)
+    if (filters.status) params.set('status', filters.status)
+    if (filters.favorite !== undefined) params.set('favorite', String(filters.favorite))
+    if (filters.archived !== undefined) params.set('archived', String(filters.archived))
+    if (filters.tag?.trim()) params.set('tag', filters.tag.trim())
+    if (filters.created_from) params.set('created_from', filters.created_from)
+    if (filters.created_to) params.set('created_to', filters.created_to)
+    if (filters.research_limit !== undefined) params.set('research_limit', String(filters.research_limit))
+    if (filters.horizon !== undefined) params.set('horizon', String(filters.horizon))
+    if (filters.transaction_cost_bps !== undefined) params.set('transaction_cost_bps', String(filters.transaction_cost_bps))
+    if (filters.walk_forward_mode) params.set('walk_forward_mode', filters.walk_forward_mode)
+    if (filters.walk_forward_folds !== undefined) params.set('walk_forward_folds', String(filters.walk_forward_folds))
     if (cursor) params.set('cursor', cursor)
     return getJSON<FactorResearchRunsResp>(`/factor-research/runs?${params.toString()}`)
   },
   factorResearchRun: (runId: string) =>
     getJSON<FactorResearchRunDetailResp>(`/factor-research/runs/${encodeURIComponent(runId)}`),
+  factorStatusMatrix: (factorKey: string) =>
+    getJSON<FactorStatusMatrix>(`/factor-research/status-matrix/${encodeURIComponent(factorKey)}`),
+  factorResearchAttention: (staleHours = 24, limit = 100) =>
+    getJSON<FactorResearchAttention>(`/factor-research/attention?stale_hours=${staleHours}&limit=${limit}`),
+  factorUniverses: (market?: string) =>
+    getJSON<{ ok: boolean; count: number; universes: FactorUniverse[] }>(
+      `/factor-research/universes${market ? `?market=${encodeURIComponent(market)}` : ''}`,
+    ),
+  createFactorUniverse: (payload: { name: string; market: string; description?: string }) =>
+    getJSON<{ ok: boolean; universe: FactorUniverse; error?: string }>('/factor-research/universes', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+    }),
+  factorUniverseMembers: (universeId: string, asOf?: string) =>
+    getJSON<{ ok: boolean; universe: FactorUniverse; count: number; members: FactorUniverseMember[] }>(
+      `/factor-research/universes/${encodeURIComponent(universeId)}/members${asOf ? `?as_of=${encodeURIComponent(asOf)}` : ''}`,
+    ),
+  upsertFactorUniverseMember: (universeId: string, payload: {
+    symbol: string
+    effective_from: string
+    effective_to?: string | null
+    status: 'active' | 'suspended' | 'delisted'
+    industry?: string
+    market_cap?: number | null
+    beta?: number | null
+    is_st?: boolean
+    listed_at?: string | null
+    delisted_at?: string | null
+  }) => getJSON<{ ok: boolean; member: FactorUniverseMember; error?: string }>(
+    `/factor-research/universes/${encodeURIComponent(universeId)}/members`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) },
+  ),
+  crossSectionResearch: (payload: {
+    run_id?: string
+    universe_id: string
+    factor_key: string
+    interval: '1d'
+    limit: number
+    horizon: number
+    start_date?: string
+    end_date?: string
+    quantiles: number
+    min_assets: number
+    transaction_cost_bps: number
+    participation_rate: number
+    neutralize_industry: boolean
+    neutralize_market_cap: boolean
+    neutralize_beta: boolean
+    retry_attempts: number
+  }) => getJSON<CrossSectionResearchResp>('/factor-research/cross-sectional/analyze', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+  }),
+  crossSectionResearchRun: (runId: string) => getJSON<{
+    ok: boolean
+    run: ResearchRun
+    result: CrossSectionResearchResp | null
+    universe_snapshot: Record<string, unknown> | null
+    market_snapshots: ResearchEvidence[]
+  }>(`/factor-research/cross-sectional/runs/${encodeURIComponent(runId)}`),
+  crossMarketFactorStatus: (factorKey: string) =>
+    getJSON<CrossMarketFactorStatus>(`/factor-research/cross-sectional/status/${encodeURIComponent(factorKey)}`),
 
   // ---- G7 组合管理 ----
   portfolioManage: () => getJSON<PortfolioManageResp>('/portfolio/manage'),
@@ -923,6 +1038,7 @@ export const api = {
     market?: string
     timeframe?: string
     version_id?: string | null
+    research_run_id?: string | null
     params?: Record<string, unknown>
     note?: string
   }) => getJSON<{ ok: boolean; experiment: StrategyExperiment }>(
@@ -938,6 +1054,7 @@ export const api = {
     market: string
     timeframe: string
     version_id: string | null
+    research_run_id?: string | null
     params: Record<string, unknown>
     note: string
   }) => getJSON<{ ok: boolean; experiment: StrategyExperiment }>(
@@ -980,6 +1097,34 @@ export const api = {
   // ---- 自动化控制台 ----
   automationStatus: () => getJSON<AutomationStatus>('/automation/status'),
   automationJobs: () => getJSON<{ ok: boolean; count: number; jobs: AutomationJob[]; error?: string }>('/automation/jobs'),
+  factorResearchJobs: () => getJSON<{ ok: boolean; count: number; jobs: FactorResearchJob[]; timezone: string }>('/automation/factor-research-jobs'),
+  createFactorResearchJob: (payload: {
+    name: string
+    frequency: 'daily' | 'weekly' | 'monthly'
+    hour: number
+    minute: number
+    day_of_week?: number
+    day_of_month?: number
+    enabled?: boolean
+    request: {
+      universe_id: string
+      factor_key: string
+      interval: '1d'
+      limit: number
+      horizon: number
+      transaction_cost_bps: number
+      participation_rate: number
+      quantiles: number
+      min_assets: number
+      neutralize_industry: boolean
+      neutralize_market_cap: boolean
+      neutralize_beta: boolean
+      retry_attempts: number
+    }
+    actor?: string
+  }) => getJSON<{ ok: boolean; job: FactorResearchJob }>('/automation/factor-research-jobs', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+  }),
   updateAutomationJob: (
     name: string,
     payload: { enabled?: boolean; cron?: string; actor?: string },
