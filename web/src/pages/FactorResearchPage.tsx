@@ -47,6 +47,8 @@ import { Select } from '../components/ui/Select/Select'
 import { classifyResearchError, recordUsabilityEvent } from '../lib/usabilityMetrics'
 import { buildFactorResearchExport, type FactorResearchExportFormat } from '../lib/factorResearchExport'
 import { CrossSectionResearchPanel } from './CrossSectionResearchPanel'
+import { FactorConfirmationPanel } from './FactorConfirmationPanel'
+import { FactorEvidenceWorkbench } from './FactorEvidenceWorkbench'
 import s from './FactorResearchPage.module.css'
 
 const MARKETS = [
@@ -83,6 +85,7 @@ const EXPORT_FORMATS = [
 const VIEW_OPTIONS = [
   { value: 'current', label: '当前研究' },
   { value: 'cross_section', label: '横截面' },
+  { value: 'governance', label: '研究治理' },
   { value: 'history', label: '历史记录' },
 ]
 
@@ -272,7 +275,12 @@ function researchConclusion(result: FactorResearchResp): {
       description: '统计结果仍可用于研究，但当前风险状态不适合扩大因子使用范围。',
     }
   }
-  if (result.summary.usable_factors === 0 || !method || method.total_return <= 0) {
+  if (
+    result.summary.usable_factors === 0
+    || result.summary.multifactor_constructed === false
+    || !method
+    || method.total_return <= 0
+  ) {
     return {
       tone: 'caution',
       title: '统计证据不足，暂不进入策略实验',
@@ -323,13 +331,15 @@ function buildPath(
   }).join(' ')
 }
 
-function EquityChart({ points }: { points: FactorCurvePoint[] }) {
+function EquityChart({ points, showMultifactor = true }: { points: FactorCurvePoint[]; showMultifactor?: boolean }) {
   const width = 900
   const height = 240
   const domain = useMemo(() => {
-    const values = points.flatMap((point) => [Number(point.asset), Number(point.multifactor)]).filter(Number.isFinite)
+    const values = points.flatMap((point) => showMultifactor
+      ? [Number(point.asset), Number(point.multifactor)]
+      : [Number(point.asset)]).filter(Number.isFinite)
     return { min: Math.min(...values), max: Math.max(...values) }
-  }, [points])
+  }, [points, showMultifactor])
   const asset = useMemo(() => buildPath(points, 'asset', width, height, domain), [domain, points])
   const multifactor = useMemo(() => buildPath(points, 'multifactor', width, height, domain), [domain, points])
   const start = points[0]?.t?.slice(0, 10) || '—'
@@ -338,27 +348,29 @@ function EquityChart({ points }: { points: FactorCurvePoint[] }) {
     <div className={s.chartWrap}>
       <div className={s.legend}>
         <span><i className={s.assetDot} />标的净值</span>
-        <span><i className={s.factorDot} />多因子净值</span>
+        {showMultifactor && <span><i className={s.factorDot} />多因子净值</span>}
       </div>
       <svg className={s.chart} viewBox={`0 0 ${width} ${height}`} role="img" aria-label="标的与多因子净值曲线">
         {[0, 1, 2, 3, 4].map((line) => (
           <line key={line} x1="0" x2={width} y1={line * height / 4} y2={line * height / 4} className={s.gridLine} />
         ))}
         <path d={asset} className={s.assetLine} />
-        <path d={multifactor} className={s.factorLine} />
+        {showMultifactor && <path d={multifactor} className={s.factorLine} />}
       </svg>
       <div className={s.axis}><span>{start}</span><span>{end}</span></div>
     </div>
   )
 }
 
-function DrawdownChart({ points }: { points: FactorCurvePoint[] }) {
+function DrawdownChart({ points, showMultifactor = true }: { points: FactorCurvePoint[]; showMultifactor?: boolean }) {
   const width = 900
   const height = 150
   const domain = useMemo(() => {
-    const values = points.flatMap((point) => [Number(point.asset_drawdown), Number(point.strategy_drawdown)]).filter(Number.isFinite)
+    const values = points.flatMap((point) => showMultifactor
+      ? [Number(point.asset_drawdown), Number(point.strategy_drawdown)]
+      : [Number(point.asset_drawdown)]).filter(Number.isFinite)
     return { min: Math.min(...values), max: Math.max(...values) }
-  }, [points])
+  }, [points, showMultifactor])
   const asset = useMemo(() => buildPath(points, 'asset_drawdown', width, height, domain), [domain, points])
   const multifactor = useMemo(() => buildPath(points, 'strategy_drawdown', width, height, domain), [domain, points])
   return (
@@ -367,7 +379,7 @@ function DrawdownChart({ points }: { points: FactorCurvePoint[] }) {
         <line key={line} x1="0" x2={width} y1={line * height / 3} y2={line * height / 3} className={s.gridLine} />
       ))}
       <path d={asset} className={s.drawdownAsset} />
-      <path d={multifactor} className={s.drawdownFactor} />
+      {showMultifactor && <path d={multifactor} className={s.drawdownFactor} />}
     </svg>
   )
 }
@@ -378,8 +390,8 @@ function FactorRow({ factor }: { factor: FactorEvaluation }) {
     <tr>
       <td>
         <div className={s.factorName}>
-          <strong>{factor.label}{factor.selected && <em>训练权重 {(factor.weight * 100).toFixed(0)}%</em>}</strong>
-          <span>{factor.category} · {factor.description}</span>
+          <strong>{factor.label}{factor.selected && <em>组合权重 {(factor.weight * 100).toFixed(0)}%</em>}</strong>
+          <span>{factor.category} · {factor.description}{factor.is_redundant_alias ? ` · 等价变体，归入 ${factor.canonical_factor_key}` : ''}</span>
         </div>
       </td>
       <td>
@@ -465,7 +477,7 @@ export default function FactorResearchPage() {
   const [aiReview, setAiReview] = useState<FactorAiReviewResp | null>(null)
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState('')
-  const [viewMode, setViewMode] = useState<'current' | 'cross_section' | 'history'>('current')
+  const [viewMode, setViewMode] = useState<'current' | 'cross_section' | 'governance' | 'history'>('current')
   const [historyRuns, setHistoryRuns] = useState<ResearchRun[]>([])
   const [historyTotal, setHistoryTotal] = useState(0)
   const [historyCursor, setHistoryCursor] = useState<string | null>(null)
@@ -690,7 +702,11 @@ export default function FactorResearchPage() {
   }
 
   function changeView(value: string) {
-    const next = value === 'history' ? 'history' : value === 'cross_section' ? 'cross_section' : 'current'
+    const next = value === 'history'
+      ? 'history'
+      : value === 'cross_section'
+        ? 'cross_section'
+        : value === 'governance' ? 'governance' : 'current'
     setViewMode(next)
     if (next === 'history' && !historyLoaded) void loadHistory(true)
   }
@@ -806,17 +822,27 @@ export default function FactorResearchPage() {
 
   const signal = result?.current_signal
   const SignalIcon = signal ? LEVEL_ICON[signal.level] : Activity
-  const selectedNames = result?.summary.selected_factors
-    .map((key) => result.factors.find((factor) => factor.key === key)?.label || key)
-    .join(' + ') || '—'
-  const multifactorMethod = result?.methods.find((method) => method.key === 'multifactor')
+  const exploratoryKeys = result
+    ? (result.summary.exploratory_candidates ?? result.summary.selected_factors)
+    : []
+  const selectedNames = result
+    ? exploratoryKeys
+      .map((key) => result.factors.find((factor) => factor.key === key)?.label || key)
+      .join(' + ') || '未发现合格因子'
+    : '未发现合格因子'
+  const multifactorConstructed = result
+    ? (result.summary.multifactor_constructed ?? exploratoryKeys.length > 0)
+    : false
+  const multifactorMethod = multifactorConstructed
+    ? result?.methods.find((method) => method.key === 'multifactor')
+    : undefined
   const bestMethod = result?.methods.find((method) => method.key === result.summary.best_method)
     ?? result?.methods[0]
   const conclusion = result ? researchConclusion(result) : null
   const summaryEvidence = result ? [
-    `${result.summary.usable_factors}/${result.factors.length} 个因子通过样本外规则，训练期组合为 ${selectedNames}`,
+    `${result.summary.usable_factors}/${result.factors.length} 个因子通过样本外规则，${multifactorConstructed ? `探索组合为 ${selectedNames}` : '未发现合格因子，多因子组合未构建'}`,
     bestMethod
-      ? `${bestMethod.label}成本后收益 ${pct(bestMethod.total_return)}，夏普 ${bestMethod.sharpe.toFixed(2)}`
+      ? `${bestMethod.label}成本后收益 ${pct(bestMethod.total_return)}，夏普 ${bestMethod.sharpe.toFixed(2)}${bestMethod.deflated_sharpe_ratio !== undefined ? `，DSR ${pct(bestMethod.deflated_sharpe_ratio)}` : ''}`
       : '没有量化方法通过当前统计口径',
     `${result.summary.test_rows} 根样本外数据，数据质量${result.quality.status === 'ok' ? '通过' : '需要复核'}`,
   ] : []
@@ -832,7 +858,7 @@ export default function FactorResearchPage() {
         : '尚未进行 AI 复核，过拟合与市场状态依赖仍待检查',
   ] : []
   const invalidationConditions = result ? [
-    `入选因子不再满足：${result.methodology.usable_rule}`,
+    `探索候选不再满足：${result.methodology.usable_rule}`,
     '更换市场、研究周期或成本假设后，当前结论必须重新验证',
     result.methodology.warning,
   ] : []
@@ -843,8 +869,9 @@ export default function FactorResearchPage() {
     (method) => method.key === comparison.result.summary.best_method,
   ) ?? comparison?.result.methods[0]
   const comparisonFactorRows = comparison && result ? Array.from(new Set([
-    ...result.summary.selected_factors,
-    ...comparison.result.summary.selected_factors,
+    ...(result.summary.exploratory_candidates ?? result.summary.selected_factors),
+    ...(comparison.result.summary.exploratory_candidates
+      ?? comparison.result.summary.selected_factors),
   ])).map((key) => {
     const current = result.factors.find((factor) => factor.key === key)
     const previous = comparison.result.factors.find((factor) => factor.key === key)
@@ -899,6 +926,8 @@ export default function FactorResearchPage() {
         </aside>
       )}
 
+      {viewMode === 'current' && result && <FactorEvidenceWorkbench result={result} aiReview={aiReview} />}
+
       {viewMode === 'current' && result?.saved === false && (
         <ErrorExplanation
           title="统计结果未保存"
@@ -911,6 +940,8 @@ export default function FactorResearchPage() {
 
       {viewMode === 'cross_section' ? (
         <CrossSectionResearchPanel />
+      ) : viewMode === 'governance' ? (
+        <FactorConfirmationPanel />
       ) : viewMode === 'history' ? (
         <section className={s.historyPanel} aria-label="因子研究历史记录">
           <header className={s.historyHead}>
@@ -969,7 +1000,9 @@ export default function FactorResearchPage() {
               {historyRuns.map((run) => {
                 const factorSummary = asRecord(run.summary.factor_research)
                 const aiSummary = asRecord(run.summary.factor_ai_review)
-                const selected = Array.isArray(factorSummary.selected_factors) ? factorSummary.selected_factors : []
+                const selected = Array.isArray(factorSummary.exploratory_candidates)
+                  ? factorSummary.exploratory_candidates
+                  : Array.isArray(factorSummary.selected_factors) ? factorSummary.selected_factors : []
                 const drawdown = typeof factorSummary.drawdown === 'number' ? pct(factorSummary.drawdown) : '—'
                 const aiState = aiSummary.ok === true ? 'AI 已复核' : aiSummary.ok === false ? 'AI 未完成' : '尚未复核'
                 const runTags = run.tags ?? []
@@ -988,7 +1021,7 @@ export default function FactorResearchPage() {
                         {runTags.length > 0 && <span className={s.historyTags}>{runTags.map((tag) => <i key={tag}>{tag}</i>)}</span>}
                       </div>
                       <div className={s.historyMetrics}>
-                        <span><small>入选因子</small><b>{selected.length}</b></span>
+                        <span><small>探索候选</small><b>{selected.length}</b></span>
                         <span><small>当前回撤</small><b>{drawdown}</b></span>
                         <span><small>最佳方法</small><b>{String(factorSummary.best_method || '—')}</b></span>
                       </div>
@@ -1135,8 +1168,10 @@ export default function FactorResearchPage() {
                 <button type="button" onClick={() => changeView('history')}><History size={16} /><span>查看历史</span></button>
                 {result.summary.best_factor
                   ? <a href={`/alerts?action=create&type=factor_status_changed&symbol=${encodeURIComponent(result.symbol)}&market=${encodeURIComponent(result.market)}&factor_key=${encodeURIComponent(result.summary.best_factor)}${result.run_id ? `&research_run_id=${encodeURIComponent(result.run_id)}` : ''}`}><Bell size={16} /><span>设置提醒</span></a>
-                  : <button type="button" disabled title="当前研究没有可设置提醒的最佳因子"><Bell size={16} /><span>设置提醒</span></button>}
-                <a href={`/strategy-lab?action=create_experiment&symbol=${encodeURIComponent(result.symbol)}&market=${encodeURIComponent(result.market)}&timeframe=${encodeURIComponent(result.interval)}${result.run_id ? `&research_run_id=${encodeURIComponent(result.run_id)}` : ''}`}><FlaskConical size={16} /><span>策略实验</span></a>
+                  : <button type="button" disabled title="当前研究没有可设置提醒的观察因子"><Bell size={16} /><span>设置提醒</span></button>}
+                {multifactorConstructed
+                  ? <a href={`/strategy-lab?action=create_experiment&symbol=${encodeURIComponent(result.symbol)}&market=${encodeURIComponent(result.market)}&timeframe=${encodeURIComponent(result.interval)}${result.run_id ? `&research_run_id=${encodeURIComponent(result.run_id)}` : ''}`}><FlaskConical size={16} /><span>策略实验</span></a>
+                  : <button type="button" disabled title="没有因子通过统计门禁，不能创建策略实验"><FlaskConical size={16} /><span>策略实验</span></button>}
                 <div className={s.exportControl}>
                   <Select value={exportFormat} options={EXPORT_FORMATS} selectSize="sm" aria-label="导出格式" onChange={(event) => setExportFormat(event.target.value as FactorResearchExportFormat)} />
                   <button type="button" onClick={downloadResult} title="下载研究结果"><Download size={16} /><span>导出</span></button>
@@ -1162,18 +1197,18 @@ export default function FactorResearchPage() {
               </header>
               <div className={s.comparisonMetrics}>
                 <div><span>指标</span><strong>当前研究</strong><strong>所选研究</strong></div>
-                <div><span>入选因子</span><b>{result.summary.selected_factors.length}</b><b>{comparison.result.summary.selected_factors.length}</b></div>
+                <div><span>探索候选</span><b>{exploratoryKeys.length}</b><b>{(comparison.result.summary.exploratory_candidates ?? comparison.result.summary.selected_factors).length}</b></div>
                 <div><span>组合收益</span><b className={(bestMethod?.total_return ?? 0) >= 0 ? s.positive : s.negative}>{bestMethod ? pct(bestMethod.total_return) : '—'}</b><b className={(comparisonBestMethod?.total_return ?? 0) >= 0 ? s.positive : s.negative}>{comparisonBestMethod ? pct(comparisonBestMethod.total_return) : '—'}</b></div>
                 <div><span>当前回撤</span><b>{pct(result.current_signal.strategy_drawdown)}</b><b>{pct(comparison.result.current_signal.strategy_drawdown)}</b></div>
                 <div><span>最佳方法</span><b>{bestMethod?.label ?? '—'}</b><b>{comparisonBestMethod?.label ?? '—'}</b></div>
               </div>
               <div className={s.factorDelta}>
-                <div className={s.factorDeltaHead}><span>入选因子变化</span><small>状态与样本外 IC</small></div>
+                <div className={s.factorDeltaHead}><span>探索候选变化</span><small>状态与样本外 IC</small></div>
                 {comparisonFactorRows.map((row) => (
                   <div key={row.key}>
                     <strong>{row.label}</strong>
-                    <span>{row.currentStatus ? STATUS_LABEL[row.currentStatus] : '未入选'} · {row.currentIc === undefined ? '—' : signed(row.currentIc)}</span>
-                    <span>{row.previousStatus ? STATUS_LABEL[row.previousStatus] : '未入选'} · {row.previousIc === undefined ? '—' : signed(row.previousIc)}</span>
+                    <span>{row.currentStatus ? STATUS_LABEL[row.currentStatus] : '非探索候选'} · {row.currentIc === undefined ? '—' : signed(row.currentIc)}</span>
+                    <span>{row.previousStatus ? STATUS_LABEL[row.previousStatus] : '非探索候选'} · {row.previousIc === undefined ? '—' : signed(row.previousIc)}</span>
                   </div>
                 ))}
               </div>
@@ -1233,11 +1268,11 @@ export default function FactorResearchPage() {
                 <div><span>01 / OUT-OF-SAMPLE PERFORMANCE</span><h2>样本外成本后净值</h2></div>
                 <small>{result.symbol} · {result.interval} · {result.source}</small>
               </div>
-              <EquityChart points={result.curve} />
+              <EquityChart points={result.curve} showMultifactor={multifactorConstructed} />
             </section>
 
             <aside className={s.decisionRail}>
-              <div className={s.sectionHead}><div><span>FACTOR SET</span><h2>训练期锁定组合</h2></div><Gauge size={19} /></div>
+              <div className={s.sectionHead}><div><span>FACTOR SET</span><h2>{multifactorConstructed ? '探索候选组合' : '未发现合格因子'}</h2></div><Gauge size={19} /></div>
               <strong className={s.selectedFactors}>{selectedNames}</strong>
               <dl className={s.railStats}>
                 <div><dt>训练 / 隔离 / 验证</dt><dd>{result.summary.train_rows} / {result.summary.purged_rows} / {result.summary.test_rows}</dd></div>
@@ -1249,13 +1284,13 @@ export default function FactorResearchPage() {
                 <div><dt>数据指纹</dt><dd title={result.summary.data_fingerprint}>{result.summary.data_fingerprint?.slice(0, 12) ?? '旧记录未保存'}</dd></div>
                 <div><dt>数据质量</dt><dd>{result.quality.status === 'ok' ? '通过' : result.quality.status}</dd></div>
               </dl>
-              <div className={s.methodNote}><Info size={16} /><span>组合因子与权重只由训练段确定；表格结论再按样本外数据独立检验。{result.methodology.usable_rule}</span></div>
+              <div className={s.methodNote}><Info size={16} /><span>{multifactorConstructed ? '组合方向与初始权重由训练段确定，且只有通过样本外统计门禁的因子可以进入组合。' : '当前没有因子通过样本外统计门禁，因此不生成组合、成本曲线或策略实验。'}{result.methodology.usable_rule}</span></div>
             </aside>
           </div>
 
           <section className={s.panel}>
             <div className={s.sectionHead}><div><span>02 / UNDERWATER</span><h2>样本外回撤轨迹</h2></div><small>红：标的 · 青：多因子组合</small></div>
-            <DrawdownChart points={result.curve} />
+            <DrawdownChart points={result.curve} showMultifactor={multifactorConstructed} />
           </section>
 
           <section className={s.panel}>
@@ -1285,7 +1320,7 @@ export default function FactorResearchPage() {
             </section>
           )}
 
-          {result.cost_analysis && (
+          {result.cost_analysis?.available !== false && result.cost_analysis && (
             <section className={s.panel} aria-label="交易成本敏感度">
               <div className={s.sectionHead}>
                 <div><span>TRANSACTION COST STRESS</span><h2>交易成本敏感度</h2></div>
@@ -1316,16 +1351,17 @@ export default function FactorResearchPage() {
           )}
 
           <section className={s.panel}>
-            <div className={s.sectionHead}><div><span>04 / METHOD BENCHMARK</span><h2>量化方法对比</h2></div><small>仅样本外 · 信号延迟一周期 · 已计成本</small></div>
+            <div className={s.sectionHead}><div><span>04 / METHOD BENCHMARK</span><h2>量化方法对比</h2></div><small>仅样本外 · 信号延迟一周期 · 已计成本{result.reality_check?.available ? ` · Reality Check p=${result.reality_check.p_value?.toFixed(3)}` : ''}</small></div>
             <div className={s.tableScroll}>
               <table className={s.table}>
-                <thead><tr><th>方法</th><th className={s.numeric}>总收益</th><th className={s.numeric}>年化</th><th className={s.numeric}>夏普</th><th className={s.numeric}>Sortino</th><th className={s.numeric}>Calmar</th><th className={s.numeric}>最大回撤</th><th className={s.numeric}>CVaR</th><th className={s.numeric}>闭合交易胜率</th><th className={s.numeric}>闭合交易</th><th className={s.numeric}>敞口</th></tr></thead>
+                <thead><tr><th>方法</th><th className={s.numeric}>总收益</th><th className={s.numeric}>年化</th><th className={s.numeric}>夏普</th><th className={s.numeric}>DSR</th><th className={s.numeric}>Sortino</th><th className={s.numeric}>Calmar</th><th className={s.numeric}>最大回撤</th><th className={s.numeric}>CVaR</th><th className={s.numeric}>闭合交易胜率</th><th className={s.numeric}>闭合交易</th><th className={s.numeric}>敞口</th></tr></thead>
                 <tbody>{result.methods.map((method, index) => (
                   <tr key={method.key}>
                     <td><div className={s.methodName}><strong>{method.label}</strong>{index === 0 && <span>风险调整后最优</span>}</div></td>
                     <td className={`${s.numeric} ${method.total_return >= 0 ? s.positive : s.negative}`}>{pct(method.total_return)}</td>
                     <td className={s.numeric}>{pct(method.annual_return)}</td>
                     <td className={s.numeric}>{method.sharpe.toFixed(2)}</td>
+                    <td className={s.numeric}>{method.deflated_sharpe_ratio !== undefined ? pct(method.deflated_sharpe_ratio) : '—'}</td>
                     <td className={s.numeric}>{method.sortino.toFixed(2)}</td>
                     <td className={s.numeric}>{method.calmar.toFixed(2)}</td>
                     <td className={`${s.numeric} ${s.negative}`}>{pct(method.max_drawdown)}</td>

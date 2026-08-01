@@ -1,0 +1,181 @@
+.panel {
+  min-width: 0;
+  border-block: 1px solid var(--border);
+  background: var(--bg-elevated);
+  animation: qh-fade-in-up var(--t-slow) var(--ease-out) both;
+}
+
+.header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-4);
+  padding: var(--sp-5);
+  border-bottom: 1px solid var(--border);
+  background:
+    repeating-linear-gradient(135deg, transparent 0 14px, color-mix(in srgb, var(--warn) 7%, transparent) 14px 15px),
+    linear-gradient(90deg, color-mix(in srgb, var(--warn) 12%, transparent), transparent 48%),
+    var(--bg-subtle);
+}
+
+.seal {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--warn) 50%, var(--border));
+  border-radius: 50%;
+  color: var(--warn-ink);
+  background: var(--bg-elevated);
+  box-shadow: inset 0 0 0 5px color-mix(in srgb, var(--warn) 8%, transparent);
+}
+
+.header span,
+.contractLead span,
+.openedLedger span {
+  color: var(--warn-ink);
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-wide);
+}
+
+.header h2 { margin: 2px 0 0; font-size: var(--fs-h2); }
+.header p { margin: 3px 0 0; color: var(--text-3); font-size: var(--fs-caption); }
+
+.error {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-5);
+  border-bottom: 1px solid color-mix(in srgb, var(--down) 30%, var(--border));
+  color: var(--down-ink);
+  background: color-mix(in srgb, var(--down) 8%, var(--bg-elevated));
+  font-size: var(--fs-caption);
+}
+
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(230px, 0.62fr) minmax(0, 2fr);
+  min-height: 520px;
+}
+
+.planRail {
+  display: grid;
+  align-content: start;
+  gap: var(--sp-4);
+  padding: var(--sp-5);
+  border-right: 1px solid var(--border);
+  background: var(--bg-subtle);
+}
+
+.planRail label,
+.contractFields label { display: grid; gap: var(--sp-1); }
+.planRail label > span,
+.contractFields label > span { color: var(--text-3); font-size: var(--fs-micro); font-weight: var(--fw-semibold); }
+
+.planMeta {
+  display: grid;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+}
+.planMeta small { color: var(--accent-strong); font-family: var(--font-mono); text-transform: uppercase; }
+.planMeta strong { overflow-wrap: anywhere; font-family: var(--font-mono); }
+.planMeta dl { display: grid; gap: 1px; margin: 0; background: var(--border); }
+.planMeta dl div { display: flex; justify-content: space-between; padding: 7px 9px; background: var(--bg-elevated); }
+.planMeta dt { color: var(--text-3); font-size: var(--fs-micro); }
+.planMeta dd { margin: 0; font-family: var(--font-mono); font-size: var(--fs-caption); font-weight: var(--fw-semibold); }
+
+.ruleCard {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border-left: 3px solid var(--warn);
+  color: var(--warn-ink);
+  background: color-mix(in srgb, var(--warn) 8%, var(--bg-elevated));
+}
+.ruleCard p { margin: 0; font-size: var(--fs-caption); line-height: 1.65; }
+
+.evidenceDesk { min-width: 0; padding: var(--sp-5); }
+.evidenceDesk[aria-busy='true'] { opacity: 0.62; }
+
+.partitionTimeline {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border: 1px solid var(--border);
+  background: var(--border);
+  gap: 1px;
+}
+.partitionTimeline article {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  background: var(--bg-elevated);
+}
+.partitionTimeline article[data-locked='true'] {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--warn) 9%, transparent), transparent 55%),
+    var(--bg-elevated);
+}
+.partitionTimeline b { color: var(--text-4); font-family: var(--font-mono); font-size: var(--fs-h3); }
+.partitionTimeline article > div { display: grid; min-width: 0; gap: 4px; }
+.partitionTimeline strong { font-size: var(--fs-body); }
+.partitionTimeline span { color: var(--text-3); font-size: var(--fs-micro); }
+.partitionTimeline code { overflow: hidden; color: var(--accent-strong); font-size: var(--fs-micro); text-overflow: ellipsis; }
+.partitionTimeline footer {
+  grid-column: 1 / -1;
+  padding: 8px var(--sp-4);
+  color: var(--text-3);
+  background: var(--bg-subtle);
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+}
+
+.openingContract,
+.openedLedger {
+  margin-top: var(--sp-5);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-elevated);
+}
+.openingContract { padding: var(--sp-5); }
+.contractLead { display: flex; align-items: flex-start; gap: var(--sp-3); padding-bottom: var(--sp-4); border-bottom: 1px solid var(--border); }
+.contractLead svg { color: var(--warn-ink); }
+.contractLead h3,
+.openedLedger h3 { margin: 2px 0; font-size: var(--fs-h3); }
+.contractLead p,
+.openedLedger p { margin: 0; color: var(--text-3); font-size: var(--fs-caption); }
+.contractFields { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(180px, 0.6fr); gap: var(--sp-4); padding-top: var(--sp-4); }
+.contractFields > button { align-self: end; justify-self: end; }
+.acknowledgement { display: flex !important; grid-column: 1 / -1; align-items: flex-start; gap: var(--sp-2) !important; padding: var(--sp-3); border: 1px dashed color-mix(in srgb, var(--warn) 50%, var(--border)); background: color-mix(in srgb, var(--warn) 6%, transparent); }
+.acknowledgement input { width: 17px; height: 17px; margin-top: 1px; accent-color: var(--warn); }
+.acknowledgement span { color: var(--text-2) !important; font-size: var(--fs-caption) !important; }
+.noExperiment { margin-top: var(--sp-4); padding: var(--sp-4); border: 1px dashed var(--border-strong); color: var(--text-3); text-align: center; }
+
+.openedLedger {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--sp-3);
+  padding: var(--sp-5);
+  border-color: color-mix(in srgb, var(--up) 45%, var(--border));
+  background: linear-gradient(120deg, color-mix(in srgb, var(--up) 9%, transparent), transparent 58%);
+}
+.openedLedger > svg { color: var(--up-ink); }
+.openedLedger span { color: var(--up-ink); }
+.openedLedger dl { display: grid; grid-column: 1 / -1; gap: 1px; margin: var(--sp-3) 0 0; background: var(--border); }
+.openedLedger dl div { display: grid; grid-template-columns: 110px minmax(0, 1fr); padding: 9px 11px; background: var(--bg-elevated); }
+.openedLedger dt { color: var(--text-3); font-size: var(--fs-micro); }
+.openedLedger dd { overflow-wrap: anywhere; margin: 0; font-family: var(--font-mono); font-size: var(--fs-micro); }
+
+@media (max-width: 900px) {
+  .header { grid-template-columns: auto minmax(0, 1fr); }
+  .header > button { grid-column: 1 / -1; justify-self: start; }
+  .workspace { grid-template-columns: 1fr; }
+  .planRail { border-right: 0; border-bottom: 1px solid var(--border); }
+  .partitionTimeline { grid-template-columns: 1fr; }
+  .contractFields { grid-template-columns: 1fr; }
+  .contractFields > button { justify-self: stretch; }
+}

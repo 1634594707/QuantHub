@@ -23,6 +23,7 @@ from typing import Any
 from core.config import get_config
 from core.data_feed.base import News
 from core.llm import get_llm
+from core.news_event_research import extract_event_semantics
 from strategies.a_shares.news_analyzer.event_semantics import (
     classify_event_impact,
     uncertain_price_direction,
@@ -37,6 +38,7 @@ from strategies.a_shares.news_analyzer.schema import (
     NewsAnalysis,
     NewsBatchResult,
     NewsEntity,
+    NewsEventExtraction,
     NewsEventImpact,
     NewsPriceDirection,
     NewsSentiment,
@@ -161,7 +163,7 @@ class NewsAnalyzer:
         for news in news_list:
             try:
                 pos_prob, certainty, eng = sa.analyze(news.title or "")
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 - optional analyzer failures degrade to neutral
                 logger.warning("SentimentAnalyzer 异常，降级为中性: %s", exc)
                 pos_prob, certainty, eng = 0.5, 0.0, "keyword"
             sentiment_results.append((pos_prob, certainty, eng))
@@ -174,7 +176,7 @@ class NewsAnalyzer:
                 any_enhanced = any(o is not None for o in api_objs)
                 if not any_enhanced:
                     degraded_reason = "api_invalid_response"
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 - optional API failures use local analysis
                 logger.warning("API 增强失败，仅返回情绪分析: %s", exc)
                 api_objs = [None] * len(news_list)
                 model_name = None
@@ -346,6 +348,7 @@ class NewsAnalyzer:
         engine = "semantic+api" if enhanced else "semantic"
         event_impact = NewsEventImpact(**classify_event_impact(news.title or ""))
         price_direction = NewsPriceDirection(**uncertain_price_direction())
+        research_event = NewsEventExtraction(**extract_event_semantics(news.title or "", obj))
 
         return NewsAnalysis(
             title=news.title,
@@ -362,6 +365,7 @@ class NewsAnalyzer:
             latency_ms=0,
             event_impact=event_impact,
             price_direction=price_direction,
+            research_event=research_event,
         )
 
     @staticmethod

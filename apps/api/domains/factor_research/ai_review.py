@@ -13,6 +13,17 @@ from core.llm import LLMClient, get_llm
 
 RiskLevel = Literal["低", "中", "高"]
 AI_REVIEW_TIMEOUT_SECONDS = 120
+RESTRICTED_AI_FIELD_FRAGMENTS = (
+    "confirmation",
+    "forward_return",
+    "future_return",
+    "return_rank",
+    "profit_rank",
+    "unpublished",
+    "locked_label",
+    "target_label",
+    "hidden_rank",
+)
 
 
 class RiskReview(BaseModel):
@@ -62,85 +73,143 @@ class AiReviewPayload(BaseModel):
         return value
 
 
+def _strip_restricted_ai_fields(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {
+            key: _strip_restricted_ai_fields(item)
+            for key, item in value.items()
+            if not any(fragment in str(key).lower() for fragment in RESTRICTED_AI_FIELD_FRAGMENTS)
+        }
+    if isinstance(value, list):
+        return [_strip_restricted_ai_fields(item) for item in value]
+    return value
+
+
 def _review_context(result: dict[str, Any], focus: str) -> dict[str, Any]:
-    review_candidates = [item for item in result["factors"] if item["selected"]]
+    review_candidates = [
+        item
+        for item in result["factors"]
+        if item.get("exploratory_candidate", item.get("selected", False))
+    ]
     if not review_candidates:
         review_candidates = [
             item for item in result["factors"] if item["status"] in {"usable", "watch"}
         ][:1]
-    review_factors = [
-        {
-            "key": item["key"],
-            "label": item["label"],
-            "category": item["category"],
-            "statistical_status": item["status"],
-            "selected": item["selected"],
-            "weight": item["weight"],
-            "train_ic": item["train_ic"],
-            "test_ic": item["test_ic"],
-            "icir": item["icir"],
-            "positive_ic_ratio": item["positive_ic_ratio"],
-            "hit_rate": item["hit_rate"],
-            "p_value": item["p_value"],
-            "adjusted_p_value": item.get("adjusted_p_value", item["p_value"]),
-            "statistically_significant": item.get("statistically_significant"),
-            "decay": item["decay"],
-            "test_observations": item["test_observations"],
-            "effective_observations": item.get("effective_observations", item["test_observations"]),
-            "p_value_method": item.get("p_value_method", "legacy_correlation_test"),
-            "window_pass_rate": item.get("window_pass_rate"),
-            "passed_windows": item.get("passed_windows"),
-            "window_count": item.get("window_count"),
-            "worst_window_ic": item.get("worst_window_ic"),
-            "median_window_ic": item.get("median_window_ic"),
-            "window_ic_iqr": item.get("window_ic_iqr"),
-            "status_transitions": item.get("status_transitions"),
-            "direction_flips": item.get("direction_flips"),
-            "multi_window_consistent": item.get("multi_window_consistent"),
-            "windows": item.get("windows", []),
-        }
-        for item in review_candidates[:4]
-    ]
-    factor_screen = [
-        {
-            "key": item["key"],
-            "status": item["status"],
-            "selected": item["selected"],
-            "train_ic": item["train_ic"],
-            "test_ic": item["test_ic"],
-            "p_value": item["p_value"],
-            "adjusted_p_value": item.get("adjusted_p_value", item["p_value"]),
-            "statistically_significant": item.get("statistically_significant"),
-            "window_pass_rate": item.get("window_pass_rate"),
-            "worst_window_ic": item.get("worst_window_ic"),
-            "median_window_ic": item.get("median_window_ic"),
-            "status_transitions": item.get("status_transitions"),
-            "direction_flips": item.get("direction_flips"),
-            "multi_window_consistent": item.get("multi_window_consistent"),
-        }
-        for item in result["factors"]
-    ]
-    methods = [
-        {
-            "key": item["key"],
-            "total_return": item["total_return"],
-            "sharpe": item["sharpe"],
-            "max_drawdown": item["max_drawdown"],
-            "cvar_95": item["cvar_95"],
-            "trades": item["trades"],
-            "closed_trades": item.get("closed_trades"),
-            "profit_factor": item.get("profit_factor"),
-            "profit_factor_basis": item.get("profit_factor_basis", "legacy_period_returns"),
-            "win_rate": item.get("win_rate"),
-            "win_rate_basis": item.get("win_rate_basis", "legacy_period_returns"),
-            "average_trade_return": item.get("average_trade_return"),
-            "average_win": item.get("average_win"),
-            "average_loss": item.get("average_loss"),
-            "payoff_ratio": item.get("payoff_ratio"),
-        }
-        for item in result["methods"]
-    ]
-    return {
+    review_factors = sorted(
+        [
+            {
+                "key": item["key"],
+                "label": item["label"],
+                "category": item["category"],
+                "statistical_status": item["status"],
+                "exploratory_candidate": item.get(
+                    "exploratory_candidate", item.get("selected", False)
+                ),
+                "weight": item["weight"],
+                "train_ic": item["train_ic"],
+                "test_ic": item["test_ic"],
+                "icir": item["icir"],
+                "positive_ic_ratio": item["positive_ic_ratio"],
+                "hit_rate": item["hit_rate"],
+                "p_value": item["p_value"],
+                "adjusted_p_value": item.get("adjusted_p_value", item["p_value"]),
+                "statistically_significant": item.get("statistically_significant"),
+                "decay": item["decay"],
+                "test_observations": item["test_observations"],
+                "effective_observations": item.get(
+                    "effective_observations", item["test_observations"]
+                ),
+                "p_value_method": item.get("p_value_method", "legacy_correlation_test"),
+                "window_pass_rate": item.get("window_pass_rate"),
+                "passed_windows": item.get("passed_windows"),
+                "window_count": item.get("window_count"),
+                "worst_window_ic": item.get("worst_window_ic"),
+                "median_window_ic": item.get("median_window_ic"),
+                "window_ic_iqr": item.get("window_ic_iqr"),
+                "status_transitions": item.get("status_transitions"),
+                "direction_flips": item.get("direction_flips"),
+                "multi_window_consistent": item.get("multi_window_consistent"),
+                "windows": item.get("windows", []),
+            }
+            for item in review_candidates[:4]
+        ],
+        key=lambda item: item["key"],
+    )
+    factor_screen = sorted(
+        [
+            {
+                "key": item["key"],
+                "status": item["status"],
+                "exploratory_candidate": item.get(
+                    "exploratory_candidate", item.get("selected", False)
+                ),
+                "train_ic": item["train_ic"],
+                "test_ic": item["test_ic"],
+                "p_value": item["p_value"],
+                "adjusted_p_value": item.get("adjusted_p_value", item["p_value"]),
+                "statistically_significant": item.get("statistically_significant"),
+                "window_pass_rate": item.get("window_pass_rate"),
+                "worst_window_ic": item.get("worst_window_ic"),
+                "median_window_ic": item.get("median_window_ic"),
+                "status_transitions": item.get("status_transitions"),
+                "direction_flips": item.get("direction_flips"),
+                "multi_window_consistent": item.get("multi_window_consistent"),
+            }
+            for item in result["factors"]
+        ],
+        key=lambda item: item["key"],
+    )
+    methods = sorted(
+        [
+            {
+                "key": item["key"],
+                "total_return": item["total_return"],
+                "sharpe": item["sharpe"],
+                "max_drawdown": item["max_drawdown"],
+                "cvar_95": item["cvar_95"],
+                "trades": item["trades"],
+                "closed_trades": item.get("closed_trades"),
+                "profit_factor": item.get("profit_factor"),
+                "profit_factor_basis": item.get("profit_factor_basis", "legacy_period_returns"),
+                "win_rate": item.get("win_rate"),
+                "win_rate_basis": item.get("win_rate_basis", "legacy_period_returns"),
+                "average_trade_return": item.get("average_trade_return"),
+                "average_win": item.get("average_win"),
+                "average_loss": item.get("average_loss"),
+                "payoff_ratio": item.get("payoff_ratio"),
+            }
+            for item in result["methods"]
+        ],
+        key=lambda item: item["key"],
+    )
+    summary = result["summary"]
+    published_summary = {
+        key: summary[key]
+        for key in (
+            "rows",
+            "train_rows",
+            "purged_rows",
+            "test_rows",
+            "walk_forward_test_rows",
+            "horizon",
+            "transaction_cost_bps",
+            "significance_level",
+            "significance_method",
+            "walk_forward_mode",
+            "walk_forward_folds",
+            "window_pass_requirement",
+            "usable_factors",
+            "effective_factor_hypotheses",
+            "multifactor_constructed",
+            "evaluation_scope",
+            "engine_version",
+            "factor_formula_version",
+            "research_period",
+            "thresholds",
+        )
+        if key in summary
+    }
+    context = {
         "research_focus": focus,
         "instrument": {
             "symbol": result["symbol"],
@@ -152,14 +221,19 @@ def _review_context(result: dict[str, Any], focus: str) -> dict[str, Any]:
             "status": result["quality"]["status"],
             "row_count": result["quality"]["row_count"],
         },
-        "summary": result["summary"],
+        "summary": published_summary,
         "methodology": result["methodology"],
-        "current_signal": result["current_signal"],
         "review_factors": review_factors,
         "factor_screen": factor_screen,
         "methods": methods,
         "cost_analysis": result.get("cost_analysis"),
+        "information_boundary": {
+            "scope": "published_exploratory_statistics_only",
+            "ordering": "canonical_key_not_performance_rank",
+            "locked_sample_data_access": False,
+        },
     }
+    return _strip_restricted_ai_fields(context)
 
 
 def _extract_json(content: str) -> dict[str, Any] | None:
@@ -280,6 +354,9 @@ def run_ai_review(
                     "attempts": attempts,
                     "usage": total_usage,
                     "statistical_conclusions_locked": True,
+                    "confirmation_labels_excluded": True,
+                    "trading_signal_excluded": True,
+                    "dynamic_code_execution": False,
                 },
             }
         except (ValidationError, ValueError) as exc:

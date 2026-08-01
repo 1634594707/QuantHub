@@ -104,7 +104,7 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 deployment = load_settings()
-app = FastAPI(title="QuantHub API", version="0.2.0", lifespan=_lifespan)
+app = FastAPI(title="QuantHub API", version="0.3.0", lifespan=_lifespan)
 
 
 @app.middleware("http")

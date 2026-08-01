@@ -5,7 +5,9 @@
 ## 使用与部署
 
 - [项目说明](../README.md)：功能介绍、环境要求、安装、启动和验证命令。
-- [v0.2.0 发布说明](releases/v0.2.0.md)：多窗口、跨标的、成本执行、持续复验和升级说明。
+- [v0.3.0 发布说明](releases/v0.3.0.md)：AI 因子发现、安全 DSL、试验治理、真实基线、模拟审计和升级说明。
+- [AI 因子发现路线图](../AI_FACTOR_DISCOVERY_ROADMAP.md)：任务状态、真实证据快照和剩余数据边界。
+- [v0.2.0 发布说明](releases/v0.2.0.md)：上一版本的多窗口、跨标的、成本执行和持续复验说明。
 - [v0.2.0 社区更新帖子](posts/2026-07-31-quanthub-v0.2.0.md)：可直接用于“工具与项目”板块的发布内容。
 - [交易成本来源与录入边界](TRADING_COST_SOURCES.md)：A 股、中国结算、SEC、FINRA、OKX 与 MT5 来源及禁止推断的参数边界。
 - [部署与数据库迁移](DEPLOYMENT.md)：本机、局域网、PostgreSQL、认证、CORS 和 Alembic。

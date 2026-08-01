@@ -139,11 +139,15 @@ temp/
 /*ROADMAP*.md
 !BEGINNER_USABILITY_ROADMAP.md
 !FACTOR_RESEARCH_ROADMAP.md
+!AI_FACTOR_DISCOVERY_ROADMAP.md
 /design/*ROADMAP*.md
 /design/FRONTEND_REDESIGN_PLAN.md
 /design/PHASE_0_VISUAL_ACCEPTANCE.md
 
 # ===== 截图测试产物（UI 预览/对比用，不入仓）=====
-/demo_artifacts/
+!/demo_artifacts/
+/demo_artifacts/*
+!/demo_artifacts/a_share_300_factor_baseline.json
+!/demo_artifacts/a_share_preregistered_experiments_01_07.json
 web/screenshot-*.png
 screenshot-*.png

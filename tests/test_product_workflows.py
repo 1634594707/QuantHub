@@ -19,6 +19,7 @@ from apps.api.domains.automation import service as automation_service
 from apps.api.domains.governance import repository as governance_repository
 from apps.api.domains.instrument import service as instrument_service
 from apps.api.domains.ledger import repository as ledger_repository
+from apps.api.domains.portfolio import service as portfolio_service
 from apps.api.domains.search import service as search_service
 from apps.api.domains.settings import service as settings_service
 from apps.api.domains.signals import service as signal_service
@@ -436,6 +437,58 @@ class SignalSimulationLedgerTests(TemporaryStoreTestCase):
         self.assertIsNotNone(trade)
         self.assertEqual(trade.code, "600519")
         self.assertEqual(trade.quantity, 10)
+
+    def test_paper_order_persists_research_audit_and_side_aware_slippage(self) -> None:
+        with patch.object(portfolio_service, "latest_close", return_value=100.0):
+            order = simulation_service.create_order(
+                SimulationOrderCreate(
+                    symbol="600519",
+                    market="a_shares",
+                    side="sell",
+                    quantity=20,
+                    factor_key="mean_reversion",
+                    factor_version="1.0.0",
+                    research_run_id="research-001",
+                    rebalance_cycle_id="cycle-001",
+                    capacity_used=0.08,
+                )
+            )
+
+        self.assertFalse(order["audit"]["live_trading_enabled"])
+        self.assertEqual(order["audit"]["factor_key"], "mean_reversion")
+        self.assertEqual(order["audit"]["theoretical_price"], 100.0)
+        self.assertEqual(order["audit"]["capacity_used"], 0.08)
+        self.assertTrue(order["audit"]["signal_time"])
+        self.assertTrue(order["audit"]["tradable_time"])
+
+        filled = simulation_service.fill_order(
+            order["id"], SimulationFillCreate(price=99.5, fee_rate=0.001)
+        )
+        execution = filled["executions"][0]
+        self.assertEqual(execution["theoretical_price"], 100.0)
+        self.assertEqual(execution["simulated_price"], 99.5)
+        self.assertEqual(execution["slippage_bps"], 50.0)
+        self.assertEqual(execution["capacity_used"], 0.08)
+        self.assertFalse(execution["live_trading_enabled"])
+
+    def test_cancelled_paper_order_records_rejection_reason(self) -> None:
+        with patch.object(portfolio_service, "latest_close", return_value=100.0):
+            order = simulation_service.create_order(
+                SimulationOrderCreate(
+                    symbol="600519",
+                    market="a_shares",
+                    side="buy",
+                    quantity=10,
+                )
+            )
+
+        cancelled = store.cancel_simulation_order(
+            order["id"], rejection_reason="capacity_gate_failed"
+        )
+
+        self.assertEqual(cancelled["status"], "cancelled")
+        self.assertEqual(cancelled["audit"]["rejection_reason"], "capacity_gate_failed")
+        self.assertFalse(cancelled["audit"]["live_trading_enabled"])
 
 
 class AlertCenterTests(TemporaryStoreTestCase):

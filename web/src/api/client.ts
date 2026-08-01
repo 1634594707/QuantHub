@@ -34,6 +34,18 @@ import type {
   CreatedApiToken,
   EnsembleResp,
   FactorResearchResp,
+  FactorAiProposalContext,
+  FactorAiSearchRoundRecord,
+  FactorAiSearchUsage,
+  FactorConfirmationSetOpening,
+  FactorDefinitionRecord,
+  FactorLifecycleRecord,
+  FactorExperimentRecord,
+  FactorFailureCode,
+  FactorPreRegistration,
+  FactorResearchPlanRecord,
+  FactorResearchDataSplit,
+  FactorRealityCheck,
   FactorAiReviewResp,
   FactorResearchRunDetailResp,
   FactorResearchRunsResp,
@@ -71,7 +83,9 @@ import type {
   PositionDecisionContext,
   MarketBreadthResp,
   NewsAnalyzeResp,
+  NewsEventOutcome,
   NewsHealthResp,
+  NewsResearchEvent,
   NotificationChannelName,
   NotificationStatus,
   PaAnalyzeResp,
@@ -479,6 +493,14 @@ export const api = {
     order_type?: 'market' | 'limit'
     quantity: number
     limit_price?: number
+    factor_key?: string
+    factor_version?: string
+    research_run_id?: string
+    rebalance_cycle_id?: string
+    signal_time?: string
+    tradable_time?: string
+    theoretical_price?: number
+    capacity_used?: number
   }) =>
     getJSON<{ ok: boolean; order: SimulationOrder }>('/simulation/orders', {
       method: 'POST',
@@ -519,10 +541,14 @@ export const api = {
       { method: 'POST' },
     ),
 
-  cancelSimulationOrder: (id: string) =>
+  cancelSimulationOrder: (id: string, rejectionReason = 'user_cancelled') =>
     getJSON<{ ok: boolean; order: SimulationOrder }>(
       `/simulation/orders/${encodeURIComponent(id)}/cancel`,
-      { method: 'POST' },
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rejection_reason: rejectionReason }),
+      },
     ),
 
   simulationAccount: () => getJSON<SimulationAccount>('/simulation/account'),
@@ -640,6 +666,7 @@ export const api = {
     end_date?: string
     walk_forward_mode: 'expanding' | 'rolling'
     walk_forward_folds: number
+    availability_lag?: number
   }) => getJSON<FactorResearchResp>('/factor-research/analyze', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -656,6 +683,7 @@ export const api = {
     end_date?: string
     walk_forward_mode: 'expanding' | 'rolling'
     walk_forward_folds: number
+    availability_lag?: number
     review_focus?: string
     run_id?: string
   }) => getJSON<FactorAiReviewResp>('/factor-research/ai-review', {
@@ -703,6 +731,495 @@ export const api = {
     getJSON<FactorStatusMatrix>(`/factor-research/status-matrix/${encodeURIComponent(factorKey)}`),
   factorResearchAttention: (staleHours = 24, limit = 100) =>
     getJSON<FactorResearchAttention>(`/factor-research/attention?stale_hours=${staleHours}&limit=${limit}`),
+  registerFactorDefinition: (payload: {
+    key: string
+    label: string
+    market: 'a_shares' | 'us_stocks' | 'crypto' | 'mt5' | 'all'
+    ast: Record<string, unknown>
+    direction?: 'positive' | 'inverse'
+    horizon?: number
+    availability_lag?: number
+    rationale?: string
+    family?: string
+    version?: string
+    parameters?: Record<string, unknown>
+  }) => getJSON<{ ok: boolean; definition: FactorDefinitionRecord }>('/factor-research/definitions', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+  }),
+  seedBuiltinFactorDefinitions: () => getJSON<{
+    ok: boolean
+    count: number
+    definitions: FactorDefinitionRecord[]
+    formula_version: string
+  }>('/factor-research/definitions/seed-builtins', { method: 'POST' }),
+  importTokenFormulaDefinitions: (payload: {
+    engine: 'alphagpt' | 'alphamaster'
+    formulas: number[][]
+    key_prefix?: string
+    label_prefix?: string
+    version?: string
+    horizon?: number
+    availability_lag?: number
+    rationale?: string
+  }) => getJSON<{
+    ok: boolean
+    engine: 'alphagpt' | 'alphamaster'
+    count: number
+    definitions: FactorDefinitionRecord[]
+  }>('/factor-research/definitions/import-token-formulas', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+  }),
+  factorDefinitions: (market?: string, family?: string) => {
+    const params = new URLSearchParams()
+    if (market) params.set('market', market)
+    if (family) params.set('family', family)
+    const query = params.toString()
+    return getJSON<{ ok: boolean; count: number; definitions: FactorDefinitionRecord[] }>(
+      `/factor-research/definitions${query ? `?${query}` : ''}`,
+    )
+  },
+  factorDefinition: (factorKey: string, version: string) =>
+    getJSON<{ ok: boolean; definition: FactorDefinitionRecord }>(
+      `/factor-research/definitions/${encodeURIComponent(factorKey)}/${encodeURIComponent(version)}`,
+    ),
+  factorLifecycle: (factorKey: string, version: string, targetMarket?: string) => {
+    const params = new URLSearchParams()
+    if (targetMarket) params.set('target_market', targetMarket)
+    const query = params.toString()
+    return getJSON<FactorLifecycleRecord>(
+      `/factor-research/definitions/${encodeURIComponent(factorKey)}/${encodeURIComponent(version)}/lifecycle${query ? `?${query}` : ''}`,
+    )
+  },
+  transitionFactorLifecycle: (factorKey: string, version: string, payload: {
+    state: 'exploratory' | 'research_passed' | 'trading_validated' | 'degraded' | 'retired'
+    target_market: 'a_shares' | 'us_stocks' | 'crypto' | 'mt5'
+    actor_type?: 'system' | 'researcher' | 'ai'
+    actor: string
+    rule: string
+    evidence: Record<string, unknown>
+  }) => getJSON<{
+    ok: boolean
+    factor_key: string
+    version: string
+    previous_state: string
+    current_state: string
+    event: FactorLifecycleRecord['events'][number]
+  }>(`/factor-research/definitions/${encodeURIComponent(factorKey)}/${encodeURIComponent(version)}/lifecycle/transitions`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+  }),
+  validateFactorCandidateData: (payload: {
+    factor_key: string
+    factor_version?: string
+    rows: Array<Record<string, unknown>>
+    minimum_data_coverage?: number
+  }) => getJSON<{
+    ok: boolean
+    validation: {
+      id: string
+      factor_definition_id: string
+      data_fingerprint: string
+      report: {
+        coverage: number
+        valid_values: number
+        eligible_values: number
+        warmup_rows: number
+        minimum_data_coverage: number
+        definition_hash: string
+      }
+      created_at: number
+    }
+  }>('/factor-research/candidate-validations', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+  }),
+  analyzeFactorRedundancy: (payload: {
+    definitions: Array<{ key: string; version?: string }>
+    rows: Array<Record<string, unknown>>
+    minimum_observations?: number
+    high_correlation_threshold?: number
+    monotonic_threshold?: number
+    tail_quantile?: number
+    regime_field?: string
+  }) => getJSON<{
+    ok: boolean
+    definition_count: number
+    redundant_count: number
+    correlation_scope: { tail_quantile: number; regime_field: string | null }
+    correlation_pairs: Array<{
+      left_key: string
+      right_key: string
+      relation: 'exact_duplicate' | 'constant_multiple' | 'monotonic_equivalent' | 'high_correlation' | 'distinct'
+      direction: 'same' | 'inverse'
+      observations: number
+      pearson: number
+      spearman: number
+      tail_pearson: number | null
+      tail_observations: number
+      regime_correlations: Array<{
+        regime: string
+        observations: number
+        pearson: number
+        spearman: number
+      }>
+      scale: number | null
+    }>
+    redundant_pairs: Array<{
+      left_key: string
+      right_key: string
+      relation: 'exact_duplicate' | 'constant_multiple' | 'monotonic_equivalent' | 'high_correlation'
+      direction: 'same' | 'inverse'
+      observations: number
+      pearson: number
+      spearman: number
+      tail_pearson: number | null
+      tail_observations: number
+      regime_correlations: Array<{
+        regime: string
+        observations: number
+        pearson: number
+        spearman: number
+      }>
+      scale: number | null
+    }>
+  }>('/factor-research/redundancy/analyze', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+  }),
+  analyzeFactorRobustness: (payload: {
+    factor: Array<number | null>
+    label: Array<number | null>
+    liquidity?: Array<number | null>
+    deployed_factors?: Record<string, Array<number | null>>
+    parameter_results?: Array<Record<string, unknown>>
+    parameter_name?: string
+    parameter_metric?: string
+    parameter_threshold?: number
+    pareto_candidates?: Array<Record<string, unknown>>
+    pareto_objectives?: Record<string, 'maximize' | 'minimize'>
+    factor_returns?: Record<string, Array<number | null>>
+    expected_ics?: Record<string, number>
+    candidate_portfolio_returns?: Array<number | null>
+    benchmark_portfolio_returns?: Array<number | null>
+    candidate_turnover?: Array<number | null>
+    benchmark_turnover?: Array<number | null>
+    candidate_capacity?: Array<number | null>
+    benchmark_capacity?: Array<number | null>
+    transaction_cost_bps?: number
+    risk_constraints?: Record<string, number>
+    nonlinear_features?: Record<string, Array<number | null>>
+    nonlinear_label?: Array<number | null>
+    nonlinear_minimum_improvement?: number
+    seed?: number
+  }) => getJSON<{
+    ok: boolean
+    seed: number
+    reports: Record<string, unknown>
+    deterministic: true
+    dynamic_code_execution: false
+  }>('/factor-research/robustness/analyze', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+  }),
+  validateFactorPortfolioConstraints: (payload: {
+    market: 'a_shares' | 'us_stocks' | 'crypto' | 'mt5'
+    weights: Record<string, number>
+    industries?: Record<string, string>
+    benchmark_industry_weights?: Record<string, number>
+    average_daily_values?: Record<string, number>
+    proposed_trade_values?: Record<string, number>
+    turnover: number
+    overrides?: Record<string, number | boolean>
+  }) => getJSON<{
+    ok: boolean
+    validation: {
+      passed: boolean
+      market: string
+      profile: Record<string, number | boolean | string | null>
+      violations: string[]
+      overweight_symbols: string[]
+      industry_weights: Record<string, number>
+      industry_deviations: Record<string, number>
+      participation_rates: Record<string, number>
+      turnover: number
+    }
+  }>('/factor-research/portfolio-constraints/validate', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+  }),
+  factorCandidateInbox: (payload: {
+    candidates: Array<{
+      candidate_id: string
+      source: 'human' | 'ai' | 'template' | 'random_dsl' | 'symbolic_regression'
+      economic_hypothesis: string
+      formula_ast: Record<string, unknown>
+      data_requirements: string[]
+      duplicate_risk: 'low' | 'medium' | 'high' | 'confirmed_duplicate'
+      future_information_check_passed: boolean
+      causal_check_passed: boolean
+      data_check_passed: boolean
+      estimated_compute_units: number
+      exploration_score?: number
+      research_status?: string
+      trading_status?: string
+      ai_review?: Record<string, unknown>
+      approved_by?: string
+      budget_approved?: boolean
+    }>
+  }) => getJSON<{ ok: boolean; inbox: Record<string, unknown> }>('/factor-research/candidates/inbox', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+  }),
+  previewFactorRetirementImpact: (payload: {
+    factor_key: string
+    replacement_factor_key?: string
+    strategies?: Array<Record<string, unknown>>
+    portfolio_allocations?: Array<Record<string, unknown>>
+  }) => getJSON<{ ok: boolean; preview: Record<string, unknown> }>('/factor-research/retirement/impact-preview', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+  }),
+  factorLineage: (factorKey: string, version: string, targetMarket?: string) => getJSON<{
+    ok: boolean
+    factor_key: string
+    version: string
+    target_market: string
+    definition: {
+      definition_hash: string
+      formula_hash: string
+      ast: Record<string, unknown>
+      input_fields: string[]
+      rationale: string
+      parameters: Record<string, unknown>
+    }
+    trace: {
+      ai_hypothesis: Array<Record<string, unknown>>
+      dsl: Record<string, unknown>
+      data_validation: Array<Record<string, unknown>>
+      experiments: Array<Record<string, unknown>>
+      statistics: Array<Record<string, unknown>>
+      portfolio_decisions: Array<Record<string, unknown>>
+      simulation: Array<Record<string, unknown>>
+    }
+    current_state: string
+    evidence_complete: boolean
+    historical_definition_preserved: boolean
+  }>(`/factor-research/lineage/${encodeURIComponent(factorKey)}/${encodeURIComponent(version)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(targetMarket ? { target_market: targetMarket } : {}),
+  }),
+  monitorFactorDrift: (payload: {
+    factor_key: string
+    reference_values: number[]
+    current_values: number[]
+    reference_ic: number
+    current_ic: number
+    reference_coverage: number
+    current_coverage: number
+    current_cost_bps: number
+    current_capacity_ratio: number
+    reference_correlated_factors?: Record<string, number[]>
+    current_correlated_factors?: Record<string, number[]>
+    thresholds: Record<string, number>
+    affected_strategies?: Array<Record<string, unknown>>
+  }) => getJSON<{ ok: boolean; monitoring: Record<string, unknown> }>('/factor-research/monitoring/drift', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+  }),
+  validateFactorSimulation: (payload: {
+    completed_rebalance_cycles: number
+    after_cost_return: number
+    fill_rate: number
+    capacity_ratio: number
+    thresholds: Record<string, number>
+    execution_records: Array<Record<string, unknown>>
+  }) => getJSON<{ ok: boolean; validation: Record<string, unknown> }>('/factor-research/simulation/validate', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+  }),
+  attributeFactorSimulationGap: (payload: {
+    research_returns: number[]
+    simulation_returns: number[]
+    signal_decay: number[]
+    data_delay: number[]
+    execution: number[]
+    costs: number[]
+    portfolio_constraints: number[]
+    research_metrics: Record<string, number>
+    simulation_metrics: Record<string, number>
+  }) => getJSON<{ ok: boolean; attribution: Record<string, unknown> }>('/factor-research/simulation/attribute-gap', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+  }),
+  compareFactorDiscoveryEfficiency: (payload: {
+    candidates: Array<{
+      candidate_id: string
+      source: 'ai' | 'template' | 'random_dsl' | 'symbolic_regression'
+      validation_passed: boolean
+      duplicate: boolean
+      research_passed?: boolean
+      compute_units?: number
+      llm_tokens?: number
+    }>
+    per_source_budget: number
+  }) => getJSON<{
+    ok: boolean
+    report: {
+      fixed_candidate_budget: number
+      requested_candidate_budget: number
+      sources: Array<Record<string, number | string | null>>
+      winner: 'ai' | 'template' | 'random_dsl' | 'symbolic_regression'
+      primary_metric: 'novel_valid_rate'
+      deterministic: true
+      selection_bias_warning: string
+    }
+  }>('/factor-research/efficiency/compare', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+  }),
+  createFactorResearchPlan: (payload: {
+    id: string
+    title: string
+    target_market: FactorResearchPlanRecord['target_market']
+    maximum_candidates: number
+    maximum_compute_units: number
+    maximum_llm_tokens?: number
+    maximum_confirmation_set_openings?: number
+    maximum_round_candidates?: number
+    maximum_formula_complexity?: number
+    maximum_duplicate_rate?: number
+    stop_conditions?: Record<string, unknown>
+    data_split?: FactorResearchDataSplit
+  }) => getJSON<{ ok: boolean; plan: FactorResearchPlanRecord }>(
+    '/factor-research/plans',
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) },
+  ),
+  factorResearchPlans: (targetMarket?: string) =>
+    getJSON<{ ok: boolean; count: number; plans: FactorResearchPlanRecord[] }>(
+      `/factor-research/plans${targetMarket ? `?target_market=${encodeURIComponent(targetMarket)}` : ''}`,
+    ),
+  factorConfirmationSet: (planId: string) => getJSON<{
+    ok: boolean
+    opened: boolean
+    opening: FactorConfirmationSetOpening | null
+  }>(`/factor-research/plans/${encodeURIComponent(planId)}/confirmation-set`),
+  openFactorConfirmationSet: (planId: string, payload: {
+    experiment_id: string
+    confirmation_data_fingerprint: string
+    opened_by: string
+    irreversible_ack: true
+  }) => getJSON<{
+    ok: boolean
+    opened: true
+    opening: FactorConfirmationSetOpening
+    idempotent_replay: boolean
+    further_experiments_blocked: true
+  }>(`/factor-research/plans/${encodeURIComponent(planId)}/confirmation-set/open`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+  }),
+  factorPlanMultipleTesting: (planId: string) => getJSON<{
+    ok: boolean
+    research_plan_id: string
+    target_market: string
+    cumulative_experiments: number
+    cumulative_registered_candidates: number
+    corrected_candidates: number
+    pending_candidates: number
+    method: string
+    rows: Array<{
+      experiment_id: string
+      attempt_number: number
+      source: FactorExperimentRecord['source']
+      factor_key: string
+      factor_family: string
+      candidate_key: string
+      experiment_status: FactorExperimentRecord['status']
+      raw_p_value: number
+      batch_adjusted_p_value: number
+      global_adjusted_p_value: number
+      effective_sample_size: number | null
+      return_series_basis?: 'excess_returns' | 'strategy_returns'
+      return_observations?: number
+      deflated_sharpe?: {
+        probability: number
+        observed_sharpe: number
+        expected_max_sharpe: number
+        observations: number
+        trials: number
+        skewness: number
+        kurtosis: number
+        method: 'deflated_sharpe_non_normal_multiple_trials'
+      }
+    }>
+    deflated_sharpe_method: 'deflated_sharpe_non_normal_multiple_trials'
+    reality_check: FactorRealityCheck
+  }>(`/factor-research/plans/${encodeURIComponent(planId)}/multiple-testing`),
+  factorAiProposalContext: (planId: string) => getJSON<{
+    ok: boolean
+    context: FactorAiProposalContext
+    context_fingerprint: string
+  }>(`/factor-research/plans/${encodeURIComponent(planId)}/ai-proposal-context`),
+  createFactorAiSearchRound: (planId: string, payload: {
+    round_id: string
+    candidate_count: number
+    duplicate_count?: number
+    formula_complexities: number[]
+    llm_tokens?: number
+    input_fingerprint: string
+    approved_by: string
+    approved_candidate_ids: string[]
+    budget_approved_ack: true
+  }) => getJSON<{
+    ok: boolean
+    round: FactorAiSearchRoundRecord
+    gate_violations?: string[]
+    usage?: FactorAiSearchUsage
+    idempotent_replay?: boolean
+  }>(`/factor-research/plans/${encodeURIComponent(planId)}/ai-search-rounds`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+  }),
+  factorAiSearchRounds: (planId: string) => getJSON<{
+    ok: boolean
+    count: number
+    rounds: FactorAiSearchRoundRecord[]
+    usage: FactorAiSearchUsage
+  }>(`/factor-research/plans/${encodeURIComponent(planId)}/ai-search-rounds`),
+  createFactorExperiment: (payload: {
+    research_plan_id: string
+    hypothesis: string
+    source: FactorExperimentRecord['source']
+    parent_experiment_id?: string
+    factor_key: string
+    factor_version?: string
+    candidate_validation_id: string
+    target_market: FactorExperimentRecord['target_market']
+    data_start?: string
+    data_end?: string
+    parameter_grid?: Record<string, unknown>
+    estimated_compute_units?: number
+    model?: Record<string, unknown>
+    prompt?: Record<string, unknown>
+    applicable_regimes?: string[]
+    invalidation_conditions?: string[]
+    falsification_tests?: string[]
+    ai_trace?: Record<string, unknown>
+    pre_registration: FactorPreRegistration
+  }) => getJSON<{ ok: boolean; experiment: FactorExperimentRecord; statistical_status_locked: true }>(
+    '/factor-research/experiments',
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) },
+  ),
+  factorExperiments: (researchPlanId?: string, status?: FactorExperimentRecord['status']) => {
+    const params = new URLSearchParams()
+    if (researchPlanId) params.set('research_plan_id', researchPlanId)
+    if (status) params.set('status', status)
+    const query = params.toString()
+    return getJSON<{
+      ok: boolean
+      count: number
+      cumulative_attempts: number | null
+      experiments: FactorExperimentRecord[]
+    }>(`/factor-research/experiments${query ? `?${query}` : ''}`)
+  },
+  appendFactorExperimentEvent: (experimentId: string, payload: {
+    status: Exclude<FactorExperimentRecord['status'], 'draft'>
+    result?: Record<string, unknown>
+    failure_reason?: string
+    failure_code?: FactorFailureCode
+    evidence?: Record<string, unknown>
+  }) => getJSON<{ ok: boolean; experiment: FactorExperimentRecord; statistical_status_locked: true }>(
+    `/factor-research/experiments/${encodeURIComponent(experimentId)}/events`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) },
+  ),
   factorUniverses: (market?: string) =>
     getJSON<{ ok: boolean; count: number; universes: FactorUniverse[] }>(
       `/factor-research/universes${market ? `?market=${encodeURIComponent(market)}` : ''}`,
@@ -741,6 +1258,7 @@ export const api = {
     end_date?: string
     quantiles: number
     min_assets: number
+    portfolio_mode: 'cohort' | 'non_overlapping'
     transaction_cost_bps: number
     participation_rate: number
     neutralize_industry: boolean
@@ -757,8 +1275,10 @@ export const api = {
     universe_snapshot: Record<string, unknown> | null
     market_snapshots: ResearchEvidence[]
   }>(`/factor-research/cross-sectional/runs/${encodeURIComponent(runId)}`),
-  crossMarketFactorStatus: (factorKey: string) =>
-    getJSON<CrossMarketFactorStatus>(`/factor-research/cross-sectional/status/${encodeURIComponent(factorKey)}`),
+  crossMarketFactorStatus: (factorKey: string, targetMarket?: string) => {
+    const query = targetMarket ? `?target_market=${encodeURIComponent(targetMarket)}` : ''
+    return getJSON<CrossMarketFactorStatus>(`/factor-research/cross-sectional/status/${encodeURIComponent(factorKey)}${query}`)
+  },
 
   // ---- G7 组合管理 ----
   portfolioManage: () => getJSON<PortfolioManageResp>('/portfolio/manage'),
@@ -1116,6 +1636,7 @@ export const api = {
       participation_rate: number
       quantiles: number
       min_assets: number
+      portfolio_mode?: 'cohort' | 'non_overlapping'
       neutralize_industry: boolean
       neutralize_market_cap: boolean
       neutralize_beta: boolean
@@ -1274,4 +1795,37 @@ export const api = {
         research_run_id: researchRunId,
       }),
     }),
+  validateNewsResearchEvents: (payload: {
+    events: NewsResearchEvent[]
+    target_entity_id: string
+    minimum_confidence?: number
+    duplicate_similarity?: number
+  }) => getJSON<{
+    ok: boolean
+    report: Record<string, unknown>
+    prediction_generated: false
+  }>('/news/events/validate', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+  }),
+  researchNewsEvents: (payload: {
+    events: NewsResearchEvent[]
+    outcomes: NewsEventOutcome[]
+    target_entity_id: string
+    minimum_confidence?: number
+    duplicate_similarity?: number
+  }) => getJSON<{
+    ok: boolean
+    report: {
+      validation: Record<string, unknown>
+      horizons: Array<Record<string, unknown>>
+      conditional_effects: Array<Record<string, unknown>>
+      evidence_index: Array<Record<string, unknown>>
+      matched_outcomes: number
+      prediction_generated: false
+      dynamic_code_execution: false
+      method_version: string
+    }
+  }>('/news/events/research', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+  }),
 }

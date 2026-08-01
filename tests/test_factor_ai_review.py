@@ -122,13 +122,21 @@ class SequenceClient:
 class FactorAiReviewTests(unittest.TestCase):
     def test_valid_review_preserves_program_status(self) -> None:
         response_client = SequenceClient([valid_review()])
-        response = run_ai_review(research_result(), focus="稳健性", llm=response_client)
+        result = research_result()
+        result["summary"]["confirmation_set_labels"] = [0.12, -0.04]
+        result["summary"]["hidden_return_rank"] = ["trend_strength"]
+        result["factors"][0]["windows"][0]["forward_return_labels"] = [0.08]
+        result["methods"][0]["unpublished_profit_rank"] = 1
+        response = run_ai_review(result, focus="稳健性", llm=response_client)
 
         self.assertTrue(response["ok"])
         item = response["review"]["factor_reviews"][0]
         self.assertEqual(item["statistical_status"], "usable")
         self.assertEqual(item["label"], "趋势强度")
         self.assertTrue(response["meta"]["statistical_conclusions_locked"])
+        self.assertTrue(response["meta"]["confirmation_labels_excluded"])
+        self.assertTrue(response["meta"]["trading_signal_excluded"])
+        self.assertFalse(response["meta"]["dynamic_code_execution"])
 
         _, kwargs = response_client.calls[0]
         self.assertEqual(kwargs["request_timeout"], 120)
@@ -136,6 +144,16 @@ class FactorAiReviewTests(unittest.TestCase):
         self.assertEqual(kwargs["transport_max_retries"], 0)
         encoded_context = json.loads(response_client.calls[0][0][-1]["content"].split("\n", 1)[1])
         reviewed_factor = encoded_context["review_factors"][0]
+        self.assertNotIn("current_signal", encoded_context)
+        self.assertNotIn("selected_factors", encoded_context["summary"])
+        self.assertNotIn("selected", reviewed_factor)
+        self.assertFalse(encoded_context["information_boundary"]["locked_sample_data_access"])
+        serialized_context = json.dumps(encoded_context, ensure_ascii=False).lower()
+        self.assertNotIn("confirmation_set_labels", serialized_context)
+        self.assertNotIn("hidden_return_rank", serialized_context)
+        self.assertNotIn("forward_return_labels", serialized_context)
+        self.assertNotIn("unpublished_profit_rank", serialized_context)
+        self.assertTrue(reviewed_factor["exploratory_candidate"])
         self.assertEqual(reviewed_factor["p_value_method"], "newey_west_hac")
         self.assertEqual(reviewed_factor["passed_windows"], 2)
         self.assertEqual(reviewed_factor["window_count"], 3)

@@ -1,4 +1,5 @@
 import { NavLink, useLocation } from 'react-router-dom'
+import packageMetadata from '../../package.json'
 import type { StrategyInfo } from '../api/types'
 import {
   isWorkspaceItemActive,
@@ -140,8 +141,8 @@ export default function Sidebar({
           ) : null}
         </nav>
 
-        <footer className="context-nav-foot" title={`v0.1 · 本地终端 · ${clockText}`}>
-          <span>v0.1 · 本地终端</span>
+        <footer className="context-nav-foot" title={`v${packageMetadata.version} · 本地终端 · ${clockText}`}>
+          <span>v{packageMetadata.version} · 本地终端</span>
           <span className="mono-num">{clockText}</span>
         </footer>
       </div>

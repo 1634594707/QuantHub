@@ -11,15 +11,19 @@ from core.factor_research import (
     FACTOR_RESEARCH_ENGINE_VERSION,
     InsufficientFactorData,
     ResearchConfig,
+    _apply_multiple_testing_control,
     _benjamini_hochberg,
     _correlation_p_value,
     _evaluate_factor,
     _factor_series,
     _newey_west_correlation_test,
     _safe_corr,
+    _select_training_factors,
     _strategy_metrics,
     _walk_forward_windows,
     analyze_factors,
+    block_bootstrap_reality_check,
+    deflated_sharpe_ratio,
 )
 
 
@@ -38,12 +42,115 @@ def _frame(close: np.ndarray) -> pd.DataFrame:
 
 
 class FactorResearchTests(unittest.TestCase):
+    def test_training_selector_never_falls_back_to_watch_or_reject_factors(self) -> None:
+        evaluations = [
+            {"key": "watch", "status": "watch", "train_ic": 0.3},
+            {"key": "reject", "status": "reject", "train_ic": 0.2},
+        ]
+        directional = {
+            "watch": pd.Series(np.arange(100, dtype=float)),
+            "reject": pd.Series(np.arange(100, dtype=float)),
+        }
+
+        selected = _select_training_factors(evaluations, directional, 0, 80)
+
+        self.assertEqual(selected, [])
+
+    def test_highly_correlated_factors_cannot_receive_duplicate_weights(self) -> None:
+        base = pd.Series(np.linspace(-2, 2, 120))
+        evaluations = [
+            {"key": "original", "status": "usable", "train_ic": 0.12},
+            {"key": "renamed_copy", "status": "usable", "train_ic": 0.10},
+            {"key": "orthogonal", "status": "usable", "train_ic": 0.08},
+        ]
+        directional = {
+            "original": base,
+            "renamed_copy": base * 1.5 + 0.001,
+            "orthogonal": pd.Series(np.sin(np.arange(120) / 3)),
+        }
+
+        selected = _select_training_factors(evaluations, directional, 0, 100)
+
+        self.assertEqual([item["key"] for item in selected], ["original", "orthogonal"])
+
+    def test_no_usable_factor_leaves_multifactor_unconstructed(self) -> None:
+        rng = np.random.default_rng(0)
+        close = 100 * np.exp(np.cumsum(rng.normal(0, 0.01, 500)))
+
+        result = analyze_factors(_frame(close))
+
+        self.assertEqual(result["summary"]["usable_factors"], 0)
+        self.assertEqual(result["summary"]["selected_factors"], [])
+        self.assertEqual(result["summary"]["exploratory_candidates"], [])
+        self.assertEqual(
+            result["summary"]["selected_factors_semantics"],
+            "deprecated_alias_of_exploratory_candidates",
+        )
+        self.assertFalse(result["summary"]["multifactor_constructed"])
+        multifactor = next(item for item in result["methods"] if item["key"] == "multifactor")
+        self.assertFalse(multifactor["constructed"])
+        self.assertFalse(result["cost_analysis"]["available"])
+        self.assertEqual(result["cost_analysis"]["curve"], [])
+
     def test_benjamini_hochberg_adjustment_is_monotonic_in_rank_order(self) -> None:
         adjusted = _benjamini_hochberg([0.01, 0.04, 0.03, 0.20])
 
         expected = [0.04, 0.05333333333333334, 0.05333333333333334, 0.2]
         for actual, target in zip(adjusted, expected, strict=True):
             self.assertAlmostEqual(actual, target)
+
+    def test_equivalent_formulas_share_one_multiple_testing_hypothesis(self) -> None:
+        evaluations = [
+            {"key": "mean_reversion", "status": "usable", "_p_value_raw": 0.01},
+            {"key": "bollinger_reversal", "status": "usable", "_p_value_raw": 0.01},
+            {"key": "trend_strength", "status": "usable", "_p_value_raw": 0.04},
+        ]
+
+        _apply_multiple_testing_control(evaluations, 0.05)
+
+        mean_reversion, bollinger, trend = evaluations
+        self.assertEqual(mean_reversion["hypothesis_family"], "mean_reversion")
+        self.assertEqual(bollinger["hypothesis_family"], "mean_reversion")
+        self.assertFalse(mean_reversion["is_redundant_alias"])
+        self.assertTrue(bollinger["is_redundant_alias"])
+        self.assertEqual(mean_reversion["adjusted_p_value"], bollinger["adjusted_p_value"])
+        self.assertAlmostEqual(mean_reversion["adjusted_p_value"], 0.02)
+        self.assertAlmostEqual(trend["adjusted_p_value"], 0.04)
+
+    def test_deflated_sharpe_penalizes_large_searches_and_non_normality(self) -> None:
+        rng = np.random.default_rng(2026)
+        returns = pd.Series(rng.normal(0.001, 0.01, 500))
+
+        single_trial = deflated_sharpe_ratio(returns, trials=1)
+        hundred_trials = deflated_sharpe_ratio(returns, trials=100)
+
+        self.assertGreater(single_trial["probability"], hundred_trials["probability"])
+        self.assertGreater(hundred_trials["expected_max_sharpe"], 0)
+        self.assertEqual(hundred_trials["trials"], 100)
+        self.assertEqual(hundred_trials["observations"], 500)
+        self.assertEqual(
+            hundred_trials["method"],
+            "deflated_sharpe_non_normal_multiple_trials",
+        )
+
+    def test_block_bootstrap_reality_check_detects_a_strong_candidate(self) -> None:
+        rng = np.random.default_rng(99)
+        candidates = {
+            "strong": pd.Series(rng.normal(0.006, 0.004, 240)),
+            "noise": pd.Series(rng.normal(0.0, 0.004, 240)),
+        }
+
+        report = block_bootstrap_reality_check(
+            candidates,
+            block_size=8,
+            bootstrap_samples=500,
+            seed=42,
+        )
+
+        self.assertTrue(report["available"])
+        self.assertEqual(report["best_candidate"], "strong")
+        self.assertLess(report["p_value"], 0.05)
+        self.assertEqual(report["method"], "white_reality_check_moving_block_bootstrap")
 
     def test_rejects_short_history(self) -> None:
         frame = _frame(np.linspace(100, 110, 80))
@@ -72,6 +179,22 @@ class FactorResearchTests(unittest.TestCase):
         self.assertGreater(hac_p_value, _correlation_p_value(correlation, observations))
         self.assertLess(effective_observations, observations)
         self.assertEqual(hac_lags, 9)
+
+    def test_purged_walk_forward_covers_horizon_and_data_availability_lag(self) -> None:
+        frame = _frame(np.linspace(100, 140, 300))
+        config = ResearchConfig(
+            horizon=5,
+            availability_lag=3,
+            walk_forward_folds=3,
+        )
+
+        windows = _walk_forward_windows(frame, config)
+        result = analyze_factors(frame, config)
+
+        self.assertTrue(all(window["purge"]["rows"] == 8 for window in windows))
+        self.assertEqual(result["summary"]["purge_embargo_periods"], 8)
+        self.assertEqual(result["summary"]["availability_lag"], 3)
+        self.assertIn("标签 5 + 数据延迟 3", result["methodology"]["split"])
 
     def test_factor_formation_does_not_read_future_prices(self) -> None:
         close = 100 + np.sin(np.arange(180) / 7) * 4 + np.arange(180) * 0.03
@@ -105,6 +228,7 @@ class FactorResearchTests(unittest.TestCase):
         self.assertEqual(3, result["summary"]["walk_forward_folds"])
         self.assertEqual("walk_forward_out_of_sample", result["summary"]["evaluation_scope"])
         self.assertEqual(FACTOR_RESEARCH_ENGINE_VERSION, result["summary"]["engine_version"])
+        self.assertEqual(result["summary"]["effective_factor_hypotheses"], 13)
         self.assertEqual(FACTOR_FORMULA_VERSION, result["summary"]["factor_formula_version"])
         self.assertEqual(64, len(result["summary"]["data_fingerprint"]))
         self.assertEqual(
@@ -131,6 +255,17 @@ class FactorResearchTests(unittest.TestCase):
             )
         )
         self.assertTrue(all("sortino" in item and "cvar_95" in item for item in result["methods"]))
+        self.assertTrue(
+            all(
+                0 <= item["deflated_sharpe_ratio"] <= 1 and item["multiple_testing_trials"] == 19
+                for item in result["methods"]
+            )
+        )
+        self.assertTrue(result["reality_check"]["available"])
+        self.assertEqual(
+            result["reality_check"]["method"],
+            "white_reality_check_moving_block_bootstrap",
+        )
         self.assertTrue(
             all(
                 item["win_rate_basis"] == "closed_trades"

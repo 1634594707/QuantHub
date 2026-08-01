@@ -1,0 +1,1323 @@
+{
+  "artifact_version": "a-share-preregistered-experiments-v2",
+  "baseline_artifact_sha256": "c08cf40b23f3d066b42de178343382cd59ef186cc3a3edae144b3032b34e4e38",
+  "time_basis": "real_market_ordinal_sessions_without_claimed_calendar_dates",
+  "target_market": "a_shares",
+  "experiments": [
+    {
+      "experiment_id": "exp-01-adx-direction",
+      "hypothesis": "ADX 方向强度在 A 股横截面具有正向残差预测力",
+      "primary_label": "future_return_without_point_in_time_industry_residualization",
+      "parameter_budget": {
+        "adx_period": [
+          10,
+          14,
+          20
+        ],
+        "horizon": [
+          1,
+          3,
+          5,
+          10
+        ]
+      },
+      "target_market": "a_shares",
+      "pass_criteria": "BH 后 p<=0.05、Rank IC>=0.03、正向比例>=0.6",
+      "limitations": [
+        "缺少时点行业暴露，不能完成行业中性残差标签"
+      ],
+      "candidates": [
+        {
+          "candidate_key": "adx_10_h1",
+          "parameters": {
+            "adx_period": 10,
+            "horizon": 1
+          },
+          "rank_ic_mean": -0.047419,
+          "rank_ic_median": -0.042976,
+          "positive_rank_ic_ratio": 0.358871,
+          "raw_p_value": 0.0,
+          "effective_sessions": 496,
+          "minimum_assets": 44,
+          "median_assets": 290.0,
+          "passed": false,
+          "thresholds": {
+            "minimum_effective_sessions": 120,
+            "minimum_rank_ic": 0.03,
+            "minimum_positive_ratio": 0.6,
+            "maximum_p_value": 0.05
+          },
+          "adjusted_p_value": 0.0,
+          "status": "failed"
+        },
+        {
+          "candidate_key": "adx_10_h3",
+          "parameters": {
+            "adx_period": 10,
+            "horizon": 3
+          },
+          "rank_ic_mean": -0.05079,
+          "rank_ic_median": -0.047466,
+          "positive_rank_ic_ratio": 0.3583,
+          "raw_p_value": 2e-08,
+          "effective_sessions": 494,
+          "minimum_assets": 59,
+          "median_assets": 290.0,
+          "passed": false,
+          "thresholds": {
+            "minimum_effective_sessions": 120,
+            "minimum_rank_ic": 0.03,
+            "minimum_positive_ratio": 0.6,
+            "maximum_p_value": 0.05
+          },
+          "adjusted_p_value": 6e-08,
+          "status": "failed"
+        },
+        {
+          "candidate_key": "adx_10_h5",
+          "parameters": {
+            "adx_period": 10,
+            "horizon": 5
+          },
+          "rank_ic_mean": -0.053528,
+          "rank_ic_median": -0.050416,
+          "positive_rank_ic_ratio": 0.341463,
+          "raw_p_value": 5.8e-07,
+          "effective_sessions": 492,
+          "minimum_assets": 59,
+          "median_assets": 290.0,
+          "passed": false,
+          "thresholds": {
+            "minimum_effective_sessions": 120,
+            "minimum_rank_ic": 0.03,
+            "minimum_positive_ratio": 0.6,
+            "maximum_p_value": 0.05
+          },
+          "adjusted_p_value": 9e-07,
+          "status": "failed"
+        },
+        {
+          "candidate_key": "adx_10_h10",
+          "parameters": {
+            "adx_period": 10,
+            "horizon": 10
+          },
+          "rank_ic_mean": -0.052964,
+          "rank_ic_median": -0.043135,
+          "positive_rank_ic_ratio": 0.326489,
+          "raw_p_value": 4.953e-05,
+          "effective_sessions": 487,
+          "minimum_assets": 59,
+          "median_assets": 290.0,
+          "passed": false,
+          "thresholds": {
+            "minimum_effective_sessions": 120,
+            "minimum_rank_ic": 0.03,
+            "minimum_positive_ratio": 0.6,
+            "maximum_p_value": 0.05
+          },
+          "adjusted_p_value": 4.953e-05,
+          "status": "failed"
+        },
+        {
+          "candidate_key": "adx_14_h1",
+          "parameters": {
+            "adx_period": 14,
+            "horizon": 1
+          },
+          "rank_ic_mean": -0.048572,
+          "rank_ic_median": -0.038429,
+          "positive_rank_ic_ratio": 0.354508,
+          "raw_p_value": 0.0,
+          "effective_sessions": 488,
+          "minimum_assets": 44,
+          "median_assets": 290.0,
+          "passed": false,
+          "thresholds": {
+            "minimum_effective_sessions": 120,
+            "minimum_rank_ic": 0.03,
+            "minimum_positive_ratio": 0.6,
+            "maximum_p_value": 0.05
+          },
+          "adjusted_p_value": 0.0,
+          "status": "failed"
+        },
+        {
+          "candidate_key": "adx_14_h3",
+          "parameters": {
+            "adx_period": 14,
+            "horizon": 3
+          },
+          "rank_ic_mean": -0.052869,
+          "rank_ic_median": -0.046791,
+          "positive_rank_ic_ratio": 0.378601,
+          "raw_p_value": 3e-08,
+          "effective_sessions": 486,
+          "minimum_assets": 59,
+          "median_assets": 290.0,
+          "passed": false,
+          "thresholds": {
+            "minimum_effective_sessions": 120,
+            "minimum_rank_ic": 0.03,
+            "minimum_positive_ratio": 0.6,
+            "maximum_p_value": 0.05
+          },
+          "adjusted_p_value": 7e-08,
+          "status": "failed"
+        },
+        {
+          "candidate_key": "adx_14_h5",
+          "parameters": {
+            "adx_period": 14,
+            "horizon": 5
+          },
+          "rank_ic_mean": -0.056486,
+          "rank_ic_median": -0.044772,
+          "positive_rank_ic_ratio": 0.355372,
+          "raw_p_value": 1.15e-06,
+          "effective_sessions": 484,
+          "minimum_assets": 59,
+          "median_assets": 290.0,
+          "passed": false,
+          "thresholds": {
+            "minimum_effective_sessions": 120,
+            "minimum_rank_ic": 0.03,
+            "minimum_positive_ratio": 0.6,
+            "maximum_p_value": 0.05
+          },
+          "adjusted_p_value": 1.53e-06,
+          "status": "failed"
+        },
+        {
+          "candidate_key": "adx_14_h10",
+          "parameters": {
+            "adx_period": 14,
+            "horizon": 10
+          },
+          "rank_ic_mean": -0.057426,
+          "rank_ic_median": -0.060137,
+          "positive_rank_ic_ratio": 0.323591,
+          "raw_p_value": 2.601e-05,
+          "effective_sessions": 479,
+          "minimum_assets": 59,
+          "median_assets": 290.0,
+          "passed": false,
+          "thresholds": {
+            "minimum_effective_sessions": 120,
+            "minimum_rank_ic": 0.03,
+            "minimum_positive_ratio": 0.6,
+            "maximum_p_value": 0.05
+          },
+          "adjusted_p_value": 2.837e-05,
+          "status": "failed"
+        },
+        {
+          "candidate_key": "adx_20_h1",
+          "parameters": {
+            "adx_period": 20,
+            "horizon": 1
+          },
+          "rank_ic_mean": -0.046956,
+          "rank_ic_median": -0.039945,
+          "positive_rank_ic_ratio": 0.390756,
+          "raw_p_value": 0.0,
+          "effective_sessions": 476,
+          "minimum_assets": 44,
+          "median_assets": 290.0,
+          "passed": false,
+          "thresholds": {
+            "minimum_effective_sessions": 120,
+            "minimum_rank_ic": 0.03,
+            "minimum_positive_ratio": 0.6,
+            "maximum_p_value": 0.05
+          },
+          "adjusted_p_value": 0.0,
+          "status": "failed"
+        },
+        {
+          "candidate_key": "adx_20_h3",
+          "parameters": {
+            "adx_period": 20,
+            "horizon": 3
+          },
+          "rank_ic_mean": -0.049859,
+          "rank_ic_median": -0.039072,
+          "positive_rank_ic_ratio": 0.383966,
+          "raw_p_value": 8e-08,
+          "effective_sessions": 474,
+          "minimum_assets": 59,
+          "median_assets": 290.0,
+          "passed": false,
+          "thresholds": {
+            "minimum_effective_sessions": 120,
+            "minimum_rank_ic": 0.03,
+            "minimum_positive_ratio": 0.6,
+            "maximum_p_value": 0.05
+          },
+          "adjusted_p_value": 1.6e-07,
+          "status": "failed"
+        },
+        {
+          "candidate_key": "adx_20_h5",
+          "parameters": {
+            "adx_period": 20,
+            "horizon": 5
+          },
+          "rank_ic_mean": -0.056151,
+          "rank_ic_median": -0.036619,
+          "positive_rank_ic_ratio": 0.366525,
+          "raw_p_value": 6e-07,
+          "effective_sessions": 472,
+          "minimum_assets": 59,
+          "median_assets": 290.0,
+          "passed": false,
+          "thresholds": {
+            "minimum_effective_sessions": 120,
+            "minimum_rank_ic": 0.03,
+            "minimum_positive_ratio": 0.6,
+            "maximum_p_value": 0.05
+          },
+          "adjusted_p_value": 9e-07,
+          "status": "failed"
+        },
+        {
+          "candidate_key": "adx_20_h10",
+          "parameters": {
+            "adx_period": 20,
+            "horizon": 10
+          },
+          "rank_ic_mean": -0.061603,
+          "rank_ic_median": -0.049421,
+          "positive_rank_ic_ratio": 0.32334,
+          "raw_p_value": 1.07e-05,
+          "effective_sessions": 467,
+          "minimum_assets": 59,
+          "median_assets": 290.0,
+          "passed": false,
+          "thresholds": {
+            "minimum_effective_sessions": 120,
+            "minimum_rank_ic": 0.03,
+            "minimum_positive_ratio": 0.6,
+            "maximum_p_value": 0.05
+          },
+          "adjusted_p_value": 1.284e-05,
+          "status": "failed"
+        }
+      ],
+      "status": "failed",
+      "successful_candidates": 0
+    },
+    {
+      "experiment_id": "exp-02-volatility-adjusted-residual-momentum",
+      "hypothesis": "波动调整后的中期动量具有跨参数稳定性",
+      "primary_label": "five_session_future_return",
+      "parameter_budget": {
+        "momentum_period": [
+          20,
+          60,
+          120
+        ],
+        "volatility_period": [
+          20
+        ]
+      },
+      "target_market": "a_shares",
+      "pass_criteria": "BH 后 p<=0.05、Rank IC>=0.03、正向比例>=0.6",
+      "limitations": [
+        "缺少时点行业、市值和 Beta 暴露"
+      ],
+      "candidates": [
+        {
+          "candidate_key": "vol_adjusted_momentum_20",
+          "parameters": {
+            "momentum_period": 20,
+            "volatility_period": 20,
+            "horizon": 5
+          },
+          "rank_ic_mean": -0.051544,
+          "rank_ic_median": -0.046613,
+          "positive_rank_ic_ratio": 0.370672,
+          "raw_p_value": 0.00041379,
+          "effective_sessions": 491,
+          "minimum_assets": 59,
+          "median_assets": 290.0,
+          "passed": false,
+          "thresholds": {
+            "minimum_effective_sessions": 120,
+            "minimum_rank_ic": 0.03,
+            "minimum_positive_ratio": 0.6,
+            "maximum_p_value": 0.05
+          },
+          "adjusted_p_value": 0.00041379,
+          "status": "failed"
+        },
+        {
+          "candidate_key": "vol_adjusted_momentum_60",
+          "parameters": {
+            "momentum_period": 60,
+            "volatility_period": 20,
+            "horizon": 5
+          },
+          "rank_ic_mean": -0.063151,
+          "rank_ic_median": -0.059647,
+          "positive_rank_ic_ratio": 0.323725,
+          "raw_p_value": 9.68e-06,
+          "effective_sessions": 451,
+          "minimum_assets": 59,
+          "median_assets": 289.0,
+          "passed": false,
+          "thresholds": {
+            "minimum_effective_sessions": 120,
+            "minimum_rank_ic": 0.03,
+            "minimum_positive_ratio": 0.6,
+            "maximum_p_value": 0.05
+          },
+          "adjusted_p_value": 2.904e-05,
+          "status": "failed"
+        },
+        {
+          "candidate_key": "vol_adjusted_momentum_120",
+          "parameters": {
+            "momentum_period": 120,
+            "volatility_period": 20,
+            "horizon": 5
+          },
+          "rank_ic_mean": -0.062192,
+          "rank_ic_median": -0.058211,
+          "positive_rank_ic_ratio": 0.370844,
+          "raw_p_value": 3.4e-05,
+          "effective_sessions": 391,
+          "minimum_assets": 59,
+          "median_assets": 289.0,
+          "passed": false,
+          "thresholds": {
+            "minimum_effective_sessions": 120,
+            "minimum_rank_ic": 0.03,
+            "minimum_positive_ratio": 0.6,
+            "maximum_p_value": 0.05
+          },
+          "adjusted_p_value": 5.1e-05,
+          "status": "failed"
+        }
+      ],
+      "status": "failed",
+      "successful_candidates": 0
+    },
+    {
+      "experiment_id": "exp-03-breakout-volume-shock",
+      "hypothesis": "成交额冲击确认的突破在次日可成交约束后继续延续",
+      "primary_label": "five_session_future_return",
+      "parameter_budget": {
+        "breakout_period": [
+          20,
+          40,
+          60
+        ],
+        "volume_multiple": [
+          1.5
+        ]
+      },
+      "target_market": "a_shares",
+      "pass_criteria": "BH 后 p<=0.05、Rank IC>=0.03、正向比例>=0.6",
+      "execution_constraints": [
+        "涨跌停过滤",
+        "次日有成交量",
+        "T+1",
+        "成本后另行验证"
+      ],
+      "candidates": [
+        {
+          "candidate_key": "breakout_20_volume_shock",
+          "parameters": {
+            "breakout_period": 20,
+            "volume_multiple": 1.5,
+            "horizon": 5
+          },
+          "rank_ic_mean": -0.022686,
+          "rank_ic_median": -0.017554,
+          "positive_rank_ic_ratio": 0.47191,
+          "raw_p_value": 0.23734554,
+          "effective_sessions": 267,
+          "minimum_assets": 30,
+          "median_assets": 42.0,
+          "passed": false,
+          "thresholds": {
+            "minimum_effective_sessions": 120,
+            "minimum_rank_ic": 0.03,
+            "minimum_positive_ratio": 0.6,
+            "maximum_p_value": 0.05
+          },
+          "adjusted_p_value": 0.23734554,
+          "status": "failed"
+        },
+        {
+          "candidate_key": "breakout_40_volume_shock",
+          "parameters": {
+            "breakout_period": 40,
+            "volume_multiple": 1.5,
+            "horizon": 5
+          },
+          "rank_ic_mean": -0.03281,
+          "rank_ic_median": -0.015196,
+          "positive_rank_ic_ratio": 0.472656,
+          "raw_p_value": 0.11755825,
+          "effective_sessions": 256,
+          "minimum_assets": 30,
+          "median_assets": 42.0,
+          "passed": false,
+          "thresholds": {
+            "minimum_effective_sessions": 120,
+            "minimum_rank_ic": 0.03,
+            "minimum_positive_ratio": 0.6,
+            "maximum_p_value": 0.05
+          },
+          "adjusted_p_value": 0.2050113,
+          "status": "failed"
+        },
+        {
+          "candidate_key": "breakout_60_volume_shock",
+          "parameters": {
+            "breakout_period": 60,
+            "volume_multiple": 1.5,
+            "horizon": 5
+          },
+          "rank_ic_mean": -0.030567,
+          "rank_ic_median": -0.011456,
+          "positive_rank_ic_ratio": 0.477912,
+          "raw_p_value": 0.1366742,
+          "effective_sessions": 249,
+          "minimum_assets": 30,
+          "median_assets": 42.0,
+          "passed": false,
+          "thresholds": {
+            "minimum_effective_sessions": 120,
+            "minimum_rank_ic": 0.03,
+            "minimum_positive_ratio": 0.6,
+            "maximum_p_value": 0.05
+          },
+          "adjusted_p_value": 0.2050113,
+          "status": "failed"
+        }
+      ],
+      "status": "failed",
+      "successful_candidates": 0
+    },
+    {
+      "experiment_id": "exp-04-short-term-reversal",
+      "hypothesis": "1 至 5 日反转在正常回撤、流动性冲击和跳空状态中具有不同预测力",
+      "primary_label": "three_session_future_return",
+      "parameter_budget": {
+        "lookback": [
+          1,
+          3,
+          5
+        ],
+        "regime": [
+          "normal_pullback",
+          "liquidity_shock",
+          "announcement_gap"
+        ]
+      },
+      "target_market": "a_shares",
+      "pass_criteria": "BH 后 p<=0.05、Rank IC>=0.03、正向比例>=0.6",
+      "execution_constraints": [
+        "涨跌停过滤",
+        "次日有成交量",
+        "T+1"
+      ],
+      "candidates": [
+        {
+          "candidate_key": "reversal_1_normal_pullback",
+          "parameters": {
+            "lookback": 1,
+            "regime": "normal_pullback",
+            "horizon": 3
+          },
+          "rank_ic_mean": 0.000466,
+          "rank_ic_median": 0.007464,
+          "positive_rank_ic_ratio": 0.510121,
+          "raw_p_value": 0.95665988,
+          "effective_sessions": 494,
+          "minimum_assets": 34,
+          "median_assets": 253.5,
+          "passed": false,
+          "thresholds": {
+            "minimum_effective_sessions": 120,
+            "minimum_rank_ic": 0.03,
+            "minimum_positive_ratio": 0.6,
+            "maximum_p_value": 0.05
+          },
+          "adjusted_p_value": 0.95665988,
+          "status": "failed"
+        },
+        {
+          "candidate_key": "reversal_1_liquidity_shock",
+          "parameters": {
+            "lookback": 1,
+            "regime": "liquidity_shock",
+            "horizon": 3
+          },
+          "rank_ic_mean": 0.046791,
+          "rank_ic_median": 0.03579,
+          "positive_rank_ic_ratio": 0.589091,
+          "raw_p_value": 0.00044133,
+          "effective_sessions": 275,
+          "minimum_assets": 30,
+          "median_assets": 42.0,
+          "passed": false,
+          "thresholds": {
+            "minimum_effective_sessions": 120,
+            "minimum_rank_ic": 0.03,
+            "minimum_positive_ratio": 0.6,
+            "maximum_p_value": 0.05
+          },
+          "adjusted_p_value": 0.00132399,
+          "status": "failed"
+        },
+        {
+          "candidate_key": "reversal_1_announcement_gap",
+          "parameters": {
+            "lookback": 1,
+            "regime": "announcement_gap",
+            "horizon": 3
+          },
+          "rank_ic_mean": 0.032852,
+          "rank_ic_median": 0.00877,
+          "positive_rank_ic_ratio": 0.513514,
+          "raw_p_value": 0.36959722,
+          "effective_sessions": 37,
+          "minimum_assets": 30,
+          "median_assets": 90.0,
+          "passed": false,
+          "thresholds": {
+            "minimum_effective_sessions": 120,
+            "minimum_rank_ic": 0.03,
+            "minimum_positive_ratio": 0.6,
+            "maximum_p_value": 0.05
+          },
+          "adjusted_p_value": 0.55439583,
+          "status": "failed"
+        },
+        {
+          "candidate_key": "reversal_3_normal_pullback",
+          "parameters": {
+            "lookback": 3,
+            "regime": "normal_pullback",
+            "horizon": 3
+          },
+          "rank_ic_mean": -0.003121,
+          "rank_ic_median": -0.005474,
+          "positive_rank_ic_ratio": 0.489879,
+          "raw_p_value": 0.77074772,
+          "effective_sessions": 494,
+          "minimum_assets": 34,
+          "median_assets": 253.5,
+          "passed": false,
+          "thresholds": {
+            "minimum_effective_sessions": 120,
+            "minimum_rank_ic": 0.03,
+            "minimum_positive_ratio": 0.6,
+            "maximum_p_value": 0.05
+          },
+          "adjusted_p_value": 0.86709119,
+          "status": "failed"
+        },
+        {
+          "candidate_key": "reversal_3_liquidity_shock",
+          "parameters": {
+            "lookback": 3,
+            "regime": "liquidity_shock",
+            "horizon": 3
+          },
+          "rank_ic_mean": 0.094324,
+          "rank_ic_median": 0.099774,
+          "positive_rank_ic_ratio": 0.661818,
+          "raw_p_value": 1e-08,
+          "effective_sessions": 275,
+          "minimum_assets": 30,
+          "median_assets": 42.0,
+          "passed": true,
+          "thresholds": {
+            "minimum_effective_sessions": 120,
+            "minimum_rank_ic": 0.03,
+            "minimum_positive_ratio": 0.6,
+            "maximum_p_value": 0.05
+          },
+          "adjusted_p_value": 4e-08,
+          "status": "passed"
+        },
+        {
+          "candidate_key": "reversal_3_announcement_gap",
+          "parameters": {
+            "lookback": 3,
+            "regime": "announcement_gap",
+            "horizon": 3
+          },
+          "rank_ic_mean": 0.048218,
+          "rank_ic_median": 0.038866,
+          "positive_rank_ic_ratio": 0.621622,
+          "raw_p_value": 0.14665462,
+          "effective_sessions": 37,
+          "minimum_assets": 30,
+          "median_assets": 90.0,
+          "passed": false,
+          "thresholds": {
+            "minimum_effective_sessions": 120,
+            "minimum_rank_ic": 0.03,
+            "minimum_positive_ratio": 0.6,
+            "maximum_p_value": 0.05
+          },
+          "adjusted_p_value": 0.3299729,
+          "status": "failed"
+        },
+        {
+          "candidate_key": "reversal_5_normal_pullback",
+          "parameters": {
+            "lookback": 5,
+            "regime": "normal_pullback",
+            "horizon": 3
+          },
+          "rank_ic_mean": 0.003546,
+          "rank_ic_median": -0.001821,
+          "positive_rank_ic_ratio": 0.497976,
+          "raw_p_value": 0.74803896,
+          "effective_sessions": 494,
+          "minimum_assets": 34,
+          "median_assets": 253.5,
+          "passed": false,
+          "thresholds": {
+            "minimum_effective_sessions": 120,
+            "minimum_rank_ic": 0.03,
+            "minimum_positive_ratio": 0.6,
+            "maximum_p_value": 0.05
+          },
+          "adjusted_p_value": 0.86709119,
+          "status": "failed"
+        },
+        {
+          "candidate_key": "reversal_5_liquidity_shock",
+          "parameters": {
+            "lookback": 5,
+            "regime": "liquidity_shock",
+            "horizon": 3
+          },
+          "rank_ic_mean": 0.124407,
+          "rank_ic_median": 0.133422,
+          "positive_rank_ic_ratio": 0.705455,
+          "raw_p_value": 0.0,
+          "effective_sessions": 275,
+          "minimum_assets": 30,
+          "median_assets": 42.0,
+          "passed": true,
+          "thresholds": {
+            "minimum_effective_sessions": 120,
+            "minimum_rank_ic": 0.03,
+            "minimum_positive_ratio": 0.6,
+            "maximum_p_value": 0.05
+          },
+          "adjusted_p_value": 0.0,
+          "status": "passed"
+        },
+        {
+          "candidate_key": "reversal_5_announcement_gap",
+          "parameters": {
+            "lookback": 5,
+            "regime": "announcement_gap",
+            "horizon": 3
+          },
+          "rank_ic_mean": 0.038607,
+          "rank_ic_median": 0.066367,
+          "positive_rank_ic_ratio": 0.594595,
+          "raw_p_value": 0.18369772,
+          "effective_sessions": 37,
+          "minimum_assets": 30,
+          "median_assets": 90.0,
+          "passed": false,
+          "thresholds": {
+            "minimum_effective_sessions": 120,
+            "minimum_rank_ic": 0.03,
+            "minimum_positive_ratio": 0.6,
+            "maximum_p_value": 0.05
+          },
+          "adjusted_p_value": 0.3306559,
+          "status": "failed"
+        }
+      ],
+      "status": "passed",
+      "successful_candidates": 2
+    },
+    {
+      "experiment_id": "exp-05-overnight-intraday-decomposition",
+      "hypothesis": "隔夜缺口延续与日内反转在互相残差化后仍具有独立增量 IC",
+      "primary_label": "future_return_with_cross_sectional_component_residualization",
+      "parameter_budget": {
+        "component": [
+          "raw_overnight",
+          "overnight_residual",
+          "raw_intraday",
+          "intraday_residual"
+        ],
+        "horizon": [
+          1,
+          3,
+          5
+        ]
+      },
+      "target_market": "a_shares",
+      "pass_criteria": "BH 后 p<=0.05、Rank IC>=0.03、正向比例>=0.6",
+      "candidates": [
+        {
+          "candidate_key": "overnight_gap_continuation_h1",
+          "parameters": {
+            "component": "raw_overnight",
+            "horizon": 1
+          },
+          "rank_ic_mean": 0.021054,
+          "rank_ic_median": 0.012908,
+          "positive_rank_ic_ratio": 0.560311,
+          "raw_p_value": 2.307e-05,
+          "effective_sessions": 514,
+          "minimum_assets": 44,
+          "median_assets": 290.0,
+          "passed": false,
+          "thresholds": {
+            "minimum_effective_sessions": 120,
+            "minimum_rank_ic": 0.03,
+            "minimum_positive_ratio": 0.6,
+            "maximum_p_value": 0.05
+          },
+          "adjusted_p_value": 0.00014544,
+          "status": "failed"
+        },
+        {
+          "candidate_key": "overnight_gap_incremental_h1",
+          "parameters": {
+            "component": "overnight_residual",
+            "horizon": 1
+          },
+          "rank_ic_mean": 0.015059,
+          "rank_ic_median": 0.009069,
+          "positive_rank_ic_ratio": 0.535019,
+          "raw_p_value": 0.00223698,
+          "effective_sessions": 514,
+          "minimum_assets": 44,
+          "median_assets": 290.0,
+          "passed": false,
+          "thresholds": {
+            "minimum_effective_sessions": 120,
+            "minimum_rank_ic": 0.03,
+            "minimum_positive_ratio": 0.6,
+            "maximum_p_value": 0.05
+          },
+          "adjusted_p_value": 0.00383482,
+          "status": "failed"
+        },
+        {
+          "candidate_key": "intraday_reversal_h1",
+          "parameters": {
+            "component": "raw_intraday",
+            "horizon": 1
+          },
+          "rank_ic_mean": 0.029197,
+          "rank_ic_median": 0.040266,
+          "positive_rank_ic_ratio": 0.589494,
+          "raw_p_value": 0.0001606,
+          "effective_sessions": 514,
+          "minimum_assets": 44,
+          "median_assets": 290.0,
+          "passed": false,
+          "thresholds": {
+            "minimum_effective_sessions": 120,
+            "minimum_rank_ic": 0.03,
+            "minimum_positive_ratio": 0.6,
+            "maximum_p_value": 0.05
+          },
+          "adjusted_p_value": 0.0006424,
+          "status": "failed"
+        },
+        {
+          "candidate_key": "intraday_reversal_incremental_h1",
+          "parameters": {
+            "component": "intraday_residual",
+            "horizon": 1
+          },
+          "rank_ic_mean": 0.027526,
+          "rank_ic_median": 0.03298,
+          "positive_rank_ic_ratio": 0.595331,
+          "raw_p_value": 0.00030308,
+          "effective_sessions": 514,
+          "minimum_assets": 44,
+          "median_assets": 290.0,
+          "passed": false,
+          "thresholds": {
+            "minimum_effective_sessions": 120,
+            "minimum_rank_ic": 0.03,
+            "minimum_positive_ratio": 0.6,
+            "maximum_p_value": 0.05
+          },
+          "adjusted_p_value": 0.00090924,
+          "status": "failed"
+        },
+        {
+          "candidate_key": "overnight_gap_continuation_h3",
+          "parameters": {
+            "component": "raw_overnight",
+            "horizon": 3
+          },
+          "rank_ic_mean": 0.01664,
+          "rank_ic_median": 0.024609,
+          "positive_rank_ic_ratio": 0.582031,
+          "raw_p_value": 0.00095068,
+          "effective_sessions": 512,
+          "minimum_assets": 59,
+          "median_assets": 290.0,
+          "passed": false,
+          "thresholds": {
+            "minimum_effective_sessions": 120,
+            "minimum_rank_ic": 0.03,
+            "minimum_positive_ratio": 0.6,
+            "maximum_p_value": 0.05
+          },
+          "adjusted_p_value": 0.00190136,
+          "status": "failed"
+        },
+        {
+          "candidate_key": "overnight_gap_incremental_h3",
+          "parameters": {
+            "component": "overnight_residual",
+            "horizon": 3
+          },
+          "rank_ic_mean": 0.015529,
+          "rank_ic_median": 0.016013,
+          "positive_rank_ic_ratio": 0.578125,
+          "raw_p_value": 0.00559673,
+          "effective_sessions": 512,
+          "minimum_assets": 59,
+          "median_assets": 290.0,
+          "passed": false,
+          "thresholds": {
+            "minimum_effective_sessions": 120,
+            "minimum_rank_ic": 0.03,
+            "minimum_positive_ratio": 0.6,
+            "maximum_p_value": 0.05
+          },
+          "adjusted_p_value": 0.00839509,
+          "status": "failed"
+        },
+        {
+          "candidate_key": "intraday_reversal_h3",
+          "parameters": {
+            "component": "raw_intraday",
+            "horizon": 3
+          },
+          "rank_ic_mean": 0.016781,
+          "rank_ic_median": 0.019077,
+          "positive_rank_ic_ratio": 0.566406,
+          "raw_p_value": 0.02946158,
+          "effective_sessions": 512,
+          "minimum_assets": 59,
+          "median_assets": 290.0,
+          "passed": false,
+          "thresholds": {
+            "minimum_effective_sessions": 120,
+            "minimum_rank_ic": 0.03,
+            "minimum_positive_ratio": 0.6,
+            "maximum_p_value": 0.05
+          },
+          "adjusted_p_value": 0.0353539,
+          "status": "failed"
+        },
+        {
+          "candidate_key": "intraday_reversal_incremental_h3",
+          "parameters": {
+            "component": "intraday_residual",
+            "horizon": 3
+          },
+          "rank_ic_mean": 0.014745,
+          "rank_ic_median": 0.021018,
+          "positive_rank_ic_ratio": 0.552734,
+          "raw_p_value": 0.06140757,
+          "effective_sessions": 512,
+          "minimum_assets": 59,
+          "median_assets": 290.0,
+          "passed": false,
+          "thresholds": {
+            "minimum_effective_sessions": 120,
+            "minimum_rank_ic": 0.03,
+            "minimum_positive_ratio": 0.6,
+            "maximum_p_value": 0.05
+          },
+          "adjusted_p_value": 0.06140757,
+          "status": "failed"
+        },
+        {
+          "candidate_key": "overnight_gap_continuation_h5",
+          "parameters": {
+            "component": "raw_overnight",
+            "horizon": 5
+          },
+          "rank_ic_mean": 0.021732,
+          "rank_ic_median": 0.022672,
+          "positive_rank_ic_ratio": 0.609804,
+          "raw_p_value": 2.424e-05,
+          "effective_sessions": 510,
+          "minimum_assets": 59,
+          "median_assets": 290.0,
+          "passed": false,
+          "thresholds": {
+            "minimum_effective_sessions": 120,
+            "minimum_rank_ic": 0.03,
+            "minimum_positive_ratio": 0.6,
+            "maximum_p_value": 0.05
+          },
+          "adjusted_p_value": 0.00014544,
+          "status": "failed"
+        },
+        {
+          "candidate_key": "overnight_gap_incremental_h5",
+          "parameters": {
+            "component": "overnight_residual",
+            "horizon": 5
+          },
+          "rank_ic_mean": 0.02013,
+          "rank_ic_median": 0.019989,
+          "positive_rank_ic_ratio": 0.588235,
+          "raw_p_value": 0.0005162,
+          "effective_sessions": 510,
+          "minimum_assets": 59,
+          "median_assets": 290.0,
+          "passed": false,
+          "thresholds": {
+            "minimum_effective_sessions": 120,
+            "minimum_rank_ic": 0.03,
+            "minimum_positive_ratio": 0.6,
+            "maximum_p_value": 0.05
+          },
+          "adjusted_p_value": 0.00123888,
+          "status": "failed"
+        },
+        {
+          "candidate_key": "intraday_reversal_h5",
+          "parameters": {
+            "component": "raw_intraday",
+            "horizon": 5
+          },
+          "rank_ic_mean": 0.01628,
+          "rank_ic_median": 0.015879,
+          "positive_rank_ic_ratio": 0.533333,
+          "raw_p_value": 0.0215567,
+          "effective_sessions": 510,
+          "minimum_assets": 59,
+          "median_assets": 290.0,
+          "passed": false,
+          "thresholds": {
+            "minimum_effective_sessions": 120,
+            "minimum_rank_ic": 0.03,
+            "minimum_positive_ratio": 0.6,
+            "maximum_p_value": 0.05
+          },
+          "adjusted_p_value": 0.02874227,
+          "status": "failed"
+        },
+        {
+          "candidate_key": "intraday_reversal_incremental_h5",
+          "parameters": {
+            "component": "intraday_residual",
+            "horizon": 5
+          },
+          "rank_ic_mean": 0.013871,
+          "rank_ic_median": 0.015123,
+          "positive_rank_ic_ratio": 0.531373,
+          "raw_p_value": 0.0567118,
+          "effective_sessions": 510,
+          "minimum_assets": 59,
+          "median_assets": 290.0,
+          "passed": false,
+          "thresholds": {
+            "minimum_effective_sessions": 120,
+            "minimum_rank_ic": 0.03,
+            "minimum_positive_ratio": 0.6,
+            "maximum_p_value": 0.05
+          },
+          "adjusted_p_value": 0.06140757,
+          "status": "failed"
+        }
+      ],
+      "status": "failed",
+      "successful_candidates": 0
+    },
+    {
+      "experiment_id": "exp-07-limit-up-state",
+      "hypothesis": "涨停封板、开板和封板强度对后续收益具有不同条件效应",
+      "primary_label": "future_return_excluding_next_session_limit_or_suspension",
+      "parameter_budget": {
+        "state": [
+          "sealed_limit",
+          "opened_limit",
+          "seal_strength"
+        ],
+        "horizon": [
+          1,
+          3,
+          5
+        ]
+      },
+      "target_market": "a_shares",
+      "pass_criteria": "BH 后 p<=0.05、Rank IC>=0.03、正向比例>=0.6",
+      "execution_constraints": [
+        "次日涨停无法买入的样本不计入可执行标签",
+        "次日停牌或无成交量的样本不计入可执行标签",
+        "T+1"
+      ],
+      "limitations": [
+        "统一使用 9.5% 阈值，尚未按历史板块制度区分 10% 与 20%"
+      ],
+      "candidates": [
+        {
+          "candidate_key": "sealed_limit_continuation_h1",
+          "parameters": {
+            "limit_threshold": 0.095,
+            "horizon": 1
+          },
+          "rank_ic_mean": 0.02564,
+          "rank_ic_median": 0.040964,
+          "positive_rank_ic_ratio": 0.666667,
+          "raw_p_value": 0.64845413,
+          "effective_sessions": 18,
+          "minimum_assets": 10,
+          "median_assets": 11.0,
+          "passed": false,
+          "thresholds": {
+            "minimum_effective_sessions": 120,
+            "minimum_rank_ic": 0.03,
+            "minimum_positive_ratio": 0.6,
+            "maximum_p_value": 0.05
+          },
+          "adjusted_p_value": 0.83372674,
+          "status": "failed"
+        },
+        {
+          "candidate_key": "opened_limit_reversal_h1",
+          "parameters": {
+            "limit_threshold": 0.095,
+            "horizon": 1
+          },
+          "rank_ic_mean": -0.011643,
+          "rank_ic_median": -0.019481,
+          "positive_rank_ic_ratio": 0.428571,
+          "raw_p_value": 0.90596537,
+          "effective_sessions": 14,
+          "minimum_assets": 10,
+          "median_assets": 14.0,
+          "passed": false,
+          "thresholds": {
+            "minimum_effective_sessions": 120,
+            "minimum_rank_ic": 0.03,
+            "minimum_positive_ratio": 0.6,
+            "maximum_p_value": 0.05
+          },
+          "adjusted_p_value": 0.90596537,
+          "status": "failed"
+        },
+        {
+          "candidate_key": "limit_seal_strength_h1",
+          "parameters": {
+            "limit_threshold": 0.095,
+            "horizon": 1
+          },
+          "rank_ic_mean": 0.182092,
+          "rank_ic_median": 0.073587,
+          "positive_rank_ic_ratio": 0.714286,
+          "raw_p_value": 0.0434863,
+          "effective_sessions": 7,
+          "minimum_assets": 10,
+          "median_assets": 26.0,
+          "passed": false,
+          "thresholds": {
+            "minimum_effective_sessions": 120,
+            "minimum_rank_ic": 0.03,
+            "minimum_positive_ratio": 0.6,
+            "maximum_p_value": 0.05
+          },
+          "adjusted_p_value": 0.19568835,
+          "status": "failed"
+        },
+        {
+          "candidate_key": "sealed_limit_continuation_h3",
+          "parameters": {
+            "limit_threshold": 0.095,
+            "horizon": 3
+          },
+          "rank_ic_mean": 0.108579,
+          "rank_ic_median": 0.175948,
+          "positive_rank_ic_ratio": 0.666667,
+          "raw_p_value": 0.01871112,
+          "effective_sessions": 18,
+          "minimum_assets": 10,
+          "median_assets": 11.0,
+          "passed": false,
+          "thresholds": {
+            "minimum_effective_sessions": 120,
+            "minimum_rank_ic": 0.03,
+            "minimum_positive_ratio": 0.6,
+            "maximum_p_value": 0.05
+          },
+          "adjusted_p_value": 0.16840008,
+          "status": "failed"
+        },
+        {
+          "candidate_key": "opened_limit_reversal_h3",
+          "parameters": {
+            "limit_threshold": 0.095,
+            "horizon": 3
+          },
+          "rank_ic_mean": -0.069049,
+          "rank_ic_median": -0.049224,
+          "positive_rank_ic_ratio": 0.428571,
+          "raw_p_value": 0.41910189,
+          "effective_sessions": 14,
+          "minimum_assets": 10,
+          "median_assets": 14.0,
+          "passed": false,
+          "thresholds": {
+            "minimum_effective_sessions": 120,
+            "minimum_rank_ic": 0.03,
+            "minimum_positive_ratio": 0.6,
+            "maximum_p_value": 0.05
+          },
+          "adjusted_p_value": 0.7543834,
+          "status": "failed"
+        },
+        {
+          "candidate_key": "limit_seal_strength_h3",
+          "parameters": {
+            "limit_threshold": 0.095,
+            "horizon": 3
+          },
+          "rank_ic_mean": 0.038416,
+          "rank_ic_median": 0.053936,
+          "positive_rank_ic_ratio": 0.571429,
+          "raw_p_value": 0.56329772,
+          "effective_sessions": 7,
+          "minimum_assets": 10,
+          "median_assets": 26.0,
+          "passed": false,
+          "thresholds": {
+            "minimum_effective_sessions": 120,
+            "minimum_rank_ic": 0.03,
+            "minimum_positive_ratio": 0.6,
+            "maximum_p_value": 0.05
+          },
+          "adjusted_p_value": 0.83372674,
+          "status": "failed"
+        },
+        {
+          "candidate_key": "sealed_limit_continuation_h5",
+          "parameters": {
+            "limit_threshold": 0.095,
+            "horizon": 5
+          },
+          "rank_ic_mean": 0.045873,
+          "rank_ic_median": 0.018942,
+          "positive_rank_ic_ratio": 0.666667,
+          "raw_p_value": 0.3252352,
+          "effective_sessions": 18,
+          "minimum_assets": 10,
+          "median_assets": 11.0,
+          "passed": false,
+          "thresholds": {
+            "minimum_effective_sessions": 120,
+            "minimum_rank_ic": 0.03,
+            "minimum_positive_ratio": 0.6,
+            "maximum_p_value": 0.05
+          },
+          "adjusted_p_value": 0.7317792,
+          "status": "failed"
+        },
+        {
+          "candidate_key": "opened_limit_reversal_h5",
+          "parameters": {
+            "limit_threshold": 0.095,
+            "horizon": 5
+          },
+          "rank_ic_mean": -0.051627,
+          "rank_ic_median": -0.016918,
+          "positive_rank_ic_ratio": 0.428571,
+          "raw_p_value": 0.233027,
+          "effective_sessions": 14,
+          "minimum_assets": 10,
+          "median_assets": 14.0,
+          "passed": false,
+          "thresholds": {
+            "minimum_effective_sessions": 120,
+            "minimum_rank_ic": 0.03,
+            "minimum_positive_ratio": 0.6,
+            "maximum_p_value": 0.05
+          },
+          "adjusted_p_value": 0.699081,
+          "status": "failed"
+        },
+        {
+          "candidate_key": "limit_seal_strength_h5",
+          "parameters": {
+            "limit_threshold": 0.095,
+            "horizon": 5
+          },
+          "rank_ic_mean": -0.040598,
+          "rank_ic_median": -0.050175,
+          "positive_rank_ic_ratio": 0.285714,
+          "raw_p_value": 0.75576234,
+          "effective_sessions": 7,
+          "minimum_assets": 10,
+          "median_assets": 26.0,
+          "passed": false,
+          "thresholds": {
+            "minimum_effective_sessions": 120,
+            "minimum_rank_ic": 0.03,
+            "minimum_positive_ratio": 0.6,
+            "maximum_p_value": 0.05
+          },
+          "adjusted_p_value": 0.85023263,
+          "status": "failed"
+        }
+      ],
+      "status": "failed",
+      "successful_candidates": 0
+    }
+  ],
+  "completed_experiments": 6,
+  "passed_experiments": 1,
+  "failed_experiments": 5,
+  "evidence_policy": "success_and_failure_evidence_preserved",
+  "provenance": {
+    "data": {
+      "version": "a-share-real-ordinal-baseline-v1",
+      "snapshot_hash": "c08cf40b23f3d066b42de178343382cd59ef186cc3a3edae144b3032b34e4e38"
+    },
+    "formula": {
+      "version": "factor-experiment-suite-v2",
+      "source_hash": "79d34ae847f405040b2bdeb86d454d988981ff26d4f558aa7e98c9248ad58a60"
+    },
+    "experiment": {
+      "version": "preregistered-experiment-contract-v1",
+      "definition_hash": "676160e5af441a1514c0f6dbb90d92aa0d30770e7b318fe7a864db5ff4878d75"
+    },
+    "model": {
+      "version": "not_used",
+      "hash": "0028ac62eb567615751c8b01cd89687dece3f4c45eb3219f68c3e2f8e8877c52"
+    },
+    "prompt": {
+      "version": "not_used",
+      "hash": "0028ac62eb567615751c8b01cd89687dece3f4c45eb3219f68c3e2f8e8877c52"
+    },
+    "cost": {
+      "version": "a-share-execution-constraints-v1",
+      "hash": "b9d5d0fd00d89b6a5c0f4d3dda1b1263bb38533d1d43c9908bf08324b3380a4c"
+    },
+    "result": {
+      "version": "cross-sectional-candidate-report-v1",
+      "hash": "5db6ca9a6cdb9847935027d9597f3de86d675bc1b4a069490e9692d96f2191df"
+    }
+  },
+  "artifact_sha256": "2ec29d9b6ba70e111c844e9204ae5a8c05defb0953c0dbac491be08a39775c9b"
+}

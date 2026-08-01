@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "quanthub-okx-grid"
-version = "0.2.0"
+version = "0.3.0"
 description = "OKX 永续多因子轮动网格"
 requires-python = ">=3.11,<3.13"
 dependencies = ["quanthub-core", "ccxt>=4.3", "pandas>=2.2", "numpy>=1.26"]

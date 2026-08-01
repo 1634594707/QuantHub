@@ -12,7 +12,8 @@ const response = {
   quality: { status: 'ok', usable: true, row_count: 500, missing_rate: 0, invalid_rows: 0, latest_time: '2026-01-01' },
   summary: {
     rows: 500, train_rows: 345, purged_rows: 5, test_rows: 150, horizon: 5, transaction_cost_bps: 10,
-    usable_factors: 1, selected_factors: ['trend_strength'], best_factor: 'trend_strength', best_method: 'multifactor',
+    usable_factors: 1, selected_factors: ['trend_strength'], multifactor_constructed: true,
+    best_factor: 'trend_strength', best_method: 'multifactor',
     evaluation_scope: 'walk_forward_out_of_sample', walk_forward_mode: 'expanding', walk_forward_folds: 3,
     engine_version: '2.0.0', factor_formula_version: '1.0.0', data_fingerprint: 'a'.repeat(64),
     research_period: { start: '2024-01-01T00:00:00', end: '2026-01-01T00:00:00' },
@@ -52,6 +53,7 @@ const response = {
   ],
   method_curves: {},
   cost_analysis: {
+    available: true,
     basis: 'multifactor_final_out_of_sample_window',
     curve: [{ transaction_cost_bps: 0, total_return: 0.25 }, { transaction_cost_bps: 20, total_return: 0.22 }],
     breakeven_transaction_cost_bps: 146.25,
@@ -121,6 +123,39 @@ describe('FactorResearchPage', () => {
     )
   })
 
+  it('blocks strategy experiments when no factor passes the statistical gate', async () => {
+    vi.spyOn(api, 'factorResearch').mockResolvedValue({
+      ...response,
+      summary: {
+        ...response.summary,
+        usable_factors: 0,
+        selected_factors: [],
+        multifactor_constructed: false,
+      },
+      factors: response.factors.map((factor) => ({
+        ...factor,
+        status: 'watch',
+        selected: false,
+        weight: 0,
+      })),
+      cost_analysis: {
+        available: false,
+        basis: 'multifactor_final_out_of_sample_window',
+        reason: '没有因子通过样本外统计门禁，多因子组合未构建',
+        curve: [],
+        breakeven_transaction_cost_bps: null,
+      },
+    } as never)
+    render(<FactorResearchPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: '运行研究' }))
+
+    const experiment = await screen.findByRole('button', { name: '策略实验' })
+    expect((experiment as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.getAllByText('未发现合格因子').length).toBeGreaterThan(0)
+    expect(screen.queryByRole('region', { name: '交易成本敏感度' })).toBeNull()
+  })
+
   it('runs cross-sectional research from a point-in-time universe', async () => {
     const universe = {
       id: 'universe-1', name: '美股历史池', market: 'us_stocks', description: '历史成分',
@@ -144,7 +179,11 @@ describe('FactorResearchPage', () => {
       },
       summary: {
         dates: 30, rank_ic_mean: 0.08, rank_ic_median: 0.07, rank_ic_std: 0.04, icir: 1.4,
-        positive_rank_ic_ratio: 0.7, long_short_total_return: 0.12, coverage: 0.95,
+        rank_ic_p_value: 0.01, rank_ic_p_value_method: 'newey_west_hac_mean_test',
+        rank_ic_hac_lags: 4, effective_dates: 24, positive_rank_ic_ratio: 0.7,
+        portfolio_mode: 'cohort', portfolio_return_horizon: 1, portfolio_observations: 30,
+        gross_long_short_total_return: 0.14, net_long_short_total_return: 0.12,
+        long_short_total_return: 0.12, coverage: 0.95,
         missing_rate: 0.05, average_turnover: 0.2, median_capacity: 2_000_000,
         median_crowding_hhi: 0.24, neutralization_failures: 0, minimum_valid_assets: 5,
         median_valid_assets: 5, data_fingerprint: 'f'.repeat(64),
@@ -158,9 +197,11 @@ describe('FactorResearchPage', () => {
     const insufficientStatus = vi.spyOn(api, 'crossMarketFactorStatus').mockResolvedValue({
       ok: true,
       factor_key: 'trend_strength',
+      target_market: 'us_stocks',
       trading_validation_status: 'insufficient_evidence',
       trading_validation_passed: false,
-      required_markets: ['a_shares', 'us_stocks', 'crypto', 'mt5'],
+      required_markets: ['us_stocks'],
+      transfer_markets: ['a_shares', 'crypto', 'mt5'],
       rule: '四个市场最新横截面结果均为 usable，且每个市场至少 20 个有效日期、每日最少 3 个有效标的',
       rows: [
         { market: 'a_shares', state: 'passed', run_id: 'a-run', run_status: 'succeeded', factor_status: 'usable', dates: 30, minimum_valid_assets: 5, rank_ic_mean: 0.08, coverage: 0.95, updated_at: 1 },
@@ -181,17 +222,19 @@ describe('FactorResearchPage', () => {
       neutralize_industry: true, neutralize_market_cap: true, neutralize_beta: true,
     })))
     expect(await screen.findByText('0.080')).toBeTruthy()
-    expect(screen.getByText('12.00%')).toBeTruthy()
+    expect(screen.getAllByText('12.00%')).toHaveLength(2)
     expect(screen.getByText('95.00%')).toBeTruthy()
-    expect(screen.getByText('跨市场证据不足')).toBeTruthy()
-    expect(insufficientStatus).toHaveBeenCalledWith('trend_strength')
+    expect(screen.getByText('目标市场证据不足')).toBeTruthy()
+    expect(insufficientStatus).toHaveBeenCalledWith('trend_strength', 'us_stocks')
 
     insufficientStatus.mockResolvedValue({
       ok: true,
       factor_key: 'trend_strength',
+      target_market: 'us_stocks',
       trading_validation_status: 'passed',
       trading_validation_passed: true,
-      required_markets: ['a_shares', 'us_stocks', 'crypto', 'mt5'],
+      required_markets: ['us_stocks'],
+      transfer_markets: ['a_shares', 'crypto', 'mt5'],
       rule: '四个市场最新横截面结果均为 usable，且每个市场至少 20 个有效日期、每日最少 3 个有效标的',
       rows: ['a_shares', 'us_stocks', 'crypto', 'mt5'].map((market) => ({
         market, state: 'passed', run_id: `${market}-run`, run_status: 'succeeded', factor_status: 'usable', dates: 30,
@@ -295,7 +338,7 @@ describe('FactorResearchPage', () => {
     expect(within(panel).getByText('所选研究')).toBeTruthy()
     expect(within(panel).getByText('10.0%')).toBeTruthy()
     expect(within(panel).getByText('可用 · +0.210')).toBeTruthy()
-    expect(within(panel).getByText('未入选 · —')).toBeTruthy()
+    expect(within(panel).getByText('非探索候选 · —')).toBeTruthy()
   })
 
   it('runs a constrained AI review after statistical research', async () => {

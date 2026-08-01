@@ -7,7 +7,7 @@ QuantHub 将综合评估、因子验证、AI 研究证据、策略回测、信�
 ![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12-3776AB?logo=python&logoColor=white)
 ![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=111827)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-009688?logo=fastapi&logoColor=white)
-![Version](https://img.shields.io/badge/version-v0.2.0-4FB3C8)
+![Version](https://img.shields.io/badge/version-v0.3.0-4FB3C8)
 ![License](https://img.shields.io/badge/License-AGPL--3.0-blue)
 
 ![QuantHub 驾驶舱](design/screenshots/quanthub-overview.png)
@@ -15,18 +15,18 @@ QuantHub 将综合评估、因子验证、AI 研究证据、策略回测、信�
 > [!WARNING]
 > QuantHub 当前定位为研究与模拟执行工具，实盘交易默认关闭。项目输出不构成任何投资建议；在接入真实账户前，请自行完成数据、策略、风控和合规验证。
 
-## v0.2.0 更新
+## v0.3.0 更新
 
-`v0.2.0` 将因子研究推进到可持续复验的交易研究流程：滚动样本外验证、跨标的与跨市场门禁、成本来源、执行容量、策略实验快照、定时作业、提醒和运行治理均保留可追溯证据。
+`v0.3.0` 将固定技术因子筛选器升级为可扩展、可审计的 AI 辅助因子发现系统。AI 只提交结构化经济假设、DSL 公式和证伪建议，数据检查、统计结论、生命周期与模拟交易门禁仍由确定性程序控制。
 
-- **跨窗口与跨市场门禁**：支持扩展/滚动 walk-forward、横截面 Rank IC、行业/市值/Beta 中性化和 A 股、美股、加密资产、MT5 四市场统一验证状态。
-- **可审计交易成本与执行**：成本组件必须给出单位、来源、生效区间和账户范围；执行模拟显式处理 A 股涨跌停/停牌/整手、美股复权确认、加密资金成本、MT5 合约乘数和成交量参与率容量。
-- **研究生命周期闭环**：研究到策略实验锁定同一数据快照；历史记录支持筛选、标签、批量归档、对比、JSON/CSV/报告导出。
-- **持续复验与提醒**：因子作业支持日、周、月调度；状态变化、IC 衰减、回撤越界和数据过期提醒均回链研究运行。
-- **高频研究体验**：新增窗口/跨标的/跨市场状态矩阵，所有因子研究状态可展开查看计算规则和原始证据；首页集中显示需要复验、已失效和数据过期研究。
-- **运行可靠性**：故障中心聚合数据源、统计验证与持久化错误；可选依赖在单进程内去重告警；真实行情适配器覆盖公司行为、缺失值、重复值和时间顺序测试。
+- **安全因子 DSL 与试验账本**：不可变因子注册表保存公式 AST、版本、公式族和哈希；禁止未来函数、非法单位、无限参数搜索和无记录重试。
+- **真实 A 股研究基线**：仓库保留 300 个真实标的、516 个共同 ordinal session、14 个内置因子的可复现只读证据，以及 6 个预注册实验的成功和失败结果。
+- **AI 研究治理**：候选收件箱区分人工、AI、模板、随机 DSL 和符号回归；AI 无权修改 `research_passed`、`trading_validated` 或统计结论，也不能读取锁定确认集标签。
+- **证据工作台**：探索分数、研究状态、交易状态和 AI 审阅分开展示，可从假设追溯到 DSL、数据验证、实验、统计结果、组合决策和模拟运行。
+- **模拟审计与持续降级**：逐笔记录信号时间、可成交时间、理论价格、模拟价格、滑点、拒单原因和容量占用；漂移门禁失败会追加 `degraded` 事件并定位受影响策略。
+- **完整 provenance**：数据、公式、实验、模型、提示词、成本和结果分别保存版本与哈希；旧引擎研究记录保持只读并明确标记兼容口径。
 
-完整变更与升级说明见 [v0.2.0 发布说明](docs/releases/v0.2.0.md) 和 [v0.2.0 更新](docs/posts/2026-07-31-quanthub-v0.2.0.md)。
+完整变更、证据边界和升级说明见 [v0.3.0 发布说明](docs/releases/v0.3.0.md) 与 [AI 因子发现路线图](AI_FACTOR_DISCOVERY_ROADMAP.md)。
 
 ## 为什么使用 QuantHub
 
@@ -56,7 +56,7 @@ QuantHub 将综合评估、因子验证、AI 研究证据、策略回测、信�
 
 内置策略覆盖情绪分析、新闻扫描、选股、SuperTrend、早报、实时分析、OKX 网格、AlphaGPT、PA Agent 和 AlphaMaster 等方向。
 
-`v0.2.0` 加入因子滚动样本外验证、横截面研究和四市场门禁、来源完整的成本档案、容量受限执行模拟、策略实验锁定快照、定时复验、因子提醒、故障聚合、状态矩阵和发布级行情适配器测试。完整说明见 [v0.2.0 发布说明](docs/releases/v0.2.0.md)，成本来源边界见 [交易成本来源](docs/TRADING_COST_SOURCES.md)，易用性实施状态见 [新手易用性路线图](BEGINNER_USABILITY_ROADMAP.md)，长期职责边界见 [功能边界](docs/FUNCTION_BOUNDARIES.md)。
+`v0.3.0` 加入安全 DSL、全局试验账本、AI 候选治理、真实 A 股横截面证据、预注册实验队列、因子证据工作台、逐笔模拟审计和自动漂移降级。完整说明见 [v0.3.0 发布说明](docs/releases/v0.3.0.md)，研究实施状态见 [AI 因子发现路线图](AI_FACTOR_DISCOVERY_ROADMAP.md)，成本来源边界见 [交易成本来源](docs/TRADING_COST_SOURCES.md)，长期职责边界见 [功能边界](docs/FUNCTION_BOUNDARIES.md)。
 
 ## 技术栈
 
@@ -272,6 +272,8 @@ uv run python tools/scaffold_strategy.py \
 ## 文档
 
 - [文档索引](docs/README.md)
+- [v0.3.0 发布说明](docs/releases/v0.3.0.md)
+- [AI 因子发现路线图](AI_FACTOR_DISCOVERY_ROADMAP.md)
 - [v0.2.0 发布说明](docs/releases/v0.2.0.md)
 - [v0.2.0 社区更新帖子](docs/posts/2026-07-31-quanthub-v0.2.0.md)
 - [架构设计](docs/ARCHITECTURE.md)

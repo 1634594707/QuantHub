@@ -12,6 +12,7 @@ import hashlib
 import math
 from dataclasses import dataclass
 from itertools import pairwise
+from statistics import NormalDist
 from typing import Any
 
 import numpy as np
@@ -51,6 +52,10 @@ FACTOR_FORMULAS = {
     "downside_risk": "-STD(MIN(RETURN(close,1),0),20)",
 }
 
+FACTOR_HYPOTHESIS_FAMILIES = {key: key for key in FACTOR_META} | {
+    "bollinger_reversal": "mean_reversion",
+}
+
 METHOD_META = {
     "buy_hold": "买入持有",
     "trend": "趋势跟随",
@@ -60,7 +65,7 @@ METHOD_META = {
     "multifactor": "多因子组合",
 }
 
-FACTOR_RESEARCH_ENGINE_VERSION = "2.0.0"
+FACTOR_RESEARCH_ENGINE_VERSION = "2.2.0"
 FACTOR_FORMULA_VERSION = "1.0.0"
 
 METHOD_METRIC_DEFINITIONS = [
@@ -84,6 +89,13 @@ METHOD_METRIC_DEFINITIONS = [
         "formula": "annual_return / annual_volatility；无风险利率按 0 处理",
         "unit": "ratio",
         "source": "样本外净收益序列和 periods_per_year",
+    },
+    {
+        "key": "deflated_sharpe_ratio",
+        "label": "Deflated Sharpe Ratio",
+        "formula": "按偏度、峰度、样本量和累计尝试次数校正后的 Sharpe 超越概率",
+        "unit": "probability",
+        "source": "样本外净收益序列、periods_per_year 和 multiple_testing_trials",
     },
     {
         "key": "annual_volatility",
@@ -200,6 +212,7 @@ class ResearchConfig:
     significance_level: float = 0.05
     walk_forward_mode: str = "expanding"
     walk_forward_folds: int = 3
+    availability_lag: int = 0
 
 
 def _clean_frame(frame: pd.DataFrame) -> pd.DataFrame:
@@ -395,12 +408,13 @@ def _walk_forward_windows(data: pd.DataFrame, config: ResearchConfig) -> list[di
     test_rows = len(data) - initial_test_start
     fold_count = min(config.walk_forward_folds, max(1, test_rows // 20))
     boundaries = np.linspace(initial_test_start, len(data), fold_count + 1, dtype=int)
-    base_train_rows = max(initial_test_start - config.horizon, 1)
+    isolation_periods = config.horizon + max(config.availability_lag, 0)
+    base_train_rows = max(initial_test_start - isolation_periods, 1)
     windows = []
     for fold in range(fold_count):
         test_start = int(boundaries[fold])
         test_end = int(boundaries[fold + 1])
-        purge_start = max(0, test_start - config.horizon)
+        purge_start = max(0, test_start - isolation_periods)
         train_start = 0
         if config.walk_forward_mode == "rolling":
             train_start = max(0, purge_start - base_train_rows)
@@ -429,11 +443,173 @@ def _benjamini_hochberg(p_values: list[float]) -> list[float]:
     return adjusted
 
 
+def benjamini_hochberg(p_values: list[float]) -> list[float]:
+    """Public deterministic BH correction shared by persistent experiment ledgers."""
+    return _benjamini_hochberg(p_values)
+
+
+def deflated_sharpe_ratio(
+    returns: pd.Series | list[float],
+    *,
+    trials: int,
+    periods_per_year: int = 252,
+) -> dict[str, Any]:
+    """Estimate the probability that Sharpe exceeds selection-induced inflation.
+
+    The implementation follows the probabilistic/deflated Sharpe construction: the
+    standard error is adjusted for skewness and Pearson kurtosis, while the benchmark
+    Sharpe is the expected maximum across the declared number of trials.
+    """
+    values = pd.Series(returns, dtype=float).replace([np.inf, -np.inf], np.nan).dropna()
+    observations = len(values)
+    trial_count = max(int(trials), 1)
+    if observations < 3:
+        return {
+            "probability": 0.0,
+            "observed_sharpe": 0.0,
+            "expected_max_sharpe": 0.0,
+            "observations": observations,
+            "trials": trial_count,
+            "skewness": 0.0,
+            "kurtosis": 3.0,
+            "method": "deflated_sharpe_non_normal_multiple_trials",
+        }
+    volatility = float(values.std(ddof=1))
+    mean_return = float(values.mean())
+    if volatility <= 1e-15:
+        probability = 1.0 if mean_return > 0 else 0.0 if mean_return < 0 else 0.5
+        return {
+            "probability": probability,
+            "observed_sharpe": 0.0,
+            "expected_max_sharpe": 0.0,
+            "observations": observations,
+            "trials": trial_count,
+            "skewness": 0.0,
+            "kurtosis": 3.0,
+            "method": "deflated_sharpe_non_normal_multiple_trials",
+        }
+
+    periodic_sharpe = mean_return / volatility
+    annual_scale = math.sqrt(max(periods_per_year, 1))
+    skewness = float(values.skew()) if observations >= 3 else 0.0
+    kurtosis = float(values.kurt()) + 3.0 if observations >= 4 else 3.0
+    if not math.isfinite(skewness):
+        skewness = 0.0
+    if not math.isfinite(kurtosis):
+        kurtosis = 3.0
+    sharpe_variance = (
+        1 - skewness * periodic_sharpe + ((kurtosis - 1) / 4) * periodic_sharpe**2
+    ) / max(observations - 1, 1)
+    sharpe_standard_error = math.sqrt(max(sharpe_variance, 1e-15))
+    expected_max = 0.0
+    if trial_count > 1:
+        normal = NormalDist()
+        euler_gamma = 0.5772156649015329
+        first_probability = min(max(1 - 1 / trial_count, 1e-12), 1 - 1e-12)
+        second_probability = min(max(1 - 1 / (trial_count * math.e), 1e-12), 1 - 1e-12)
+        expected_max = sharpe_standard_error * (
+            (1 - euler_gamma) * normal.inv_cdf(first_probability)
+            + euler_gamma * normal.inv_cdf(second_probability)
+        )
+    probability = NormalDist().cdf((periodic_sharpe - expected_max) / sharpe_standard_error)
+    return {
+        "probability": round(min(max(probability, 0.0), 1.0), 6),
+        "observed_sharpe": round(periodic_sharpe * annual_scale, 6),
+        "expected_max_sharpe": round(expected_max * annual_scale, 6),
+        "observations": observations,
+        "trials": trial_count,
+        "skewness": round(skewness, 6),
+        "kurtosis": round(kurtosis, 6),
+        "method": "deflated_sharpe_non_normal_multiple_trials",
+    }
+
+
+def block_bootstrap_reality_check(
+    candidate_returns: dict[str, pd.Series | list[float]],
+    *,
+    benchmark_returns: pd.Series | list[float] | None = None,
+    block_size: int | None = None,
+    bootstrap_samples: int = 1_000,
+    seed: int = 0,
+) -> dict[str, Any]:
+    """Run a deterministic moving-block White-style reality check."""
+    if not candidate_returns:
+        return {"available": False, "reason": "没有候选收益序列"}
+    keys = sorted(candidate_returns)
+    arrays = [np.asarray(candidate_returns[key], dtype=float).reshape(-1) for key in keys]
+    lengths = [len(item) for item in arrays]
+    if benchmark_returns is not None:
+        benchmark = np.asarray(benchmark_returns, dtype=float).reshape(-1)
+        lengths.append(len(benchmark))
+    else:
+        benchmark = None
+    observations = min(lengths, default=0)
+    if observations < 8:
+        return {"available": False, "reason": "Reality Check 至少需要 8 个共同观测"}
+    matrix = np.vstack([item[-observations:] for item in arrays])
+    if benchmark is not None:
+        matrix = matrix - benchmark[-observations:]
+    finite_mask = np.isfinite(matrix).all(axis=0)
+    matrix = matrix[:, finite_mask]
+    observations = matrix.shape[1]
+    if observations < 8:
+        return {"available": False, "reason": "有效共同观测不足 8 个"}
+
+    sample_count = min(max(int(bootstrap_samples), 100), 20_000)
+    selected_block_size = block_size or max(2, int(round(observations ** (1 / 3))))
+    selected_block_size = min(max(int(selected_block_size), 1), observations)
+    scale = math.sqrt(observations)
+    observed_statistics = scale * matrix.mean(axis=1)
+    best_index = int(np.argmax(observed_statistics))
+    observed_max = float(observed_statistics[best_index])
+    centered = matrix - matrix.mean(axis=1, keepdims=True)
+    rng = np.random.default_rng(seed)
+    bootstrap_maxima = np.empty(sample_count, dtype=float)
+    for sample in range(sample_count):
+        indices: list[int] = []
+        while len(indices) < observations:
+            start = int(rng.integers(0, observations))
+            indices.extend((start + offset) % observations for offset in range(selected_block_size))
+        sampled = centered[:, indices[:observations]]
+        bootstrap_maxima[sample] = float((scale * sampled.mean(axis=1)).max())
+    p_value = (1 + int(np.count_nonzero(bootstrap_maxima >= observed_max))) / (sample_count + 1)
+    return {
+        "available": True,
+        "method": "white_reality_check_moving_block_bootstrap",
+        "benchmark": "provided_returns" if benchmark_returns is not None else "zero_return",
+        "best_candidate": keys[best_index],
+        "observed_max_statistic": round(observed_max, 6),
+        "p_value": round(p_value, 6),
+        "observations": observations,
+        "candidate_count": len(keys),
+        "block_size": selected_block_size,
+        "bootstrap_samples": sample_count,
+        "seed": seed,
+    }
+
+
 def _apply_multiple_testing_control(
     evaluations: list[dict[str, Any]], significance_level: float
 ) -> None:
-    adjusted = _benjamini_hochberg([float(item.pop("_p_value_raw")) for item in evaluations])
-    for item, adjusted_p_value in zip(evaluations, adjusted, strict=True):
+    family_p_values: dict[str, float] = {}
+    for item in evaluations:
+        family = FACTOR_HYPOTHESIS_FAMILIES[item["key"]]
+        raw_p_value = float(item.pop("_p_value_raw"))
+        item["hypothesis_family"] = family
+        item["canonical_factor_key"] = family
+        item["is_redundant_alias"] = item["key"] != family
+        if family not in family_p_values or item["key"] == family:
+            family_p_values[family] = raw_p_value
+    families = list(family_p_values)
+    adjusted_by_family = dict(
+        zip(
+            families,
+            _benjamini_hochberg([family_p_values[family] for family in families]),
+            strict=True,
+        )
+    )
+    for item in evaluations:
+        adjusted_p_value = adjusted_by_family[item["hypothesis_family"]]
         significant = adjusted_p_value <= significance_level
         item["adjusted_p_value"] = round(adjusted_p_value, 4)
         item["statistically_significant"] = significant
@@ -625,21 +801,37 @@ def _position_from_signal(signal: pd.Series, entry: float = 0.0, exit_: float = 
     return position
 
 
+def _strategy_net_returns(
+    returns: pd.Series,
+    position: pd.Series,
+    transaction_cost_bps: float,
+) -> pd.Series:
+    held = position.shift(1).fillna(0).clip(0, 1)
+    turnover = held.diff().abs().fillna(held.abs())
+    return held.mul(returns.fillna(0)).sub(turnover.mul(transaction_cost_bps / 10_000))
+
+
 def _strategy_metrics(
     key: str,
     returns: pd.Series,
     position: pd.Series,
     config: ResearchConfig,
+    trial_count: int = 1,
 ) -> tuple[dict[str, Any], pd.Series, pd.Series]:
     held = position.shift(1).fillna(0).clip(0, 1)
     turnover = held.diff().abs().fillna(held.abs())
-    net = held.mul(returns.fillna(0)).sub(turnover.mul(config.transaction_cost_bps / 10_000))
+    net = _strategy_net_returns(returns, position, config.transaction_cost_bps)
     equity = (1 + net).cumprod()
     drawdown = equity.div(equity.cummax()).sub(1)
     years = max(len(net) / config.periods_per_year, 1 / config.periods_per_year)
     annual_return = float(equity.iloc[-1] ** (1 / years) - 1) if len(equity) else 0.0
     annual_vol = float(net.std(ddof=0) * np.sqrt(config.periods_per_year))
     sharpe = annual_return / annual_vol if annual_vol > 0 else 0.0
+    deflated_sharpe = deflated_sharpe_ratio(
+        net,
+        trials=trial_count,
+        periods_per_year=config.periods_per_year,
+    )
     downside = net.clip(upper=0)
     downside_deviation = float(np.sqrt(downside.pow(2).mean()) * np.sqrt(config.periods_per_year))
     sortino = annual_return / downside_deviation if downside_deviation > 0 else 0.0
@@ -673,6 +865,13 @@ def _strategy_metrics(
         "total_return": round(float(equity.iloc[-1] - 1), 4) if len(equity) else 0.0,
         "annual_return": round(annual_return, 4),
         "sharpe": round(float(sharpe), 3),
+        "deflated_sharpe_ratio": deflated_sharpe["probability"],
+        "expected_max_sharpe": deflated_sharpe["expected_max_sharpe"],
+        "multiple_testing_trials": deflated_sharpe["trials"],
+        "sharpe_observations": deflated_sharpe["observations"],
+        "sharpe_skewness": deflated_sharpe["skewness"],
+        "sharpe_kurtosis": deflated_sharpe["kurtosis"],
+        "deflated_sharpe_method": deflated_sharpe["method"],
         "annual_volatility": round(annual_vol, 4),
         "downside_deviation": round(downside_deviation, 4),
         "sortino": round(float(sortino), 3),
@@ -914,7 +1113,15 @@ def _select_training_factors(
     train_end: int,
     limit: int = 4,
 ) -> list[dict[str, Any]]:
-    candidates = sorted(evaluations, key=lambda item: item["train_ic"], reverse=True)
+    candidates = sorted(
+        (
+            item
+            for item in evaluations
+            if item["status"] == "usable" and not item.get("is_redundant_alias", False)
+        ),
+        key=lambda item: item["train_ic"],
+        reverse=True,
+    )
     selected: list[dict[str, Any]] = []
     for candidate in candidates:
         if candidate["train_ic"] < 0.03:
@@ -934,7 +1141,7 @@ def _select_training_factors(
             selected.append(candidate)
         if len(selected) >= limit:
             break
-    return selected or candidates[: min(3, len(candidates))]
+    return selected
 
 
 def _timestamp(data: pd.DataFrame, index: int) -> str:
@@ -1029,12 +1236,17 @@ def analyze_factors(frame: pd.DataFrame, config: ResearchConfig | None = None) -
         for key, factor in factors.items()
     ]
     _apply_multiple_testing_control(evaluations, config.significance_level)
+    effective_factor_hypotheses = len({item["hypothesis_family"] for item in evaluations})
     evaluations.sort(key=lambda item: (item["status"] == "usable", item["score"]), reverse=True)
 
     directions = {item["key"]: item["learned_direction"] for item in evaluations}
     directional = {key: series.mul(directions.get(key, 1)) for key, series in factors.items()}
-    usable = [item for item in evaluations if item["status"] == "usable"]
-    selected = _select_training_factors(evaluations, directional, train_start, train_end)
+    usable = [
+        item
+        for item in evaluations
+        if item["status"] == "usable" and not item.get("is_redundant_alias", False)
+    ]
+    selected = _select_training_factors(usable, directional, train_start, train_end)
     selected_keys = [item["key"] for item in selected]
     raw_weights = {item["key"]: max(float(item["train_ic"]), 0.001) for item in selected}
     total_weight = sum(raw_weights.values()) or 1.0
@@ -1052,7 +1264,11 @@ def analyze_factors(frame: pd.DataFrame, config: ResearchConfig | None = None) -
     )
 
     for item in evaluations:
-        item["selected"] = item["key"] in weights
+        item["exploratory_candidate"] = item["key"] in weights
+        # Compatibility field for saved v0.2 records and older clients.  It no
+        # longer denotes statistical or trading approval.
+        item["selected"] = item["exploratory_candidate"]
+        item["selection_semantics"] = "exploratory_candidate"
         item["weight"] = round(weights.get(item["key"], 0.0), 4)
 
     positions = {
@@ -1063,20 +1279,50 @@ def analyze_factors(frame: pd.DataFrame, config: ResearchConfig | None = None) -
         "breakout": _position_from_signal(directional["breakout_20"], 0.4, -0.05),
         "multifactor": _position_from_signal(composite, 0.25, -0.25),
     }
-    methods, curves, drawdowns = [], {}, {}
+    methods, curves, drawdowns, method_returns = [], {}, {}, {}
     test_data = data.iloc[split_index:].reset_index(drop=True)
     test_returns = returns.iloc[split_index:].reset_index(drop=True)
+    strategy_trial_count = effective_factor_hypotheses + len(positions)
     for key, position in positions.items():
         test_position = position.iloc[split_index:].reset_index(drop=True)
-        metrics, equity, drawdown = _strategy_metrics(key, test_returns, test_position, config)
+        metrics, equity, drawdown = _strategy_metrics(
+            key,
+            test_returns,
+            test_position,
+            config,
+            trial_count=strategy_trial_count,
+        )
+        metrics["constructed"] = key != "multifactor" or bool(selected_keys)
         methods.append(metrics)
         curves[key] = equity
         drawdowns[key] = drawdown
+        method_returns[key] = _strategy_net_returns(
+            test_returns,
+            test_position,
+            config.transaction_cost_bps,
+        )
     methods.sort(
         key=lambda item: (item["risk_adjusted_score"], item["annual_return"]), reverse=True
     )
+    data_fingerprint = _data_fingerprint(data)
+    reality_check = block_bootstrap_reality_check(
+        {key: values for key, values in method_returns.items() if key != "buy_hold"},
+        benchmark_returns=method_returns["buy_hold"],
+        bootstrap_samples=500,
+        seed=int(data_fingerprint[:8], 16),
+    )
     multifactor_test_position = positions["multifactor"].iloc[split_index:].reset_index(drop=True)
-    cost_analysis = _cost_sensitivity(test_returns, multifactor_test_position, config)
+    cost_analysis = (
+        {"available": True, **_cost_sensitivity(test_returns, multifactor_test_position, config)}
+        if selected_keys
+        else {
+            "available": False,
+            "basis": "multifactor_final_out_of_sample_window",
+            "reason": "没有因子通过样本外统计门禁，多因子组合未构建",
+            "curve": [],
+            "breakeven_transaction_cost_bps": None,
+        }
+    )
 
     full_asset_equity = close.div(close.iloc[0])
     full_asset_drawdown = full_asset_equity.div(full_asset_equity.cummax()).sub(1)
@@ -1099,6 +1345,8 @@ def analyze_factors(frame: pd.DataFrame, config: ResearchConfig | None = None) -
             "test_rows": len(data) - split_index,
             "walk_forward_test_rows": sum(int(window["test"]["rows"]) for window in windows),
             "horizon": config.horizon,
+            "availability_lag": config.availability_lag,
+            "purge_embargo_periods": config.horizon + max(config.availability_lag, 0),
             "transaction_cost_bps": config.transaction_cost_bps,
             "significance_level": config.significance_level,
             "significance_method": "newey_west_hac_benjamini_hochberg",
@@ -1107,13 +1355,20 @@ def analyze_factors(frame: pd.DataFrame, config: ResearchConfig | None = None) -
             "walk_forward_folds": len(windows),
             "window_pass_requirement": "strict_majority",
             "usable_factors": len(usable),
+            "effective_factor_hypotheses": effective_factor_hypotheses,
+            "multiple_testing_trials": strategy_trial_count,
+            "deflated_sharpe_method": "deflated_sharpe_non_normal_multiple_trials",
+            "reality_check_method": "white_reality_check_moving_block_bootstrap",
             "selected_factors": selected_keys,
+            "exploratory_candidates": selected_keys,
+            "selected_factors_semantics": "deprecated_alias_of_exploratory_candidates",
+            "multifactor_constructed": bool(selected_keys),
             "best_factor": evaluations[0]["key"] if evaluations else None,
             "best_method": methods[0]["key"] if methods else None,
             "evaluation_scope": "walk_forward_out_of_sample",
             "engine_version": FACTOR_RESEARCH_ENGINE_VERSION,
             "factor_formula_version": FACTOR_FORMULA_VERSION,
-            "data_fingerprint": _data_fingerprint(data),
+            "data_fingerprint": data_fingerprint,
             "research_period": {
                 "start": _timestamp(data, 0),
                 "end": _timestamp(data, len(data) - 1),
@@ -1152,10 +1407,12 @@ def analyze_factors(frame: pd.DataFrame, config: ResearchConfig | None = None) -
             key: _sample_curve(test_data, {"equity": equity}) for key, equity in curves.items()
         },
         "cost_analysis": cost_analysis,
+        "reality_check": reality_check,
         "methodology": {
             "split": (
                 f"后 30% 样本划分为 {len(windows)} 个 {config.walk_forward_mode} "
-                f"walk-forward 窗口，每个窗口隔离 {config.horizon} 个周期"
+                f"walk-forward 窗口，每个窗口执行 {config.horizon + max(config.availability_lag, 0)} "
+                f"周期 purge/embargo（标签 {config.horizon} + 数据延迟 {config.availability_lag}）"
             ),
             "execution": "信号延迟一个周期执行，计入双边换手成本",
             "usable_rule": (

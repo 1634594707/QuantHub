@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -18,6 +19,14 @@ class SimulationOrderCreate(BaseModel):
     quantity: float = Field(gt=0)
     limit_price: float | None = Field(default=None, gt=0)
     account_id: str = Field(default="paper", min_length=1, max_length=100)
+    factor_key: str | None = Field(default=None, min_length=1, max_length=80)
+    factor_version: str | None = Field(default=None, pattern=r"^\d+\.\d+\.\d+$")
+    research_run_id: str | None = Field(default=None, min_length=1, max_length=120)
+    rebalance_cycle_id: str | None = Field(default=None, min_length=1, max_length=120)
+    signal_time: datetime | None = None
+    tradable_time: datetime | None = None
+    theoretical_price: float | None = Field(default=None, gt=0)
+    capacity_used: float = Field(default=0, ge=0)
 
     @field_validator("signal_id")
     @classmethod
@@ -43,6 +52,8 @@ class SimulationOrderCreate(BaseModel):
             raise ValueError("手工模拟订单必须提供 symbol 和 side")
         if self.order_type == "limit" and self.limit_price is None:
             raise ValueError("限价单必须提供 limit_price")
+        if self.factor_version and not self.factor_key:
+            raise ValueError("factor_version 必须与 factor_key 一起提供")
         return self
 
 

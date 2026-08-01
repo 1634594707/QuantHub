@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "quanthub-core"
-version = "0.2.0"
+version = "0.3.0"
 description = "QuantHub 统一底座：data_feed / signals / alert / llm / backtest / viz"
 requires-python = ">=3.11,<3.13"
 license = { text = "AGPL-3.0-or-later" }

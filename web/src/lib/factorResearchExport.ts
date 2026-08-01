@@ -36,7 +36,7 @@ function factorCsv(result: FactorResearchResp): string {
     'icir',
     'positive_ic_ratio',
     'hit_rate',
-    'selected',
+    'exploratory_candidate',
     'weight',
   ] as const
   const rows = result.factors.map((factor) => columns.map((column) => csvCell(factor[column])).join(','))
@@ -45,12 +45,12 @@ function factorCsv(result: FactorResearchResp): string {
 
 function readableReport(result: FactorResearchResp): string {
   const summary = result.summary
-  const selected = summary.selected_factors.join(', ') || '无'
+  const exploratory = (summary.exploratory_candidates ?? summary.selected_factors).join(', ') || '无'
   const factors = result.factors.map((factor) => (
     `| ${factor.label} | ${factor.status} | ${factor.median_window_ic ?? factor.test_ic} | ${factor.passed_windows ?? '—'}/${factor.window_count ?? '—'} | ${factor.adjusted_p_value ?? factor.p_value} |`
   ))
   const methods = result.methods.map((method) => (
-    `| ${method.label} | ${method.total_return} | ${method.max_drawdown} | ${method.closed_trades ?? method.trades} | ${method.win_rate} | ${method.profit_factor} |`
+    `| ${method.label} | ${method.total_return} | ${method.max_drawdown} | ${method.closed_trades ?? method.trades} | ${method.win_rate} | ${method.profit_factor} | ${method.deflated_sharpe_ratio ?? '—'} |`
   ))
   return [
     `# ${result.symbol} 因子研究报告`,
@@ -61,8 +61,11 @@ function readableReport(result: FactorResearchResp): string {
     `- 研究区间：${summary.research_period ? `${summary.research_period.start} / ${summary.research_period.end}` : '旧记录未保存'}`,
     `- 数据指纹：${summary.data_fingerprint ?? '旧记录未保存'}`,
     `- 引擎版本：${summary.engine_version ?? '旧记录未保存'}`,
+    `- 兼容口径：${result.compatibility?.legacy_engine_record ? '旧引擎只读记录' : result.compatibility ? '当前引擎' : '旧记录未保存'}`,
     `- 公式版本：${summary.factor_formula_version ?? '旧记录未保存'}`,
-    `- 入选因子：${selected}`,
+    `- 探索候选：${exploratory}`,
+    `- 多因子组合：${summary.multifactor_constructed === false ? '未发现合格因子，未构建' : '已构建或旧记录未保存状态'}`,
+    `- Reality Check：${result.reality_check?.available ? `p=${result.reality_check.p_value}，候选 ${result.reality_check.candidate_count}` : result.reality_check?.reason ?? '旧记录未保存'}`,
     '',
     '## 因子结果',
     '',
@@ -72,8 +75,8 @@ function readableReport(result: FactorResearchResp): string {
     '',
     '## 方法结果',
     '',
-    '| 方法 | 总收益 | 最大回撤 | 闭合交易 | 胜率 | 利润因子 |',
-    '| --- | ---: | ---: | ---: | ---: | ---: |',
+    '| 方法 | 总收益 | 最大回撤 | 闭合交易 | 胜率 | 利润因子 | DSR |',
+    '| --- | ---: | ---: | ---: | ---: | ---: | ---: |',
     ...methods,
     '',
     '## 方法说明',

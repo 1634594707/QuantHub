@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import UTC, datetime
 from typing import Any
 
 from apps.api import store
@@ -188,6 +189,17 @@ def create_order(req: SimulationOrderCreate) -> dict:
         side = signal["direction"]
     assert symbol is not None and side is not None
     instrument = instrument_service.resolve_strict(symbol, market)
+    now_iso = datetime.now(UTC).isoformat()
+    theoretical_price = req.theoretical_price
+    if theoretical_price is None:
+        try:
+            latest = portfolio_service.latest_close(instrument.code, instrument.market)
+            theoretical_price = float(latest) if latest and latest > 0 else None
+        except (LookupError, ValueError, TypeError):
+            theoretical_price = None
+    signal_time = req.signal_time.isoformat() if req.signal_time else None
+    if signal_time is None and req.signal_id and signal is not None:
+        signal_time = signal.get("ts")
     return store.create_simulation_order(
         signal_id=req.signal_id,
         symbol=instrument.code,
@@ -198,6 +210,17 @@ def create_order(req: SimulationOrderCreate) -> dict:
         limit_price=req.limit_price,
         account_id=req.account_id,
         instrument_id=instrument.instrument_id,
+        audit={
+            "factor_key": req.factor_key,
+            "factor_version": req.factor_version,
+            "research_run_id": req.research_run_id,
+            "rebalance_cycle_id": req.rebalance_cycle_id,
+            "signal_time": signal_time or now_iso,
+            "tradable_time": req.tradable_time.isoformat() if req.tradable_time else now_iso,
+            "theoretical_price": theoretical_price,
+            "capacity_used": req.capacity_used,
+            "rejection_reason": None,
+        },
     )
 
 

@@ -121,72 +121,38 @@ def _normalize_formulas(formulas: Any) -> list[list[int]]:
 
 
 def validate_formulas(formulas: Any) -> list[list[int]]:
-    """按上游动态词表和 StackVM 栈规则校验公式。"""
-    normalized = _normalize_formulas(formulas)
-    _inject_alpha_master_root()
-    from model_core.ops import OPS_CONFIG
-    from model_core.vocab import FORMULA_VOCAB
+    """按受控源码词表和 StackVM 栈规则校验公式，无需导入 torch。"""
+    from strategies.mt5.alphamaster.formula_adapter import validate_formulas as validate
 
-    operator_arity = {
-        FORMULA_VOCAB.operator_offset + index: int(config[2])
-        for index, config in enumerate(OPS_CONFIG)
-    }
-    for formula_index, formula in enumerate(normalized):
-        depth = 0
-        for token_index, token in enumerate(formula):
-            if token < 0 or token >= FORMULA_VOCAB.size:
-                raise FormulaValidationError(
-                    f"第 {formula_index + 1} 条公式的 token[{token_index}]={token} "
-                    f"超出当前词表范围 0..{FORMULA_VOCAB.size - 1}"
-                )
-            if token < FORMULA_VOCAB.operator_offset:
-                depth += 1
-                continue
-            arity = operator_arity.get(token)
-            if arity is None or depth < arity:
-                name = FORMULA_VOCAB.token_names[token]
-                raise FormulaValidationError(
-                    f"第 {formula_index + 1} 条公式在 {name} 处缺少操作数"
-                )
-            depth = depth - arity + 1
-        if depth != 1:
-            raise FormulaValidationError(
-                f"第 {formula_index + 1} 条公式执行后栈深度为 {depth}，应为 1"
-            )
-    return normalized
+    try:
+        return validate(formulas)
+    except (TypeError, ValueError) as exc:
+        raise FormulaValidationError(str(exc)) from exc
 
 
 def describe_formulas(formulas: Any) -> list[dict[str, Any]]:
-    """返回公式 token、可读名称和上游结构风险提示。"""
-    normalized = validate_formulas(formulas)
-    _inject_alpha_master_root()
-    from model_core.vm import validate_formula_structure
-    from model_core.vocab import FORMULA_VOCAB, VOCAB_VERSION
+    """返回公式 token、可读名称和版本信息，无需导入 torch。"""
+    from strategies.mt5.alphamaster.formula_adapter import describe_formulas as describe
 
-    return [
-        {
-            "tokens": formula,
-            "expression": " -> ".join(FORMULA_VOCAB.token_names[token] for token in formula),
-            "warnings": validate_formula_structure(formula, FORMULA_VOCAB.token_names),
-            "vocab_version": VOCAB_VERSION,
-        }
-        for formula in normalized
-    ]
+    return [{**item, "warnings": []} for item in describe(formulas)]
 
 
 def engine_info() -> dict[str, Any]:
     """AlphaMaster 引擎能力与当前 fallback 公式的可观测信息。"""
+    from strategies.mt5.alphamaster.formula_adapter import vocab_manifest
+
+    manifest = vocab_manifest()
     try:
         import torch  # noqa: F401
     except ModuleNotFoundError:
         return {
             "available": False,
             "root": str(ALPHAMASTER_ROOT),
-            "vocab_version": None,
-            "vocab_schema": None,
-            "feature_count": 0,
-            "operator_count": 0,
-            "fallback_formulas": [],
+            "vocab_version": manifest["version"],
+            "vocab_schema": manifest["schema"],
+            "feature_count": len(manifest["feature_names"]),
+            "operator_count": len(manifest["operators"]),
+            "fallback_formulas": describe_formulas(_FALLBACK_FORMULAS),
             "reason": "缺少可选依赖 torch",
             "install_command": "uv sync --extra heavy-torch",
         }
@@ -278,13 +244,15 @@ class AlphaMasterStrategy(StrategyBase):
             for formula in formulas:
                 try:
                     res = vm.execute(formula, feat)
-                except Exception:
+                except Exception as exc:  # noqa: BLE001 - third-party VM errors skip one formula
+                    logger.debug("alphamaster 公式执行失败: %s", exc, exc_info=True)
                     continue
                 if res is None:
                     continue
                 try:
                     scores.append(float(res[0, -1].item()))
-                except Exception:
+                except Exception as exc:  # noqa: BLE001 - malformed VM output skips one formula
+                    logger.debug("alphamaster 公式结果无效: %s", exc, exc_info=True)
                     continue
             if not scores:
                 continue
@@ -339,8 +307,8 @@ class AlphaMasterStrategy(StrategyBase):
         for sym in symbols:
             try:
                 df = src.get_kline(sym, timeframe, limit=5000)
-            except Exception:
-                logger.warning("alphamaster 读取 %s %s 失败", sym, timeframe)
+            except Exception:  # noqa: BLE001 - data-source failures skip one symbol
+                logger.warning("alphamaster 读取 %s %s 失败", sym, timeframe, exc_info=True)
                 continue
             if df is not None and not df.empty:
                 out[sym] = df
@@ -396,7 +364,7 @@ class AlphaMasterStrategy(StrategyBase):
                     json_path.name,
                 )
                 return normalized
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 - invalid artifacts use safe built-in formulas
                 logger.warning(
                     "alphamaster 读取 %s 失败，回退启发式公式: %s",
                     json_path.name,
@@ -464,9 +432,7 @@ class AlphaMasterStrategy(StrategyBase):
         open_prices = df["open"].astype(float).to_numpy()
         target_return = np.zeros(len(df), dtype=float)
         if len(df) >= 3:
-            target_return[:-2] = np.log(
-                (open_prices[2:] + 1e-12) / (open_prices[1:-1] + 1e-12)
-            )
+            target_return[:-2] = np.log((open_prices[2:] + 1e-12) / (open_prices[1:-1] + 1e-12))
 
         previous_position = np.zeros(len(df), dtype=float)
         previous_position[1:] = position[:-1]
@@ -518,9 +484,7 @@ class AlphaMasterStrategy(StrategyBase):
                 "formula_count": len(formulas),
                 "vocab_version": formula_details[0]["vocab_version"],
                 "formula_warnings": [
-                    warning
-                    for item in formula_details
-                    for warning in item["warnings"]
+                    warning for item in formula_details for warning in item["warnings"]
                 ],
             },
             "final_equity": float(equity_values[-1]),
@@ -604,9 +568,7 @@ class AlphaMasterStrategy(StrategyBase):
         downside = pnl[pnl < 0]
         downside_std = float(np.std(downside)) if len(downside) else 0.0
         sharpe = (
-            mean_return / std_return * math.sqrt(periods_per_year)
-            if std_return > 1e-12
-            else 0.0
+            mean_return / std_return * math.sqrt(periods_per_year) if std_return > 1e-12 else 0.0
         )
         sortino = (
             mean_return / downside_std * math.sqrt(periods_per_year)
@@ -625,9 +587,7 @@ class AlphaMasterStrategy(StrategyBase):
             "max_drawdown": max_drawdown,
             "win_rate": len(wins) / len(trades) if trades else 0.0,
             "profit_factor": sum(wins) / sum(losses) if losses else None,
-            "average_hold_bars": float(
-                np.mean([trade["hold_bars"] for trade in trades])
-            )
+            "average_hold_bars": float(np.mean([trade["hold_bars"] for trade in trades]))
             if trades
             else 0.0,
             "average_exposure": float(np.mean(np.abs(position))) if len(position) else 0.0,

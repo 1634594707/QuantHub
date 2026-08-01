@@ -20,6 +20,7 @@ from apps.api.domains.factor_research.schemas import (
 from apps.api.domains.instrument.domain import Instrument
 from core.cross_sectional_research import (
     CrossSectionConfig,
+    analyze_cross_sectional_factors,
     analyze_cross_sectional_panel,
 )
 
@@ -42,6 +43,62 @@ def member(symbol: str, index: int, **overrides) -> dict:
 
 
 class CrossSectionEngineTests(unittest.TestCase):
+    def test_residual_multi_horizon_and_group_stability_reports_are_complete(self) -> None:
+        members = [member(f"S{index:02d}", index) for index in range(12)]
+        frames = {}
+        periods = 120
+        time_index = np.arange(periods)
+        for index, item in enumerate(members):
+            close = (
+                80
+                + index * 3
+                + time_index * (0.04 + index * 0.004)
+                + np.sin(time_index / 6 + index * 0.4) * (1 + index * 0.05)
+            )
+            frames[item["symbol"]] = pd.DataFrame(
+                {
+                    "datetime": pd.date_range("2024-10-01", periods=periods, freq="D"),
+                    "open": close,
+                    "high": close * 1.01,
+                    "low": close * 0.99,
+                    "close": close,
+                    "volume": 1_000_000 + index * 50_000 + time_index * 1_000,
+                }
+            )
+
+        result = analyze_cross_sectional_factors(
+            frames,
+            members,
+            CrossSectionConfig(
+                factor_key="momentum_20",
+                min_assets=8,
+                minimum_effective_dates=20,
+                minimum_valid_assets=8,
+                neutralize_industry=False,
+                neutralize_market_cap=False,
+                neutralize_beta=False,
+            ),
+        )
+
+        self.assertEqual(
+            result["summary"]["primary_label"],
+            "market_industry_neutral_residual_return",
+        )
+        self.assertIn("raw_return_rank_ic_mean", result["summary"])
+        label_segments = {item["segment"] for item in result["stability"]["labels"]}
+        for horizon in (1, 3, 5, 10, 20):
+            self.assertIn(f"residual_forward_return_{horizon}", label_segments)
+            self.assertIn(f"residual_risk_adjusted_return_{horizon}", label_segments)
+        time_segments = {item["segment"].split(":", 1)[0] for item in result["stability"]["time"]}
+        self.assertEqual(
+            time_segments,
+            {"year", "market", "trend", "volatility", "liquidity"},
+        )
+        self.assertTrue(result["stability"]["cross_section"]["industry"])
+        self.assertTrue(result["stability"]["cross_section"]["market_cap"])
+        self.assertTrue(result["stability"]["cross_section"]["liquidity"])
+        self.assertTrue(result["stability"]["cross_section"]["listing_age"])
+
     def test_rank_ic_quantiles_neutralization_and_capacity_are_computed(self) -> None:
         members = [member(f"S{index:02d}", index) for index in range(12)]
         rows = []
@@ -58,6 +115,7 @@ class CrossSectionEngineTests(unittest.TestCase):
                         "symbol": item["symbol"],
                         "factor": factor,
                         "forward_return": signal * 0.002,
+                        "next_return": signal * 0.0004,
                         "dollar_volume": 10_000_000 + index * 1_000_000,
                     }
                 )
@@ -67,15 +125,24 @@ class CrossSectionEngineTests(unittest.TestCase):
             CrossSectionConfig(
                 factor_key="trend_strength",
                 min_assets=8,
+                minimum_effective_dates=20,
+                minimum_valid_assets=8,
                 transaction_cost_bps=5,
             ),
         )
 
         self.assertEqual(result["factor"]["status"], "usable")
         self.assertGreater(result["summary"]["rank_ic_mean"], 0.9)
+        self.assertLessEqual(result["summary"]["rank_ic_p_value"], 0.05)
+        self.assertEqual(result["summary"]["portfolio_mode"], "cohort")
         self.assertGreater(result["summary"]["icir"], 0)
         self.assertEqual(len(result["quantile_returns"]), 5)
         self.assertGreater(result["summary"]["long_short_total_return"], 0)
+        self.assertEqual(result["summary"]["primary_portfolio_key"], "long_only_excess")
+        self.assertFalse(
+            result["summary"]["portfolio_variants"]["theoretical_long_short"]["executable"]
+        )
+        self.assertFalse(result["summary"]["portfolio_variants"]["index_hedged"]["available"])
         self.assertEqual(result["summary"]["coverage"], 1.0)
         self.assertGreater(result["summary"]["median_capacity"], 0)
         self.assertGreater(result["summary"]["median_crowding_hhi"], 0)
@@ -98,6 +165,7 @@ class CrossSectionEngineTests(unittest.TestCase):
                         "symbol": item["symbol"],
                         "factor": float(index),
                         "forward_return": float(index) / 100,
+                        "next_return": float(index) / 400,
                         "dollar_volume": 1_000_000.0,
                     }
                 )
@@ -119,6 +187,183 @@ class CrossSectionEngineTests(unittest.TestCase):
         self.assertNotIn("D", result["series"][0]["long_symbols"])
         self.assertNotIn("E", result["series"][0]["long_symbols"])
 
+    def test_non_overlapping_portfolio_does_not_compound_overlapping_labels(self) -> None:
+        members = [member(f"S{index}", index) for index in range(6)]
+        rows = []
+        for day in pd.date_range("2025-01-01", periods=10, freq="D"):
+            for index, item in enumerate(members):
+                rows.append(
+                    {
+                        "datetime": day,
+                        "symbol": item["symbol"],
+                        "factor": float(index),
+                        "forward_return": float(index) * 0.01,
+                        "dollar_volume": 1_000_000.0,
+                    }
+                )
+
+        result = analyze_cross_sectional_panel(
+            pd.DataFrame(rows),
+            members,
+            CrossSectionConfig(
+                market="us_stocks",
+                factor_key="momentum_20",
+                horizon=5,
+                quantiles=3,
+                min_assets=6,
+                transaction_cost_bps=0,
+                portfolio_mode="non_overlapping",
+                neutralize_industry=False,
+                neutralize_market_cap=False,
+                neutralize_beta=False,
+            ),
+        )
+
+        spread = 0.04
+        self.assertEqual(result["summary"]["portfolio_observations"], 2)
+        self.assertEqual(result["summary"]["primary_portfolio_key"], "theoretical_long_short")
+        self.assertTrue(
+            result["summary"]["portfolio_variants"]["theoretical_long_short"]["executable"]
+        )
+        self.assertAlmostEqual(
+            result["summary"]["long_short_total_return"],
+            (1 + spread) ** 2 - 1,
+            places=6,
+        )
+        self.assertNotAlmostEqual(
+            result["summary"]["long_short_total_return"],
+            (1 + spread) ** 10 - 1,
+            places=4,
+        )
+
+    def test_horizon_one_non_overlapping_matches_single_cohort_portfolio(self) -> None:
+        members = [member(f"S{index}", index) for index in range(6)]
+        rows = []
+        for day in pd.date_range("2025-01-01", periods=10, freq="D"):
+            for index, item in enumerate(members):
+                rows.append(
+                    {
+                        "datetime": day,
+                        "symbol": item["symbol"],
+                        "factor": float(index),
+                        "forward_return": float(index) * 0.01,
+                        "next_return": float(index) * 0.01,
+                        "dollar_volume": 1_000_000.0,
+                    }
+                )
+        frame = pd.DataFrame(rows)
+        common = {
+            "market": "us_stocks",
+            "factor_key": "momentum_20",
+            "horizon": 1,
+            "quantiles": 3,
+            "min_assets": 6,
+            "transaction_cost_bps": 0,
+            "neutralize_industry": False,
+            "neutralize_market_cap": False,
+            "neutralize_beta": False,
+        }
+
+        non_overlapping = analyze_cross_sectional_panel(
+            frame,
+            members,
+            CrossSectionConfig(**common, portfolio_mode="non_overlapping"),
+        )
+        cohort = analyze_cross_sectional_panel(
+            frame,
+            members,
+            CrossSectionConfig(**common, portfolio_mode="cohort"),
+        )
+
+        self.assertEqual(non_overlapping["summary"]["portfolio_observations"], 10)
+        self.assertEqual(cohort["summary"]["portfolio_observations"], 10)
+        self.assertAlmostEqual(
+            non_overlapping["summary"]["long_short_total_return"],
+            cohort["summary"]["long_short_total_return"],
+            places=12,
+        )
+
+    def test_cohort_portfolio_compounds_only_next_period_returns(self) -> None:
+        members = [member(f"S{index}", index) for index in range(6)]
+        rows = []
+        for day in pd.date_range("2025-01-01", periods=10, freq="D"):
+            for index, item in enumerate(members):
+                rows.append(
+                    {
+                        "datetime": day,
+                        "symbol": item["symbol"],
+                        "factor": float(index),
+                        "forward_return": float(index) * 0.05,
+                        "next_return": float(index) * 0.01,
+                        "dollar_volume": 1_000_000.0,
+                    }
+                )
+
+        result = analyze_cross_sectional_panel(
+            pd.DataFrame(rows),
+            members,
+            CrossSectionConfig(
+                factor_key="momentum_20",
+                horizon=5,
+                quantiles=3,
+                min_assets=6,
+                transaction_cost_bps=0,
+                portfolio_mode="cohort",
+                neutralize_industry=False,
+                neutralize_market_cap=False,
+                neutralize_beta=False,
+            ),
+        )
+
+        one_period_spread = 0.04
+        self.assertEqual(result["summary"]["portfolio_observations"], 10)
+        self.assertAlmostEqual(
+            result["summary"]["long_short_total_return"],
+            (1 + one_period_spread) ** 10 - 1,
+            places=6,
+        )
+        self.assertEqual(result["series"][4]["portfolio_active_cohorts"], 5)
+
+    def test_non_overlapping_cost_is_charged_only_on_rebalance_dates(self) -> None:
+        members = [member(f"S{index}", index) for index in range(6)]
+        rows = []
+        for offset, day in enumerate(pd.date_range("2025-01-01", periods=10, freq="D")):
+            for index, item in enumerate(members):
+                signal = index if offset < 5 else 5 - index
+                rows.append(
+                    {
+                        "datetime": day,
+                        "symbol": item["symbol"],
+                        "factor": float(signal),
+                        "forward_return": float(signal) * 0.01,
+                        "dollar_volume": 1_000_000.0,
+                    }
+                )
+
+        result = analyze_cross_sectional_panel(
+            pd.DataFrame(rows),
+            members,
+            CrossSectionConfig(
+                factor_key="momentum_20",
+                horizon=5,
+                quantiles=3,
+                min_assets=6,
+                transaction_cost_bps=100,
+                portfolio_mode="non_overlapping",
+                neutralize_industry=False,
+                neutralize_market_cap=False,
+                neutralize_beta=False,
+            ),
+        )
+
+        charged_rows = [row for row in result["series"] if row["portfolio_net_return"] is not None]
+        self.assertEqual([row["turnover"] for row in charged_rows], [1.0, 1.0])
+        self.assertAlmostEqual(
+            result["summary"]["long_short_total_return"],
+            (1 + 0.04 - 0.01) ** 2 - 1,
+            places=6,
+        )
+
 
 class CrossSectionPersistenceTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -139,8 +384,8 @@ class CrossSectionPersistenceTests(unittest.TestCase):
         *,
         run_status: str = "succeeded",
         factor_status: str = "usable",
-        dates: int = 20,
-        minimum_valid_assets: int = 3,
+        dates: int = 120,
+        minimum_valid_assets: int = 30,
     ) -> dict:
         run = store.create_research_run(
             symbol=f"UNIVERSE:{market}",
@@ -159,7 +404,14 @@ class CrossSectionPersistenceTests(unittest.TestCase):
                         "factor_key": "trend_strength",
                         "factor_status": factor_status,
                         "dates": dates,
+                        "effective_dates": dates,
                         "minimum_valid_assets": minimum_valid_assets,
+                        "validation_thresholds": {
+                            "minimum_effective_dates": 120,
+                            "minimum_valid_assets": 30
+                            if market in {"a_shares", "us_stocks"}
+                            else 20,
+                        },
                         "rank_ic_mean": 0.08,
                         "coverage": 0.95,
                     }
@@ -167,13 +419,14 @@ class CrossSectionPersistenceTests(unittest.TestCase):
             },
         )
 
-    def test_cross_market_status_requires_every_market(self) -> None:
+    def test_target_market_status_does_not_require_every_market(self) -> None:
         self.save_cross_section_run("a_shares")
 
-        result = service.cross_market_factor_status("trend_strength")
+        result = service.cross_market_factor_status("trend_strength", "a_shares")
 
-        self.assertFalse(result["trading_validation_passed"])
-        self.assertEqual(result["trading_validation_status"], "insufficient_evidence")
+        self.assertTrue(result["trading_validation_passed"])
+        self.assertEqual(result["trading_validation_status"], "passed")
+        self.assertEqual(result["required_markets"], ["a_shares"])
         self.assertEqual(
             [row["state"] for row in result["rows"]],
             ["passed", "missing", "missing", "missing"],
@@ -184,18 +437,18 @@ class CrossSectionPersistenceTests(unittest.TestCase):
             self.save_cross_section_run(market)
         self.save_cross_section_run("crypto", factor_status="watch")
 
-        result = service.cross_market_factor_status("trend_strength")
+        result = service.cross_market_factor_status("trend_strength", "crypto")
         crypto = next(row for row in result["rows"] if row["market"] == "crypto")
 
         self.assertFalse(result["trading_validation_passed"])
         self.assertEqual(crypto["state"], "failed")
         self.assertEqual(crypto["factor_status"], "watch")
 
-    def test_cross_market_status_passes_four_qualified_markets(self) -> None:
+    def test_target_market_status_passes_without_portability_evidence(self) -> None:
         for market in ("a_shares", "us_stocks", "crypto", "mt5"):
             self.save_cross_section_run(market)
 
-        result = service.cross_market_factor_status("trend_strength")
+        result = service.cross_market_factor_status("trend_strength", "us_stocks")
 
         self.assertTrue(result["trading_validation_passed"])
         self.assertEqual(result["trading_validation_status"], "passed")
@@ -206,13 +459,22 @@ class CrossSectionPersistenceTests(unittest.TestCase):
             self.save_cross_section_run(market)
         latest = self.save_cross_section_run("us_stocks", run_status="failed")
 
-        result = service.cross_market_factor_status("trend_strength")
+        result = service.cross_market_factor_status("trend_strength", "us_stocks")
         us_stocks = next(row for row in result["rows"] if row["market"] == "us_stocks")
 
         self.assertFalse(result["trading_validation_passed"])
         self.assertEqual(us_stocks["run_id"], latest["id"])
         self.assertEqual(us_stocks["run_status"], "failed")
         self.assertEqual(us_stocks["state"], "failed")
+
+    def test_cross_market_status_requires_explicit_target_market(self) -> None:
+        self.save_cross_section_run("a_shares")
+
+        result = service.cross_market_factor_status("trend_strength")
+
+        self.assertFalse(result["trading_validation_passed"])
+        self.assertEqual(result["trading_validation_status"], "target_market_required")
+        self.assertEqual(result["required_markets"], [])
 
     def test_universe_members_preserve_effective_dates_and_metadata(self) -> None:
         universe = service.create_factor_universe(

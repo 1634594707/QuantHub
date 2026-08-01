@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "quanthub-realtime-analyzer"
-version = "0.2.0"
+version = "0.3.0"
 description = "实时 A 股分析器：东方财富盘口 + 腾讯日 K + 指数宽度，GPT/DeepSeek 深度研报"
 requires-python = ">=3.11,<3.13"
 dependencies = ["quanthub-core", "openai>=1.40"]

@@ -21,7 +21,12 @@ BATCH_ANALYSIS_SYSTEM_PROMPT = (
     '    "sentiment_score": -1.0 到 1.0 的浮点数（负面为负、正面为正、中性近 0），\n'
     '    "topic": "macro|monetary|industry|company|capital_action|regulation|market_mood|international",\n'
     '    "entities": [{{"text": "实体名", "type": "person|org|location"}}],\n'
-    '    "summary": "不超过 60 字的中文摘要（仅基于标题，不得编造未给出的事实）"\n'
+    '    "summary": "不超过 60 字的中文摘要（仅基于标题，不得编造未给出的事实）",\n'
+    '    "event_type": "earnings_guidance|earnings_revision|share_repurchase|shareholder_change|dividend|regulatory_penalty|major_contract|trading_status|unclassified",\n'
+    '    "event_direction": "positive|negative|neutral|uncertain",\n'
+    '    "event_strength": 0.0 到 1.0 的事件强度，\n'
+    '    "event_confidence": 0.0 到 1.0 的抽取置信度，\n'
+    '    "event_evidence": "标题中支持分类的原文片段"\n'
     "  }}, ...\n"
     "]\n"
     "硬性约束：\n"
@@ -30,7 +35,9 @@ BATCH_ANALYSIS_SYSTEM_PROMPT = (
     '3. topic 必须是上面 8 个枚举值之一，无法判断时用 "market_mood"；\n'
     "4. sentiment 必须是 positive/negative/neutral 之一；\n"
     "5. summary 严禁出现标题中未出现的人名、数字、机构等事实；\n"
-    "6. 资金净流出、撤离、主力卖出按 negative 判断；资金净流入、主力买入按 positive 判断。"
+    "6. 资金净流出、撤离、主力卖出按 negative 判断；资金净流入、主力买入按 positive 判断；\n"
+    "7. event_type 只能使用固定枚举；无法判断必须用 unclassified；\n"
+    "8. event_direction 表示事件本身的经营或治理方向，严禁输出股价涨跌预测、目标价或买卖建议。"
 )
 
 # LLM 调用参数（参考 news_scanner._LLM_TEMPERATURE / _LLM_MAX_TOKENS）

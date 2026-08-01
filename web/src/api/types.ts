@@ -232,6 +232,14 @@ export interface SimulationExecution {
   ledger_sync_status: SimulationLedgerSyncStatus
   ledger_trade_id: string | null
   ledger_sync_error: string | null
+  theoretical_price: number | null
+  simulated_price: number
+  slippage_bps: number | null
+  signal_time: string | null
+  tradable_time: string | null
+  rejection_reason: string | null
+  capacity_used: number
+  live_trading_enabled: false
 }
 
 export interface SimulationOrder {
@@ -249,6 +257,18 @@ export interface SimulationOrder {
   average_price: number | null
   created_at: number
   updated_at: number
+  audit: {
+    factor_key?: string | null
+    factor_version?: string | null
+    research_run_id?: string | null
+    rebalance_cycle_id?: string | null
+    signal_time?: string | null
+    tradable_time?: string | null
+    theoretical_price?: number | null
+    capacity_used?: number
+    rejection_reason?: string | null
+    live_trading_enabled: false
+  }
   executions: SimulationExecution[]
 }
 
@@ -412,6 +432,9 @@ export interface FactorEvaluation {
   p_value: number
   adjusted_p_value?: number
   statistically_significant?: boolean
+  hypothesis_family?: string
+  canonical_factor_key?: string
+  is_redundant_alias?: boolean
   decay: Array<{ horizon: number; ic: number }>
   hit_rate: number
   observations: number
@@ -431,6 +454,9 @@ export interface FactorEvaluation {
   multi_window_consistent?: boolean
   windows?: FactorValidationWindow[]
   stable: boolean
+  exploratory_candidate?: boolean
+  selection_semantics?: 'exploratory_candidate'
+  /** @deprecated Use exploratory_candidate. */
   selected: boolean
   weight: number
 }
@@ -467,6 +493,13 @@ export interface QuantMethodResult {
   total_return: number
   annual_return: number
   sharpe: number
+  deflated_sharpe_ratio?: number
+  expected_max_sharpe?: number
+  multiple_testing_trials?: number
+  sharpe_observations?: number
+  sharpe_skewness?: number
+  sharpe_kurtosis?: number
+  deflated_sharpe_method?: 'deflated_sharpe_non_normal_multiple_trials'
   annual_volatility: number
   downside_deviation: number
   sortino: number
@@ -491,6 +524,7 @@ export interface QuantMethodResult {
   turnover: number
   trades: number
   exposure: number
+  constructed?: boolean
 }
 
 export interface FactorCurvePoint {
@@ -509,6 +543,12 @@ export interface FactorResearchResp {
   saved?: boolean
   saved_at?: number
   persistence_error?: string
+  compatibility?: {
+    current_engine_version: string
+    record_engine_version: string | null
+    legacy_engine_record: boolean
+    policy: 'historical_result_preserved_read_only' | 'current_engine'
+  }
   symbol: string
   market: string
   interval: string
@@ -533,10 +573,19 @@ export interface FactorResearchResp {
     test_rows: number
     walk_forward_test_rows?: number
     horizon: number
+    availability_lag?: number
+    purge_embargo_periods?: number
     transaction_cost_bps: number
     significance_level?: number
     usable_factors: number
+    effective_factor_hypotheses?: number
+    multiple_testing_trials?: number
+    deflated_sharpe_method?: 'deflated_sharpe_non_normal_multiple_trials'
+    reality_check_method?: 'white_reality_check_moving_block_bootstrap'
     selected_factors: string[]
+    exploratory_candidates?: string[]
+    selected_factors_semantics?: 'deprecated_alias_of_exploratory_candidates'
+    multifactor_constructed?: boolean
     best_factor: string | null
     best_method: string | null
     evaluation_scope: 'out_of_sample' | 'walk_forward_out_of_sample'
@@ -584,10 +633,13 @@ export interface FactorResearchResp {
   curve: FactorCurvePoint[]
   method_curves: Record<string, FactorCurvePoint[]>
   cost_analysis?: {
+    available?: boolean
     basis: 'multifactor_final_out_of_sample_window'
+    reason?: string
     curve: Array<{ transaction_cost_bps: number; total_return: number }>
     breakeven_transaction_cost_bps: number | null
   }
+  reality_check?: FactorRealityCheck
   methodology: {
     split: string
     execution: string
@@ -601,6 +653,21 @@ export interface FactorResearchResp {
       source: string
     }>
   }
+}
+
+export interface FactorRealityCheck {
+  available: boolean
+  reason?: string
+  method?: 'white_reality_check_moving_block_bootstrap'
+  benchmark?: 'provided_returns' | 'zero_return'
+  best_candidate?: string
+  observed_max_statistic?: number
+  p_value?: number
+  observations?: number
+  candidate_count?: number
+  block_size?: number
+  bootstrap_samples?: number
+  seed?: number
 }
 
 export interface FactorAiReviewResp {
@@ -659,6 +726,249 @@ export interface FactorResearchRunDetailResp {
   ai_review: FactorAiReviewResp | null
 }
 
+export interface FactorDefinitionRecord {
+  id: string
+  key: string
+  factor_key: string
+  label: string
+  market: 'a_shares' | 'us_stocks' | 'crypto' | 'mt5' | 'all'
+  input_fields: string[]
+  ast: Record<string, unknown>
+  direction: 'positive' | 'inverse'
+  horizon: number
+  availability_lag: number
+  rationale: string
+  family: string
+  version: string
+  parameters: Record<string, unknown>
+  formula_hash: string
+  definition_hash: string
+  validation: {
+    unit: string
+    shape: 'series'
+    fields: string[]
+    depth: number
+    operators: number
+  }
+  created_at: number
+}
+
+export type FactorLifecycleState =
+  | 'draft'
+  | 'exploratory'
+  | 'research_passed'
+  | 'trading_validated'
+  | 'degraded'
+  | 'retired'
+
+export interface FactorLifecycleEvent {
+  id: string
+  factor_definition_id: string
+  event_sequence: number
+  state: FactorLifecycleState
+  target_market: 'a_shares' | 'us_stocks' | 'crypto' | 'mt5' | 'all'
+  actor_type: 'system' | 'researcher' | 'ai'
+  actor: string
+  rule: string
+  evidence: Record<string, unknown>
+  created_at: number
+}
+
+export interface FactorLifecycleRecord {
+  ok: boolean
+  factor_key: string
+  version: string
+  definition_hash: string
+  current_by_market: Record<string, FactorLifecycleEvent>
+  events: FactorLifecycleEvent[]
+}
+
+export interface FactorPreRegistration {
+  primary_metric: string
+  secondary_metrics: string[]
+  pass_criteria: Record<string, unknown>
+  maximum_candidates: number
+  maximum_llm_tokens: number
+  confirmation_set_openings: number
+}
+
+export interface FactorResearchDataPartition {
+  start: string
+  end: string
+  data_fingerprint: string
+}
+
+export interface FactorResearchDataSplit {
+  discovery: FactorResearchDataPartition
+  rolling_validation: FactorResearchDataPartition
+  locked_confirmation: FactorResearchDataPartition
+  purge_periods: number
+  embargo_periods: number
+}
+
+export interface FactorConfirmationSetOpening {
+  id: string
+  research_plan_id: string
+  experiment_id: string
+  confirmation_data_fingerprint: string
+  opened_by: string
+  irreversible_ack: true
+  created_at: number
+}
+
+export interface FactorResearchPlanRecord {
+  id: string
+  title: string
+  target_market: 'a_shares' | 'us_stocks' | 'crypto' | 'mt5'
+  budget: {
+    maximum_candidates: number
+    maximum_compute_units: number
+    maximum_llm_tokens: number
+    maximum_confirmation_set_openings: number
+    maximum_round_candidates: number
+    maximum_formula_complexity: number
+    maximum_duplicate_rate: number
+    stop_conditions: Record<string, unknown>
+    data_split: FactorResearchDataSplit | null
+  }
+  usage?: {
+    candidates: number
+    compute_units: number
+    llm_tokens: number
+    confirmation_set_openings: number
+    confirmation_set_openings_reserved: number
+    experiments: number
+  }
+  created_at: number
+}
+
+export type FactorFailureCode =
+  | 'duplicate_formula'
+  | 'future_information'
+  | 'insufficient_coverage'
+  | 'cost_too_high'
+  | 'unstable_regime'
+  | 'target_market_mismatch'
+  | 'invalid_syntax'
+  | 'complexity_budget'
+  | 'execution_constraint'
+  | 'other'
+
+export interface FactorExperimentEvent {
+  id: string
+  experiment_id: string
+  event_sequence: number
+  status: 'draft' | 'queued' | 'running' | 'succeeded' | 'failed' | 'rejected' | 'cancelled'
+  result: Record<string, unknown>
+  failure_reason: string | null
+  failure_code: FactorFailureCode | null
+  evidence: Record<string, unknown>
+  created_at: number
+}
+
+export interface FactorAiProposalContext {
+  research_plan: Pick<FactorResearchPlanRecord, 'id' | 'title' | 'target_market'>
+  data_catalog: Array<{ field: string; unit: string }>
+  existing_factor_definitions: Array<{
+    key: string
+    version: string
+    family: string
+    market: FactorDefinitionRecord['market']
+    input_fields: string[]
+    formula_hash: string
+    rationale: string
+  }>
+  redundancy_clusters: {
+    formula_hash: Array<{ formula_hash: string; definitions: string[] }>
+    family: Array<{ family: string; definitions: string[] }>
+  }
+  failure_feedback: Record<string, {
+    count: number
+    reasons: string[]
+    factor_keys: string[]
+  }>
+  plan_usage: NonNullable<FactorResearchPlanRecord['usage']>
+  ai_search_usage: FactorAiSearchUsage
+  remaining_budget: {
+    candidates: number
+    compute_units: number
+    llm_tokens: number
+    confirmation_set_openings: number
+    maximum_round_candidates: number
+    maximum_formula_complexity: number
+    maximum_duplicate_rate: number
+  }
+  stop_conditions: Record<string, unknown>
+  confirmation_labels_exposed: false
+}
+
+export interface FactorAiSearchUsage {
+  rounds: number
+  candidates: number
+  duplicates: number
+  llm_tokens: number
+  stopped_rounds: number
+}
+
+export interface FactorAiSearchRoundRecord {
+  id: string
+  research_plan_id: string
+  round_id: string
+  candidate_count: number
+  duplicate_count: number
+  duplicate_rate: number
+  max_formula_complexity: number
+  llm_tokens: number
+  input_fingerprint: string
+  status: 'allowed' | 'stopped'
+  allowed: boolean
+  stopped: boolean
+  stop_reason: string | null
+  created_at: number
+}
+
+export interface FactorExperimentRecord {
+  id: string
+  research_plan_id: string
+  hypothesis: string
+  source: 'human' | 'ai' | 'template' | 'random_dsl' | 'symbolic_regression' | 'parameter_search'
+  parent_experiment_id: string | null
+  factor_definition_id: string
+  candidate_validation_id: string
+  factor_key: string
+  factor_version: string
+  factor_family: string
+  target_market: 'a_shares' | 'us_stocks' | 'crypto' | 'mt5'
+  data_start: string | null
+  data_end: string | null
+  parameter_grid: Record<string, unknown>
+  parameter_combinations: number
+  estimated_compute_units: number
+  model: Record<string, unknown>
+  prompt: Record<string, unknown>
+  proposal: {
+    applicable_regimes: string[]
+    invalidation_conditions: string[]
+    falsification_tests: string[]
+    ai_trace: Record<string, unknown>
+  }
+  pre_registration: FactorPreRegistration
+  attempt_number: number
+  status: FactorExperimentEvent['status']
+  created_at: number
+  provenance: {
+    schema_version: 'factor-experiment-provenance-v1'
+    formula: { version: string; formula_hash: string; definition_hash: string }
+    data: { version: string; snapshot_hash: string }
+    experiment: { version: string; hash: string }
+    model: { version: string; hash: string }
+    prompt: { version: string; hash: string }
+    cost: { version: string; hash: string }
+    result: { version: string; hash: string; status: FactorExperimentEvent['status'] }
+  }
+  events?: FactorExperimentEvent[]
+}
+
 export interface FactorUniverse {
   id: string
   name: string
@@ -700,6 +1010,7 @@ export interface FactorResearchJob {
     horizon: number
     transaction_cost_bps: number
     participation_rate: number
+    portfolio_mode?: 'cohort' | 'non_overlapping'
   }
   created_at: number
   updated_at: number
@@ -727,14 +1038,39 @@ export interface CrossSectionResearchResp {
   summary?: {
     dates: number
     rank_ic_mean: number
+    raw_return_rank_ic_mean?: number
+    primary_label?: 'market_industry_neutral_residual_return'
+    auxiliary_label?: 'raw_forward_return'
     rank_ic_median: number
     rank_ic_std: number
     icir: number
+    rank_ic_p_value?: number
+    rank_ic_p_value_method?: 'newey_west_hac_mean_test'
+    rank_ic_hac_lags?: number
+    effective_dates?: number
     positive_rank_ic_ratio: number
+    portfolio_mode?: 'cohort' | 'non_overlapping'
+    portfolio_return_horizon?: number
+    portfolio_observations?: number
+    gross_long_short_total_return?: number
+    net_long_short_total_return?: number
     long_short_total_return: number
+    long_only_total_return?: number
+    benchmark_total_return?: number
+    long_only_excess_total_return?: number
+    primary_portfolio_key?: 'long_only_excess' | 'theoretical_long_short'
+    primary_total_return?: number
+    portfolio_variants?: Record<string, {
+      available: boolean
+      executable: boolean
+      total_return: number | null
+      benchmark?: string
+      reason?: string
+    }>
     coverage: number
     missing_rate: number
     average_turnover: number
+    average_long_turnover?: number
     median_capacity: number
     median_crowding_hhi: number
     neutralization_failures: number
@@ -743,29 +1079,57 @@ export interface CrossSectionResearchResp {
     data_fingerprint: string
   }
   quantile_returns?: Array<{ quantile: number; mean_forward_return: number }>
+  stability?: {
+    labels: CrossSectionStabilityRow[]
+    time: CrossSectionStabilityRow[]
+    cross_section: Record<'industry' | 'market_cap' | 'liquidity' | 'listing_age', CrossSectionStabilityRow[]>
+    regime_definition: Record<string, string>
+  }
   series?: Array<{
     date: string
     eligible_assets: number
     valid_assets: number
     coverage: number
     rank_ic: number
+    raw_return_rank_ic?: number | null
+    label_rank_ics?: Record<string, number>
     long_short_return: number
-    net_long_short_return: number
+    net_long_short_return: number | null
+    portfolio_gross_return?: number | null
+    portfolio_net_return?: number | null
+    portfolio_active_cohorts?: number
+    long_only_net_return?: number | null
+    benchmark_return?: number | null
+    long_only_excess_return?: number | null
     turnover: number
+    long_turnover?: number
     capacity: number
     crowding_hhi: number | null
     long_symbols: string[]
     short_symbols: string[]
+    portfolio_long_symbols?: string[]
+    portfolio_short_symbols?: string[]
+    portfolio_benchmark_symbols?: string[]
   }>
   methodology?: Record<string, unknown>
+}
+
+export interface CrossSectionStabilityRow {
+  segment: string
+  observations: number
+  rank_ic_mean: number
+  positive_ratio: number
+  direction_consistent: boolean
 }
 
 export interface CrossMarketFactorStatus {
   ok: boolean
   factor_key: string
-  trading_validation_status: 'passed' | 'insufficient_evidence'
+  target_market: string | null
+  trading_validation_status: 'passed' | 'insufficient_evidence' | 'target_market_required'
   trading_validation_passed: boolean
   required_markets: string[]
+  transfer_markets: string[]
   rule: string
   rows: Array<{
     market: string
@@ -774,7 +1138,12 @@ export interface CrossMarketFactorStatus {
     run_status: string | null
     factor_status: FactorStatus | null
     dates: number | null
+    effective_dates: number | null
     minimum_valid_assets: number | null
+    validation_thresholds: {
+      minimum_effective_dates: number
+      minimum_valid_assets: number
+    }
     rank_ic_mean: number | null
     coverage: number | null
     updated_at: number | null
@@ -1758,6 +2127,64 @@ export interface NewsPriceDirection {
   reason: string
 }
 
+export type NewsResearchEventType =
+  | 'earnings_guidance'
+  | 'earnings_revision'
+  | 'share_repurchase'
+  | 'shareholder_change'
+  | 'dividend'
+  | 'regulatory_penalty'
+  | 'major_contract'
+  | 'trading_status'
+
+export interface NewsEventExtraction {
+  event_type: NewsResearchEventType | 'unclassified'
+  direction: 'positive' | 'negative' | 'neutral' | 'uncertain'
+  strength: number
+  confidence: number
+  evidence_excerpt: string
+  taxonomy_version: 'news-event-taxonomy-1.0.0'
+  extraction_method: 'llm_fixed_taxonomy' | 'deterministic_rules'
+  price_prediction_allowed: false
+}
+
+export interface NewsResearchEvent {
+  event_id: string
+  entity_id: string
+  entity_name: string
+  symbol: string
+  market: 'a_shares' | 'us_stocks' | 'crypto' | 'mt5'
+  event_type: NewsResearchEventType
+  direction: 'positive' | 'negative' | 'neutral' | 'uncertain'
+  strength: number
+  confidence: number
+  evidence_excerpt: string
+  event_time: string
+  published_time: string
+  collected_time: string
+  revised_time?: string | null
+  available_time: string
+  source: string
+  source_document_id: string
+  source_url?: string | null
+  content_fingerprint: string
+  entity_matches_target: boolean
+  publication_time_verified: boolean
+  restricted_data?: boolean
+  extractor?: Record<string, unknown>
+  taxonomy_version?: string
+}
+
+export interface NewsEventOutcome {
+  event_id: string
+  forward_returns: Record<'1' | '3' | '5' | '10' | '20', number>
+  market_returns: Record<'1' | '3' | '5' | '10' | '20', number>
+  industry_returns: Record<'1' | '3' | '5' | '10' | '20', number>
+  price_state: 'trend_up' | 'trend_down' | 'oversold' | 'range'
+  volume_state: 'expanding' | 'normal' | 'contracting'
+  liquidity_state: 'high' | 'medium' | 'low'
+}
+
 /** 单条新闻结构化分析 */
 export interface NewsAnalysisItem {
   title: string
@@ -1769,6 +2196,7 @@ export interface NewsAnalysisItem {
   sentiment: NewsSentiment
   event_impact?: NewsEventImpact
   price_direction?: NewsPriceDirection
+  research_event?: NewsEventExtraction
   topic: string
   summary: string
   engine: string // "semantic" | "semantic+api" | "keyword"

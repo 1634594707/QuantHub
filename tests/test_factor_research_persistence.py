@@ -119,6 +119,12 @@ class FactorResearchPersistenceTests(unittest.TestCase):
         self.assertEqual(detail["result"]["source"], "test_feed")
         self.assertEqual(detail["result"]["summary"]["significance_level"], 0.05)
         self.assertEqual(detail["result"]["factors"][0]["adjusted_p_value"], 0.03)
+        self.assertTrue(detail["result"]["compatibility"]["legacy_engine_record"])
+        self.assertEqual(detail["result"]["compatibility"]["record_engine_version"], "2.0.0")
+        self.assertEqual(
+            detail["result"]["compatibility"]["policy"],
+            "historical_result_preserved_read_only",
+        )
         self.assertEqual(detail["result"]["factors"][0]["effective_observations"], 30)
         self.assertEqual(
             detail["result"]["summary"]["windows"], factor_result()["summary"]["windows"]

@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from . import service
-from .schemas import NewsAnalyzeRequest
+from .schemas import NewsAnalyzeRequest, NewsEventResearchRequest, NewsEventValidationRequest
 
 router = APIRouter(prefix="/news", tags=["news"])
 
@@ -32,3 +32,13 @@ def analyze_news(req: NewsAnalyzeRequest) -> dict:
         use_api=req.use_api,
         research_run_id=req.research_run_id,
     )
+
+
+@router.post("/events/validate")
+def validate_news_events(req: NewsEventValidationRequest) -> dict:
+    return service.validate_research_events(req)
+
+
+@router.post("/events/research")
+def research_news_events(req: NewsEventResearchRequest) -> dict:
+    return service.research_events(req)

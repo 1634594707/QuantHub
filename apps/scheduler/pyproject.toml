@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "quanthub-scheduler"
-version = "0.2.0"
+version = "0.3.0"
 description = "QuantHub APScheduler 定时任务"
 requires-python = ">=3.11,<3.13"
 dependencies = ["quanthub-core", "apscheduler>=3.10"]

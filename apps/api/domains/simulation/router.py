@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel, Field
 
 from apps.api import store
 
@@ -13,6 +14,10 @@ from .schemas import (
 )
 
 router = APIRouter(prefix="/simulation", tags=["simulation"])
+
+
+class SimulationOrderCancelRequest(BaseModel):
+    rejection_reason: str = Field(default="user_cancelled", min_length=1, max_length=240)
 
 
 @router.get("/account")
@@ -101,9 +106,11 @@ def retry_ledger_sync(order_id: str, execution_id: str) -> dict:
 
 
 @router.post("/orders/{order_id}/cancel")
-def cancel_order(order_id: str) -> dict:
+def cancel_order(order_id: str, req: SimulationOrderCancelRequest | None = None) -> dict:
     try:
-        order = store.cancel_simulation_order(order_id)
+        order = store.cancel_simulation_order(
+            order_id, rejection_reason=req.rejection_reason if req else "user_cancelled"
+        )
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     if order is None:

@@ -37,6 +37,11 @@ const MEMBER_STATUSES = [
   { value: 'delisted', label: '退市' },
 ]
 
+const PORTFOLIO_MODES = [
+  { value: 'cohort', label: '每日批次重叠持有' },
+  { value: 'non_overlapping', label: '预测周期无重叠调仓' },
+]
+
 function pct(value: number): string {
   return `${(value * 100).toFixed(2)}%`
 }
@@ -60,6 +65,7 @@ export function CrossSectionResearchPanel() {
   const [researchForm, setResearchForm] = useState({
     factor_key: 'trend_strength', limit: 500, horizon: 5, start_date: '', end_date: '',
     quantiles: 5, min_assets: 5, transaction_cost_bps: 10, participation_rate: 0.1,
+    portfolio_mode: 'cohort' as 'cohort' | 'non_overlapping',
     neutralize_industry: true, neutralize_market_cap: true, neutralize_beta: true,
     retry_attempts: 2,
   })
@@ -180,6 +186,7 @@ export function CrossSectionResearchPanel() {
         end_date: researchForm.end_date || undefined,
         quantiles: researchForm.quantiles,
         min_assets: researchForm.min_assets,
+        portfolio_mode: researchForm.portfolio_mode,
         transaction_cost_bps: researchForm.transaction_cost_bps,
         participation_rate: researchForm.participation_rate,
         neutralize_industry: researchForm.neutralize_industry,
@@ -192,7 +199,7 @@ export function CrossSectionResearchPanel() {
       setMessage(`横截面研究已保存 · ${response.run_id.slice(0, 12)}`)
       const factorKey = response.factor?.key ?? researchForm.factor_key
       try {
-        setMarketStatus(await api.crossMarketFactorStatus(factorKey))
+        setMarketStatus(await api.crossMarketFactorStatus(factorKey, selectedUniverse?.market))
       } catch {
         setMarketStatus(null)
       }
@@ -259,6 +266,7 @@ export function CrossSectionResearchPanel() {
           <label><span>预测窗口</span><Input type="number" min="1" max="60" value={researchForm.horizon} onChange={(event) => setResearchForm({ ...researchForm, horizon: Number(event.target.value) })} /></label>
           <label><span>分层数</span><Input type="number" min="2" max="10" value={researchForm.quantiles} onChange={(event) => setResearchForm({ ...researchForm, quantiles: Number(event.target.value) })} /></label>
           <label><span>最少标的</span><Input type="number" min="3" max="500" value={researchForm.min_assets} onChange={(event) => setResearchForm({ ...researchForm, min_assets: Number(event.target.value) })} /></label>
+          <label><span>组合计账</span><Select value={researchForm.portfolio_mode} options={PORTFOLIO_MODES} onChange={(event) => setResearchForm({ ...researchForm, portfolio_mode: event.target.value as 'cohort' | 'non_overlapping' })} /></label>
           <label><span>单边成本</span><Input type="number" min="0" max="200" suffix="bp" value={researchForm.transaction_cost_bps} onChange={(event) => setResearchForm({ ...researchForm, transaction_cost_bps: Number(event.target.value) })} /></label>
           <label><span>参与率</span><Input type="number" min="0.01" max="0.5" step="0.01" value={researchForm.participation_rate} onChange={(event) => setResearchForm({ ...researchForm, participation_rate: Number(event.target.value) })} /></label>
           <label><span>开始日期</span><Input type="date" value={researchForm.start_date} max={researchForm.end_date || undefined} onChange={(event) => setResearchForm({ ...researchForm, start_date: event.target.value })} /></label>
@@ -273,20 +281,22 @@ export function CrossSectionResearchPanel() {
         {result?.summary && <div className={s.results}>
           <div className={s.metrics}>
             <div><span>Rank IC 均值</span><strong>{result.summary.rank_ic_mean.toFixed(3)}</strong></div>
+            <div><span>HAC 显著性</span><strong>{result.summary.rank_ic_p_value?.toFixed(4) ?? '旧记录未保存'}</strong></div>
             <div><span>ICIR</span><strong>{result.summary.icir.toFixed(2)}</strong></div>
-            <div><span>多空累计</span><strong>{pct(result.summary.long_short_total_return)}</strong></div>
+            <div><span>{result.summary.primary_portfolio_key === 'long_only_excess' ? '多头相对基准' : '成本后理论多空'}</span><strong>{pct(result.summary.primary_total_return ?? result.summary.net_long_short_total_return ?? result.summary.long_short_total_return)}</strong></div>
             <div><span>覆盖率</span><strong>{pct(result.summary.coverage)}</strong></div>
             <div><span>平均换手</span><strong>{pct(result.summary.average_turnover)}</strong></div>
             <div><span>中位容量代理</span><strong>{result.summary.median_capacity.toLocaleString('zh-CN')}</strong></div>
             <div><span>拥挤度 HHI</span><strong>{result.summary.median_crowding_hhi.toFixed(3)}</strong></div>
             <div><span>有效日期</span><strong>{result.summary.dates}</strong></div>
+            <div><span>组合计账期</span><strong>{result.summary.portfolio_observations ?? result.summary.dates}</strong></div>
           </div>
           <div className={s.resultSplit}>
             <div><h3>分层未来收益</h3>{result.quantile_returns?.map((item) => <div className={s.quantile} key={item.quantile}><span>Q{item.quantile}</span><i style={{ width: `${Math.min(100, Math.abs(item.mean_forward_return) * 2000)}%` }} /><b>{pct(item.mean_forward_return)}</b></div>)}</div>
-            <div><h3>证据状态</h3><dl><div><dt>行情成功 / 失败</dt><dd>{result.loaded_symbols} / {result.failed_symbols}</dd></div><div><dt>中性化失败日期</dt><dd>{result.summary.neutralization_failures}</dd></div><div><dt>数据指纹</dt><dd className={s.mono}>{result.summary.data_fingerprint}</dd></div></dl></div>
+            <div><h3>证据状态</h3><dl><div><dt>行情成功 / 失败</dt><dd>{result.loaded_symbols} / {result.failed_symbols}</dd></div><div><dt>中性化失败日期</dt><dd>{result.summary.neutralization_failures}</dd></div><div><dt>理论多空</dt><dd>{pct(result.summary.net_long_short_total_return ?? result.summary.long_short_total_return)}{result.summary.portfolio_variants?.theoretical_long_short?.executable === false ? ' · 仅研究' : ''}</dd></div><div><dt>多头成本后</dt><dd>{result.summary.long_only_total_return === undefined ? '旧记录未保存' : pct(result.summary.long_only_total_return)}</dd></div><div><dt>等权基准</dt><dd>{result.summary.benchmark_total_return === undefined ? '旧记录未保存' : pct(result.summary.benchmark_total_return)}</dd></div><div><dt>数据指纹</dt><dd className={s.mono}>{result.summary.data_fingerprint}</dd></div></dl></div>
           </div>
           {marketStatus && <div className={s.marketMatrix}>
-            <div><h3>跨市场交易验证门禁</h3><strong data-passed={marketStatus.trading_validation_passed}>{marketStatus.trading_validation_passed ? '交易验证通过' : '跨市场证据不足'}</strong><p>{marketStatus.rule}</p></div>
+            <div><h3>目标市场交易验证门禁</h3><strong data-passed={marketStatus.trading_validation_passed}>{marketStatus.trading_validation_passed ? '交易验证通过' : '目标市场证据不足'}</strong><p>{marketStatus.rule}</p></div>
             <div>{marketStatus.rows.map((row) => <div key={row.market} data-state={row.state}><b>{MARKETS.find((market) => market.value === row.market)?.label ?? row.market}</b><span>{row.state === 'passed' ? '通过' : row.state === 'failed' ? '未通过' : '缺少记录'}</span><small>{row.dates ?? 0} 日 · 最少 {row.minimum_valid_assets ?? 0} 标的 · IC {row.rank_ic_mean?.toFixed(3) ?? '—'}</small></div>)}</div>
           </div>}
           {statusMatrix && <section className={s.statusMatrix} aria-label="因子研究状态矩阵">

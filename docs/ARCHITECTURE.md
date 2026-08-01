@@ -1,6 +1,6 @@
 # QuantHub 架构文档
 
-> 版本 0.2.0 | schema_version 1 | 分层单体仓库
+> 版本 0.3.0 | schema_version 1 | 分层单体仓库
 
 ## 1. 分层架构
 

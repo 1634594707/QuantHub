@@ -88,6 +88,31 @@ def _build_research_contract(
         "data_fingerprint"
     ):
         raise ValueError("因子研究数据指纹与行情快照不一致")
+    selected_usable = [
+        factor
+        for factor in result.get("factors") or []
+        if factor.get("exploratory_candidate", factor.get("selected"))
+        and factor.get("status") == "usable"
+    ]
+    if summary.get("multifactor_constructed") is False or not selected_usable:
+        raise ValueError("因子研究没有通过统计门禁的组合，不能创建策略实验")
+    from apps.api.domains.factor_research.service import seed_builtin_factor_definitions
+
+    seed_builtin_factor_definitions()
+    lifecycle_by_factor: dict[str, dict] = {}
+    for factor in selected_usable:
+        saved_definition = store.get_factor_definition(
+            str(factor.get("key")), str(factor.get("formula_version"))
+        )
+        if saved_definition is None:
+            raise ValueError("探索候选缺少可恢复的统一因子定义")
+        lifecycle = store.get_latest_factor_lifecycle_event(saved_definition["id"], market)
+        if lifecycle is None or lifecycle["state"] not in {
+            "research_passed",
+            "trading_validated",
+        }:
+            raise ValueError("探索候选尚未达到 research_passed，不能创建可交易策略实验")
+        lifecycle_by_factor[factor["key"]] = lifecycle
     factors: list[dict[str, Any]] = []
     for factor in result.get("factors") or []:
         required = ("key", "label", "formula", "formula_version", "direction", "weight")
@@ -101,8 +126,16 @@ def _build_research_contract(
                 "formula_version": factor["formula_version"],
                 "direction": factor["direction"],
                 "weight": factor["weight"],
+                "exploratory_candidate": bool(
+                    factor.get("exploratory_candidate", factor.get("selected"))
+                ),
                 "selected": bool(factor.get("selected")),
                 "status": factor.get("status"),
+                "lifecycle_state": lifecycle_by_factor.get(factor["key"], {}).get("state"),
+                "lifecycle_event_id": lifecycle_by_factor.get(factor["key"], {}).get("id"),
+                "lifecycle_evidence": deepcopy(
+                    lifecycle_by_factor.get(factor["key"], {}).get("evidence") or {}
+                ),
             }
         )
     input_config = (run.get("input") or {}).get(FACTOR_RESEARCH_MODULE) or {}

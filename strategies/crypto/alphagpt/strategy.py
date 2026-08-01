@@ -268,15 +268,17 @@ def run_factor_search(
         max_depth:  Transformer 搜索最大公式深度（保留参数，回退模式未用）
         population: Transformer 搜索种群规模（保留参数，回退模式未用）
     """
-    from strategies.crypto.alphagpt.stack_vm import FORMULA_VOCAB
+    from strategies.crypto.alphagpt.formula_adapter import FEATURE_NAMES, OPERATORS
 
     # token: < feat_offset → 特征列；>= feat_offset → 算子
-    F = FORMULA_VOCAB.feature_count  # 6
-    off = FORMULA_VOCAB.operator_offset  # 6
+    F = len(FEATURE_NAMES)  # 6
+    off = F
     # 特征索引（与 FEATURE_NAMES 顺序一致）
     RET, LIQ_SCORE, PRESSURE, FOMO, DEV, LOG_VOL = range(F)
     # 算子索引（与 OPS_CONFIG 顺序一致）
-    ADD, SUB, MUL, DIV, NEG, ABS, SIGN, GATE, JUMP, DECAY, DELAY1, MAX3 = range(off, off + 12)
+    ADD, SUB, MUL, DIV, NEG, ABS, SIGN, GATE, JUMP, DECAY, DELAY1, MAX3 = range(
+        off, off + len(OPERATORS)
+    )
 
     # 内置启发式公式（StackVM 后缀表达式）：
     # 1) DECAY(DEV)          : 衰减加权偏离（动量延续）

@@ -111,6 +111,32 @@ class NewsPriceDirection:
 
 
 @dataclass
+class NewsEventExtraction:
+    """Fixed-taxonomy event extraction for research, never a price forecast."""
+
+    event_type: str
+    direction: str
+    strength: float
+    confidence: float
+    evidence_excerpt: str
+    taxonomy_version: str
+    extraction_method: str
+    price_prediction_allowed: bool = False
+
+    def to_dict(self) -> dict:
+        return {
+            "event_type": self.event_type,
+            "direction": self.direction,
+            "strength": round(self.strength, 4),
+            "confidence": round(self.confidence, 4),
+            "evidence_excerpt": self.evidence_excerpt,
+            "taxonomy_version": self.taxonomy_version,
+            "extraction_method": self.extraction_method,
+            "price_prediction_allowed": False,
+        }
+
+
+@dataclass
 class NewsAnalysis:
     """单条新闻的结构化分析结果。"""
 
@@ -140,6 +166,17 @@ class NewsAnalysis:
             reason="单条新闻标题不足以推断未来价格方向",
         )
     )
+    research_event: NewsEventExtraction = field(
+        default_factory=lambda: NewsEventExtraction(
+            event_type="unclassified",
+            direction="uncertain",
+            strength=0.0,
+            confidence=0.0,
+            evidence_excerpt="",
+            taxonomy_version="news-event-taxonomy-1.0.0",
+            extraction_method="deterministic_rules",
+        )
+    )
     error: str | None = None
 
     def to_dict(self) -> dict:
@@ -161,6 +198,7 @@ class NewsAnalysis:
             "sentiment": self.sentiment.to_dict(),
             "event_impact": self.event_impact.to_dict(),
             "price_direction": self.price_direction.to_dict(),
+            "research_event": self.research_event.to_dict(),
             "topic": self.topic,
             "summary": self.summary,
             "engine": self.engine,

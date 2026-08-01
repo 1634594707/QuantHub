@@ -15,9 +15,37 @@ from apps.api.domains.research.service import (
     start_module,
 )
 from core.data_feed.factory import get_data_source
+from core.news_event_research import analyze_event_factor_research, validate_and_cluster_events
 from strategies.a_shares.news_analyzer.analyzer import NewsAnalyzer
 
+from .schemas import NewsEventResearchRequest, NewsEventValidationRequest
+
 logger = logging.getLogger(__name__)
+
+
+def validate_research_events(req: NewsEventValidationRequest) -> dict[str, Any]:
+    report = validate_and_cluster_events(
+        [event.model_dump(mode="python") for event in req.events],
+        target_entity_id=req.target_entity_id,
+        minimum_confidence=req.minimum_confidence,
+        duplicate_similarity=req.duplicate_similarity,
+    )
+    return {
+        "ok": True,
+        "report": {key: value for key, value in report.items() if key != "canonical_events"},
+        "prediction_generated": False,
+    }
+
+
+def research_events(req: NewsEventResearchRequest) -> dict[str, Any]:
+    report = analyze_event_factor_research(
+        [event.model_dump(mode="python") for event in req.events],
+        [outcome.model_dump(mode="json") for outcome in req.outcomes],
+        target_entity_id=req.target_entity_id,
+        minimum_confidence=req.minimum_confidence,
+        duplicate_similarity=req.duplicate_similarity,
+    )
+    return {"ok": True, "report": report}
 
 
 def health() -> dict[str, Any]:
@@ -50,8 +78,8 @@ def analyze(
         if research_run_id:
             try:
                 fail_module(research_run_id, "news", error)
-            except Exception:
-                logger.warning("新闻失败时写 ResearchRun 失败: %s", error)
+            except Exception:  # noqa: BLE001 - persistence failure must not hide the original error
+                logger.warning("新闻失败时写 ResearchRun 失败: %s", error, exc_info=True)
         return {
             "ok": False,
             "error": error,
@@ -188,7 +216,7 @@ def analyze(
             },
         )
         result["research_run_id"] = run_id
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - persistence is best-effort for analysis results
         logger.warning("新闻分析结果持久化失败: %s", exc)
         result["research_run_id"] = research_run_id
 

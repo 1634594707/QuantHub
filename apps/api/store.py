@@ -522,6 +522,128 @@ def _init() -> None:
             )"""
         )
         c.execute(
+            """CREATE TABLE IF NOT EXISTS factor_research_plans (
+                id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                target_market TEXT NOT NULL,
+                budget_json TEXT NOT NULL,
+                created_at REAL NOT NULL
+            )"""
+        )
+        c.execute(
+            """CREATE TABLE IF NOT EXISTS factor_definitions (
+                id TEXT PRIMARY KEY,
+                factor_key TEXT NOT NULL,
+                version TEXT NOT NULL,
+                formula_hash TEXT NOT NULL,
+                definition_hash TEXT NOT NULL UNIQUE,
+                family TEXT NOT NULL,
+                market TEXT NOT NULL,
+                payload_json TEXT NOT NULL,
+                created_at REAL NOT NULL,
+                UNIQUE (factor_key, version)
+            )"""
+        )
+        c.execute(
+            """CREATE TABLE IF NOT EXISTS factor_candidate_validations (
+                id TEXT PRIMARY KEY,
+                factor_definition_id TEXT NOT NULL,
+                data_fingerprint TEXT NOT NULL,
+                report_json TEXT NOT NULL,
+                created_at REAL NOT NULL,
+                FOREIGN KEY (factor_definition_id) REFERENCES factor_definitions(id)
+            )"""
+        )
+        c.execute(
+            """CREATE TABLE IF NOT EXISTS factor_experiments (
+                id TEXT PRIMARY KEY,
+                research_plan_id TEXT NOT NULL,
+                hypothesis TEXT NOT NULL,
+                source TEXT NOT NULL,
+                parent_experiment_id TEXT,
+                factor_definition_id TEXT NOT NULL,
+                candidate_validation_id TEXT NOT NULL,
+                target_market TEXT NOT NULL,
+                data_start TEXT,
+                data_end TEXT,
+                parameter_grid_json TEXT NOT NULL DEFAULT '{}',
+                parameter_combinations INTEGER NOT NULL DEFAULT 1,
+                estimated_compute_units INTEGER NOT NULL DEFAULT 1,
+                model_json TEXT NOT NULL DEFAULT '{}',
+                prompt_json TEXT NOT NULL DEFAULT '{}',
+                proposal_json TEXT NOT NULL DEFAULT '{}',
+                pre_registration_json TEXT NOT NULL,
+                attempt_number INTEGER NOT NULL,
+                created_at REAL NOT NULL,
+                UNIQUE (research_plan_id, attempt_number),
+                FOREIGN KEY (parent_experiment_id) REFERENCES factor_experiments(id),
+                FOREIGN KEY (research_plan_id) REFERENCES factor_research_plans(id),
+                FOREIGN KEY (factor_definition_id) REFERENCES factor_definitions(id),
+                FOREIGN KEY (candidate_validation_id) REFERENCES factor_candidate_validations(id)
+            )"""
+        )
+        c.execute(
+            """CREATE TABLE IF NOT EXISTS factor_experiment_events (
+                id TEXT PRIMARY KEY,
+                experiment_id TEXT NOT NULL,
+                event_sequence INTEGER NOT NULL DEFAULT 0,
+                status TEXT NOT NULL,
+                result_json TEXT NOT NULL DEFAULT '{}',
+                failure_reason TEXT,
+                failure_code TEXT,
+                evidence_json TEXT NOT NULL DEFAULT '{}',
+                created_at REAL NOT NULL,
+                FOREIGN KEY (experiment_id) REFERENCES factor_experiments(id) ON DELETE CASCADE
+            )"""
+        )
+        c.execute(
+            """CREATE TABLE IF NOT EXISTS factor_ai_search_rounds (
+                id TEXT PRIMARY KEY,
+                research_plan_id TEXT NOT NULL,
+                round_id TEXT NOT NULL,
+                candidate_count INTEGER NOT NULL,
+                duplicate_count INTEGER NOT NULL,
+                max_formula_complexity INTEGER NOT NULL,
+                llm_tokens INTEGER NOT NULL DEFAULT 0,
+                input_fingerprint TEXT NOT NULL,
+                approval_json TEXT NOT NULL DEFAULT '{}',
+                status TEXT NOT NULL,
+                stop_reason TEXT,
+                created_at REAL NOT NULL,
+                UNIQUE (research_plan_id, round_id),
+                FOREIGN KEY (research_plan_id) REFERENCES factor_research_plans(id)
+            )"""
+        )
+        c.execute(
+            """CREATE TABLE IF NOT EXISTS factor_confirmation_set_openings (
+                id TEXT PRIMARY KEY,
+                research_plan_id TEXT NOT NULL UNIQUE,
+                experiment_id TEXT NOT NULL,
+                confirmation_data_fingerprint TEXT NOT NULL,
+                opened_by TEXT NOT NULL,
+                irreversible_ack INTEGER NOT NULL,
+                created_at REAL NOT NULL,
+                FOREIGN KEY (research_plan_id) REFERENCES factor_research_plans(id),
+                FOREIGN KEY (experiment_id) REFERENCES factor_experiments(id)
+            )"""
+        )
+        c.execute(
+            """CREATE TABLE IF NOT EXISTS factor_lifecycle_events (
+                id TEXT PRIMARY KEY,
+                factor_definition_id TEXT NOT NULL,
+                event_sequence INTEGER NOT NULL,
+                state TEXT NOT NULL,
+                target_market TEXT NOT NULL,
+                actor_type TEXT NOT NULL,
+                actor TEXT NOT NULL,
+                rule TEXT NOT NULL,
+                evidence_json TEXT NOT NULL DEFAULT '{}',
+                created_at REAL NOT NULL,
+                UNIQUE (factor_definition_id, target_market, event_sequence),
+                FOREIGN KEY (factor_definition_id) REFERENCES factor_definitions(id)
+            )"""
+        )
+        c.execute(
             """CREATE TABLE IF NOT EXISTS analysis_tasks (
                 id TEXT PRIMARY KEY,
                 kind TEXT NOT NULL,
@@ -557,6 +679,7 @@ def _init() -> None:
                 status TEXT NOT NULL,
                 filled_quantity REAL NOT NULL DEFAULT 0,
                 average_price REAL,
+                audit_json TEXT NOT NULL DEFAULT '{}',
                 created_at REAL NOT NULL,
                 updated_at REAL NOT NULL,
                 FOREIGN KEY (signal_id) REFERENCES signals(id) ON DELETE SET NULL
@@ -686,6 +809,33 @@ def _init() -> None:
         _ensure_column(c, "research_runs", "instrument_id", "TEXT")
         _ensure_column(c, "experiments", "instrument_id", "TEXT")
         _ensure_column(c, "simulation_orders", "instrument_id", "TEXT")
+        _ensure_column(c, "simulation_orders", "audit_json", "TEXT NOT NULL DEFAULT '{}' ")
+        _ensure_column(
+            c,
+            "factor_experiments",
+            "proposal_json",
+            "TEXT NOT NULL DEFAULT '{}'",
+        )
+        _ensure_column(
+            c,
+            "factor_experiment_events",
+            "event_sequence",
+            "INTEGER NOT NULL DEFAULT 0",
+        )
+        _ensure_column(c, "factor_experiment_events", "failure_code", "TEXT")
+        _ensure_column(
+            c,
+            "factor_experiments",
+            "estimated_compute_units",
+            "INTEGER NOT NULL DEFAULT 1",
+        )
+        _ensure_column(c, "factor_experiments", "candidate_validation_id", "TEXT")
+        _ensure_column(
+            c,
+            "factor_ai_search_rounds",
+            "approval_json",
+            "TEXT NOT NULL DEFAULT '{}'",
+        )
         c.execute(
             "UPDATE holdings SET instrument_id=market || ':' || UPPER(code) WHERE instrument_id IS NULL"
         )
@@ -734,6 +884,38 @@ def _init() -> None:
         c.execute(
             "CREATE INDEX IF NOT EXISTS idx_factor_members_universe "
             "ON factor_universe_members(universe_id, effective_from, effective_to)"
+        )
+        c.execute(
+            "CREATE INDEX IF NOT EXISTS idx_factor_research_plans_market "
+            "ON factor_research_plans(target_market)"
+        )
+        c.execute(
+            "CREATE INDEX IF NOT EXISTS idx_factor_definitions_formula "
+            "ON factor_definitions(formula_hash, family)"
+        )
+        c.execute(
+            "CREATE INDEX IF NOT EXISTS idx_factor_candidate_validations_definition "
+            "ON factor_candidate_validations(factor_definition_id, created_at)"
+        )
+        c.execute(
+            "CREATE INDEX IF NOT EXISTS idx_factor_experiments_plan "
+            "ON factor_experiments(research_plan_id, attempt_number)"
+        )
+        c.execute(
+            "CREATE INDEX IF NOT EXISTS idx_factor_experiment_events_experiment "
+            "ON factor_experiment_events(experiment_id, created_at)"
+        )
+        c.execute(
+            "CREATE INDEX IF NOT EXISTS idx_factor_lifecycle_definition_market "
+            "ON factor_lifecycle_events(factor_definition_id, target_market, event_sequence)"
+        )
+        c.execute(
+            "CREATE INDEX IF NOT EXISTS idx_factor_ai_search_rounds_plan "
+            "ON factor_ai_search_rounds(research_plan_id, created_at)"
+        )
+        c.execute(
+            "CREATE INDEX IF NOT EXISTS idx_factor_confirmation_openings_experiment "
+            "ON factor_confirmation_set_openings(experiment_id)"
         )
         c.execute("CREATE INDEX IF NOT EXISTS idx_analysis_tasks_status ON analysis_tasks(status)")
         c.execute(
@@ -1380,6 +1562,28 @@ def _execution_row_dict(row: sqlite3.Row) -> dict:
 
 
 def _simulation_order_dict(row: sqlite3.Row, executions: list[dict] | None = None) -> dict:
+    audit = json.loads(row["audit_json"] or "{}")
+    theoretical_price = audit.get("theoretical_price")
+    if theoretical_price is not None:
+        theoretical_price = float(theoretical_price)
+    for execution in executions or []:
+        execution["theoretical_price"] = theoretical_price
+        execution["simulated_price"] = float(execution["price"])
+        execution["slippage_bps"] = (
+            round(
+                ((float(execution["price"]) - theoretical_price) / theoretical_price)
+                * 10_000
+                * (1 if row["side"] == "buy" else -1),
+                4,
+            )
+            if theoretical_price and theoretical_price > 0
+            else None
+        )
+        execution["signal_time"] = audit.get("signal_time")
+        execution["tradable_time"] = audit.get("tradable_time")
+        execution["rejection_reason"] = audit.get("rejection_reason")
+        execution["capacity_used"] = float(audit.get("capacity_used") or 0.0)
+        execution["live_trading_enabled"] = False
     return {
         "id": row["id"],
         "signal_id": row["signal_id"],
@@ -1398,6 +1602,7 @@ def _simulation_order_dict(row: sqlite3.Row, executions: list[dict] | None = Non
         ),
         "created_at": float(row["created_at"]),
         "updated_at": float(row["updated_at"]),
+        "audit": {**audit, "live_trading_enabled": False},
         "executions": executions or [],
     }
 
@@ -1413,6 +1618,7 @@ def create_simulation_order(
     signal_id: str | None = None,
     account_id: str = "paper",
     instrument_id: str | None = None,
+    audit: dict[str, Any] | None = None,
 ) -> dict:
     """创建模拟订单；关联信号时在同一事务中完成 converted 状态流转。"""
     order_id = f"SIM-{uuid.uuid4().hex[:12].upper()}"
@@ -1429,9 +1635,9 @@ def create_simulation_order(
             c.execute(
                 """INSERT INTO simulation_orders
                    (id, signal_id, account_id, instrument_id, symbol, market, side, order_type,
-                    quantity, limit_price, status, filled_quantity, average_price,
-                    created_at, updated_at)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,'pending',0,NULL,?,?)""",
+                   quantity, limit_price, status, filled_quantity, average_price, audit_json,
+                   created_at, updated_at)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,'pending',0,NULL,?,?,?)""",
                 (
                     order_id,
                     signal_id,
@@ -1443,6 +1649,11 @@ def create_simulation_order(
                     order_type,
                     float(quantity),
                     float(limit_price) if limit_price is not None else None,
+                    json.dumps(
+                        {**(audit or {}), "live_trading_enabled": False},
+                        ensure_ascii=False,
+                        default=str,
+                    ),
                     now,
                     now,
                 ),
@@ -1582,7 +1793,9 @@ def update_simulation_execution_ledger_sync(
     return _execution_row_dict(row) if row is not None else None
 
 
-def cancel_simulation_order(order_id: str) -> dict | None:
+def cancel_simulation_order(
+    order_id: str, *, rejection_reason: str = "user_cancelled"
+) -> dict | None:
     now = _now()
     with _lock, _conn() as c:
         row = c.execute("SELECT * FROM simulation_orders WHERE id=?", (order_id,)).fetchone()
@@ -1590,9 +1803,12 @@ def cancel_simulation_order(order_id: str) -> dict | None:
             return None
         if row["status"] not in {"pending", "partially_filled"}:
             raise ValueError("当前订单状态不允许取消")
+        audit = json.loads(row["audit_json"] or "{}")
+        audit["rejection_reason"] = rejection_reason.strip() or "user_cancelled"
+        audit["live_trading_enabled"] = False
         c.execute(
-            "UPDATE simulation_orders SET status='cancelled', updated_at=? WHERE id=?",
-            (now, order_id),
+            "UPDATE simulation_orders SET status='cancelled', audit_json=?, updated_at=? WHERE id=?",
+            (json.dumps(audit, ensure_ascii=False), now, order_id),
         )
     return get_simulation_order(order_id)
 
@@ -2113,6 +2329,839 @@ def update_analysis_task(task_id: str, patch: dict) -> dict | None:
             params,
         )
     return get_analysis_task(task_id) if cursor.rowcount else None
+
+
+# ---------------------------------------------------------------------------
+# 因子定义与实验账本 factor_definitions / factor_experiments
+# ---------------------------------------------------------------------------
+def _factor_research_plan_dict(row) -> dict:
+    budget = {
+        "maximum_round_candidates": 100,
+        "maximum_formula_complexity": 30,
+        "maximum_duplicate_rate": 0.25,
+        "stop_conditions": {},
+        **json.loads(row["budget_json"]),
+    }
+    return {
+        "id": row["id"],
+        "title": row["title"],
+        "target_market": row["target_market"],
+        "budget": budget,
+        "created_at": float(row["created_at"]),
+    }
+
+
+def create_factor_research_plan(plan_id: str, title: str, target_market: str, budget: dict) -> dict:
+    now = _now()
+    payload = json.dumps(budget, ensure_ascii=False, sort_keys=True, default=str)
+    with _lock, _conn() as c:
+        existing = c.execute(
+            "SELECT * FROM factor_research_plans WHERE id=?", (plan_id,)
+        ).fetchone()
+        if existing is not None:
+            if (
+                existing["title"] != title
+                or existing["target_market"] != target_market
+                or json.dumps(
+                    json.loads(existing["budget_json"]),
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    default=str,
+                )
+                != payload
+            ):
+                raise ValueError("研究计划已存在且不可修改")
+            return _factor_research_plan_dict(existing)
+        c.execute(
+            """INSERT INTO factor_research_plans
+               (id, title, target_market, budget_json, created_at)
+               VALUES (?, ?, ?, ?, ?)""",
+            (plan_id, title, target_market, payload, now),
+        )
+        row = c.execute("SELECT * FROM factor_research_plans WHERE id=?", (plan_id,)).fetchone()
+    return _factor_research_plan_dict(row)
+
+
+def get_factor_research_plan(plan_id: str) -> dict | None:
+    with _lock, _conn() as c:
+        row = c.execute("SELECT * FROM factor_research_plans WHERE id=?", (plan_id,)).fetchone()
+    return _factor_research_plan_dict(row) if row else None
+
+
+def list_factor_research_plans(target_market: str | None = None) -> list[dict]:
+    with _lock, _conn() as c:
+        if target_market:
+            rows = c.execute(
+                """SELECT * FROM factor_research_plans WHERE target_market=?
+                   ORDER BY created_at DESC""",
+                (target_market,),
+            ).fetchall()
+        else:
+            rows = c.execute(
+                "SELECT * FROM factor_research_plans ORDER BY created_at DESC"
+            ).fetchall()
+    return [_factor_research_plan_dict(row) for row in rows]
+
+
+def _factor_confirmation_opening_dict(row) -> dict:
+    return {
+        "id": row["id"],
+        "research_plan_id": row["research_plan_id"],
+        "experiment_id": row["experiment_id"],
+        "confirmation_data_fingerprint": row["confirmation_data_fingerprint"],
+        "opened_by": row["opened_by"],
+        "irreversible_ack": bool(row["irreversible_ack"]),
+        "created_at": float(row["created_at"]),
+    }
+
+
+def get_factor_confirmation_opening(research_plan_id: str) -> dict | None:
+    with _lock, _conn() as c:
+        row = c.execute(
+            "SELECT * FROM factor_confirmation_set_openings WHERE research_plan_id=?",
+            (research_plan_id,),
+        ).fetchone()
+    return _factor_confirmation_opening_dict(row) if row else None
+
+
+def create_factor_confirmation_opening(
+    *,
+    research_plan_id: str,
+    experiment_id: str,
+    confirmation_data_fingerprint: str,
+    opened_by: str,
+    irreversible_ack: bool,
+) -> dict:
+    now = _now()
+    normalized_fingerprint = confirmation_data_fingerprint.lower()
+    with _lock, _conn() as c:
+        existing = c.execute(
+            "SELECT * FROM factor_confirmation_set_openings WHERE research_plan_id=?",
+            (research_plan_id,),
+        ).fetchone()
+        if existing is not None:
+            immutable_values = {
+                "experiment_id": experiment_id,
+                "confirmation_data_fingerprint": normalized_fingerprint,
+                "opened_by": opened_by,
+                "irreversible_ack": int(irreversible_ack),
+            }
+            if any(existing[key] != value for key, value in immutable_values.items()):
+                raise ValueError("锁定确认集已经开启且审计记录不可修改")
+            return _factor_confirmation_opening_dict(existing)
+        opening_id = uuid.uuid4().hex
+        c.execute(
+            """INSERT INTO factor_confirmation_set_openings
+               (id, research_plan_id, experiment_id, confirmation_data_fingerprint,
+                opened_by, irreversible_ack, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (
+                opening_id,
+                research_plan_id,
+                experiment_id,
+                normalized_fingerprint,
+                opened_by,
+                int(irreversible_ack),
+                now,
+            ),
+        )
+        row = c.execute(
+            "SELECT * FROM factor_confirmation_set_openings WHERE id=?", (opening_id,)
+        ).fetchone()
+    return _factor_confirmation_opening_dict(row)
+
+
+def _factor_definition_dict(row) -> dict:
+    payload = json.loads(row["payload_json"])
+    return {
+        "id": row["id"],
+        **payload,
+        "factor_key": row["factor_key"],
+        "version": row["version"],
+        "formula_hash": row["formula_hash"],
+        "definition_hash": row["definition_hash"],
+        "family": row["family"],
+        "market": row["market"],
+        "created_at": float(row["created_at"]),
+    }
+
+
+def _factor_lifecycle_event_dict(row) -> dict:
+    return {
+        "id": row["id"],
+        "factor_definition_id": row["factor_definition_id"],
+        "event_sequence": int(row["event_sequence"]),
+        "state": row["state"],
+        "target_market": row["target_market"],
+        "actor_type": row["actor_type"],
+        "actor": row["actor"],
+        "rule": row["rule"],
+        "evidence": json.loads(row["evidence_json"] or "{}"),
+        "created_at": float(row["created_at"]),
+    }
+
+
+def _ensure_factor_lifecycle_draft(
+    connection: database.ConnectionAdapter,
+    definition_row,
+    target_market: str,
+) -> None:
+    existing = connection.execute(
+        """SELECT 1 FROM factor_lifecycle_events
+           WHERE factor_definition_id=? AND target_market=? LIMIT 1""",
+        (definition_row["id"], target_market),
+    ).fetchone()
+    if existing is not None:
+        return
+    payload = json.loads(definition_row["payload_json"])
+    evidence = {
+        "formula_definition_hash": definition_row["definition_hash"],
+        "formula_hash": definition_row["formula_hash"],
+        "formula_version": definition_row["version"],
+        "data_snapshot_hash": "not_applicable",
+        "cumulative_attempts": 0,
+        "validation_window": {"start": None, "end": None},
+        "cost_profile_version": "not_applicable",
+        "gate_version": "factor-lifecycle-v1",
+        "definition_market": payload.get("market"),
+    }
+    connection.execute(
+        """INSERT INTO factor_lifecycle_events
+           (id, factor_definition_id, event_sequence, state, target_market,
+            actor_type, actor, rule, evidence_json, created_at)
+           VALUES (?, ?, 1, 'draft', ?, 'system', 'factor_registry',
+                   'definition_registered', ?, ?)""",
+        (
+            uuid.uuid4().hex,
+            definition_row["id"],
+            target_market,
+            json.dumps(evidence, ensure_ascii=False, default=str),
+            _now(),
+        ),
+    )
+
+
+def create_factor_definition(payload: dict[str, Any]) -> dict:
+    definition_id = uuid.uuid4().hex
+    now = _now()
+    factor_key = str(payload["key"])
+    version = str(payload["version"])
+    formula_hash = str(payload["formula_hash"])
+    definition_hash = str(payload["definition_hash"])
+    family = str(payload["family"])
+    market = str(payload["market"])
+    with _lock, _conn() as c:
+        existing = c.execute(
+            "SELECT * FROM factor_definitions WHERE factor_key=? AND version=?",
+            (factor_key, version),
+        ).fetchone()
+        if existing is not None:
+            if existing["definition_hash"] != definition_hash:
+                raise ValueError("同一因子 key 与 version 已存在不同定义，必须提升版本")
+            initial_market = market if market != "all" else "all"
+            _ensure_factor_lifecycle_draft(c, existing, initial_market)
+            return _factor_definition_dict(existing)
+        duplicate = c.execute(
+            """SELECT factor_key FROM factor_definitions
+               WHERE formula_hash=? AND family<>? LIMIT 1""",
+            (formula_hash, family),
+        ).fetchone()
+        if duplicate is not None:
+            raise ValueError(f"公式与 {duplicate['factor_key']} 完全重复，请声明为同一因子族或别名")
+        c.execute(
+            """INSERT INTO factor_definitions
+               (id, factor_key, version, formula_hash, definition_hash, family, market,
+                payload_json, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                definition_id,
+                factor_key,
+                version,
+                formula_hash,
+                definition_hash,
+                family,
+                market,
+                json.dumps(payload, ensure_ascii=False, default=str),
+                now,
+            ),
+        )
+        row = c.execute("SELECT * FROM factor_definitions WHERE id=?", (definition_id,)).fetchone()
+        initial_market = market if market != "all" else "all"
+        _ensure_factor_lifecycle_draft(c, row, initial_market)
+    return _factor_definition_dict(row)
+
+
+def ensure_factor_lifecycle_draft(
+    factor_definition_id: str,
+    target_market: str,
+) -> dict | None:
+    with _lock, _conn() as c:
+        definition = c.execute(
+            "SELECT * FROM factor_definitions WHERE id=?", (factor_definition_id,)
+        ).fetchone()
+        if definition is None:
+            return None
+        _ensure_factor_lifecycle_draft(c, definition, target_market)
+        row = c.execute(
+            """SELECT * FROM factor_lifecycle_events
+               WHERE factor_definition_id=? AND target_market=?
+               ORDER BY event_sequence DESC, created_at DESC, id DESC LIMIT 1""",
+            (factor_definition_id, target_market),
+        ).fetchone()
+    return _factor_lifecycle_event_dict(row) if row else None
+
+
+def list_factor_lifecycle_events(
+    factor_definition_id: str,
+    *,
+    target_market: str | None = None,
+) -> list[dict]:
+    clauses = ["factor_definition_id=?"]
+    params: list[Any] = [factor_definition_id]
+    if target_market:
+        clauses.append("target_market=?")
+        params.append(target_market)
+    with _lock, _conn() as c:
+        rows = c.execute(
+            "SELECT * FROM factor_lifecycle_events WHERE "
+            + " AND ".join(clauses)
+            + " ORDER BY target_market ASC, event_sequence ASC, created_at ASC, id ASC",
+            params,
+        ).fetchall()
+    return [_factor_lifecycle_event_dict(row) for row in rows]
+
+
+def get_latest_factor_lifecycle_event(
+    factor_definition_id: str,
+    target_market: str,
+) -> dict | None:
+    with _lock, _conn() as c:
+        row = c.execute(
+            """SELECT * FROM factor_lifecycle_events
+               WHERE factor_definition_id=? AND target_market=?
+               ORDER BY event_sequence DESC, created_at DESC, id DESC LIMIT 1""",
+            (factor_definition_id, target_market),
+        ).fetchone()
+    return _factor_lifecycle_event_dict(row) if row else None
+
+
+def append_factor_lifecycle_event(
+    factor_definition_id: str,
+    *,
+    expected_state: str,
+    state: str,
+    target_market: str,
+    actor_type: str,
+    actor: str,
+    rule: str,
+    evidence: dict,
+) -> dict:
+    with _lock, _conn() as c:
+        definition = c.execute(
+            "SELECT * FROM factor_definitions WHERE id=?", (factor_definition_id,)
+        ).fetchone()
+        if definition is None:
+            raise ValueError("因子定义不存在")
+        _ensure_factor_lifecycle_draft(c, definition, target_market)
+        latest = c.execute(
+            """SELECT * FROM factor_lifecycle_events
+               WHERE factor_definition_id=? AND target_market=?
+               ORDER BY event_sequence DESC, created_at DESC, id DESC LIMIT 1""",
+            (factor_definition_id, target_market),
+        ).fetchone()
+        if latest is None or latest["state"] != expected_state:
+            actual = latest["state"] if latest else "missing"
+            raise ValueError(f"因子生命周期已变化：预期 {expected_state}，实际 {actual}")
+        sequence = int(latest["event_sequence"]) + 1
+        event_id = uuid.uuid4().hex
+        c.execute(
+            """INSERT INTO factor_lifecycle_events
+               (id, factor_definition_id, event_sequence, state, target_market,
+                actor_type, actor, rule, evidence_json, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                event_id,
+                factor_definition_id,
+                sequence,
+                state,
+                target_market,
+                actor_type,
+                actor,
+                rule,
+                json.dumps(evidence, ensure_ascii=False, default=str),
+                _now(),
+            ),
+        )
+        row = c.execute("SELECT * FROM factor_lifecycle_events WHERE id=?", (event_id,)).fetchone()
+    return _factor_lifecycle_event_dict(row)
+
+
+def get_factor_definition(factor_key: str, version: str) -> dict | None:
+    with _lock, _conn() as c:
+        row = c.execute(
+            "SELECT * FROM factor_definitions WHERE factor_key=? AND version=?",
+            (factor_key, version),
+        ).fetchone()
+    return _factor_definition_dict(row) if row else None
+
+
+def list_factor_definitions(*, market: str | None = None, family: str | None = None) -> list[dict]:
+    clauses: list[str] = []
+    params: list[Any] = []
+    if market:
+        clauses.append("market IN (?, 'all')")
+        params.append(market)
+    if family:
+        clauses.append("family=?")
+        params.append(family)
+    sql = "SELECT * FROM factor_definitions"
+    if clauses:
+        sql += " WHERE " + " AND ".join(clauses)
+    sql += " ORDER BY factor_key ASC, version DESC"
+    with _lock, _conn() as c:
+        rows = c.execute(sql, params).fetchall()
+    return [_factor_definition_dict(row) for row in rows]
+
+
+def _factor_candidate_validation_dict(row) -> dict:
+    return {
+        "id": row["id"],
+        "factor_definition_id": row["factor_definition_id"],
+        "data_fingerprint": row["data_fingerprint"],
+        "report": json.loads(row["report_json"]),
+        "created_at": float(row["created_at"]),
+    }
+
+
+def create_factor_candidate_validation(
+    factor_definition_id: str, data_fingerprint: str, report: dict
+) -> dict:
+    validation_id = uuid.uuid4().hex
+    now = _now()
+    with _lock, _conn() as c:
+        c.execute(
+            """INSERT INTO factor_candidate_validations
+               (id, factor_definition_id, data_fingerprint, report_json, created_at)
+               VALUES (?, ?, ?, ?, ?)""",
+            (
+                validation_id,
+                factor_definition_id,
+                data_fingerprint,
+                json.dumps(report, ensure_ascii=False, default=str),
+                now,
+            ),
+        )
+        row = c.execute(
+            "SELECT * FROM factor_candidate_validations WHERE id=?", (validation_id,)
+        ).fetchone()
+    return _factor_candidate_validation_dict(row)
+
+
+def get_factor_candidate_validation(validation_id: str) -> dict | None:
+    with _lock, _conn() as c:
+        row = c.execute(
+            "SELECT * FROM factor_candidate_validations WHERE id=?", (validation_id,)
+        ).fetchone()
+    return _factor_candidate_validation_dict(row) if row else None
+
+
+def list_factor_candidate_validations(factor_definition_id: str, *, limit: int = 100) -> list[dict]:
+    with _lock, _conn() as c:
+        rows = c.execute(
+            """SELECT * FROM factor_candidate_validations
+               WHERE factor_definition_id=? ORDER BY created_at DESC LIMIT ?""",
+            (factor_definition_id, limit),
+        ).fetchall()
+    return [_factor_candidate_validation_dict(row) for row in rows]
+
+
+def _factor_experiment_event_dict(row) -> dict:
+    return {
+        "id": row["id"],
+        "experiment_id": row["experiment_id"],
+        "event_sequence": int(row["event_sequence"]),
+        "status": row["status"],
+        "result": json.loads(row["result_json"] or "{}"),
+        "failure_reason": row["failure_reason"],
+        "failure_code": row["failure_code"],
+        "evidence": json.loads(row["evidence_json"] or "{}"),
+        "created_at": float(row["created_at"]),
+    }
+
+
+def _factor_experiment_dict(row) -> dict:
+    model = json.loads(row["model_json"] or "{}")
+    prompt = json.loads(row["prompt_json"] or "{}")
+    proposal = json.loads(row["proposal_json"] or "{}")
+    pre_registration = json.loads(row["pre_registration_json"])
+    result = json.loads(row["latest_result_json"] or "{}")
+
+    def content_hash(value: Any) -> str:
+        canonical = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+    return {
+        "id": row["id"],
+        "research_plan_id": row["research_plan_id"],
+        "hypothesis": row["hypothesis"],
+        "source": row["source"],
+        "parent_experiment_id": row["parent_experiment_id"],
+        "factor_definition_id": row["factor_definition_id"],
+        "candidate_validation_id": row["candidate_validation_id"],
+        "factor_key": row["factor_key"],
+        "factor_version": row["factor_version"],
+        "factor_family": row["factor_family"],
+        "target_market": row["target_market"],
+        "data_start": row["data_start"],
+        "data_end": row["data_end"],
+        "parameter_grid": json.loads(row["parameter_grid_json"] or "{}"),
+        "parameter_combinations": int(row["parameter_combinations"]),
+        "estimated_compute_units": int(row["estimated_compute_units"]),
+        "model": model,
+        "prompt": prompt,
+        "proposal": proposal,
+        "pre_registration": pre_registration,
+        "attempt_number": int(row["attempt_number"]),
+        "status": row["current_status"],
+        "created_at": float(row["created_at"]),
+        "provenance": {
+            "schema_version": "factor-experiment-provenance-v1",
+            "formula": {
+                "version": row["factor_version"],
+                "formula_hash": row["definition_formula_hash"],
+                "definition_hash": row["definition_hash"],
+            },
+            "data": {
+                "version": "candidate-validation-v1",
+                "snapshot_hash": row["validation_data_fingerprint"],
+            },
+            "experiment": {
+                "version": "factor-experiment-ledger-v1",
+                "hash": content_hash(
+                    {
+                        "hypothesis": row["hypothesis"],
+                        "source": row["source"],
+                        "parameter_grid": json.loads(row["parameter_grid_json"] or "{}"),
+                        "pre_registration": pre_registration,
+                    }
+                ),
+            },
+            "model": {
+                "version": str(model.get("version") or model.get("model") or "not_used"),
+                "hash": content_hash(model),
+            },
+            "prompt": {
+                "version": str(prompt.get("version", "not_used")),
+                "hash": content_hash(prompt),
+            },
+            "cost": {
+                "version": "pre-registration-cost-v1",
+                "hash": content_hash(
+                    {
+                        "estimated_compute_units": int(row["estimated_compute_units"]),
+                        "maximum_llm_tokens": pre_registration.get("maximum_llm_tokens", 0),
+                    }
+                ),
+            },
+            "result": {
+                "version": "factor-experiment-result-v1",
+                "hash": content_hash(result),
+                "status": row["current_status"],
+            },
+        },
+    }
+
+
+_FACTOR_EXPERIMENT_SELECT = """SELECT e.*, d.factor_key,
+    d.version AS factor_version, d.family AS factor_family,
+    d.formula_hash AS definition_formula_hash, d.definition_hash AS definition_hash,
+    cv.data_fingerprint AS validation_data_fingerprint,
+    (SELECT status FROM factor_experiment_events event
+     WHERE event.experiment_id=e.id
+     ORDER BY event.event_sequence DESC, event.created_at DESC, event.id DESC LIMIT 1)
+     AS current_status,
+    (SELECT event.result_json FROM factor_experiment_events event
+     WHERE event.experiment_id=e.id
+     ORDER BY event.event_sequence DESC, event.created_at DESC, event.id DESC LIMIT 1)
+     AS latest_result_json
+    FROM factor_experiments e
+    JOIN factor_definitions d ON d.id=e.factor_definition_id
+    LEFT JOIN factor_candidate_validations cv ON cv.id=e.candidate_validation_id"""
+
+
+def create_factor_experiment(
+    *,
+    research_plan_id: str,
+    hypothesis: str,
+    source: str,
+    parent_experiment_id: str | None,
+    factor_definition_id: str,
+    candidate_validation_id: str,
+    target_market: str,
+    data_start: str | None,
+    data_end: str | None,
+    parameter_grid: dict,
+    parameter_combinations: int,
+    estimated_compute_units: int,
+    model: dict,
+    prompt: dict,
+    proposal: dict,
+    pre_registration: dict,
+) -> dict:
+    experiment_id = uuid.uuid4().hex
+    event_id = uuid.uuid4().hex
+    now = _now()
+    with _lock, _conn() as c:
+        if parent_experiment_id:
+            parent = c.execute(
+                "SELECT 1 FROM factor_experiments WHERE id=?", (parent_experiment_id,)
+            ).fetchone()
+            if parent is None:
+                raise ValueError("父实验不存在")
+        attempt_row = c.execute(
+            """SELECT COUNT(*) AS attempts FROM factor_experiments
+               WHERE research_plan_id=?""",
+            (research_plan_id,),
+        ).fetchone()
+        attempt_number = int(attempt_row["attempts"]) + 1
+        c.execute(
+            """INSERT INTO factor_experiments
+               (id, research_plan_id, hypothesis, source, parent_experiment_id,
+                factor_definition_id, candidate_validation_id, target_market, data_start, data_end,
+                parameter_grid_json, parameter_combinations, estimated_compute_units,
+                model_json, prompt_json,
+                proposal_json, pre_registration_json, attempt_number, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                experiment_id,
+                research_plan_id,
+                hypothesis,
+                source,
+                parent_experiment_id,
+                factor_definition_id,
+                candidate_validation_id,
+                target_market,
+                data_start,
+                data_end,
+                json.dumps(parameter_grid, ensure_ascii=False, default=str),
+                parameter_combinations,
+                estimated_compute_units,
+                json.dumps(model, ensure_ascii=False, default=str),
+                json.dumps(prompt, ensure_ascii=False, default=str),
+                json.dumps(proposal, ensure_ascii=False, default=str),
+                json.dumps(pre_registration, ensure_ascii=False, default=str),
+                attempt_number,
+                now,
+            ),
+        )
+        c.execute(
+            """INSERT INTO factor_experiment_events
+               (id, experiment_id, event_sequence, status, result_json, failure_reason,
+                failure_code, evidence_json, created_at)
+               VALUES (?, ?, 1, 'draft', '{}', NULL, NULL, '{}', ?)""",
+            (event_id, experiment_id, now),
+        )
+    result = get_factor_experiment(experiment_id)
+    if result is None:
+        raise RuntimeError("因子实验创建后无法读取")
+    return result
+
+
+def add_factor_experiment_event(
+    experiment_id: str,
+    *,
+    status: str,
+    result: dict,
+    failure_reason: str | None,
+    failure_code: str | None,
+    evidence: dict,
+) -> dict | None:
+    event_id = uuid.uuid4().hex
+    now = _now()
+    with _lock, _conn() as c:
+        exists = c.execute(
+            "SELECT 1 FROM factor_experiments WHERE id=?", (experiment_id,)
+        ).fetchone()
+        if exists is None:
+            return None
+        sequence_row = c.execute(
+            """SELECT COALESCE(MAX(event_sequence), 0) AS event_sequence
+               FROM factor_experiment_events WHERE experiment_id=?""",
+            (experiment_id,),
+        ).fetchone()
+        event_sequence = int(sequence_row["event_sequence"]) + 1
+        c.execute(
+            """INSERT INTO factor_experiment_events
+               (id, experiment_id, event_sequence, status, result_json, failure_reason,
+                failure_code, evidence_json, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                event_id,
+                experiment_id,
+                event_sequence,
+                status,
+                json.dumps(result, ensure_ascii=False, default=str),
+                failure_reason,
+                failure_code,
+                json.dumps(evidence, ensure_ascii=False, default=str),
+                now,
+            ),
+        )
+        row = c.execute("SELECT * FROM factor_experiment_events WHERE id=?", (event_id,)).fetchone()
+    return _factor_experiment_event_dict(row)
+
+
+def list_factor_experiment_events(experiment_id: str) -> list[dict]:
+    with _lock, _conn() as c:
+        rows = c.execute(
+            """SELECT * FROM factor_experiment_events WHERE experiment_id=?
+               ORDER BY event_sequence ASC, created_at ASC, id ASC""",
+            (experiment_id,),
+        ).fetchall()
+    return [_factor_experiment_event_dict(row) for row in rows]
+
+
+def _factor_ai_search_round_dict(row) -> dict:
+    candidate_count = int(row["candidate_count"])
+    duplicate_count = int(row["duplicate_count"])
+    status = row["status"]
+    return {
+        "id": row["id"],
+        "research_plan_id": row["research_plan_id"],
+        "round_id": row["round_id"],
+        "candidate_count": candidate_count,
+        "duplicate_count": duplicate_count,
+        "duplicate_rate": duplicate_count / candidate_count if candidate_count else 0.0,
+        "max_formula_complexity": int(row["max_formula_complexity"]),
+        "llm_tokens": int(row["llm_tokens"]),
+        "input_fingerprint": row["input_fingerprint"],
+        "approval": json.loads(row["approval_json"] or "{}"),
+        "status": status,
+        "allowed": status == "allowed",
+        "stopped": status == "stopped",
+        "stop_reason": row["stop_reason"],
+        "created_at": float(row["created_at"]),
+    }
+
+
+def get_factor_ai_search_round(research_plan_id: str, round_id: str) -> dict | None:
+    with _lock, _conn() as c:
+        row = c.execute(
+            """SELECT * FROM factor_ai_search_rounds
+               WHERE research_plan_id=? AND round_id=?""",
+            (research_plan_id, round_id),
+        ).fetchone()
+    return _factor_ai_search_round_dict(row) if row else None
+
+
+def create_factor_ai_search_round(
+    *,
+    research_plan_id: str,
+    round_id: str,
+    candidate_count: int,
+    duplicate_count: int,
+    max_formula_complexity: int,
+    llm_tokens: int,
+    input_fingerprint: str,
+    approval: dict,
+    status: str,
+    stop_reason: str | None,
+) -> dict:
+    now = _now()
+    approval_json = json.dumps(approval, ensure_ascii=False, sort_keys=True)
+    with _lock, _conn() as c:
+        existing = c.execute(
+            """SELECT * FROM factor_ai_search_rounds
+               WHERE research_plan_id=? AND round_id=?""",
+            (research_plan_id, round_id),
+        ).fetchone()
+        if existing is not None:
+            immutable_values = {
+                "candidate_count": candidate_count,
+                "duplicate_count": duplicate_count,
+                "max_formula_complexity": max_formula_complexity,
+                "llm_tokens": llm_tokens,
+                "input_fingerprint": input_fingerprint,
+                "approval_json": approval_json,
+                "status": status,
+                "stop_reason": stop_reason,
+            }
+            if any(existing[key] != value for key, value in immutable_values.items()):
+                raise ValueError("AI 搜索轮次已存在且不可修改")
+            return _factor_ai_search_round_dict(existing)
+        round_record_id = uuid.uuid4().hex
+        c.execute(
+            """INSERT INTO factor_ai_search_rounds
+               (id, research_plan_id, round_id, candidate_count, duplicate_count,
+                max_formula_complexity, llm_tokens, input_fingerprint, approval_json,
+                status, stop_reason, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                round_record_id,
+                research_plan_id,
+                round_id,
+                candidate_count,
+                duplicate_count,
+                max_formula_complexity,
+                llm_tokens,
+                input_fingerprint,
+                approval_json,
+                status,
+                stop_reason,
+                now,
+            ),
+        )
+        row = c.execute(
+            "SELECT * FROM factor_ai_search_rounds WHERE id=?", (round_record_id,)
+        ).fetchone()
+    return _factor_ai_search_round_dict(row)
+
+
+def list_factor_ai_search_rounds(research_plan_id: str) -> list[dict]:
+    with _lock, _conn() as c:
+        rows = c.execute(
+            """SELECT * FROM factor_ai_search_rounds WHERE research_plan_id=?
+               ORDER BY created_at ASC, id ASC""",
+            (research_plan_id,),
+        ).fetchall()
+    return [_factor_ai_search_round_dict(row) for row in rows]
+
+
+def get_factor_experiment(experiment_id: str) -> dict | None:
+    with _lock, _conn() as c:
+        row = c.execute(_FACTOR_EXPERIMENT_SELECT + " WHERE e.id=?", (experiment_id,)).fetchone()
+    if row is None:
+        return None
+    result = _factor_experiment_dict(row)
+    result["events"] = list_factor_experiment_events(experiment_id)
+    return result
+
+
+def list_factor_experiments(
+    *,
+    research_plan_id: str | None = None,
+    source: str | None = None,
+    status: str | None = None,
+    limit: int = 100,
+) -> list[dict]:
+    clauses: list[str] = []
+    params: list[Any] = []
+    if research_plan_id:
+        clauses.append("e.research_plan_id=?")
+        params.append(research_plan_id)
+    if source:
+        clauses.append("e.source=?")
+        params.append(source)
+    sql = _FACTOR_EXPERIMENT_SELECT
+    if clauses:
+        sql += " WHERE " + " AND ".join(clauses)
+    sql += " ORDER BY e.created_at DESC, e.id DESC"
+    with _lock, _conn() as c:
+        rows = c.execute(sql, params).fetchall()
+    items = [_factor_experiment_dict(row) for row in rows]
+    if status:
+        items = [item for item in items if item["status"] == status]
+    return items[:limit]
 
 
 # ---------------------------------------------------------------------------
