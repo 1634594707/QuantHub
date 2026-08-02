@@ -275,7 +275,6 @@ uv run python tools/scaffold_strategy.py \
 - [v0.3.0 发布说明](docs/releases/v0.3.0.md)
 - [AI 因子发现路线图](AI_FACTOR_DISCOVERY_ROADMAP.md)
 - [v0.2.0 发布说明](docs/releases/v0.2.0.md)
-- [v0.2.0 社区更新帖子](docs/posts/2026-07-31-quanthub-v0.2.0.md)
 - [架构设计](docs/ARCHITECTURE.md)
 - [功能边界](docs/FUNCTION_BOUNDARIES.md)
 - [研究工作流与因子验证更新](docs/posts/2026-07-30-research-factor-update.md)
