@@ -23,13 +23,13 @@ describe('MobileNavigation', () => {
     const navigation = renderNavigation('/', 'beginner')
     const links = within(navigation).getAllByRole('link')
 
-    expect(links.map((link) => link.textContent)).toEqual(['驾驶舱', '评估', '自选', '模拟', '设置'])
+    expect(links.map((link) => link.textContent)).toEqual(['总览', '评估', '自选', '模拟', '设置'])
     expect(links.map((link) => link.getAttribute('href'))).toEqual([
       '/', '/evaluate', '/#watchlist', '/simulation', '/config',
     ])
   })
 
-  it('activates more for an operations page', () => {
+  it('activates more for a settings page', () => {
     const navigation = renderNavigation('/incidents')
 
     expect(within(navigation).getByRole('button', { name: '打开更多工作区' }).classList.contains('active')).toBe(true)

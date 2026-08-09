@@ -309,8 +309,8 @@ export default function StockEvaluationStartPage() {
     <div className={s.page}>
       <WorkspaceHeader
         context="研究 / 综合评估"
-        title="单标的综合评估"
-        description="量化快照、AI 证据与模型共识统一归档"
+        title="标的评估"
+        description="行情快照、新闻与价格结构归档到同一研究记录"
         metrics={[
           { label: '当前市场', value: MARKETS[market].label },
           { label: '当前模式', value: '研究模式' },
@@ -540,10 +540,21 @@ export default function StockEvaluationStartPage() {
         </aside>
       </div>
 
+      {/* M2-03：新闻证据 / 价格结构 / 模型共识 已从一级导航折叠进「市场研究」，
+          此处提供页内模块入口，保证三个二级页仍然可达（原「查看示例评估」按钮指向已删除的
+          /example 路由，且属于示例数据入口，按 M2-02 / M3-02 一并移除）。 */}
       <section className={s.secondaryActions}>
-        <button type="button" disabled={starting} onClick={() => navigate('/example')}>
+        <button type="button" onClick={() => navigate('/news')}>
+          <IconSearch size={19} />
+          <span><strong>新闻证据</strong><small>事件与情绪，按标的检索原文</small></span>
+        </button>
+        <button type="button" onClick={() => navigate('/pa')}>
           <IconChart size={19} />
-          <span><strong>查看示例评估</strong><small>使用贵州茅台和波段周期</small></span>
+          <span><strong>价格结构</strong><small>两阶段价格行为分析</small></span>
+        </button>
+        <button type="button" onClick={() => navigate('/ensemble')}>
+          <IconChart size={19} />
+          <span><strong>模型共识</strong><small>多模型协同结论对比</small></span>
         </button>
         <button type="button" onClick={() => navigate('/config')}>
           <IconCog size={19} />

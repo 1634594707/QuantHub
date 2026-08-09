@@ -1,0 +1,80 @@
+{
+  "accepted": true,
+  "alpha_claim": false,
+  "external_market_realtime": false,
+  "local_stream_realtime": true,
+  "interval_seconds": 0.25,
+  "source": "D:\\Administrator\\Desktop\\finance\\data\\OKX_K线数据\\BTCUSDT_M5.parquet",
+  "source_hash": "4448f8805c0cfd4b9a5c4e8fb9c283e4553d17df8464b795b3d84ba8346dd3b8",
+  "source_event_times": [
+    "2026-07-10T06:10:00+00:00",
+    "2026-07-10T06:15:00+00:00",
+    "2026-07-10T06:20:00+00:00",
+    "2026-07-10T06:25:00+00:00",
+    "2026-07-10T06:30:00+00:00"
+  ],
+  "network_note": "OKX public endpoint was unreachable from the acceptance environment",
+  "runtime": {
+    "run_id": "runner-result-5e9fa985224e4660bcd029a3fe59f740",
+    "strategy_id": "okx-shadow-contract",
+    "strategy_version": "1.0.0",
+    "environment": "shadow",
+    "result": {
+      "session_type": "shadow",
+      "feed_mode": "timed_local_market_replay",
+      "strategy_id": "okx-shadow-contract",
+      "version": "1.0.0",
+      "bar_hash": "0f8ee0f5e64ff1a38700d0b52713bf88c40919598471e1c58f07c9ee7f9578dc",
+      "observations": [
+        {
+          "event_time": "2026-08-03T12:33:12.774659+00:00",
+          "observed_at": "2026-08-03T12:33:13.024906+00:00",
+          "latency_seconds": 0.250247,
+          "signal": -1,
+          "target_position": -0.01,
+          "theoretical_fill": {
+            "side": "sell",
+            "position_delta": -0.01,
+            "reference_price": 63898.5,
+            "estimated_price": 63834.6015,
+            "cost_bps": 10.0
+          }
+        },
+        {
+          "event_time": "2026-08-03T12:33:13.024906+00:00",
+          "observed_at": "2026-08-03T12:33:13.275040+00:00",
+          "latency_seconds": 0.250134,
+          "signal": -1,
+          "target_position": -0.01,
+          "theoretical_fill": {
+            "side": "hold",
+            "position_delta": 0.0,
+            "reference_price": 63882.80078125,
+            "estimated_price": 63882.80078125,
+            "cost_bps": 10.0
+          }
+        },
+        {
+          "event_time": "2026-08-03T12:33:13.275040+00:00",
+          "observed_at": "2026-08-03T12:33:13.525309+00:00",
+          "latency_seconds": 0.250269,
+          "signal": -1,
+          "target_position": -0.01,
+          "theoretical_fill": {
+            "side": "hold",
+            "position_delta": 0.0,
+            "reference_price": 63894.6015625,
+            "estimated_price": 63894.6015625,
+            "cost_bps": 10.0
+          }
+        }
+      ],
+      "risk_limit": 0.01,
+      "external_orders_created": 0,
+      "started_at": "2026-08-03T12:33:12.273610+00:00",
+      "completed_at": "2026-08-03T12:33:13.525309+00:00",
+      "elapsed_seconds": 1.251699
+    },
+    "result_hash": "ee2c656774da104fd08ca57997e9636ce318e816c66b757928080113d3513339"
+  }
+}

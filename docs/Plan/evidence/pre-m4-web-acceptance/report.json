@@ -1,0 +1,499 @@
+{
+  "task": "P0-04/M2-08/Q0-01 pre-M4 browser acceptance",
+  "generatedAt": "2026-08-09T17:55:49.883Z",
+  "baseUrl": "http://127.0.0.1:5173",
+  "browser": "Chromium",
+  "viewports": [
+    {
+      "id": "mobile-390x844",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "id": "tablet-768x1024",
+      "width": 768,
+      "height": 1024
+    },
+    {
+      "id": "laptop-1280x720",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "id": "desktop-1440x900",
+      "width": 1440,
+      "height": 900
+    }
+  ],
+  "routes": [
+    {
+      "id": "overview",
+      "path": "/"
+    },
+    {
+      "id": "evaluate",
+      "path": "/evaluate"
+    },
+    {
+      "id": "strategies",
+      "path": "/strategies"
+    },
+    {
+      "id": "signals",
+      "path": "/signals"
+    },
+    {
+      "id": "trading",
+      "path": "/trading"
+    },
+    {
+      "id": "account-risk",
+      "path": "/account-risk"
+    },
+    {
+      "id": "config",
+      "path": "/config"
+    }
+  ],
+  "mutationPolicy": "Read-only; no order, risk-mode, recovery, or reconciliation mutation is submitted.",
+  "pageResults": [
+    {
+      "viewport": "mobile-390x844",
+      "route": "/",
+      "documentStatus": 200,
+      "requiredText": "总览",
+      "requiredTextVisible": true,
+      "screenshot": "mobile-390x844-overview.png",
+      "rootTextLength": 815,
+      "documentOverflow": 0,
+      "clippedText": [],
+      "passed": true
+    },
+    {
+      "viewport": "mobile-390x844",
+      "route": "/evaluate",
+      "documentStatus": 200,
+      "requiredText": "标的研究",
+      "requiredTextVisible": true,
+      "screenshot": "mobile-390x844-evaluate.png",
+      "rootTextLength": 680,
+      "documentOverflow": 0,
+      "clippedText": [],
+      "passed": true
+    },
+    {
+      "viewport": "mobile-390x844",
+      "route": "/strategies",
+      "documentStatus": 200,
+      "requiredText": "策略",
+      "requiredTextVisible": true,
+      "screenshot": "mobile-390x844-strategies.png",
+      "rootTextLength": 1119,
+      "documentOverflow": 0,
+      "clippedText": [],
+      "passed": true
+    },
+    {
+      "viewport": "mobile-390x844",
+      "route": "/signals",
+      "documentStatus": 200,
+      "requiredText": "信号",
+      "requiredTextVisible": true,
+      "screenshot": "mobile-390x844-signals.png",
+      "rootTextLength": 7744,
+      "documentOverflow": 0,
+      "clippedText": [],
+      "passed": true
+    },
+    {
+      "viewport": "mobile-390x844",
+      "route": "/trading",
+      "documentStatus": 200,
+      "requiredText": "交易工作台",
+      "requiredTextVisible": true,
+      "screenshot": "mobile-390x844-trading.png",
+      "rootTextLength": 681,
+      "documentOverflow": 0,
+      "clippedText": [],
+      "passed": true
+    },
+    {
+      "viewport": "mobile-390x844",
+      "route": "/account-risk",
+      "documentStatus": 200,
+      "requiredText": "账户与风控",
+      "requiredTextVisible": true,
+      "screenshot": "mobile-390x844-account-risk.png",
+      "rootTextLength": 506,
+      "documentOverflow": 0,
+      "clippedText": [],
+      "passed": true
+    },
+    {
+      "viewport": "mobile-390x844",
+      "route": "/config",
+      "documentStatus": 200,
+      "requiredText": "系统设置",
+      "requiredTextVisible": true,
+      "screenshot": "mobile-390x844-config.png",
+      "rootTextLength": 1699,
+      "documentOverflow": 0,
+      "clippedText": [],
+      "passed": true
+    },
+    {
+      "viewport": "tablet-768x1024",
+      "route": "/",
+      "documentStatus": 200,
+      "requiredText": "总览",
+      "requiredTextVisible": true,
+      "screenshot": "tablet-768x1024-overview.png",
+      "rootTextLength": 905,
+      "documentOverflow": 0,
+      "clippedText": [],
+      "passed": true
+    },
+    {
+      "viewport": "tablet-768x1024",
+      "route": "/evaluate",
+      "documentStatus": 200,
+      "requiredText": "标的研究",
+      "requiredTextVisible": true,
+      "screenshot": "tablet-768x1024-evaluate.png",
+      "rootTextLength": 680,
+      "documentOverflow": 0,
+      "clippedText": [],
+      "passed": true
+    },
+    {
+      "viewport": "tablet-768x1024",
+      "route": "/strategies",
+      "documentStatus": 200,
+      "requiredText": "策略",
+      "requiredTextVisible": true,
+      "screenshot": "tablet-768x1024-strategies.png",
+      "rootTextLength": 1119,
+      "documentOverflow": 0,
+      "clippedText": [],
+      "passed": true
+    },
+    {
+      "viewport": "tablet-768x1024",
+      "route": "/signals",
+      "documentStatus": 200,
+      "requiredText": "信号",
+      "requiredTextVisible": true,
+      "screenshot": "tablet-768x1024-signals.png",
+      "rootTextLength": 7744,
+      "documentOverflow": 0,
+      "clippedText": [],
+      "passed": true
+    },
+    {
+      "viewport": "tablet-768x1024",
+      "route": "/trading",
+      "documentStatus": 200,
+      "requiredText": "交易工作台",
+      "requiredTextVisible": true,
+      "screenshot": "tablet-768x1024-trading.png",
+      "rootTextLength": 681,
+      "documentOverflow": 0,
+      "clippedText": [],
+      "passed": true
+    },
+    {
+      "viewport": "tablet-768x1024",
+      "route": "/account-risk",
+      "documentStatus": 200,
+      "requiredText": "账户与风控",
+      "requiredTextVisible": true,
+      "screenshot": "tablet-768x1024-account-risk.png",
+      "rootTextLength": 506,
+      "documentOverflow": 0,
+      "clippedText": [],
+      "passed": true
+    },
+    {
+      "viewport": "tablet-768x1024",
+      "route": "/config",
+      "documentStatus": 200,
+      "requiredText": "系统设置",
+      "requiredTextVisible": true,
+      "screenshot": "tablet-768x1024-config.png",
+      "rootTextLength": 1699,
+      "documentOverflow": 0,
+      "clippedText": [],
+      "passed": true
+    },
+    {
+      "viewport": "laptop-1280x720",
+      "route": "/",
+      "documentStatus": 200,
+      "requiredText": "总览",
+      "requiredTextVisible": true,
+      "screenshot": "laptop-1280x720-overview.png",
+      "rootTextLength": 905,
+      "documentOverflow": 0,
+      "clippedText": [],
+      "passed": true
+    },
+    {
+      "viewport": "laptop-1280x720",
+      "route": "/evaluate",
+      "documentStatus": 200,
+      "requiredText": "标的研究",
+      "requiredTextVisible": true,
+      "screenshot": "laptop-1280x720-evaluate.png",
+      "rootTextLength": 680,
+      "documentOverflow": 0,
+      "clippedText": [],
+      "passed": true
+    },
+    {
+      "viewport": "laptop-1280x720",
+      "route": "/strategies",
+      "documentStatus": 200,
+      "requiredText": "策略",
+      "requiredTextVisible": true,
+      "screenshot": "laptop-1280x720-strategies.png",
+      "rootTextLength": 1119,
+      "documentOverflow": 0,
+      "clippedText": [],
+      "passed": true
+    },
+    {
+      "viewport": "laptop-1280x720",
+      "route": "/signals",
+      "documentStatus": 200,
+      "requiredText": "信号",
+      "requiredTextVisible": true,
+      "screenshot": "laptop-1280x720-signals.png",
+      "rootTextLength": 7744,
+      "documentOverflow": 0,
+      "clippedText": [],
+      "passed": true
+    },
+    {
+      "viewport": "laptop-1280x720",
+      "route": "/trading",
+      "documentStatus": 200,
+      "requiredText": "交易工作台",
+      "requiredTextVisible": true,
+      "screenshot": "laptop-1280x720-trading.png",
+      "rootTextLength": 681,
+      "documentOverflow": 0,
+      "clippedText": [],
+      "passed": true
+    },
+    {
+      "viewport": "laptop-1280x720",
+      "route": "/account-risk",
+      "documentStatus": 200,
+      "requiredText": "账户与风控",
+      "requiredTextVisible": true,
+      "screenshot": "laptop-1280x720-account-risk.png",
+      "rootTextLength": 506,
+      "documentOverflow": 0,
+      "clippedText": [],
+      "passed": true
+    },
+    {
+      "viewport": "laptop-1280x720",
+      "route": "/config",
+      "documentStatus": 200,
+      "requiredText": "系统设置",
+      "requiredTextVisible": true,
+      "screenshot": "laptop-1280x720-config.png",
+      "rootTextLength": 1700,
+      "documentOverflow": 0,
+      "clippedText": [],
+      "passed": true
+    },
+    {
+      "viewport": "desktop-1440x900",
+      "route": "/",
+      "documentStatus": 200,
+      "requiredText": "总览",
+      "requiredTextVisible": true,
+      "screenshot": "desktop-1440x900-overview.png",
+      "rootTextLength": 905,
+      "documentOverflow": 0,
+      "clippedText": [],
+      "passed": true
+    },
+    {
+      "viewport": "desktop-1440x900",
+      "route": "/evaluate",
+      "documentStatus": 200,
+      "requiredText": "标的研究",
+      "requiredTextVisible": true,
+      "screenshot": "desktop-1440x900-evaluate.png",
+      "rootTextLength": 680,
+      "documentOverflow": 0,
+      "clippedText": [],
+      "passed": true
+    },
+    {
+      "viewport": "desktop-1440x900",
+      "route": "/strategies",
+      "documentStatus": 200,
+      "requiredText": "策略",
+      "requiredTextVisible": true,
+      "screenshot": "desktop-1440x900-strategies.png",
+      "rootTextLength": 1119,
+      "documentOverflow": 0,
+      "clippedText": [],
+      "passed": true
+    },
+    {
+      "viewport": "desktop-1440x900",
+      "route": "/signals",
+      "documentStatus": 200,
+      "requiredText": "信号",
+      "requiredTextVisible": true,
+      "screenshot": "desktop-1440x900-signals.png",
+      "rootTextLength": 7744,
+      "documentOverflow": 0,
+      "clippedText": [],
+      "passed": true
+    },
+    {
+      "viewport": "desktop-1440x900",
+      "route": "/trading",
+      "documentStatus": 200,
+      "requiredText": "交易工作台",
+      "requiredTextVisible": true,
+      "screenshot": "desktop-1440x900-trading.png",
+      "rootTextLength": 681,
+      "documentOverflow": 0,
+      "clippedText": [],
+      "passed": true
+    },
+    {
+      "viewport": "desktop-1440x900",
+      "route": "/account-risk",
+      "documentStatus": 200,
+      "requiredText": "账户与风控",
+      "requiredTextVisible": true,
+      "screenshot": "desktop-1440x900-account-risk.png",
+      "rootTextLength": 506,
+      "documentOverflow": 0,
+      "clippedText": [],
+      "passed": true
+    },
+    {
+      "viewport": "desktop-1440x900",
+      "route": "/config",
+      "documentStatus": 200,
+      "requiredText": "系统设置",
+      "requiredTextVisible": true,
+      "screenshot": "desktop-1440x900-config.png",
+      "rootTextLength": 1753,
+      "documentOverflow": 0,
+      "clippedText": [],
+      "passed": true
+    }
+  ],
+  "navigation": [
+    {
+      "viewport": "desktop",
+      "flow": "市场研究",
+      "expected": "/evaluate",
+      "actual": "/evaluate",
+      "passed": true
+    },
+    {
+      "viewport": "desktop",
+      "flow": "策略",
+      "expected": "/strategies",
+      "actual": "/strategies",
+      "passed": true
+    },
+    {
+      "viewport": "desktop",
+      "flow": "交易",
+      "expected": "/trading",
+      "actual": "/trading",
+      "passed": true
+    },
+    {
+      "viewport": "desktop",
+      "flow": "账户风控",
+      "expected": "/account-risk",
+      "actual": "/account-risk",
+      "passed": true
+    },
+    {
+      "viewport": "desktop",
+      "flow": "审信号",
+      "expected": "/signals",
+      "actual": "/signals",
+      "passed": true
+    },
+    {
+      "viewport": "desktop",
+      "flow": "停机与对账",
+      "expected": "/account-risk",
+      "actual": "/account-risk",
+      "passed": true
+    },
+    {
+      "viewport": "mobile",
+      "flow": "查标的",
+      "expected": "/evaluate",
+      "actual": "/evaluate",
+      "passed": true
+    },
+    {
+      "viewport": "mobile",
+      "flow": "下单/撤单",
+      "expected": "/trading",
+      "actual": "/trading",
+      "passed": true
+    },
+    {
+      "viewport": "mobile",
+      "flow": "审信号",
+      "expected": "/signals",
+      "actual": "/signals",
+      "passed": true
+    },
+    {
+      "viewport": "mobile",
+      "flow": "停机与对账",
+      "expected": "/account-risk",
+      "actual": "/account-risk",
+      "passed": true
+    },
+    {
+      "viewport": "mobile",
+      "flow": "看策略",
+      "expected": "/strategies",
+      "actual": "/strategies",
+      "passed": true
+    }
+  ],
+  "shadowSafety": [
+    {
+      "check": "shadow-trading-blocked",
+      "environmentVisible": true,
+      "submitDisabled": true,
+      "cancelDisabled": true,
+      "passed": true
+    },
+    {
+      "check": "shadow-risk-mutations-blocked",
+      "environmentVisible": true,
+      "reconcileDisabled": true,
+      "riskModeDisabled": true,
+      "passed": true
+    }
+  ],
+  "runtime": {
+    "consoleErrors": [],
+    "pageErrors": [],
+    "failedResources": [],
+    "apiErrors": []
+  },
+  "passed": true
+}

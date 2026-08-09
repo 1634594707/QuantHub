@@ -86,8 +86,8 @@ const QUICK_ACTIONS: CommandItem[] = [
     id: 'action:new-research',
     group: 'actions',
     marker: '+',
-    label: '新建综合评估',
-    detail: '量化、AI 证据与模型共识',
+    label: '新建标的研究',
+    detail: '输入代码开始评估',
     path: '/evaluate',
     keywords: '新建 创建 评估 股票 研究 标的',
   },
@@ -95,8 +95,8 @@ const QUICK_ACTIONS: CommandItem[] = [
     id: 'action:create-experiment',
     group: 'actions',
     marker: '+',
-    label: '创建实验',
-    detail: '选择策略定义并建立实验',
+    label: '新建策略实验',
+    detail: '在策略实验台创建',
     path: '/strategy-lab?action=create_experiment',
     keywords: '新建 创建 策略 实验 回测',
   },
@@ -104,8 +104,8 @@ const QUICK_ACTIONS: CommandItem[] = [
     id: 'action:review-signals',
     group: 'actions',
     marker: '!',
-    label: '进入待审核信号',
-    detail: '仅显示状态为 new 的信号',
+    label: '待审核信号',
+    detail: '只显示待处理',
     path: '/signals?status=new',
     keywords: '信号 审核 new 待处理',
   },
@@ -113,15 +113,16 @@ const QUICK_ACTIONS: CommandItem[] = [
 
 function pageCommands(mode: InterfaceMode): CommandItem[] {
   return workspacesForMode(mode).flatMap((workspace) => (
-  workspace.items.map((item) => ({
-    id: `page:${item.key}`,
-    group: 'pages' as const,
-    marker: '/',
-    label: item.label,
-    path: item.to,
-    detail: workspace.label,
-    keywords: item.searchKeywords ?? `${workspace.label} ${item.label}`,
-  }))
+    workspace.items.map((item) => ({
+      id: `page:${item.key}`,
+      group: 'pages' as const,
+      marker: '/',
+      label: item.label,
+      path: item.to,
+      // 副标题只在与工作区名不同时显示，避免"总览 / 总览"这种重复
+      detail: workspace.label === item.label ? '' : workspace.label,
+      keywords: item.searchKeywords ?? `${workspace.label} ${item.label}`,
+    }))
   ))
 }
 
@@ -399,7 +400,7 @@ export function CommandPalette({ open, onClose, interfaceMode }: CommandPaletteP
           <input
             ref={inputRef}
             className={styles.input}
-            placeholder="搜索页面、标的、策略、研究、信号或订单"
+            placeholder="搜标的、策略、信号、订单…"
             value={query}
             onChange={(event) => {
               setQuery(event.target.value)
@@ -410,7 +411,7 @@ export function CommandPalette({ open, onClose, interfaceMode }: CommandPaletteP
             aria-activedescendant={items[activeIndex] ? `command-${items[activeIndex].id}` : undefined}
             autoComplete="off"
           />
-          <span className={styles.resultCount}>{business.loading ? '检索中' : `${items.length} 项`}</span>
+          <span className={styles.resultCount}>{business.loading ? '搜索中' : `${items.length} 项`}</span>
         </div>
 
         <div
@@ -443,7 +444,7 @@ export function CommandPalette({ open, onClose, interfaceMode }: CommandPaletteP
                       <span className={styles.marker} aria-hidden="true">{item.marker}</span>
                       <span className={styles.itemCopy}>
                         <b>{item.label}</b>
-                        <small>{item.detail}</small>
+                        {item.detail ? <small>{item.detail}</small> : null}
                       </span>
                     </button>
                     {item.secondaryLabel && item.secondaryPath && (
@@ -464,10 +465,10 @@ export function CommandPalette({ open, onClose, interfaceMode }: CommandPaletteP
           {business.loading && (
             <div className={styles.state} role="status">
               <span className={styles.loader} aria-hidden="true" />
-              正在读取业务数据
+              正在搜索
             </div>
           )}
-          {showEmpty && <div className={styles.state}>没有找到“{query.trim()}”</div>}
+          {showEmpty && <div className={styles.state}>无匹配结果</div>}
           {business.errorCount > 0 && !business.loading && (
             <div className={styles.errorNotice} role="status">
               <span>业务数据未载入</span>

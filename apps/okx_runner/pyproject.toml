@@ -1,0 +1,22 @@
+[build-system]
+requires = ["hatchling>=1.21"]
+build-backend = "hatchling.build"
+
+[project]
+name = "quanthub-okx-runner"
+version = "1.0.0"
+license = "AGPL-3.0-or-later"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    "ccxt>=4.3",
+    "fastapi>=0.110",
+    "pydantic>=2.7",
+    "setuptools>=83.0.0",
+    "uvicorn>=0.29",
+]
+
+[project.scripts]
+quanthub-okx-runner = "apps.okx_runner.main:run"
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]

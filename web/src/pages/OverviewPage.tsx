@@ -207,19 +207,19 @@ export default function OverviewPage() {
   return (
     <>
       <WorkspaceHeader
-        context="驾驶舱 / 总览"
+        context="驾驶舱"
         title="总览"
-        description="账户、行情、研究与执行状态"
+        description="账户、行情与执行状态"
         metrics={[
           { label: accountMetrics.totalLabel, value: `¥${accountMetrics.total.toLocaleString('zh-CN')}` },
           { label: accountMetrics.positionLabel, value: accountMetrics.positions },
-          { label: '自选标的', value: watchlist.list.length },
-          { label: '市场宽度 (涨/跌)', value: `${adv}/${dec}` },
+          { label: '自选', value: watchlist.list.length },
+          { label: '涨/跌', value: `${adv}/${dec}` },
         ]}
       />
       <section className={s.accountScope} aria-label="驾驶舱账户口径">
         <div>
-          <span>当前数据口径</span>
+          <span>数据口径</span>
           <strong>{accountScopeDescription}</strong>
         </div>
         <SegmentedControl
@@ -254,19 +254,18 @@ export default function OverviewPage() {
       <div style={{ order: moduleOrder.indexOf('evaluation') }} hidden={dashboardLayout.hidden.includes('evaluation')}>
       <section className={s.evaluationEntry} aria-labelledby="evaluation-entry-title">
         <div className={s.entryCopy}>
-          <span>新手入口</span>
-          <h2 id="evaluation-entry-title">综合评估一个标的</h2>
-          <p>量化快照、新闻 AI、价格结构 AI 与模型共识汇总到同一份研究记录。</p>
+          <h2 id="evaluation-entry-title">标的评估</h2>
+          <p>输入一个标的，自动汇总行情快照、新闻事件与价格结构到同一份研究记录。</p>
         </div>
         <div className={s.entryActions}>
           <Button variant="primary" size="lg" icon={<IconChart size={18} />} onClick={() => navigate('/evaluate')}>
-            开始综合评估
+            开始评估
           </Button>
-          <Button size="lg" onClick={() => navigate('/example')}>
-            查看示例报告
+          <Button size="lg" onClick={() => navigate('/tasks')}>
+            历史记录
           </Button>
           <Button variant="ghost" size="lg" icon={<IconCog size={18} />} onClick={() => navigate('/config')}>
-            连接我的数据
+            数据设置
           </Button>
         </div>
       </section>

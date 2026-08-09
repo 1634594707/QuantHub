@@ -1,7 +1,9 @@
-// KPI 卡片：升级现有 components/KpiCard.tsx，合并 Sparkline。
-// 新 API：label / value / unit / delta / deltaPct / spark / accent
-// 向后兼容：接受 item={Kpi} 旧 props。
-import type { Kpi } from '../../../data/mock'
+// KPI 卡片，内置 Sparkline。
+// API：label / value / unit / delta / deltaPct / spark / accent
+//
+// M2-02：旧 `components/KpiCard.tsx` 与其兼容层 `KpiCardLegacy`（item={Kpi} 形态）
+// 已随孤立组件清理一并删除，本文件只保留唯一在用的具名导出。
+import { useId } from 'react'
 import s from './KpiCard.module.css'
 
 interface KpiCardProps {
@@ -23,6 +25,7 @@ interface KpiCardProps {
 }
 
 function Sparkline({ data, up }: { data: number[]; up: boolean }) {
+  const uid = useId()
   if (!data || data.length < 2) return null
   const w = 64
   const h = 26
@@ -37,7 +40,8 @@ function Sparkline({ data, up }: { data: number[]; up: boolean }) {
     })
     .join(' ')
   const color = up ? 'var(--up)' : 'var(--down)'
-  const gid = `qh-spark-${up ? 'up' : 'down'}-${Math.random().toString(36).slice(2, 7)}`
+  // 用 React useId 生成稳定唯一 id，避免 Math.random 造成 SSR/重渲染不一致
+  const gid = `qh-spark-${up ? 'up' : 'down'}-${uid.replace(/:/g, '')}`
   return (
     <svg className={s.spark} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none">
       <defs>
@@ -87,20 +91,3 @@ export function KpiCard({
     </div>
   )
 }
-
-/** 向后兼容：接受旧 item={Kpi} prop */
-export function KpiCardLegacy({ item }: { item: Kpi }) {
-  return (
-    <KpiCard
-      label={item.label}
-      value={item.value}
-      unit={item.unit}
-      delta={item.deltaAbs}
-      deltaPct={item.deltaPct}
-      spark={item.spark}
-    />
-  )
-}
-
-/** 默认导出兼容旧代码：import KpiCard from '../KpiCard' */
-export default KpiCardLegacy

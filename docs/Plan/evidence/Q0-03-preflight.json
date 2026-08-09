@@ -1,0 +1,31 @@
+{
+  "task_id": "Q0-03-preflight",
+  "generated_at": "2026-08-10T00:18:00+08:00",
+  "scope": "M4-entry supply-chain preflight; this does not close Q0-03",
+  "status": "blocked_preflight",
+  "secret_scan": {
+    "command": "uv run --frozen python -B tools/check_product_secrets.py --product okx-runner",
+    "passed": true,
+    "files_scanned": 29,
+    "findings": []
+  },
+  "license_scan": {
+    "command": "uv run --frozen python -B tools/check_product_licenses.py --product okx-runner",
+    "passed": false,
+    "package_count": 64,
+    "missing_license_metadata": [
+      "numpy",
+      "unknown"
+    ],
+    "resolved_in_this_run": [
+      "quanthub-api",
+      "quanthub-apps-pa-agent"
+    ],
+    "diagnostics": {
+      "numpy": "Installed numpy 2.5.1 METADATA has Name/Version/Summary but no License, License-Expression or OSI classifier.",
+      "unknown": "The local playwright-1.62.0.dist-info directory has no METADATA file, so importlib.metadata cannot identify the distribution or its license."
+    },
+    "policy": "Do not add package-name allowlists merely to make the gate green. Resolve with complete upstream metadata, a reproducible locked build, or an auditable SBOM/license artifact before Q0-03 verification."
+  },
+  "dependency_note": "Q0-03 formally starts at M4-01 and remains blocked until real restricted OKX Demo credentials are provided."
+}

@@ -1,48 +1,4 @@
-# 组合与市场面板种子配置。
-# 用途：apps/api 的 /portfolio、/market/watchlist、/market/breadth 端点读取。
-# 前端以 localStorage 为真值源（见 useEditableHoldings/Watchlist），本配置仅作首次播种。
-# 修改后重启网关生效；或前端配置页点「重置本地数据」重新播种。
-
-# 账户现金（用于计算 NAV）
-cash: 426300.0
-
-# 持仓种子（A 股代码 + 成本）
-holdings:
-  - code: "600519"
-    name: "贵州茅台"
-    shares: 100
-    cost: 1650.0
-  - code: "300750"
-    name: "宁德时代"
-    shares: 800
-    cost: 202.0
-  - code: "000858"
-    name: "五粮液"
-    shares: 500
-    cost: 140.0
-  - code: "002594"
-    name: "比亚迪"
-    shares: 300
-    cost: 250.0
-  - code: "601318"
-    name: "中国平安"
-    shares: 1200
-    cost: 49.0
-
-# 关注列表种子（跨市场）
-watchlist:
-  - sym: "NVDA"
-    name: "英伟达"
-    market: "us_stocks"
-  - sym: "AVGO"
-    name: "博通"
-    market: "us_stocks"
-  - sym: "600036"
-    name: "招商银行"
-    market: "a_shares"
-  - sym: "BTC-USDT"
-    name: "比特币"
-    market: "crypto"
+# 市场面板配置。持仓、自选和现金不在配置文件中播种，均以用户写入的数据为准。
 
 # 市场广度样本篮子（覆盖主要行业的代表性成分，样本口径非全市场）
 breadth_basket:

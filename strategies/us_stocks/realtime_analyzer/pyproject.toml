@@ -1,0 +1,13 @@
+[build-system]
+requires = ["hatchling>=1.21"]
+build-backend = "hatchling.build"
+
+[project]
+name = "quanthub-realtime-analyzer-us"
+version = "0.1.0"
+description = "实时美股分析器：腾讯实时报价 + Yahoo 日 K，K线/均线/回报指标，GPT/DeepSeek 深度研报"
+requires-python = ">=3.11,<3.13"
+dependencies = ["quanthub-core", "openai>=1.40"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]

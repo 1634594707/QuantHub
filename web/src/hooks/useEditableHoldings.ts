@@ -46,11 +46,11 @@ function toInput(h: PortfolioHolding): HoldingInput {
  *   - remove 先做本地乐观更新，并立即提交 DELETE；失败时恢复原行
  *   - 退出编辑模式时调用 ``commit()`` 全量同步：
  *     tmp- 前缀行（code 非空）→ ``POST``；真实行 → ``PATCH``
- *   - 后端不可达时回退 localStorage 缓存与 mock 种子
+ *   - 后端不可达时只保留 localStorage 中的用户缓存
  */
 export function useEditableHoldings() {
   const [list, setList] = useLocalStorage<HoldingInput[]>(KEY, [])
-  const [seedCash, setSeedCash] = useLocalStorage<number>(CASH_KEY, 426300)
+  const [seedCash, setSeedCash] = useLocalStorage<number>(CASH_KEY, 0)
   const [seeded, setSeeded] = useState(false)
   const [mutationError, setMutationError] = useState('')
 
@@ -160,18 +160,8 @@ export function useEditableHoldings() {
     }
   }, [list, setList])
 
-  const reset = useCallback(async () => {
-    setMutationError('')
-    try {
-      const r = await api.resetHoldings()
-      setList(r.holdings.map((h) => ({ ...h })))
-    } catch {
-      setList([])
-    }
-  }, [setList])
-
   return {
-    list, add, update, remove, reset, commit, seeded, seedCash,
+    list, add, update, remove, commit, seeded, seedCash,
     resolveName, resolvingIds, mutationError,
   }
 }

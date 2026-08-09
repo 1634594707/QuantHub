@@ -2,6 +2,7 @@
 
 子包:
     - a_shares/   : sentiment, news_scanner, news_analyzer, selector, supertrend, morning_brief, perks_monitor, realtime_analyzer
+    - us_stocks/  : realtime_analyzer_us
     - crypto/     : okx_grid, alphagpt
     - mt5/        : alphamaster (AlphaMaster MT5 因子引擎)
     - ai_analysis/: pa_agent
@@ -43,6 +44,7 @@ _STRATEGY_MODULES: list[str] = [
     "strategies.a_shares.selector",
     "strategies.a_shares.morning_brief",
     "strategies.a_shares.realtime_analyzer",
+    "strategies.us_stocks.realtime_analyzer",
     "strategies.crypto.okx_grid",
     "strategies.crypto.alphagpt",
     "strategies.ai_analysis.pa_agent",
@@ -59,7 +61,7 @@ def discover_and_register() -> dict[str, Any]:
     for mod in _STRATEGY_MODULES:
         try:
             importlib.import_module(mod)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - one broken plugin must not block discovery
             failed.append(mod)
             logger.warning("策略模块加载失败: %s (%s)", mod, exc)
     if failed:

@@ -82,8 +82,6 @@ def _ensure_column(
 
 def _init() -> None:
     with _lock, _conn() as c:
-        holdings_existed = c.table_exists("holdings")
-        watchlist_existed = c.table_exists("watchlist")
         c.execute(
             """CREATE TABLE IF NOT EXISTS strategy_presets (
                 id TEXT PRIMARY KEY,
@@ -113,7 +111,7 @@ def _init() -> None:
                 ts REAL NOT NULL
             )"""
         )
-        # 持仓明细（用户可编辑，落库持久化；YAML 仅作首次播种）
+        # 持仓明细（用户可编辑，落库持久化）
         c.execute(
             """CREATE TABLE IF NOT EXISTS holdings (
                 id TEXT PRIMARY KEY,
@@ -143,13 +141,6 @@ def _init() -> None:
                 value TEXT NOT NULL
             )"""
         )
-        # 升级旧数据库时，无论列表当前是否为空，都视为已经完成过首次播种。
-        if holdings_existed:
-            c.execute("INSERT OR IGNORE INTO app_meta (key, value) VALUES ('holdings_seeded', '1')")
-        if watchlist_existed:
-            c.execute(
-                "INSERT OR IGNORE INTO app_meta (key, value) VALUES ('watchlist_seeded', '1')"
-            )
         # 信号中心（策略产出 + 手动发布，重启不丢）
         c.execute(
             """CREATE TABLE IF NOT EXISTS signals (
@@ -406,6 +397,8 @@ def _init() -> None:
         )
         permissions = (
             "read",
+            # 交易执行权限：只授予 admin / operator，reviewer 只能审信号不能下单。
+            "trading.write",
             "signals.write",
             "ledger.write",
             "strategy.write",
@@ -1179,54 +1172,6 @@ def delete_holding(hid: str) -> bool:
     return cursor.rowcount > 0
 
 
-def seed_holdings_if_empty(seeds: list[dict]) -> bool:
-    """首次启动时从 YAML 播种；用户主动清空后不再自动恢复种子。"""
-    with _lock, _conn() as c:
-        seeded = c.execute("SELECT value FROM app_meta WHERE key='holdings_seeded'").fetchone()
-        if seeded is not None:
-            return False
-        n = c.execute("SELECT COUNT(*) AS n FROM holdings").fetchone()["n"]
-        if n == 0:
-            for s in seeds:
-                c.execute(
-                    "INSERT INTO holdings (id, instrument_id, code, name, shares, cost, market, ts) VALUES (?,?,?,?,?,?,?,?)",
-                    (
-                        uuid.uuid4().hex[:12],
-                        _instrument_id(str(s["code"]), str(s.get("market", "a_shares"))),
-                        str(s["code"]),
-                        str(s["name"]),
-                        float(s["shares"]),
-                        float(s["cost"]),
-                        str(s.get("market", "a_shares")),
-                        _now(),
-                    ),
-                )
-        c.execute(
-            """INSERT INTO app_meta (key, value) VALUES ('holdings_seeded', '1')
-               ON CONFLICT(key) DO UPDATE SET value=excluded.value"""
-        )
-    return n == 0 and bool(seeds)
-
-
-def reset_holdings(seeds: list[dict]) -> list[dict]:
-    """清空 holdings 回到 YAML 种子。"""
-    with _lock, _conn() as c:
-        c.execute("DELETE FROM holdings")
-        c.execute(
-            """INSERT INTO app_meta (key, value) VALUES ('holdings_seeded', '1')
-               ON CONFLICT(key) DO UPDATE SET value=excluded.value"""
-        )
-    for s in seeds:
-        add_holding(
-            code=str(s["code"]),
-            name=str(s["name"]),
-            shares=float(s["shares"]),
-            cost=float(s["cost"]),
-            market=str(s.get("market", "a_shares")),
-        )
-    return list_holdings()
-
-
 # ---------------------------------------------------------------------------
 # 关注列表 watchlist（用户可编辑，落库持久化）
 # ---------------------------------------------------------------------------
@@ -1291,49 +1236,6 @@ def delete_watchlist(wid: str) -> bool:
     with _lock, _conn() as c:
         cursor = c.execute("DELETE FROM watchlist WHERE id=?", (wid,))
     return cursor.rowcount > 0
-
-
-def seed_watchlist_if_empty(seeds: list[dict]) -> bool:
-    with _lock, _conn() as c:
-        seeded = c.execute("SELECT value FROM app_meta WHERE key='watchlist_seeded'").fetchone()
-        if seeded is not None:
-            return False
-        n = c.execute("SELECT COUNT(*) AS n FROM watchlist").fetchone()["n"]
-        if n == 0:
-            for s in seeds:
-                c.execute(
-                    "INSERT INTO watchlist (id, instrument_id, sym, name, market, ts) VALUES (?,?,?,?,?,?)",
-                    (
-                        uuid.uuid4().hex[:12],
-                        _instrument_id(str(s["sym"]), str(s.get("market", "a_shares"))),
-                        str(s["sym"]),
-                        str(s["name"]),
-                        str(s.get("market", "a_shares")),
-                        _now(),
-                    ),
-                )
-        c.execute(
-            """INSERT INTO app_meta (key, value) VALUES ('watchlist_seeded', '1')
-               ON CONFLICT(key) DO UPDATE SET value=excluded.value"""
-        )
-    return n == 0 and bool(seeds)
-
-
-def reset_watchlist(seeds: list[dict]) -> list[dict]:
-    """清空 watchlist 回到 YAML 种子。"""
-    with _lock, _conn() as c:
-        c.execute("DELETE FROM watchlist")
-        c.execute(
-            """INSERT INTO app_meta (key, value) VALUES ('watchlist_seeded', '1')
-               ON CONFLICT(key) DO UPDATE SET value=excluded.value"""
-        )
-    for s in seeds:
-        add_watchlist(
-            sym=str(s["sym"]),
-            name=str(s["name"]),
-            market=str(s.get("market", "a_shares")),
-        )
-    return list_watchlist()
 
 
 # ---------------------------------------------------------------------------

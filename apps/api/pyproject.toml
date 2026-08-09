@@ -6,10 +6,12 @@ build-backend = "hatchling.build"
 name = "quanthub-api"
 version = "0.3.0"
 description = "QuantHub 统一 API 网关：单端口前端 / 企微 / 调度器调用全部已注册策略"
+license = "AGPL-3.0-or-later"
 requires-python = ">=3.11,<3.13"
 dependencies = [
     "quanthub-core",
     "quanthub-apps-pa-agent",
+    "ccxt>=4.3",
     "fastapi>=0.110",
     "uvicorn>=0.29",
     "apscheduler>=3.10",

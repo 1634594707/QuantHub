@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { api, getBase } from '../api/client'
+import { api, getApiToken, getBase, setApiToken } from '../api/client'
 import type { BackupRetentionResult, BackupVerification, DataSourceCheckResult, DataSourceOperation, NotificationChannelName } from '../api/types'
 import { useApi } from '../api/useApi'
 import { AsyncStateBoundary } from '../components/ui/AsyncStateBoundary/AsyncStateBoundary'
@@ -12,6 +12,7 @@ import { WorkspaceHeader } from '../components/WorkspaceHeader/WorkspaceHeader'
 import { useInterfaceMode } from '../hooks/useInterfaceMode'
 import { SegmentedControl } from '../components/ui/SegmentedControl/SegmentedControl'
 import { LLMProviderSettings } from '../components/settings/LLMProviderSettings'
+import { OkxDemoCredentials } from '../components/settings/OkxDemoCredentials'
 import s from './ConfigPage.module.css'
 
 const API_BASE_KEY = 'quanthub:api-base'
@@ -49,6 +50,12 @@ export default function ConfigPage() {
   const [notificationMessage, setNotificationMessage] = useState('')
   const [notificationError, setNotificationError] = useState('')
   const [interfaceMode, setInterfaceMode] = useInterfaceMode()
+  // M2-07：API 访问凭据的唯一设置入口（原治理页已下线）。
+  // 安全约束：凭据只写不回显，界面仅展示「是否已配置 + 末 4 位」。
+  const [credentialInput, setCredentialInput] = useState('')
+  const [credentialSaved, setCredentialSaved] = useState(() => getApiToken())
+  const [credentialNotice, setCredentialNotice] = useState('')
+  const tradingHealth = useApi(() => api.tradingHealth(), [], { retry: false })
   const dataStatus = useApi(
     () => api.dataSourceStatus(),
     [],
@@ -255,6 +262,109 @@ export default function ConfigPage() {
       <div className="card">
         <div className="card-head">
           <div className="card-title">
+            接入凭据
+            <span className="sub">连接远程 / 局域网网关时所需的访问令牌</span>
+          </div>
+        </div>
+        <div className={s.credentialBody}>
+          <div className={s.credentialStatus}>
+            当前状态：
+            <b>
+              {credentialSaved
+                ? `已配置 · 末 4 位 ${credentialSaved.slice(-4)}`
+                : '未配置（本机直连无需令牌）'}
+            </b>
+          </div>
+          <Input
+            type="password"
+            autoComplete="off"
+            value={credentialInput}
+            placeholder="粘贴访问令牌；保存后不再回显"
+            onChange={(event) => setCredentialInput(event.target.value)}
+          />
+          <div className={s.credentialActions}>
+            <Button
+              size="sm"
+              variant="primary"
+              disabled={!credentialInput.trim()}
+              onClick={() => {
+                const next = credentialInput.trim()
+                setApiToken(next)
+                setCredentialSaved(next)
+                setCredentialInput('')
+                setCredentialNotice('访问令牌已保存，后续请求将携带该凭据')
+                void systemStatus.refetch()
+              }}
+            >
+              保存
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={!credentialSaved}
+              onClick={() => {
+                setApiToken('')
+                setCredentialSaved('')
+                setCredentialInput('')
+                setCredentialNotice('访问令牌已清除')
+                void systemStatus.refetch()
+              }}
+            >
+              清除
+            </Button>
+          </div>
+          {credentialNotice && <div className={s.credentialNotice}>{credentialNotice}</div>}
+        </div>
+      </div>
+      <OkxDemoCredentials />
+      <div className="card">
+        <div className="card-head">
+          <div className="card-title">
+            OKX 交易通道
+            <span className="sub">Runner 连通性与实盘开关，只读展示</span>
+          </div>
+          <RefreshControl
+            onRefresh={tradingHealth.refetch}
+            refreshing={tradingHealth.loading || tradingHealth.reconnecting}
+            updatedAt={tradingHealth.updatedAt}
+          />
+        </div>
+        <div className={s.systemGrid}>
+          <span>
+            通道配置
+            <b>{tradingHealth.data?.data?.configured ? '已配置 Runner 地址' : '未配置'}</b>
+          </span>
+          <span>
+            连通性
+            <b>
+              {tradingHealth.error
+                ? '网关不可达'
+                : tradingHealth.data?.data?.reachable
+                  ? '可达'
+                  : '不可达'}
+            </b>
+          </span>
+          <span>
+            运行环境
+            <b>{tradingHealth.data?.data?.environment ?? '未知'}</b>
+          </span>
+          <span>
+            下单开关
+            <b>{tradingHealth.data?.data?.trading_enabled ? '已开启' : '已关闭'}</b>
+          </span>
+          <span>
+            实盘审批
+            <b>{tradingHealth.data?.data?.live_approved ? '已审批' : '未审批'}</b>
+          </span>
+          <span>
+            契约状态
+            <b>{tradingHealth.data?.status ?? '未读取'}</b>
+          </span>
+        </div>
+      </div>
+      <div className="card">
+        <div className="card-head">
+          <div className="card-title">
             界面模式
             <span className="sub">控制导航中显示的功能范围</span>
           </div>
@@ -268,7 +378,7 @@ export default function ConfigPage() {
               { value: 'advanced', label: '高级模式' },
             ]}
           />
-          <span>{interfaceMode === 'beginner' ? '显示驾驶舱、综合评估、自选、模拟交易和设置。' : '显示研究、策略、执行和运营的完整工作区。'}</span>
+          <span>{interfaceMode === 'beginner' ? '显示总览、自选、标的研究、模拟交易、账户账本与系统设置。' : '显示总览、市场研究、策略、交易、账户风控、设置六大工作区。'}</span>
         </div>
       </div>
       <div className="card">

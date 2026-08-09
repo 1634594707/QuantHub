@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
-import { api, getApiToken, setApiToken } from '../api/client'
+import { Link } from 'react-router-dom'
+import { api, getApiToken } from '../api/client'
 import type { ApiTokenRecord, GovernanceAuditLog } from '../api/types'
 import { useApi } from '../api/useApi'
 import { AsyncStateBoundary } from '../components/ui/AsyncStateBoundary/AsyncStateBoundary'
@@ -89,7 +90,10 @@ export default function GovernancePage() {
   const systemStatus = useApi(() => api.configSystemStatus(), [], { retry: false })
   const [view, setView] = useState<GovernanceView>('members')
   const [auditFilter, setAuditFilter] = useState('all')
-  const [credential, setCredential] = useState(() => getApiToken())
+  // 只读展示当前凭据配置状态；写入入口在 ConfigPage（M2-07 收口）
+  const credentialToken = getApiToken()
+  const credentialConfigured = credentialToken.length > 0
+  const credentialTail = credentialToken.slice(-4)
   const [username, setUsername] = useState('')
   const [displayName, setDisplayName] = useState('')
   const [newUserRoles, setNewUserRoles] = useState<string[]>(['viewer'])
@@ -365,22 +369,13 @@ export default function GovernancePage() {
 
       {view === 'tokens' && (
         <div className={s.viewContent} role="tabpanel">
-          <details className={s.advancedPanel}>
-            <summary><span>连接其他部署</span><small>只有连接局域网或远程 QuantHub 时才需要</small></summary>
-            <div className={s.credentialBand}>
-              <label>管理令牌<input type="password" value={credential} autoComplete="off"
-                placeholder="粘贴管理员提供的令牌"
-                onChange={(event) => setCredential(event.target.value)} /></label>
-              <div className={s.credentialActions}>
-                <Button size="sm" variant="primary" onClick={() => {
-                  setApiToken(credential)
-                  setNotice(credential.trim() ? '管理令牌已保存' : '管理令牌已清除')
-                  refresh()
-                }}>保存并连接</Button>
-                <Button size="sm" variant="ghost" onClick={() => { setCredential(''); setApiToken(''); refresh() }}>清除</Button>
-              </div>
-            </div>
-          </details>
+          {/* M2-07：本机访问凭据的设置入口已统一收口到「设置 / 系统设置」，此处只做指引，避免双写。 */}
+          <div className={s.credentialBand}>
+            <span>
+              本机访问凭据{credentialConfigured ? `已配置（末 4 位 ${credentialTail}）` : '未配置'}，
+              统一在 <Link to="/config">设置 / 系统设置 · 接入凭据</Link> 中维护。
+            </span>
+          </div>
 
           <section className={common.section}>
             <div className={common.sectionHead}><div><h2>创建访问令牌</h2><span>用于自动化脚本或其他设备，明文只显示一次</span></div></div>

@@ -1,0 +1,117 @@
+/* 交易工作台（M2-05）。桌面两列表单，移动端单列，禁止横向溢出。 */
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  min-width: 0;
+}
+
+/* M2-08：交易工作区页内互链，移动端换行不溢出，触控目标不小于 32px 高。 */
+.crossLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.crossLinks a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-pill, 999px);
+  background: var(--surface-2, transparent);
+  color: var(--ink-2, inherit);
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.crossLinks a:hover,
+.crossLinks a:focus-visible {
+  color: var(--ink-1, inherit);
+  border-color: var(--accent, var(--border));
+}
+
+.blocked {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  align-items: baseline;
+  padding: var(--sp-3);
+  border: 1px solid var(--warn);
+  border-radius: var(--r-card);
+  background: var(--warn-weak);
+  color: var(--warn-ink);
+  font-size: 13px;
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+.notional {
+  margin: var(--sp-3) 0 0;
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.formError {
+  margin: var(--sp-2) 0 0;
+  font-size: 13px;
+  color: var(--down-ink);
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-top: var(--sp-4);
+}
+
+.receipt {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+  min-width: 0;
+}
+
+.json {
+  margin: 0;
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  background: var(--bg-subtle);
+  color: var(--text-1);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  line-height: 1.6;
+  max-height: 320px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.lookupRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.lookupRow > *:first-child {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
+@media (max-width: 720px) {
+  .formGrid {
+    grid-template-columns: 1fr;
+  }
+}

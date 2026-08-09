@@ -1,0 +1,17 @@
+name: QuantHub OKX Runner
+on:
+  push:
+    paths: ["apps/okx_runner/**", "packages/**", "tests/split/test_okx_*.py", "tests/split/test_product_auth.py", "tests/split/test_product_backup.py", "tests/split/test_product_migrations.py", "docker/Dockerfile.okx-runner", ".github/workflows/okx-runner.yml"]
+  pull_request:
+    paths: ["apps/okx_runner/**", "packages/**", "tests/split/test_okx_*.py", "tests/split/test_product_auth.py", "tests/split/test_product_backup.py", "tests/split/test_product_migrations.py", "docker/Dockerfile.okx-runner", ".github/workflows/okx-runner.yml"]
+jobs:
+  okx-runner:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
+      - run: uv python install 3.11
+      - run: uv sync --locked --group test
+      - run: uv run python -m unittest tests.split.test_core_contracts tests.split.test_okx_ccxt_adapter tests.split.test_okx_runner_product tests.split.test_product_auth tests.split.test_product_migrations tests.split.test_product_backup -v
+      - run: uv run python tools/check_product_secrets.py --product okx-runner
+      - run: docker build -f docker/Dockerfile.okx-runner -t quanthub-okx-runner:ci .

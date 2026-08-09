@@ -26,6 +26,12 @@ from datetime import datetime
 from pathlib import Path
 
 from dotenv import load_dotenv
+
+# 必须在 import 任何业务模块之前加载 .env，避免 get_config() 在 _apply_llm_env_overrides
+# 触发时被 @cache 锁住 default provider，导致 apps/api/.env 里的
+# QUANTHUB_LLM_PROVIDER / QUANTHUB_CUSTOM_LLM_API_KEY 等覆盖项失效
+load_dotenv(Path(os.environ.get("QUANTHUB_ENV_PATH", Path(__file__).resolve().parent / ".env")))
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -59,9 +65,7 @@ from .domains.simulation import router as simulation_router
 from .domains.strategies import router as strategies_router
 from .domains.strategy_lab import router as strategy_lab_router
 from .domains.tasks import router as tasks_router
-
-# 加载 apps/api/.env（含 DEEPSEEK_API_KEY 等密钥）；文件缺失时静默跳过
-load_dotenv(Path(os.environ.get("QUANTHUB_ENV_PATH", Path(__file__).resolve().parent / ".env")))
+from .domains.trading import router as trading_router
 
 logger = logging.getLogger(__name__)
 
@@ -181,6 +185,8 @@ app.include_router(ledger_router)
 app.include_router(automation_router)
 app.include_router(backups_router)
 app.include_router(governance_router)
+# 交易域是浏览器访问 OKX Runner 的唯一通路；前端不得直连 Runner。
+app.include_router(trading_router)
 
 
 # ---------------------------------------------------------------------------

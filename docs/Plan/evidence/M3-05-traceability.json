@@ -1,0 +1,28 @@
+{
+  "task": "M3-05",
+  "generated_at": "2026-08-09T23:57:00+08:00",
+  "implementation": {
+    "database": "Runner-owned temporary SQLite database in tests",
+    "order_trace": ["orders", "order_events", "risk_decisions", "external_order_id"],
+    "fill_trace": ["fills", "external_fill_id", "order_id", "external_source=okx"],
+    "account_trace": ["balance_snapshots", "position_snapshots", "observed_at", "external_source=okx"],
+    "audit_trace": ["audit_events.reconciliation_completed", "source", "observed_at", "imported_fill_ids"]
+  },
+  "test": {
+    "name": "tests.split.test_okx_runner_product.RunnerProductTests.test_external_account_state_is_traceable_and_refresh_is_idempotent",
+    "external_observed_at": "2026-08-09T06:30:00+00:00",
+    "reconciliation_runs": 2,
+    "rows_after_two_identical_reconciliations": {
+      "orders": 1,
+      "fills": 1,
+      "balance_snapshots": 1,
+      "position_snapshots": 1
+    },
+    "two_account_reads_identical": true,
+    "reads_changed_row_counts": false,
+    "full_backend_gate_tests": 225,
+    "failures": 0
+  },
+  "production_store_untouched": true,
+  "passed": true
+}

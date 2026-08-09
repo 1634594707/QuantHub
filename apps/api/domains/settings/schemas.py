@@ -2,7 +2,21 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, SecretStr, field_validator
+
+
+class OkxDemoCredentialsUpdate(BaseModel):
+    api_key: SecretStr = Field(min_length=1, max_length=512, repr=False)
+    secret_key: SecretStr = Field(min_length=1, max_length=512, repr=False)
+    passphrase: SecretStr = Field(min_length=1, max_length=512, repr=False)
+
+    @field_validator("api_key", "secret_key", "passphrase")
+    @classmethod
+    def validate_credential(cls, value: SecretStr) -> SecretStr:
+        plaintext = value.get_secret_value().strip()
+        if not plaintext or "\n" in plaintext or "\r" in plaintext:
+            raise ValueError("OKX credential fields must be non-empty single-line values")
+        return SecretStr(plaintext)
 
 
 class ApiKeyUpdate(BaseModel):

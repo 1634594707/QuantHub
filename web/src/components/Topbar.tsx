@@ -58,25 +58,24 @@ export default function Topbar({
 
       <div className="topbar-spacer" />
 
-      {/* 实时信号计数（来自信号总线） */}
-      <div className="topbar-pill signal-pill" title="实时信号总线">
+      {/* 信号计数 */}
+      <div className="topbar-pill signal-pill" title="待审核信号">
         <IconBell />
         <span className="mono">{signalCount}</span>
-        <span className="pill-label">信号</span>
       </div>
 
-      {/* 后端连接状态 */}
+      {/* 连接状态 */}
       <div
         className={`topbar-pill connection-pill ${connectionState}`}
-        title={`${connection.detail}${health ? ` · ${health.strategies} 策略` : ''}`}
+        title={connection.detail}
       >
         <span className="dot" />
         {connection.short}
       </div>
 
-      <div className="market-status" title={health ? `版本 ${health.version} · live_trading=${health.live_trading}` : 'A股交易中'}>
+      <div className="market-status" title={health ? `v${health.version}` : ''}>
         <span className="dot" />
-        <span>{health?.live_trading ? '实盘模式' : '研究模式'}</span>
+        <span>{health?.live_trading ? '实盘' : '研究'}</span>
         {health && <span className="time">· {health.strategies} 策略</span>}
       </div>
 

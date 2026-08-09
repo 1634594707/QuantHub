@@ -1,1 +1,1 @@
-export { KpiCard, KpiCardLegacy, default as KpiCardDefault } from './KpiCard'
+export { KpiCard } from './KpiCard'

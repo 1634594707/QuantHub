@@ -335,7 +335,7 @@ def pa_analyze(
     - 分析复用 ``strategies.ai_analysis.pa_agent.two_stage.run_two_stage``
     - 视图渲染复用 ``pa_agent.view_models`` 共享层
     - 成功后把行情快照与模型输出写入 ``ResearchRun`` 证据，支持传入 ``research_run_id`` 复用同一运行
-    - 失败时 ``ok=false`` 并附带错误信息，前端可降级到 mock
+    - 失败时 ``ok=false`` 并附带错误信息，前端必须渲染空态/错误态，禁止填充替代数据
     """
     actual_market = _resolve_pa_market(symbol, market)
 

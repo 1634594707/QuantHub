@@ -21,10 +21,6 @@ def update_live(allocation_id: str, live: bool) -> None:
     store.update_alloc_live(allocation_id, live)
 
 
-def seed_holdings(seeds: list[dict]) -> bool:
-    return store.seed_holdings_if_empty(seeds)
-
-
 def list_holdings() -> list[dict]:
     return store.list_holdings()
 
@@ -43,14 +39,6 @@ def delete_holding(holding_id: str) -> bool:
     return store.delete_holding(holding_id)
 
 
-def reset_holdings(seeds: list[dict]) -> list[dict]:
-    return store.reset_holdings(seeds)
-
-
-def seed_watchlist(seeds: list[dict]) -> bool:
-    return store.seed_watchlist_if_empty(seeds)
-
-
 def list_watchlist() -> list[dict]:
     return store.list_watchlist()
 
@@ -65,7 +53,3 @@ def update_watchlist(watch_id: str, patch: dict) -> dict | None:
 
 def delete_watchlist(watch_id: str) -> bool:
     return store.delete_watchlist(watch_id)
-
-
-def reset_watchlist(seeds: list[dict]) -> list[dict]:
-    return store.reset_watchlist(seeds)

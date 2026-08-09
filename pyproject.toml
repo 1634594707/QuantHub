@@ -75,6 +75,7 @@ members = [
     "apps/dispatcher",
     "apps/scheduler",
     "apps/api",
+    "apps/okx_runner",
     "strategies/a_shares/sentiment",
     "strategies/a_shares/news_scanner",
     "strategies/a_shares/news_analyzer",

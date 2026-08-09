@@ -12,6 +12,12 @@
 import type {
   ApiKeyResp,
   AnalysisTask,
+  ContractEnvelope,
+  RiskMode,
+  TradingHealth,
+  TradingOrderIntent,
+  OkxDemoCredentialStatus,
+  OkxDemoConnectionTest,
   AnalysisTaskKind,
   AnalysisTaskStatus,
   AlertEvent,
@@ -599,8 +605,6 @@ export const api = {
     }),
   deleteHolding: (id: string) =>
     getJSON<{ ok: boolean }>(`/portfolio/holdings/${encodeURIComponent(id)}`, { method: 'DELETE' }),
-  resetHoldings: () =>
-    getJSON<{ ok: boolean; holdings: HoldingCRUDResp[] }>('/portfolio/holdings/reset', { method: 'POST' }),
 
   marketBreadth: () => getJSON<MarketBreadthResp>('/market/breadth'),
 
@@ -1336,6 +1340,22 @@ export const api = {
   testLLMConnection: () =>
     getJSON<LLMConnectionTestResp>('/config/llm/test', { method: 'POST' }),
 
+  okxDemoCredentialStatus: () =>
+    getJSON<OkxDemoCredentialStatus>('/config/okx-demo'),
+
+  saveOkxDemoCredentials: (payload: { api_key: string; secret_key: string; passphrase: string }) =>
+    getJSON<OkxDemoCredentialStatus>('/config/okx-demo', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }),
+
+  testOkxDemoConnection: () =>
+    getJSON<OkxDemoConnectionTest>('/config/okx-demo/test', { method: 'POST' }),
+
+  deleteOkxDemoCredentials: () =>
+    getJSON<OkxDemoCredentialStatus>('/config/okx-demo', { method: 'DELETE' }),
+
   // ---- Instrument 标的主数据 ----
   instruments: (q = '', limit = 50, market?: string) => {
     const params = new URLSearchParams({ q, limit: String(limit) })
@@ -1828,4 +1848,61 @@ export const api = {
   }>('/news/events/research', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
   }),
+
+  // ---- 交易域（M1-02）：浏览器唯一通往 OKX Runner 的通路 ----
+  // 前端不得直接配置 / 访问 Runner URL 与 Runner Token，全部经 /api/trading/*。
+  tradingHealth: () => getJSON<ContractEnvelope<TradingHealth>>('/trading/health'),
+
+  tradingDashboard: () =>
+    getJSON<ContractEnvelope<Record<string, unknown>>>('/trading/dashboard'),
+
+  tradingAccount: (accountId: string) =>
+    getJSON<ContractEnvelope<Record<string, unknown>>>(
+      '/trading/accounts/' + encodeURIComponent(accountId),
+    ),
+
+  tradingOrder: (orderId: string) =>
+    getJSON<ContractEnvelope<Record<string, unknown>>>(
+      '/trading/orders/' + encodeURIComponent(orderId),
+    ),
+
+  tradingSubmitOrder: (intent: TradingOrderIntent) =>
+    getJSON<ContractEnvelope<Record<string, unknown>>>('/trading/orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(intent),
+    }),
+
+  tradingCancelOrder: (orderId: string) =>
+    getJSON<ContractEnvelope<Record<string, unknown>>>(
+      '/trading/orders/' + encodeURIComponent(orderId) + '/cancel',
+      { method: 'POST' },
+    ),
+
+  tradingRecoverOrders: () =>
+    getJSON<ContractEnvelope<Record<string, unknown>>>('/trading/recovery/orders', { method: 'POST' }),
+
+  tradingReconcile: (accountId: string) =>
+    getJSON<ContractEnvelope<Record<string, unknown>>>(
+      '/trading/reconciliation/' + encodeURIComponent(accountId),
+      { method: 'POST' },
+    ),
+
+  tradingReconciliationDiff: (diffId: string) =>
+    getJSON<ContractEnvelope<Record<string, unknown>>>(
+      '/trading/reconciliation/diffs/' + encodeURIComponent(diffId),
+    ),
+
+  tradingResolveDiff: (diffId: string, payload: { owner: string; resolution: string }) =>
+    getJSON<ContractEnvelope<Record<string, unknown>>>(
+      '/trading/reconciliation/diffs/' + encodeURIComponent(diffId) + '/resolve',
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) },
+    ),
+
+  tradingSetRiskMode: (payload: { scope?: string; mode: RiskMode; reason: string; operator: string }) =>
+    getJSON<ContractEnvelope<Record<string, unknown>>>('/trading/risk/mode', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ scope: 'global', ...payload }),
+    }),
 }

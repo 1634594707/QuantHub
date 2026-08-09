@@ -6,10 +6,9 @@ import {
   IconBell,
   IconChart,
   IconCog,
-  IconFlask,
+  IconCrosshair,
   IconGrid,
   IconLayers,
-  IconNetwork,
   IconSearch,
   IconSignal,
   IconWallet,
@@ -17,7 +16,12 @@ import {
 
 type WorkspaceIcon = ComponentType<{ size?: number; className?: string }>
 
-export type WorkspaceKey = 'cockpit' | 'research' | 'strategy' | 'execution' | 'operations'
+/**
+ * 一级导航固定为六类（路线图 3. 功能边界与导航重构 / M2-01）：
+ * 总览 / 市场研究 / 策略 / 交易 / 账户风控 / 设置。
+ * 每个功能只允许一个主入口，详情走二级页或抽屉，禁止重复菜单。
+ */
+export type WorkspaceKey = 'overview' | 'market' | 'strategy' | 'trading' | 'risk' | 'settings'
 
 export interface WorkspaceNavItem {
   key: string
@@ -48,25 +52,34 @@ export interface RoutePresentation {
 
 export const WORKSPACES: WorkspaceDefinition[] = [
   {
-    key: 'cockpit',
-    label: '驾驶舱',
-    shortLabel: '驾驶舱',
+    key: 'overview',
+    label: '总览',
+    shortLabel: '总览',
     to: '/',
     icon: IconGrid,
     items: [
-      { key: 'overview', label: '总览', to: '/', icon: IconGrid, end: true, searchKeywords: '概览 驾驶舱' },
+      { key: 'overview', label: '总览', to: '/', icon: IconGrid, end: true, searchKeywords: '概览 驾驶舱 权益 盈亏 行动队列' },
     ],
   },
   {
-    key: 'research',
-    label: '研究',
+    key: 'market',
+    label: '市场研究',
     shortLabel: '研究',
     to: '/evaluate',
     icon: IconChart,
     items: [
-      { key: 'evaluation', label: '综合评估', to: '/evaluate', icon: IconChart, matchPrefixes: ['/evaluate', '/research', '/news', '/pa', '/ensemble'], searchKeywords: '股票 标的 研究 评估 新闻 价格行为 模型共识 AI' },
-      { key: 'factor-validation', label: '因子验证', to: '/factor-research', icon: IconBeaker, searchKeywords: '量化 因子 样本外 IC 回撤 动量 趋势' },
+      {
+        key: 'evaluation',
+        label: '标的研究',
+        to: '/evaluate',
+        icon: IconChart,
+        // 新闻 / 价格结构 / 模型共识 只作为标的研究页内模块，不再有独立一级入口。
+        matchPrefixes: ['/evaluate', '/research', '/news', '/pa', '/ensemble'],
+        searchKeywords: '股票 标的 研究 评估 新闻 K线 行情 价格行为 模型共识 AI',
+      },
+      { key: 'radar', label: '信号雷达', to: '/radar', icon: IconCrosshair, searchKeywords: '雷达 标的 信号 多标的 自选 收藏' },
       { key: 'tasks', label: '研究任务', to: '/tasks', icon: IconActivity, searchKeywords: '研究 分析 任务 队列' },
+      { key: 'instruments', label: '标的与数据', to: '/instruments', icon: IconSearch, searchKeywords: '股票 市场 标的 主数据 数据源' },
     ],
   },
   {
@@ -76,46 +89,55 @@ export const WORKSPACES: WorkspaceDefinition[] = [
     to: '/strategies',
     icon: IconLayers,
     items: [
-      { key: 'strategy', label: '策略运行', to: '/strategies', icon: IconLayers, matchPrefixes: ['/strategies'], searchKeywords: '已安装 策略 运行 参数 回测' },
-      { key: 'strategy-lab', label: '策略实验', to: '/strategy-lab', icon: IconFlask, searchKeywords: '策略 实验 版本 回测 对比' },
+      { key: 'strategy', label: '策略运行', to: '/strategies', icon: IconLayers, matchPrefixes: ['/strategies'], searchKeywords: '已安装 策略 运行 版本 参数 最近信号' },
       { key: 'portfolio', label: '策略组合', to: '/portfolio', icon: IconLayers, searchKeywords: '策略 分配 组合 权重' },
     ],
   },
   {
-    key: 'execution',
-    label: '执行',
-    shortLabel: '执行',
-    to: '/signals',
+    key: 'trading',
+    label: '交易',
+    shortLabel: '交易',
+    to: '/trading',
     icon: IconSignal,
     items: [
-      { key: 'signal', label: '信号审核', to: '/signals', icon: IconSignal, searchKeywords: '信号 审核 决策' },
-      { key: 'simulation', label: '模拟交易', to: '/simulation', icon: IconBeaker, searchKeywords: '模拟 交易 订单 成交' },
-      { key: 'ledger', label: '账户账本', to: '/ledger', icon: IconWallet, searchKeywords: '账户 账本 持仓 成交 现金 绩效' },
+      { key: 'trading', label: '交易工作台', to: '/trading', icon: IconSignal, searchKeywords: 'OKX 实盘 下单 撤单 订单 成交 限价单 永续' },
+      { key: 'signal', label: '信号审核', to: '/signals', icon: IconCrosshair, searchKeywords: '信号 审核 决策 放行 驳回' },
+      { key: 'simulation', label: '模拟交易', to: '/simulation', icon: IconBeaker, searchKeywords: '模拟 纸面 交易 订单 成交' },
+    ],
+  },
+  {
+    key: 'risk',
+    label: '账户风控',
+    shortLabel: '风控',
+    to: '/account-risk',
+    icon: IconWallet,
+    items: [
+      { key: 'account-risk', label: '账户与风控', to: '/account-risk', icon: IconWallet, searchKeywords: '余额 持仓 保证金 风险率 风险模式 停机 对账 差异' },
+      { key: 'ledger', label: '账户账本', to: '/ledger', icon: IconWallet, searchKeywords: '账本 持仓 成交 现金 绩效' },
       { key: 'alerts', label: '价格提醒', to: '/alerts', icon: IconBell, searchKeywords: '提醒 价格 涨跌 波动 风险' },
     ],
   },
   {
-    key: 'operations',
-    label: '运营',
-    shortLabel: '运营',
-    to: '/instruments',
+    key: 'settings',
+    label: '设置',
+    shortLabel: '设置',
+    to: '/config',
     icon: IconCog,
     items: [
-      { key: 'instrument', label: '标的与数据', to: '/instruments', icon: IconSearch, searchKeywords: '股票 市场 标的 主数据 数据源' },
-      { key: 'automation', label: '作业调度', to: '/automation', icon: IconActivity, searchKeywords: '自动化 调度 作业 运行 告警' },
+      { key: 'config', label: '系统设置', to: '/config', icon: IconCog, searchKeywords: '数据源 模型 OKX 交易开关 账户映射 通知 备份' },
+      { key: 'automation', label: '作业调度', to: '/automation', icon: IconActivity, searchKeywords: '自动化 调度 作业 运行' },
       { key: 'incidents', label: '运行故障', to: '/incidents', icon: IconBell, searchKeywords: '故障 状态 异常 恢复' },
-      { key: 'governance', label: '成员权限', to: '/governance', icon: IconNetwork, searchKeywords: '成员 访问 权限 令牌 审计' },
-      { key: 'config', label: '系统设置', to: '/config', icon: IconCog, searchKeywords: '系统 设置 配置 数据源 备份' },
     ],
   },
 ]
 
 export function workspacesForMode(mode: InterfaceMode): WorkspaceDefinition[] {
   if (mode === 'advanced') return WORKSPACES
+  // 新手模式只暴露读多写少的最小闭环：总览 / 自选 / 标的研究 / 模拟交易 / 设置。
   return WORKSPACES
     .filter((workspace) => workspace.key !== 'strategy')
     .map((workspace) => {
-      if (workspace.key === 'cockpit') {
+      if (workspace.key === 'overview') {
         return {
           ...workspace,
           items: [
@@ -124,45 +146,42 @@ export function workspacesForMode(mode: InterfaceMode): WorkspaceDefinition[] {
           ],
         }
       }
-      if (workspace.key === 'research') {
+      if (workspace.key === 'market') {
         return { ...workspace, items: workspace.items.filter((item) => item.key === 'evaluation') }
       }
-      if (workspace.key === 'execution') {
+      if (workspace.key === 'trading') {
+        // 新手模式不暴露实盘交易台与信号审核，只保留模拟盘。
         return { ...workspace, to: '/simulation', items: workspace.items.filter((item) => item.key === 'simulation') }
       }
-      return {
-        ...workspace,
-        label: '设置',
-        shortLabel: '设置',
-        to: '/config',
-        items: workspace.items.filter((item) => item.key === 'config').map((item) => ({ ...item, label: '设置' })),
+      if (workspace.key === 'risk') {
+        return { ...workspace, to: '/ledger', items: workspace.items.filter((item) => item.key === 'ledger') }
       }
+      return { ...workspace, items: workspace.items.filter((item) => item.key === 'config') }
     })
 }
 
 export const ROUTE_PRESENTATIONS: RoutePresentation[] = [
-  { workspaceKey: 'cockpit', board: 'overview', label: '总览', exact: '/' },
-  { workspaceKey: 'research', board: 'evaluation', label: '综合评估', prefix: '/evaluate' },
-  { workspaceKey: 'research', board: 'example', label: '只读示例', prefix: '/example' },
-  { workspaceKey: 'research', board: 'evaluation', label: '综合评估', prefix: '/research' },
-  { workspaceKey: 'research', board: 'evaluation-news', label: '综合评估 · 新闻证据', prefix: '/news' },
-  { workspaceKey: 'research', board: 'evaluation-pa', label: '综合评估 · 价格结构', prefix: '/pa' },
-  { workspaceKey: 'research', board: 'evaluation-consensus', label: '综合评估 · 模型共识', prefix: '/ensemble' },
-  { workspaceKey: 'research', board: 'factor-validation', label: '因子验证', prefix: '/factor-research' },
-  { workspaceKey: 'research', board: 'tasks', label: '研究任务', prefix: '/tasks' },
-  { workspaceKey: 'strategy', board: 'strategy-lab', label: '策略实验', prefix: '/strategy-lab' },
-  { workspaceKey: 'strategy', board: 'portfolio', label: '策略组合', prefix: '/portfolio' },
+  { workspaceKey: 'overview', board: 'overview', label: '总览', exact: '/' },
+  { workspaceKey: 'market', board: 'evaluation', label: '标的研究', prefix: '/evaluate' },
+  { workspaceKey: 'market', board: 'evaluation', label: '标的研究', prefix: '/research' },
+  { workspaceKey: 'market', board: 'evaluation-news', label: '标的研究 · 新闻证据', prefix: '/news' },
+  { workspaceKey: 'market', board: 'evaluation-pa', label: '标的研究 · 价格结构', prefix: '/pa' },
+  { workspaceKey: 'market', board: 'evaluation-consensus', label: '标的研究 · 模型共识', prefix: '/ensemble' },
+  { workspaceKey: 'market', board: 'radar', label: '信号雷达', prefix: '/radar' },
+  { workspaceKey: 'market', board: 'tasks', label: '研究任务', prefix: '/tasks' },
+  { workspaceKey: 'market', board: 'instruments', label: '标的与数据', prefix: '/instruments' },
   { workspaceKey: 'strategy', board: 'workbench', label: '策略运行', prefix: '/strategies/' },
   { workspaceKey: 'strategy', board: 'library', label: '策略运行', prefix: '/strategies' },
-  { workspaceKey: 'execution', board: 'signals', label: '信号审核', prefix: '/signals' },
-  { workspaceKey: 'execution', board: 'simulation', label: '模拟交易', prefix: '/simulation' },
-  { workspaceKey: 'execution', board: 'ledger', label: '账户账本', prefix: '/ledger' },
-  { workspaceKey: 'execution', board: 'alerts', label: '价格提醒', prefix: '/alerts' },
-  { workspaceKey: 'operations', board: 'instruments', label: '标的与数据', prefix: '/instruments' },
-  { workspaceKey: 'operations', board: 'automation', label: '作业调度', prefix: '/automation' },
-  { workspaceKey: 'operations', board: 'incidents', label: '运行故障', prefix: '/incidents' },
-  { workspaceKey: 'operations', board: 'governance', label: '成员权限', prefix: '/governance' },
-  { workspaceKey: 'operations', board: 'config', label: '系统设置', prefix: '/config' },
+  { workspaceKey: 'strategy', board: 'portfolio', label: '策略组合', prefix: '/portfolio' },
+  { workspaceKey: 'trading', board: 'trading', label: '交易工作台', prefix: '/trading' },
+  { workspaceKey: 'trading', board: 'signals', label: '信号审核', prefix: '/signals' },
+  { workspaceKey: 'trading', board: 'simulation', label: '模拟交易', prefix: '/simulation' },
+  { workspaceKey: 'risk', board: 'account-risk', label: '账户与风控', prefix: '/account-risk' },
+  { workspaceKey: 'risk', board: 'ledger', label: '账户账本', prefix: '/ledger' },
+  { workspaceKey: 'risk', board: 'alerts', label: '价格提醒', prefix: '/alerts' },
+  { workspaceKey: 'settings', board: 'config', label: '系统设置', prefix: '/config' },
+  { workspaceKey: 'settings', board: 'automation', label: '作业调度', prefix: '/automation' },
+  { workspaceKey: 'settings', board: 'incidents', label: '运行故障', prefix: '/incidents' },
 ]
 
 export function presentationForPath(pathname: string): RoutePresentation {

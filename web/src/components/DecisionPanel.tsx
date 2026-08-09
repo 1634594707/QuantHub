@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
-import type { Decision, Direction } from '../data/mock'
+import type { Decision, Direction } from '../data/types'
 import { api } from '../api/client'
 import { executeAnalysisTask } from '../api/taskRunner'
 import type { DecisionTreeView, DecisionView, FutureTrendView, PaAnalyzeResp } from '../api/types'

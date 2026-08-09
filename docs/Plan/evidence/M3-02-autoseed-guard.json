@@ -1,0 +1,30 @@
+{
+  "task": "M3-02",
+  "purpose": "反向验证空库读取守卫（注入生产演示写入必失败，修复后必通过）",
+  "generated_at": "2026-08-09T21:38:36+0800",
+  "subject_file": "apps/api/domains/portfolio/service.py",
+  "subject_sha256_before": "4405a843109b969908ddb5bcce4e3785657f6dc9f77484f41367dc3ea066c482",
+  "subject_sha256_after_restore": "4405a843109b969908ddb5bcce4e3785657f6dc9f77484f41367dc3ea066c482",
+  "source_restored_byte_identical": true,
+  "injected_lines": [
+    "repository.add_holding(\"M3-GUARD\", \"guard\", 1, 1, \"a_shares\")",
+    "repository.add_watchlist(\"M3-GUARD\", \"guard\", \"a_shares\")"
+  ],
+  "run_with_bug_reintroduced": {
+    "exit_code": 1,
+    "tests_run": 5,
+    "passed": false,
+    "failed_tests": [
+      "test_http_first_open_keeps_database_empty",
+      "test_portfolio_snapshot_does_not_autoseed",
+      "test_watchlist_snapshot_does_not_autoseed"
+    ]
+  },
+  "run_with_fix_in_place": {
+    "exit_code": 0,
+    "tests_run": 5,
+    "passed": true,
+    "failed_tests": []
+  },
+  "guard_is_effective": true
+}
