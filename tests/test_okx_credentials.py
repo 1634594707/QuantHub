@@ -36,9 +36,14 @@ class OkxCredentialVaultTests(unittest.TestCase):
 
     def test_dpapi_round_trip_never_writes_plaintext(self) -> None:
         marker = "SYNTHETIC-OKX-SECRET-DO-NOT-LEAK"
-        status = save_okx_demo_credentials(
-            OkxCredentials("synthetic-api-key", marker, "synthetic-passphrase")
-        )
+        credentials = OkxCredentials("synthetic-api-key", marker, "synthetic-passphrase")
+        if sys.platform != "win32":
+            with self.assertRaisesRegex(RuntimeError, "requires Windows DPAPI"):
+                save_okx_demo_credentials(credentials)
+            self.assertFalse(self.vault_path.exists())
+            return
+
+        status = save_okx_demo_credentials(credentials)
 
         self.assertTrue(status["configured"])
         self.assertNotIn(marker.encode(), self.vault_path.read_bytes())
@@ -48,6 +53,7 @@ class OkxCredentialVaultTests(unittest.TestCase):
         self.assertNotIn(marker, rendered_status)
         self.assertNotIn("synthetic-passphrase", rendered_status)
 
+    @unittest.skipUnless(sys.platform == "win32", "Windows DPAPI is required")
     def test_delete_removes_the_encrypted_file(self) -> None:
         save_okx_demo_credentials(OkxCredentials("key", "secret", "passphrase"))
         result = delete_okx_demo_credentials()

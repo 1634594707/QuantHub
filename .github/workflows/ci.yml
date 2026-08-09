@@ -49,7 +49,7 @@ jobs:
         run: uv run python -c "from apps.api.main import app; assert app.title"
 
       - name: Product workflow tests
-        run: uv run python -m unittest discover -s tests -p "test_*.py"
+        run: uv run --frozen python -B tools/run_backend_tests.py
 
   container:
     needs: [frontend, backend]
