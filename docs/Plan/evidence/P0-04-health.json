@@ -1,0 +1,25 @@
+{
+  "task": "P0-04-health",
+  "generated_at": "2026-08-09T16:26:55+0800",
+  "endpoint": "/health",
+  "status_code": 200,
+  "body": {
+    "status": "ok",
+    "time": "2026-08-09T16:26:55+08:00",
+    "strategies": 13,
+    "live_trading": false,
+    "version": "0.3.0",
+    "deployment_mode": "local",
+    "started_at": "2026-08-09T16:26:55+08:00",
+    "build_id": "10268cae402a",
+    "current_source_build_id": "10268cae402a",
+    "restart_required": false
+  },
+  "duration_ms": 221.6,
+  "isolated_store_path": "D:\\Administrator\\Desktop\\finance\\logs\\test-store\\pid-16256\\store.db",
+  "production_store_path": "D:\\Administrator\\Desktop\\finance\\apps\\api\\store.db",
+  "production_sha256_before": "02b86fb8101797f4a45f63587101911537be9a03b9dae44bee5da41d89c2f1d7",
+  "production_sha256_after": "02b86fb8101797f4a45f63587101911537be9a03b9dae44bee5da41d89c2f1d7",
+  "production_untouched": true,
+  "passed": true
+}

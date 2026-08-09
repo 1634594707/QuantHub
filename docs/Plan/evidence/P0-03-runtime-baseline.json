@@ -1,0 +1,3890 @@
+{
+  "generated_at": "2026-08-09T14:50:48+08:00",
+  "git_branch": "codex/web-workbench-consolidation",
+  "git_head": "9abd1d592753f81e019de488e1911cb6344888cc",
+  "git_dirty_files": [
+    "M README.md",
+    "M  apps/api/domains/factor_research/service.py",
+    " M apps/api/domains/governance/auth.py",
+    " M apps/api/domains/strategies/service.py",
+    "MM apps/api/main.py",
+    " M apps/api/store.py",
+    "M  core/data_feed/tencent_source.py",
+    " M docs/README.md",
+    " M pyproject.toml",
+    "M  strategies/__init__.py",
+    "M  strategies/a_shares/realtime_analyzer/strategy.py",
+    "A  strategies/us_stocks/__init__.py",
+    "A  strategies/us_stocks/realtime_analyzer/__init__.py",
+    "A  strategies/us_stocks/realtime_analyzer/pyproject.toml",
+    "AM strategies/us_stocks/realtime_analyzer/strategy.py",
+    " M uv.lock",
+    " M web/src/api/client.ts",
+    " M web/src/api/types.ts",
+    " M web/src/components/DecisionPanel.tsx",
+    " M web/src/components/KlineCard.tsx",
+    " M web/src/components/KpiCard.tsx",
+    " M web/src/components/MarketBreadth.tsx",
+    " M web/src/components/MobileNavigation.test.tsx",
+    " M web/src/components/MobileNavigation.tsx",
+    " D web/src/components/SignalStats.module.css",
+    " D web/src/components/SignalStats.tsx",
+    " M web/src/components/ui/KpiCard/KpiCard.tsx",
+    " D web/src/data/mock.ts",
+    " D web/src/lib/market.ts",
+    " M web/src/main.tsx",
+    " M web/src/navigation/workspaces.test.ts",
+    " M web/src/navigation/workspaces.tsx",
+    " M web/src/pages/ConfigPage.module.css",
+    " M web/src/pages/ConfigPage.tsx",
+    " D web/src/pages/ExampleWorkspacePage.module.css",
+    " D web/src/pages/ExampleWorkspacePage.tsx",
+    " M web/src/pages/GovernancePage.tsx",
+    " M web/src/pages/OverviewPage.tsx",
+    " M web/src/pages/StockEvaluationStartPage.tsx",
+    " M web/src/pages/StrategiesPage.tsx",
+    " M web/src/pages/StrategyDetailPage.tsx",
+    " M web/src/styles/app.css",
+    "?? .github/workflows/okx-runner.yml",
+    "?? apps/api/contracts.py",
+    "?? apps/api/domains/trading/",
+    "?? apps/okx_runner/",
+    "?? configs/okx-runner.env.example",
+    "?? data/okx_runner/",
+    "?? docker/",
+    "?? docs/ENGINEERING_GUIDE.md",
+    "?? docs/FACTOR_RESEARCH_BASELINE.md",
+    "?? docs/OPERATIONS_GUIDE.md",
+    "?? docs/Plan/",
+    "?? docs/TRADING_SAFETY.md",
+    "?? docs/okx_runner/",
+    "?? docs/security/",
+    "?? packages/",
+    "?? tests/split/",
+    "?? tests/test_trading_proxy.py",
+    "?? tools/check_fake_data.py",
+    "?? tools/check_product_licenses.py",
+    "?? tools/check_product_secrets.py",
+    "?? tools/export_runtime_baseline.py",
+    "?? tools/migrate_product_data.py",
+    "?? tools/product_database.py",
+    "?? tools/run_runner_shadow_acceptance.py",
+    "?? web/src/components/contract/",
+    "?? web/src/data/types.ts",
+    "?? web/src/navigation/keyFlows.test.ts",
+    "?? web/src/navigation/keyFlows.ts",
+    "?? web/src/pages/AccountRiskPage.tsx",
+    "?? web/src/pages/RadarPage.tsx",
+    "?? web/src/pages/TradingWorkspacePage.module.css",
+    "?? web/src/pages/TradingWorkspacePage.tsx",
+    "?? web/src/styles/research-matrix.css"
+  ],
+  "routes": [
+    {
+      "path": "/__ui",
+      "module": "./components/ui/_demo/UiShowcasePage",
+      "page_file": "web/src/components/ui/_demo/UiShowcasePage.tsx",
+      "exists": true
+    },
+    {
+      "path": "//",
+      "module": "./pages/OverviewPage",
+      "page_file": "web/src/pages/OverviewPage.tsx",
+      "exists": true
+    },
+    {
+      "path": "/evaluate",
+      "module": "./pages/StockEvaluationStartPage",
+      "page_file": "web/src/pages/StockEvaluationStartPage.tsx",
+      "exists": true
+    },
+    {
+      "path": "/research/:symbol",
+      "module": "./pages/ResearchWorkspacePage",
+      "page_file": "web/src/pages/ResearchWorkspacePage.tsx",
+      "exists": true
+    },
+    {
+      "path": "/ensemble",
+      "module": "./pages/EnsemblePage",
+      "page_file": "web/src/pages/EnsemblePage.tsx",
+      "exists": true
+    },
+    {
+      "path": "/radar",
+      "module": "./pages/RadarPage",
+      "page_file": "web/src/pages/RadarPage.tsx",
+      "exists": true
+    },
+    {
+      "path": "/signals",
+      "module": "./pages/SignalsPage",
+      "page_file": "web/src/pages/SignalsPage.tsx",
+      "exists": true
+    },
+    {
+      "path": "/trading",
+      "module": "./pages/TradingWorkspacePage",
+      "page_file": "web/src/pages/TradingWorkspacePage.tsx",
+      "exists": true
+    },
+    {
+      "path": "/account-risk",
+      "module": "./pages/AccountRiskPage",
+      "page_file": "web/src/pages/AccountRiskPage.tsx",
+      "exists": true
+    },
+    {
+      "path": "/tasks",
+      "module": "./pages/AnalysisTasksPage",
+      "page_file": "web/src/pages/AnalysisTasksPage.tsx",
+      "exists": true
+    },
+    {
+      "path": "/alerts",
+      "module": "./pages/AlertsPage",
+      "page_file": "web/src/pages/AlertsPage.tsx",
+      "exists": true
+    },
+    {
+      "path": "/simulation",
+      "module": "./pages/SimulationOrdersPage",
+      "page_file": "web/src/pages/SimulationOrdersPage.tsx",
+      "exists": true
+    },
+    {
+      "path": "/ledger",
+      "module": "./pages/LedgerPage",
+      "page_file": "web/src/pages/LedgerPage.tsx",
+      "exists": true
+    },
+    {
+      "path": "/instruments",
+      "module": "./pages/InstrumentCenterPage",
+      "page_file": "web/src/pages/InstrumentCenterPage.tsx",
+      "exists": true
+    },
+    {
+      "path": "/factor-research",
+      "module": "./pages/FactorResearchPage",
+      "page_file": "web/src/pages/FactorResearchPage.tsx",
+      "exists": true
+    },
+    {
+      "path": "/automation",
+      "module": "./pages/AutomationPage",
+      "page_file": "web/src/pages/AutomationPage.tsx",
+      "exists": true
+    },
+    {
+      "path": "/incidents",
+      "module": "./pages/IncidentsPage",
+      "page_file": "web/src/pages/IncidentsPage.tsx",
+      "exists": true
+    },
+    {
+      "path": "/governance",
+      "module": "./pages/GovernancePage",
+      "page_file": "web/src/pages/GovernancePage.tsx",
+      "exists": true
+    },
+    {
+      "path": "/news",
+      "module": "./pages/NewsPage",
+      "page_file": "web/src/pages/NewsPage.tsx",
+      "exists": true
+    },
+    {
+      "path": "/strategies",
+      "module": "./pages/StrategiesPage",
+      "page_file": "web/src/pages/StrategiesPage.tsx",
+      "exists": true
+    },
+    {
+      "path": "/strategies/:name",
+      "module": "./pages/StrategyDetailPage",
+      "page_file": "web/src/pages/StrategyDetailPage.tsx",
+      "exists": true
+    },
+    {
+      "path": "/strategy-lab",
+      "module": "./pages/StrategyLabPage",
+      "page_file": "web/src/pages/StrategyLabPage.tsx",
+      "exists": true
+    },
+    {
+      "path": "/pa",
+      "module": "./pages/PaAnalysisPage",
+      "page_file": "web/src/pages/PaAnalysisPage.tsx",
+      "exists": true
+    },
+    {
+      "path": "/portfolio",
+      "module": "./pages/PortfolioPage",
+      "page_file": "web/src/pages/PortfolioPage.tsx",
+      "exists": true
+    },
+    {
+      "path": "/config",
+      "module": "./pages/ConfigPage",
+      "page_file": "web/src/pages/ConfigPage.tsx",
+      "exists": true
+    }
+  ],
+  "navigation": [
+    {
+      "key": "overview",
+      "label": "总览",
+      "to": "/"
+    },
+    {
+      "key": "evaluation",
+      "label": "标的研究",
+      "to": "/evaluate"
+    },
+    {
+      "key": "radar",
+      "label": "信号雷达",
+      "to": "/radar"
+    },
+    {
+      "key": "tasks",
+      "label": "研究任务",
+      "to": "/tasks"
+    },
+    {
+      "key": "instruments",
+      "label": "标的与数据",
+      "to": "/instruments"
+    },
+    {
+      "key": "strategy",
+      "label": "策略运行",
+      "to": "/strategies"
+    },
+    {
+      "key": "portfolio",
+      "label": "策略组合",
+      "to": "/portfolio"
+    },
+    {
+      "key": "trading",
+      "label": "交易工作台",
+      "to": "/trading"
+    },
+    {
+      "key": "signal",
+      "label": "信号审核",
+      "to": "/signals"
+    },
+    {
+      "key": "simulation",
+      "label": "模拟交易",
+      "to": "/simulation"
+    },
+    {
+      "key": "account-risk",
+      "label": "账户与风控",
+      "to": "/account-risk"
+    },
+    {
+      "key": "ledger",
+      "label": "账户账本",
+      "to": "/ledger"
+    },
+    {
+      "key": "alerts",
+      "label": "价格提醒",
+      "to": "/alerts"
+    },
+    {
+      "key": "config",
+      "label": "系统设置",
+      "to": "/config"
+    },
+    {
+      "key": "automation",
+      "label": "作业调度",
+      "to": "/automation"
+    },
+    {
+      "key": "incidents",
+      "label": "运行故障",
+      "to": "/incidents"
+    },
+    {
+      "key": "watchlist",
+      "label": "自选",
+      "to": "/#watchlist"
+    }
+  ],
+  "route_presentations": [
+    {
+      "workspace": "overview",
+      "board": "overview",
+      "label": "总览",
+      "match_kind": "exact",
+      "match_value": "/"
+    },
+    {
+      "workspace": "market",
+      "board": "evaluation",
+      "label": "标的研究",
+      "match_kind": "prefix",
+      "match_value": "/evaluate"
+    },
+    {
+      "workspace": "market",
+      "board": "evaluation",
+      "label": "标的研究",
+      "match_kind": "prefix",
+      "match_value": "/research"
+    },
+    {
+      "workspace": "market",
+      "board": "evaluation-news",
+      "label": "标的研究 · 新闻证据",
+      "match_kind": "prefix",
+      "match_value": "/news"
+    },
+    {
+      "workspace": "market",
+      "board": "evaluation-pa",
+      "label": "标的研究 · 价格结构",
+      "match_kind": "prefix",
+      "match_value": "/pa"
+    },
+    {
+      "workspace": "market",
+      "board": "evaluation-consensus",
+      "label": "标的研究 · 模型共识",
+      "match_kind": "prefix",
+      "match_value": "/ensemble"
+    },
+    {
+      "workspace": "market",
+      "board": "radar",
+      "label": "信号雷达",
+      "match_kind": "prefix",
+      "match_value": "/radar"
+    },
+    {
+      "workspace": "market",
+      "board": "tasks",
+      "label": "研究任务",
+      "match_kind": "prefix",
+      "match_value": "/tasks"
+    },
+    {
+      "workspace": "market",
+      "board": "instruments",
+      "label": "标的与数据",
+      "match_kind": "prefix",
+      "match_value": "/instruments"
+    },
+    {
+      "workspace": "strategy",
+      "board": "workbench",
+      "label": "策略运行",
+      "match_kind": "prefix",
+      "match_value": "/strategies/"
+    },
+    {
+      "workspace": "strategy",
+      "board": "library",
+      "label": "策略运行",
+      "match_kind": "prefix",
+      "match_value": "/strategies"
+    },
+    {
+      "workspace": "strategy",
+      "board": "portfolio",
+      "label": "策略组合",
+      "match_kind": "prefix",
+      "match_value": "/portfolio"
+    },
+    {
+      "workspace": "trading",
+      "board": "trading",
+      "label": "交易工作台",
+      "match_kind": "prefix",
+      "match_value": "/trading"
+    },
+    {
+      "workspace": "trading",
+      "board": "signals",
+      "label": "信号审核",
+      "match_kind": "prefix",
+      "match_value": "/signals"
+    },
+    {
+      "workspace": "trading",
+      "board": "simulation",
+      "label": "模拟交易",
+      "match_kind": "prefix",
+      "match_value": "/simulation"
+    },
+    {
+      "workspace": "risk",
+      "board": "account-risk",
+      "label": "账户与风控",
+      "match_kind": "prefix",
+      "match_value": "/account-risk"
+    },
+    {
+      "workspace": "risk",
+      "board": "ledger",
+      "label": "账户账本",
+      "match_kind": "prefix",
+      "match_value": "/ledger"
+    },
+    {
+      "workspace": "risk",
+      "board": "alerts",
+      "label": "价格提醒",
+      "match_kind": "prefix",
+      "match_value": "/alerts"
+    },
+    {
+      "workspace": "settings",
+      "board": "config",
+      "label": "系统设置",
+      "match_kind": "prefix",
+      "match_value": "/config"
+    },
+    {
+      "workspace": "settings",
+      "board": "automation",
+      "label": "作业调度",
+      "match_kind": "prefix",
+      "match_value": "/automation"
+    },
+    {
+      "workspace": "settings",
+      "board": "incidents",
+      "label": "运行故障",
+      "match_kind": "prefix",
+      "match_value": "/incidents"
+    }
+  ],
+  "api_methods": {
+    "health": {
+      "path": "/health",
+      "http_method": "GET"
+    },
+    "configSystemStatus": {
+      "path": "/config/status",
+      "http_method": "GET"
+    },
+    "notificationStatus": {
+      "path": "/config/notifications",
+      "http_method": "GET"
+    },
+    "updateNotificationsEnabled": {
+      "path": "/config/notifications",
+      "http_method": "PATCH"
+    },
+    "updateNotificationChannel": {
+      "path": "/config/notifications/${channel}",
+      "http_method": "PUT"
+    },
+    "testNotificationChannel": {
+      "path": "/config/notifications/${channel}/test",
+      "http_method": "POST"
+    },
+    "globalSearch": {
+      "path": "/search?${params.toString()}",
+      "http_method": "GET"
+    },
+    "alertRules": {
+      "path": "/alerts/rules",
+      "http_method": "GET"
+    },
+    "createAlertRule": {
+      "path": "/alerts/rules",
+      "http_method": "POST"
+    },
+    "updateAlertRule": {
+      "path": "/alerts/rules/${encodeURIComponent(ruleId)}",
+      "http_method": "PATCH"
+    },
+    "deleteAlertRule": {
+      "path": "/alerts/rules/${encodeURIComponent(ruleId)}",
+      "http_method": "DELETE"
+    },
+    "checkAlertRule": {
+      "path": "/alerts/rules/${encodeURIComponent(ruleId)}/check",
+      "http_method": "POST"
+    },
+    "checkAllAlerts": {
+      "path": "/alerts/check",
+      "http_method": "POST"
+    },
+    "alertEvents": {
+      "path": "/alerts/events?pending_only=${pendingOnly}&limit=${limit}",
+      "http_method": "GET"
+    },
+    "acknowledgeAlertEvent": {
+      "path": "/alerts/events/${encodeURIComponent(eventId)}/acknowledge",
+      "http_method": "POST"
+    },
+    "governanceSession": {
+      "path": "/auth/session",
+      "http_method": "GET"
+    },
+    "governanceUsers": {
+      "path": "/auth/users",
+      "http_method": "GET"
+    },
+    "governanceRoles": {
+      "path": "/auth/roles",
+      "http_method": "GET"
+    },
+    "createGovernanceUser": {
+      "path": "/auth/users",
+      "http_method": "POST"
+    },
+    "updateGovernanceUserRoles": {
+      "path": "/auth/users/${encodeURIComponent(userId)}/roles",
+      "http_method": "PUT"
+    },
+    "updateGovernanceUserStatus": {
+      "path": "/auth/users/${encodeURIComponent(userId)}/status",
+      "http_method": "PATCH"
+    },
+    "governanceTokens": {
+      "path": "/auth/tokens",
+      "http_method": "GET"
+    },
+    "createGovernanceToken": {
+      "path": "/auth/tokens",
+      "http_method": "POST"
+    },
+    "revokeGovernanceToken": {
+      "path": "/auth/tokens/${encodeURIComponent(tokenId)}",
+      "http_method": "DELETE"
+    },
+    "governanceAudit": {
+      "path": "/auth/audit?${params.toString()}",
+      "http_method": "GET"
+    },
+    "dataSourceStatus": {
+      "path": "/market-data/status",
+      "http_method": "GET"
+    },
+    "checkDataSource": {
+      "path": "/market-data/check",
+      "http_method": "POST"
+    },
+    "createAnalysisTask": {
+      "path": "/analysis/tasks",
+      "http_method": "POST"
+    },
+    "analysisTasks": {
+      "path": "/analysis/tasks?${params.toString()}",
+      "http_method": "GET"
+    },
+    "analysisTask": {
+      "path": "/analysis/tasks/${encodeURIComponent(id)}",
+      "http_method": "GET"
+    },
+    "recentAnalysisTask": {
+      "path": "/analysis/tasks/recent?${params.toString()}",
+      "http_method": "GET"
+    },
+    "cancelAnalysisTask": {
+      "path": "/analysis/tasks/${encodeURIComponent(id)}/cancel",
+      "http_method": "POST"
+    },
+    "retryAnalysisTask": {
+      "path": "/analysis/tasks/${encodeURIComponent(id)}/retry",
+      "http_method": "POST"
+    },
+    "createResearchRun": {
+      "path": "/research/runs",
+      "http_method": "POST"
+    },
+    "researchRuns": {
+      "path": "/research/runs?${params.toString()}",
+      "http_method": "GET"
+    },
+    "researchRun": {
+      "path": "/research/runs/${encodeURIComponent(id)}",
+      "http_method": "GET"
+    },
+    "researchExport": {
+      "path": "/research/runs/${encodeURIComponent(id)}/export",
+      "http_method": "GET"
+    },
+    "researchVerify": {
+      "path": "/research/runs/${encodeURIComponent(id)}/verify",
+      "http_method": "GET"
+    },
+    "compareResearchRuns": {
+      "path": "/research/compare",
+      "http_method": "POST"
+    },
+    "updateResearchRun": {
+      "path": "/research/runs/${encodeURIComponent(id)}",
+      "http_method": "PATCH"
+    },
+    "updateResearchRunsBatch": {
+      "path": "/research/runs/batch",
+      "http_method": "PATCH"
+    },
+    "addResearchEvidence": {
+      "path": "/research/runs/${encodeURIComponent(id)}/evidence",
+      "http_method": "POST"
+    },
+    "ensemble": {
+      "path": "/predict/ensemble",
+      "http_method": "POST"
+    },
+    "strategies": {
+      "path": "/strategies",
+      "http_method": "GET"
+    },
+    "signals": {
+      "path": "/signals?${p.toString()}",
+      "http_method": "GET"
+    },
+    "updateSignalStatus": {
+      "path": "/signals/${encodeURIComponent(id)}/status",
+      "http_method": "PATCH"
+    },
+    "createSimulationOrder": {
+      "path": "/simulation/orders",
+      "http_method": "POST"
+    },
+    "simulationOrders": {
+      "path": "/simulation/orders?${params.toString()}",
+      "http_method": "GET"
+    },
+    "simulationOrder": {
+      "path": "/simulation/orders/${encodeURIComponent(id)}",
+      "http_method": "GET"
+    },
+    "fillSimulationOrder": {
+      "path": "/simulation/orders/${encodeURIComponent(id)}/fills",
+      "http_method": "POST"
+    },
+    "retrySimulationLedgerSync": {
+      "path": "/simulation/orders/${encodeURIComponent(orderId)}/executions/${encodeURIComponent(executionId)}/ledger-sync",
+      "http_method": "POST"
+    },
+    "cancelSimulationOrder": {
+      "path": "/simulation/orders/${encodeURIComponent(id)}/cancel",
+      "http_method": "POST"
+    },
+    "simulationAccount": {
+      "path": "/simulation/account",
+      "http_method": "GET"
+    },
+    "kline": {
+      "path": "/data/kline?symbol=${encodeURIComponent(symbol)}&market=${encodeURIComponent(\n        market,\n      )}&interval=${encodeURIComponent(interval)}&limit=${limit}",
+      "http_method": "GET"
+    },
+    "runStrategy": {
+      "path": "/strategies/${encodeURIComponent(name)}/run",
+      "http_method": "POST"
+    },
+    "analyzePa": {
+      "path": "/strategies/pa_agent/analyze?symbol=${encodeURIComponent(symbol)}",
+      "http_method": "POST"
+    },
+    "portfolio": {
+      "path": "/portfolio",
+      "http_method": "GET"
+    },
+    "addHolding": {
+      "path": "/portfolio/holdings",
+      "http_method": "POST"
+    },
+    "updateHolding": {
+      "path": "/portfolio/holdings/${encodeURIComponent(id)}",
+      "http_method": "PATCH"
+    },
+    "deleteHolding": {
+      "path": "/portfolio/holdings/${encodeURIComponent(id)}",
+      "http_method": "DELETE"
+    },
+    "resetHoldings": {
+      "path": "/portfolio/holdings/reset",
+      "http_method": "POST"
+    },
+    "marketBreadth": {
+      "path": "/market/breadth",
+      "http_method": "GET"
+    },
+    "watchlist": {
+      "path": "/market/watchlist",
+      "http_method": "GET"
+    },
+    "addWatch": {
+      "path": "/market/watchlist",
+      "http_method": "POST"
+    },
+    "updateWatch": {
+      "path": "/market/watchlist/${encodeURIComponent(id)}",
+      "http_method": "PATCH"
+    },
+    "deleteWatch": {
+      "path": "/market/watchlist/${encodeURIComponent(id)}",
+      "http_method": "DELETE"
+    },
+    "quote": {
+      "path": "/market/quote?symbol=${encodeURIComponent(symbol)}&market=${encodeURIComponent(market)}",
+      "http_method": "GET"
+    },
+    "savePreset": {
+      "path": "/strategies/${encodeURIComponent(name)}/presets",
+      "http_method": "POST"
+    },
+    "deletePreset": {
+      "path": "/strategies/${encodeURIComponent(name)}/presets/${id}",
+      "http_method": "DELETE"
+    },
+    "strategyRuns": {
+      "path": "/strategies/runs",
+      "http_method": "GET"
+    },
+    "saveRun": {
+      "path": "/strategies/${encodeURIComponent(name)}/runs",
+      "http_method": "POST"
+    },
+    "backtest": {
+      "path": "/strategies/${encodeURIComponent(name)}/backtest",
+      "http_method": "POST"
+    },
+    "factorResearch": {
+      "path": "/factor-research/analyze",
+      "http_method": "POST"
+    },
+    "factorAiReview": {
+      "path": "/factor-research/ai-review",
+      "http_method": "POST"
+    },
+    "factorResearchRuns": {
+      "path": "/factor-research/runs?${params.toString()}",
+      "http_method": "GET"
+    },
+    "factorResearchRun": {
+      "path": "/factor-research/runs/${encodeURIComponent(runId)}",
+      "http_method": "GET"
+    },
+    "factorStatusMatrix": {
+      "path": "/factor-research/status-matrix/${encodeURIComponent(factorKey)}",
+      "http_method": "GET"
+    },
+    "factorResearchAttention": {
+      "path": "/factor-research/attention?stale_hours=${staleHours}&limit=${limit}",
+      "http_method": "GET"
+    },
+    "registerFactorDefinition": {
+      "path": "/factor-research/definitions",
+      "http_method": "POST"
+    },
+    "seedBuiltinFactorDefinitions": {
+      "path": "/factor-research/definitions/seed-builtins",
+      "http_method": "POST"
+    },
+    "importTokenFormulaDefinitions": {
+      "path": "/factor-research/definitions/import-token-formulas",
+      "http_method": "POST"
+    },
+    "factorDefinitions": {
+      "path": "/factor-research/definitions${query ? ",
+      "http_method": "GET"
+    },
+    "factorDefinition": {
+      "path": "/factor-research/definitions/${encodeURIComponent(factorKey)}/${encodeURIComponent(version)}",
+      "http_method": "GET"
+    },
+    "factorLifecycle": {
+      "path": "/factor-research/definitions/${encodeURIComponent(factorKey)}/${encodeURIComponent(version)}/lifecycle${query ? ",
+      "http_method": "GET"
+    },
+    "transitionFactorLifecycle": {
+      "path": "/factor-research/definitions/${encodeURIComponent(factorKey)}/${encodeURIComponent(version)}/lifecycle/transitions",
+      "http_method": "POST"
+    },
+    "validateFactorCandidateData": {
+      "path": "/factor-research/candidate-validations",
+      "http_method": "POST"
+    },
+    "createFactorResearchPlan": {
+      "path": "/factor-research/plans",
+      "http_method": "POST"
+    },
+    "factorResearchPlans": {
+      "path": "/factor-research/plans${targetMarket ? ",
+      "http_method": "GET"
+    },
+    "factorConfirmationSet": {
+      "path": "/factor-research/plans/${encodeURIComponent(planId)}/confirmation-set",
+      "http_method": "GET"
+    },
+    "openFactorConfirmationSet": {
+      "path": "/factor-research/plans/${encodeURIComponent(planId)}/confirmation-set/open",
+      "http_method": "POST"
+    },
+    "factorAiProposalContext": {
+      "path": "/factor-research/plans/${encodeURIComponent(planId)}/ai-proposal-context",
+      "http_method": "GET"
+    },
+    "createFactorAiSearchRound": {
+      "path": "/factor-research/plans/${encodeURIComponent(planId)}/ai-search-rounds",
+      "http_method": "POST"
+    },
+    "factorAiSearchRounds": {
+      "path": "/factor-research/plans/${encodeURIComponent(planId)}/ai-search-rounds",
+      "http_method": "GET"
+    },
+    "createFactorExperiment": {
+      "path": "/factor-research/experiments",
+      "http_method": "POST"
+    },
+    "factorExperiments": {
+      "path": "/factor-research/experiments${query ? ",
+      "http_method": "GET"
+    },
+    "appendFactorExperimentEvent": {
+      "path": "/factor-research/experiments/${encodeURIComponent(experimentId)}/events",
+      "http_method": "POST"
+    },
+    "factorUniverses": {
+      "path": "/factor-research/universes${market ? ",
+      "http_method": "GET"
+    },
+    "createFactorUniverse": {
+      "path": "/factor-research/universes",
+      "http_method": "POST"
+    },
+    "factorUniverseMembers": {
+      "path": "/factor-research/universes/${encodeURIComponent(universeId)}/members${asOf ? ",
+      "http_method": "GET"
+    },
+    "upsertFactorUniverseMember": {
+      "path": "/factor-research/universes/${encodeURIComponent(universeId)}/members",
+      "http_method": "POST"
+    },
+    "crossSectionResearch": {
+      "path": "/factor-research/cross-sectional/analyze",
+      "http_method": "POST"
+    },
+    "crossMarketFactorStatus": {
+      "path": "/factor-research/cross-sectional/status/${encodeURIComponent(factorKey)}${query}",
+      "http_method": "GET"
+    },
+    "portfolioManage": {
+      "path": "/portfolio/manage",
+      "http_method": "GET"
+    },
+    "saveAlloc": {
+      "path": "/portfolio/manage/allocations",
+      "http_method": "POST"
+    },
+    "deleteAlloc": {
+      "path": "/portfolio/manage/allocations/${id}",
+      "http_method": "DELETE"
+    },
+    "setAllocLive": {
+      "path": "/portfolio/manage/allocations/${id}/live?live=${live}",
+      "http_method": "POST"
+    },
+    "liveStatus": {
+      "path": "/strategies/${encodeURIComponent(name)}/live",
+      "http_method": "GET"
+    },
+    "liveTick": {
+      "path": "/strategies/${encodeURIComponent(name)}/live/tick",
+      "http_method": "POST"
+    },
+    "publishSignal": {
+      "path": "/signals/publish",
+      "http_method": "POST"
+    },
+    "deleteSignal": {
+      "path": "/signals/${encodeURIComponent(id)}",
+      "http_method": "DELETE"
+    },
+    "getApiKey": {
+      "path": "/config/apikey",
+      "http_method": "GET"
+    },
+    "setApiKey": {
+      "path": "/config/apikey",
+      "http_method": "POST"
+    },
+    "llmConfig": {
+      "path": "/config/llm",
+      "http_method": "GET"
+    },
+    "updateLLMConfig": {
+      "path": "/config/llm",
+      "http_method": "PUT"
+    },
+    "removeLLMKey": {
+      "path": "/config/llm/key",
+      "http_method": "DELETE"
+    },
+    "testLLMConnection": {
+      "path": "/config/llm/test",
+      "http_method": "POST"
+    },
+    "instruments": {
+      "path": "/instruments?${params.toString()}",
+      "http_method": "GET"
+    },
+    "resolveInstrument": {
+      "path": "/instruments/${encodeURIComponent(code)}?${params.toString()}",
+      "http_method": "GET"
+    },
+    "registerInstrument": {
+      "path": "/instruments",
+      "http_method": "POST"
+    },
+    "previewSimulationOrder": {
+      "path": "/simulation/orders/preview",
+      "http_method": "POST"
+    },
+    "ledgerSummary": {
+      "path": "/ledger/summary",
+      "http_method": "GET"
+    },
+    "ledgerPositions": {
+      "path": "/ledger/positions",
+      "http_method": "GET"
+    },
+    "ledgerTrades": {
+      "path": "/ledger/trades?${params.toString()}",
+      "http_method": "GET"
+    },
+    "recordLedgerTrade": {
+      "path": "/ledger/trades",
+      "http_method": "POST"
+    },
+    "ledgerCash": {
+      "path": "/ledger/cash?${params.toString()}",
+      "http_method": "GET"
+    },
+    "recordLedgerCash": {
+      "path": "/ledger/cash",
+      "http_method": "POST"
+    },
+    "ledgerPerformance": {
+      "path": "/ledger/performance",
+      "http_method": "GET"
+    },
+    "ledgerTradeAnalytics": {
+      "path": "/ledger/trade-analytics",
+      "http_method": "GET"
+    },
+    "ledgerAttribution": {
+      "path": "/ledger/attribution?${params.toString()}",
+      "http_method": "GET"
+    },
+    "ledgerPositionDecisionContext": {
+      "path": "/ledger/positions/${encodeURIComponent(instrumentId)}/decision-context",
+      "http_method": "GET"
+    },
+    "ledgerExposures": {
+      "path": "/ledger/exposures",
+      "http_method": "GET"
+    },
+    "ledgerBenchmarks": {
+      "path": "/ledger/benchmarks",
+      "http_method": "GET"
+    },
+    "registerLedgerBenchmark": {
+      "path": "/ledger/benchmarks",
+      "http_method": "POST"
+    },
+    "correctLedgerTrade": {
+      "path": "/ledger/trades/${encodeURIComponent(tradeId)}",
+      "http_method": "PATCH"
+    },
+    "correctLedgerCash": {
+      "path": "/ledger/cash/${encodeURIComponent(entryId)}",
+      "http_method": "PATCH"
+    },
+    "correctLedgerBenchmark": {
+      "path": "/ledger/benchmarks/${encodeURIComponent(benchmarkId)}",
+      "http_method": "PATCH"
+    },
+    "ledgerCorrections": {
+      "path": "/ledger/corrections?${params.toString()}",
+      "http_method": "GET"
+    },
+    "strategyLabDefinitions": {
+      "path": "/strategy-lab/definitions?limit=${limit}",
+      "http_method": "GET"
+    },
+    "strategyLabDefinition": {
+      "path": "/strategy-lab/definitions/${encodeURIComponent(id)}",
+      "http_method": "GET"
+    },
+    "createStrategyDefinition": {
+      "path": "/strategy-lab/definitions",
+      "http_method": "POST"
+    },
+    "updateStrategyDefinition": {
+      "path": "/strategy-lab/definitions/${encodeURIComponent(id)}",
+      "http_method": "PATCH"
+    },
+    "copyStrategyDefinition": {
+      "path": "/strategy-lab/definitions/${encodeURIComponent(id)}/copy",
+      "http_method": "POST"
+    },
+    "archiveStrategyDefinition": {
+      "path": "/strategy-lab/definitions/${encodeURIComponent(id)}/archive",
+      "http_method": "POST"
+    },
+    "createStrategyVersion": {
+      "path": "/strategy-lab/definitions/${encodeURIComponent(definitionId)}/versions",
+      "http_method": "POST"
+    },
+    "updateStrategyVersion": {
+      "path": "/strategy-lab/versions/${encodeURIComponent(versionId)}",
+      "http_method": "PATCH"
+    },
+    "copyStrategyVersion": {
+      "path": "/strategy-lab/versions/${encodeURIComponent(versionId)}/copy",
+      "http_method": "POST"
+    },
+    "archiveStrategyVersion": {
+      "path": "/strategy-lab/versions/${encodeURIComponent(versionId)}/archive",
+      "http_method": "POST"
+    },
+    "strategyLabExperiments": {
+      "path": "/strategy-lab/experiments?${params.toString()}",
+      "http_method": "GET"
+    },
+    "createStrategyExperiment": {
+      "path": "/strategy-lab/experiments?definition_id=${encodeURIComponent(definitionId)}",
+      "http_method": "POST"
+    },
+    "updateStrategyExperiment": {
+      "path": "/strategy-lab/experiments/${encodeURIComponent(experimentId)}",
+      "http_method": "PATCH"
+    },
+    "copyStrategyExperiment": {
+      "path": "/strategy-lab/experiments/${encodeURIComponent(experimentId)}/copy",
+      "http_method": "POST"
+    },
+    "archiveStrategyExperiment": {
+      "path": "/strategy-lab/experiments/${encodeURIComponent(experimentId)}/archive",
+      "http_method": "POST"
+    },
+    "runStrategyExperiment": {
+      "path": "/strategy-lab/experiments/${encodeURIComponent(experimentId)}/backtest",
+      "http_method": "POST"
+    },
+    "strategyLabRuns": {
+      "path": "/strategy-lab/experiments/${encodeURIComponent(experimentId)}/runs",
+      "http_method": "GET"
+    },
+    "compareStrategyLabRuns": {
+      "path": "/strategy-lab/compare?${params.toString()}",
+      "http_method": "GET"
+    },
+    "automationStatus": {
+      "path": "/automation/status",
+      "http_method": "GET"
+    },
+    "automationJobs": {
+      "path": "/automation/jobs",
+      "http_method": "GET"
+    },
+    "factorResearchJobs": {
+      "path": "/automation/factor-research-jobs",
+      "http_method": "GET"
+    },
+    "createFactorResearchJob": {
+      "path": "/automation/factor-research-jobs",
+      "http_method": "POST"
+    },
+    "updateAutomationJob": {
+      "path": "/automation/jobs/${encodeURIComponent(name)}",
+      "http_method": "PATCH"
+    },
+    "runAutomationJob": {
+      "path": "/automation/jobs/${encodeURIComponent(name)}/run",
+      "http_method": "POST"
+    },
+    "automationRuns": {
+      "path": "/automation/runs?${params.toString()}",
+      "http_method": "GET"
+    },
+    "retryAutomationRun": {
+      "path": "/automation/runs/${encodeURIComponent(runId)}/retry",
+      "http_method": "POST"
+    },
+    "acknowledgeAutomationRun": {
+      "path": "/automation/runs/${encodeURIComponent(runId)}/acknowledge",
+      "http_method": "POST"
+    },
+    "automationAlerts": {
+      "path": "/automation/alerts?limit=${limit}",
+      "http_method": "GET"
+    },
+    "automationAudit": {
+      "path": "/automation/audit?${params.toString()}",
+      "http_method": "GET"
+    },
+    "backupStatus": {
+      "path": "/backups/status",
+      "http_method": "GET"
+    },
+    "backups": {
+      "path": "/backups",
+      "http_method": "GET"
+    },
+    "createBackup": {
+      "path": "/backups",
+      "http_method": "POST"
+    },
+    "verifyBackup": {
+      "path": "/backups/${encodeURIComponent(name)}/verify",
+      "http_method": "POST"
+    },
+    "restoreBackup": {
+      "path": "/backups/${encodeURIComponent(name)}/restore",
+      "http_method": "POST"
+    },
+    "previewBackupRetention": {
+      "path": "/backups/retention/preview",
+      "http_method": "POST"
+    },
+    "applyBackupRetention": {
+      "path": "/backups/retention/apply",
+      "http_method": "POST"
+    },
+    "incidents": {
+      "path": "/incidents?${params.toString()}",
+      "http_method": "GET"
+    },
+    "newsHealth": {
+      "path": "/news/health",
+      "http_method": "GET"
+    },
+    "newsAnalyze": {
+      "path": "/news/analyze",
+      "http_method": "POST"
+    }
+  },
+  "page_api_usage": {
+    "web/src/api/taskRunner.ts": [
+      "analysisTask",
+      "createAnalysisTask"
+    ],
+    "web/src/App.tsx": [
+      "governanceSession",
+      "health",
+      "signals",
+      "strategies"
+    ],
+    "web/src/components/CommandPalette/CommandPalette.tsx": [
+      "globalSearch"
+    ],
+    "web/src/components/DecisionPanel.tsx": [
+      "addResearchEvidence",
+      "cancelAnalysisTask",
+      "publishSignal"
+    ],
+    "web/src/components/KlineCard.tsx": [
+      "kline"
+    ],
+    "web/src/components/settings/LLMProviderSettings.tsx": [
+      "llmConfig",
+      "removeLLMKey",
+      "testLLMConnection",
+      "updateLLMConfig"
+    ],
+    "web/src/hooks/useEditableHoldings.ts": [
+      "addHolding",
+      "deleteHolding",
+      "resetHoldings",
+      "updateHolding"
+    ],
+    "web/src/hooks/useEditableWatchlist.ts": [
+      "addWatch",
+      "deleteWatch",
+      "updateWatch"
+    ],
+    "web/src/hooks/useSecurityNameResolver.ts": [
+      "quote"
+    ],
+    "web/src/hooks/useSignals.ts": [
+      "signals"
+    ],
+    "web/src/hooks/useStrategyPresets.ts": [
+      "deletePreset",
+      "savePreset"
+    ],
+    "web/src/hooks/useStrategyRuns.ts": [
+      "saveRun"
+    ],
+    "web/src/pages/AlertsPage.tsx": [
+      "acknowledgeAlertEvent",
+      "alertEvents",
+      "alertRules",
+      "checkAlertRule",
+      "checkAllAlerts",
+      "createAlertRule",
+      "deleteAlertRule",
+      "updateAlertRule"
+    ],
+    "web/src/pages/AnalysisTasksPage.tsx": [
+      "analysisTasks",
+      "cancelAnalysisTask",
+      "createAnalysisTask",
+      "retryAnalysisTask"
+    ],
+    "web/src/pages/AutomationPage.tsx": [
+      "acknowledgeAutomationRun",
+      "automationAlerts",
+      "automationAudit",
+      "automationJobs",
+      "automationRuns",
+      "automationStatus",
+      "createFactorResearchJob",
+      "factorResearchJobs",
+      "factorUniverses",
+      "researchRun",
+      "retryAutomationRun",
+      "runAutomationJob",
+      "updateAutomationJob"
+    ],
+    "web/src/pages/ConfigPage.tsx": [
+      "applyBackupRetention",
+      "backupStatus",
+      "backups",
+      "checkDataSource",
+      "configSystemStatus",
+      "createBackup",
+      "dataSourceStatus",
+      "health",
+      "notificationStatus",
+      "previewBackupRetention",
+      "restoreBackup",
+      "testNotificationChannel",
+      "updateNotificationChannel",
+      "updateNotificationsEnabled",
+      "verifyBackup"
+    ],
+    "web/src/pages/CrossSectionResearchPanel.tsx": [
+      "createFactorUniverse",
+      "crossMarketFactorStatus",
+      "crossSectionResearch",
+      "factorStatusMatrix",
+      "factorUniverseMembers",
+      "factorUniverses",
+      "upsertFactorUniverseMember"
+    ],
+    "web/src/pages/EnsemblePage.tsx": [
+      "addResearchEvidence",
+      "publishSignal"
+    ],
+    "web/src/pages/FactorConfirmationPanel.tsx": [
+      "factorConfirmationSet",
+      "factorExperiments",
+      "factorResearchPlans",
+      "openFactorConfirmationSet"
+    ],
+    "web/src/pages/FactorResearchPage.test.tsx": [
+      "factorUniverseMembers"
+    ],
+    "web/src/pages/FactorResearchPage.tsx": [
+      "factorAiReview",
+      "factorResearch",
+      "factorResearchRun",
+      "factorResearchRuns",
+      "updateResearchRun",
+      "updateResearchRunsBatch"
+    ],
+    "web/src/pages/GovernancePage.tsx": [
+      "configSystemStatus",
+      "createGovernanceToken",
+      "createGovernanceUser",
+      "governanceAudit",
+      "governanceRoles",
+      "governanceSession",
+      "governanceTokens",
+      "governanceUsers",
+      "revokeGovernanceToken",
+      "updateGovernanceUserRoles",
+      "updateGovernanceUserStatus"
+    ],
+    "web/src/pages/IncidentsPage.tsx": [
+      "acknowledgeAutomationRun",
+      "incidents",
+      "researchRun",
+      "retryAnalysisTask",
+      "retryAutomationRun",
+      "retrySimulationLedgerSync"
+    ],
+    "web/src/pages/InstrumentCenterPage.tsx": [
+      "instruments",
+      "registerInstrument"
+    ],
+    "web/src/pages/LedgerPage.tsx": [
+      "correctLedgerBenchmark",
+      "correctLedgerCash",
+      "correctLedgerTrade",
+      "ledgerAttribution",
+      "ledgerBenchmarks",
+      "ledgerCash",
+      "ledgerCorrections",
+      "ledgerExposures",
+      "ledgerPerformance",
+      "ledgerPositionDecisionContext",
+      "ledgerPositions",
+      "ledgerSummary",
+      "ledgerTradeAnalytics",
+      "ledgerTrades",
+      "recordLedgerCash",
+      "recordLedgerTrade",
+      "registerLedgerBenchmark",
+      "resolveInstrument"
+    ],
+    "web/src/pages/NewsPage.tsx": [
+      "newsHealth"
+    ],
+    "web/src/pages/OverviewPage.tsx": [
+      "alertEvents",
+      "analysisTasks",
+      "automationAlerts",
+      "factorResearchAttention",
+      "incidents",
+      "ledgerSummary",
+      "marketBreadth",
+      "researchRuns",
+      "signals",
+      "simulationAccount",
+      "simulationOrders"
+    ],
+    "web/src/pages/PortfolioPage.tsx": [
+      "deleteAlloc",
+      "portfolioManage",
+      "saveAlloc",
+      "setAllocLive",
+      "strategies"
+    ],
+    "web/src/pages/RadarPage.tsx": [
+      "quote",
+      "researchRuns",
+      "signals",
+      "watchlist"
+    ],
+    "web/src/pages/ResearchWorkspacePage.tsx": [
+      "addWatch",
+      "analysisTask",
+      "cancelAnalysisTask",
+      "compareResearchRuns",
+      "createAnalysisTask",
+      "instruments",
+      "researchExport",
+      "researchRun",
+      "researchRuns",
+      "researchVerify",
+      "retryAnalysisTask",
+      "updateResearchRun"
+    ],
+    "web/src/pages/SignalsPage.tsx": [
+      "createSimulationOrder",
+      "deleteSignal",
+      "previewSimulationOrder",
+      "publishSignal",
+      "researchRun",
+      "runStrategy",
+      "signals",
+      "simulationOrder",
+      "updateSignalStatus"
+    ],
+    "web/src/pages/SimulationOrdersPage.tsx": [
+      "cancelSimulationOrder",
+      "createSimulationOrder",
+      "fillSimulationOrder",
+      "retrySimulationLedgerSync",
+      "simulationAccount",
+      "simulationOrders"
+    ],
+    "web/src/pages/StockEvaluationStartPage.tsx": [
+      "createAnalysisTask",
+      "health",
+      "instruments",
+      "recentAnalysisTask",
+      "watchlist"
+    ],
+    "web/src/pages/StrategiesPage.tsx": [
+      "runStrategy",
+      "strategies"
+    ],
+    "web/src/pages/StrategyDetailPage.tsx": [
+      "backtest",
+      "liveStatus",
+      "liveTick",
+      "runStrategy",
+      "strategies"
+    ],
+    "web/src/pages/StrategyLabPage.tsx": [
+      "archiveStrategyDefinition",
+      "archiveStrategyExperiment",
+      "archiveStrategyVersion",
+      "compareStrategyLabRuns",
+      "copyStrategyDefinition",
+      "copyStrategyExperiment",
+      "copyStrategyVersion",
+      "createStrategyDefinition",
+      "createStrategyExperiment",
+      "createStrategyVersion",
+      "runStrategyExperiment",
+      "strategies",
+      "strategyLabDefinition",
+      "strategyLabDefinitions",
+      "strategyLabExperiments",
+      "strategyLabRuns",
+      "updateStrategyDefinition",
+      "updateStrategyExperiment",
+      "updateStrategyVersion"
+    ]
+  },
+  "backend_routes": [
+    {
+      "path": "/alerts/check",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "alerts"
+      ],
+      "operation_ids": [
+        "check_all_rules_alerts_check_post"
+      ]
+    },
+    {
+      "path": "/alerts/events",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "alerts"
+      ],
+      "operation_ids": [
+        "list_events_alerts_events_get"
+      ]
+    },
+    {
+      "path": "/alerts/events/{event_id}/acknowledge",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "alerts"
+      ],
+      "operation_ids": [
+        "acknowledge_event_alerts_events__event_id__acknowledge_post"
+      ]
+    },
+    {
+      "path": "/alerts/rules",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "tags": [
+        "alerts"
+      ],
+      "operation_ids": [
+        "list_rules_alerts_rules_get",
+        "create_rule_alerts_rules_post"
+      ]
+    },
+    {
+      "path": "/alerts/rules/{rule_id}",
+      "methods": [
+        "DELETE",
+        "PATCH"
+      ],
+      "tags": [
+        "alerts"
+      ],
+      "operation_ids": [
+        "update_rule_alerts_rules__rule_id__patch",
+        "delete_rule_alerts_rules__rule_id__delete"
+      ]
+    },
+    {
+      "path": "/alerts/rules/{rule_id}/check",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "alerts"
+      ],
+      "operation_ids": [
+        "check_rule_alerts_rules__rule_id__check_post"
+      ]
+    },
+    {
+      "path": "/analysis/tasks",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "tags": [
+        "analysis-tasks"
+      ],
+      "operation_ids": [
+        "create_task_analysis_tasks_post",
+        "list_tasks_analysis_tasks_get"
+      ]
+    },
+    {
+      "path": "/analysis/tasks/recent",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "analysis-tasks"
+      ],
+      "operation_ids": [
+        "get_recent_task_analysis_tasks_recent_get"
+      ]
+    },
+    {
+      "path": "/analysis/tasks/{task_id}",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "analysis-tasks"
+      ],
+      "operation_ids": [
+        "get_task_analysis_tasks__task_id__get"
+      ]
+    },
+    {
+      "path": "/analysis/tasks/{task_id}/cancel",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "analysis-tasks"
+      ],
+      "operation_ids": [
+        "cancel_task_analysis_tasks__task_id__cancel_post"
+      ]
+    },
+    {
+      "path": "/analysis/tasks/{task_id}/retry",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "analysis-tasks"
+      ],
+      "operation_ids": [
+        "retry_task_analysis_tasks__task_id__retry_post"
+      ]
+    },
+    {
+      "path": "/auth/audit",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "governance"
+      ],
+      "operation_ids": [
+        "audit_auth_audit_get"
+      ]
+    },
+    {
+      "path": "/auth/roles",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "governance"
+      ],
+      "operation_ids": [
+        "roles_auth_roles_get"
+      ]
+    },
+    {
+      "path": "/auth/session",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "governance"
+      ],
+      "operation_ids": [
+        "session_auth_session_get"
+      ]
+    },
+    {
+      "path": "/auth/tokens",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "tags": [
+        "governance"
+      ],
+      "operation_ids": [
+        "tokens_auth_tokens_get",
+        "create_api_token_auth_tokens_post"
+      ]
+    },
+    {
+      "path": "/auth/tokens/{token_id}",
+      "methods": [
+        "DELETE"
+      ],
+      "tags": [
+        "governance"
+      ],
+      "operation_ids": [
+        "revoke_api_token_auth_tokens__token_id__delete"
+      ]
+    },
+    {
+      "path": "/auth/users",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "tags": [
+        "governance"
+      ],
+      "operation_ids": [
+        "users_auth_users_get",
+        "create_user_auth_users_post"
+      ]
+    },
+    {
+      "path": "/auth/users/{user_id}/roles",
+      "methods": [
+        "PUT"
+      ],
+      "tags": [
+        "governance"
+      ],
+      "operation_ids": [
+        "update_user_roles_auth_users__user_id__roles_put"
+      ]
+    },
+    {
+      "path": "/auth/users/{user_id}/status",
+      "methods": [
+        "PATCH"
+      ],
+      "tags": [
+        "governance"
+      ],
+      "operation_ids": [
+        "update_user_status_auth_users__user_id__status_patch"
+      ]
+    },
+    {
+      "path": "/automation/alerts",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "automation"
+      ],
+      "operation_ids": [
+        "list_alerts_automation_alerts_get"
+      ]
+    },
+    {
+      "path": "/automation/audit",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "automation"
+      ],
+      "operation_ids": [
+        "list_audit_automation_audit_get"
+      ]
+    },
+    {
+      "path": "/automation/factor-research-jobs",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "tags": [
+        "automation"
+      ],
+      "operation_ids": [
+        "list_factor_research_jobs_automation_factor_research_jobs_get",
+        "create_factor_research_job_automation_factor_research_jobs_post"
+      ]
+    },
+    {
+      "path": "/automation/factor-research-jobs/{job_id}",
+      "methods": [
+        "PATCH"
+      ],
+      "tags": [
+        "automation"
+      ],
+      "operation_ids": [
+        "update_factor_research_job_automation_factor_research_jobs__job_id__patch"
+      ]
+    },
+    {
+      "path": "/automation/jobs",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "automation"
+      ],
+      "operation_ids": [
+        "list_jobs_automation_jobs_get"
+      ]
+    },
+    {
+      "path": "/automation/jobs/{name}",
+      "methods": [
+        "GET",
+        "PATCH"
+      ],
+      "tags": [
+        "automation"
+      ],
+      "operation_ids": [
+        "get_job_automation_jobs__name__get",
+        "update_job_automation_jobs__name__patch"
+      ]
+    },
+    {
+      "path": "/automation/jobs/{name}/run",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "automation"
+      ],
+      "operation_ids": [
+        "run_job_automation_jobs__name__run_post"
+      ]
+    },
+    {
+      "path": "/automation/runs",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "automation"
+      ],
+      "operation_ids": [
+        "list_runs_automation_runs_get"
+      ]
+    },
+    {
+      "path": "/automation/runs/{run_id}",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "automation"
+      ],
+      "operation_ids": [
+        "get_run_automation_runs__run_id__get"
+      ]
+    },
+    {
+      "path": "/automation/runs/{run_id}/acknowledge",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "automation"
+      ],
+      "operation_ids": [
+        "acknowledge_run_automation_runs__run_id__acknowledge_post"
+      ]
+    },
+    {
+      "path": "/automation/runs/{run_id}/retry",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "automation"
+      ],
+      "operation_ids": [
+        "retry_run_automation_runs__run_id__retry_post"
+      ]
+    },
+    {
+      "path": "/automation/status",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "automation"
+      ],
+      "operation_ids": [
+        "get_status_automation_status_get"
+      ]
+    },
+    {
+      "path": "/backups",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "tags": [
+        "backups"
+      ],
+      "operation_ids": [
+        "list_backups_backups_get",
+        "create_backup_backups_post"
+      ]
+    },
+    {
+      "path": "/backups/retention/apply",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "backups"
+      ],
+      "operation_ids": [
+        "apply_retention_backups_retention_apply_post"
+      ]
+    },
+    {
+      "path": "/backups/retention/preview",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "backups"
+      ],
+      "operation_ids": [
+        "preview_retention_backups_retention_preview_post"
+      ]
+    },
+    {
+      "path": "/backups/status",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "backups"
+      ],
+      "operation_ids": [
+        "get_status_backups_status_get"
+      ]
+    },
+    {
+      "path": "/backups/{name}/restore",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "backups"
+      ],
+      "operation_ids": [
+        "restore_backup_backups__name__restore_post"
+      ]
+    },
+    {
+      "path": "/backups/{name}/verify",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "backups"
+      ],
+      "operation_ids": [
+        "verify_backup_backups__name__verify_post"
+      ]
+    },
+    {
+      "path": "/config/apikey",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "tags": [
+        "settings"
+      ],
+      "operation_ids": [
+        "get_api_key_status_config_apikey_get",
+        "set_api_key_config_apikey_post"
+      ]
+    },
+    {
+      "path": "/config/llm",
+      "methods": [
+        "GET",
+        "PUT"
+      ],
+      "tags": [
+        "settings"
+      ],
+      "operation_ids": [
+        "get_llm_settings_config_llm_get",
+        "update_llm_settings_config_llm_put"
+      ]
+    },
+    {
+      "path": "/config/llm/key",
+      "methods": [
+        "DELETE"
+      ],
+      "tags": [
+        "settings"
+      ],
+      "operation_ids": [
+        "delete_llm_key_config_llm_key_delete"
+      ]
+    },
+    {
+      "path": "/config/llm/test",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "settings"
+      ],
+      "operation_ids": [
+        "test_llm_connection_config_llm_test_post"
+      ]
+    },
+    {
+      "path": "/config/notifications",
+      "methods": [
+        "GET",
+        "PATCH"
+      ],
+      "tags": [
+        "settings"
+      ],
+      "operation_ids": [
+        "get_notifications_config_notifications_get",
+        "update_notifications_config_notifications_patch"
+      ]
+    },
+    {
+      "path": "/config/notifications/{channel}",
+      "methods": [
+        "PUT"
+      ],
+      "tags": [
+        "settings"
+      ],
+      "operation_ids": [
+        "update_notification_channel_config_notifications__channel__put"
+      ]
+    },
+    {
+      "path": "/config/notifications/{channel}/test",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "settings"
+      ],
+      "operation_ids": [
+        "test_notification_channel_config_notifications__channel__test_post"
+      ]
+    },
+    {
+      "path": "/config/status",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "settings"
+      ],
+      "operation_ids": [
+        "get_system_status_config_status_get"
+      ]
+    },
+    {
+      "path": "/data/kline",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "data"
+      ],
+      "operation_ids": [
+        "get_kline_data_kline_get"
+      ]
+    },
+    {
+      "path": "/factor-research/ai-review",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "factor-research"
+      ],
+      "operation_ids": [
+        "ai_review_factor_research_ai_review_post"
+      ]
+    },
+    {
+      "path": "/factor-research/analyze",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "factor-research"
+      ],
+      "operation_ids": [
+        "analyze_factor_research_analyze_post"
+      ]
+    },
+    {
+      "path": "/factor-research/attention",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "factor-research"
+      ],
+      "operation_ids": [
+        "research_attention_factor_research_attention_get"
+      ]
+    },
+    {
+      "path": "/factor-research/candidate-validations",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "factor-research"
+      ],
+      "operation_ids": [
+        "validate_candidate_factor_research_candidate_validations_post"
+      ]
+    },
+    {
+      "path": "/factor-research/candidates/inbox",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "factor-research"
+      ],
+      "operation_ids": [
+        "candidate_inbox_factor_research_candidates_inbox_post"
+      ]
+    },
+    {
+      "path": "/factor-research/cross-sectional/analyze",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "factor-research"
+      ],
+      "operation_ids": [
+        "analyze_cross_section_factor_research_cross_sectional_analyze_post"
+      ]
+    },
+    {
+      "path": "/factor-research/cross-sectional/runs/{run_id}",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "factor-research"
+      ],
+      "operation_ids": [
+        "get_cross_section_run_factor_research_cross_sectional_runs__run_id__get"
+      ]
+    },
+    {
+      "path": "/factor-research/cross-sectional/status/{factor_key}",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "factor-research"
+      ],
+      "operation_ids": [
+        "get_cross_market_status_factor_research_cross_sectional_status__factor_key__get"
+      ]
+    },
+    {
+      "path": "/factor-research/definitions",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "tags": [
+        "factor-research"
+      ],
+      "operation_ids": [
+        "create_definition_factor_research_definitions_post",
+        "list_definitions_factor_research_definitions_get"
+      ]
+    },
+    {
+      "path": "/factor-research/definitions/import-token-formulas",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "factor-research"
+      ],
+      "operation_ids": [
+        "import_token_definitions_factor_research_definitions_import_token_formulas_post"
+      ]
+    },
+    {
+      "path": "/factor-research/definitions/seed-builtins",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "factor-research"
+      ],
+      "operation_ids": [
+        "seed_builtin_definitions_factor_research_definitions_seed_builtins_post"
+      ]
+    },
+    {
+      "path": "/factor-research/definitions/{factor_key}/{version}",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "factor-research"
+      ],
+      "operation_ids": [
+        "get_definition_factor_research_definitions__factor_key___version__get"
+      ]
+    },
+    {
+      "path": "/factor-research/definitions/{factor_key}/{version}/lifecycle",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "factor-research"
+      ],
+      "operation_ids": [
+        "factor_lifecycle_factor_research_definitions__factor_key___version__lifecycle_get"
+      ]
+    },
+    {
+      "path": "/factor-research/definitions/{factor_key}/{version}/lifecycle/transitions",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "factor-research"
+      ],
+      "operation_ids": [
+        "transition_lifecycle_factor_research_definitions__factor_key___version__lifecycle_transitions_post"
+      ]
+    },
+    {
+      "path": "/factor-research/efficiency/compare",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "factor-research"
+      ],
+      "operation_ids": [
+        "compare_discovery_efficiency_factor_research_efficiency_compare_post"
+      ]
+    },
+    {
+      "path": "/factor-research/experiments",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "tags": [
+        "factor-research"
+      ],
+      "operation_ids": [
+        "create_experiment_factor_research_experiments_post",
+        "list_experiments_factor_research_experiments_get"
+      ]
+    },
+    {
+      "path": "/factor-research/experiments/{experiment_id}",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "factor-research"
+      ],
+      "operation_ids": [
+        "get_experiment_factor_research_experiments__experiment_id__get"
+      ]
+    },
+    {
+      "path": "/factor-research/experiments/{experiment_id}/events",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "factor-research"
+      ],
+      "operation_ids": [
+        "add_experiment_event_factor_research_experiments__experiment_id__events_post"
+      ]
+    },
+    {
+      "path": "/factor-research/lineage/{factor_key}/{version}",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "factor-research"
+      ],
+      "operation_ids": [
+        "factor_lineage_factor_research_lineage__factor_key___version__post"
+      ]
+    },
+    {
+      "path": "/factor-research/monitoring/drift",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "factor-research"
+      ],
+      "operation_ids": [
+        "monitor_drift_factor_research_monitoring_drift_post"
+      ]
+    },
+    {
+      "path": "/factor-research/plans",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "tags": [
+        "factor-research"
+      ],
+      "operation_ids": [
+        "create_research_plan_factor_research_plans_post",
+        "list_research_plans_factor_research_plans_get"
+      ]
+    },
+    {
+      "path": "/factor-research/plans/{plan_id}",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "factor-research"
+      ],
+      "operation_ids": [
+        "get_research_plan_factor_research_plans__plan_id__get"
+      ]
+    },
+    {
+      "path": "/factor-research/plans/{plan_id}/ai-proposal-context",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "factor-research"
+      ],
+      "operation_ids": [
+        "get_ai_proposal_context_factor_research_plans__plan_id__ai_proposal_context_get"
+      ]
+    },
+    {
+      "path": "/factor-research/plans/{plan_id}/ai-search-rounds",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "tags": [
+        "factor-research"
+      ],
+      "operation_ids": [
+        "create_ai_search_round_factor_research_plans__plan_id__ai_search_rounds_post",
+        "list_ai_search_rounds_factor_research_plans__plan_id__ai_search_rounds_get"
+      ]
+    },
+    {
+      "path": "/factor-research/plans/{plan_id}/confirmation-set",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "factor-research"
+      ],
+      "operation_ids": [
+        "get_confirmation_set_opening_factor_research_plans__plan_id__confirmation_set_get"
+      ]
+    },
+    {
+      "path": "/factor-research/plans/{plan_id}/confirmation-set/open",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "factor-research"
+      ],
+      "operation_ids": [
+        "open_confirmation_set_factor_research_plans__plan_id__confirmation_set_open_post"
+      ]
+    },
+    {
+      "path": "/factor-research/plans/{plan_id}/multiple-testing",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "factor-research"
+      ],
+      "operation_ids": [
+        "get_plan_multiple_testing_factor_research_plans__plan_id__multiple_testing_get"
+      ]
+    },
+    {
+      "path": "/factor-research/portfolio-constraints/validate",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "factor-research"
+      ],
+      "operation_ids": [
+        "validate_portfolio_constraints_factor_research_portfolio_constraints_validate_post"
+      ]
+    },
+    {
+      "path": "/factor-research/redundancy/analyze",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "factor-research"
+      ],
+      "operation_ids": [
+        "analyze_redundancy_factor_research_redundancy_analyze_post"
+      ]
+    },
+    {
+      "path": "/factor-research/retirement/impact-preview",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "factor-research"
+      ],
+      "operation_ids": [
+        "retirement_impact_preview_factor_research_retirement_impact_preview_post"
+      ]
+    },
+    {
+      "path": "/factor-research/robustness/analyze",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "factor-research"
+      ],
+      "operation_ids": [
+        "analyze_robustness_factor_research_robustness_analyze_post"
+      ]
+    },
+    {
+      "path": "/factor-research/runs",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "factor-research"
+      ],
+      "operation_ids": [
+        "list_runs_factor_research_runs_get"
+      ]
+    },
+    {
+      "path": "/factor-research/runs/{run_id}",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "factor-research"
+      ],
+      "operation_ids": [
+        "get_run_factor_research_runs__run_id__get"
+      ]
+    },
+    {
+      "path": "/factor-research/simulation/attribute-gap",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "factor-research"
+      ],
+      "operation_ids": [
+        "attribute_simulation_gap_factor_research_simulation_attribute_gap_post"
+      ]
+    },
+    {
+      "path": "/factor-research/simulation/validate",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "factor-research"
+      ],
+      "operation_ids": [
+        "validate_simulation_factor_research_simulation_validate_post"
+      ]
+    },
+    {
+      "path": "/factor-research/status-matrix/{factor_key}",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "factor-research"
+      ],
+      "operation_ids": [
+        "status_matrix_factor_research_status_matrix__factor_key__get"
+      ]
+    },
+    {
+      "path": "/factor-research/universes",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "tags": [
+        "factor-research"
+      ],
+      "operation_ids": [
+        "create_universe_factor_research_universes_post",
+        "list_universes_factor_research_universes_get"
+      ]
+    },
+    {
+      "path": "/factor-research/universes/{universe_id}/members",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "tags": [
+        "factor-research"
+      ],
+      "operation_ids": [
+        "upsert_universe_member_factor_research_universes__universe_id__members_post",
+        "list_universe_members_factor_research_universes__universe_id__members_get"
+      ]
+    },
+    {
+      "path": "/health",
+      "methods": [
+        "GET"
+      ],
+      "tags": [],
+      "operation_ids": [
+        "health_health_get"
+      ]
+    },
+    {
+      "path": "/incidents",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "incidents"
+      ],
+      "operation_ids": [
+        "list_incidents_incidents_get"
+      ]
+    },
+    {
+      "path": "/incidents/data-sources/check",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "incidents"
+      ],
+      "operation_ids": [
+        "check_data_source_incident_incidents_data_sources_check_post"
+      ]
+    },
+    {
+      "path": "/incidents/data-sources/history",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "incidents"
+      ],
+      "operation_ids": [
+        "get_data_source_history_incidents_data_sources_history_get"
+      ]
+    },
+    {
+      "path": "/incidents/data-sources/{incident_id}/acknowledge",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "incidents"
+      ],
+      "operation_ids": [
+        "acknowledge_data_source_recovery_incidents_data_sources__incident_id__acknowledge_post"
+      ]
+    },
+    {
+      "path": "/instruments",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "tags": [
+        "instrument"
+      ],
+      "operation_ids": [
+        "search_instruments_get",
+        "register_instruments_post"
+      ]
+    },
+    {
+      "path": "/instruments/search",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "instrument"
+      ],
+      "operation_ids": [
+        "search_instruments_search_get"
+      ]
+    },
+    {
+      "path": "/instruments/{code}",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "instrument"
+      ],
+      "operation_ids": [
+        "get_instrument_instruments__code__get"
+      ]
+    },
+    {
+      "path": "/ledger/attribution",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "ledger"
+      ],
+      "operation_ids": [
+        "get_attribution_ledger_attribution_get"
+      ]
+    },
+    {
+      "path": "/ledger/benchmarks",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "tags": [
+        "ledger"
+      ],
+      "operation_ids": [
+        "get_benchmarks_ledger_benchmarks_get",
+        "post_benchmark_ledger_benchmarks_post"
+      ]
+    },
+    {
+      "path": "/ledger/benchmarks/{benchmark_id}",
+      "methods": [
+        "PATCH"
+      ],
+      "tags": [
+        "ledger"
+      ],
+      "operation_ids": [
+        "patch_benchmark_ledger_benchmarks__benchmark_id__patch"
+      ]
+    },
+    {
+      "path": "/ledger/cash",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "tags": [
+        "ledger"
+      ],
+      "operation_ids": [
+        "post_cash_ledger_cash_post",
+        "get_cash_ledger_cash_get"
+      ]
+    },
+    {
+      "path": "/ledger/cash/{entry_id}",
+      "methods": [
+        "PATCH"
+      ],
+      "tags": [
+        "ledger"
+      ],
+      "operation_ids": [
+        "patch_cash_ledger_cash__entry_id__patch"
+      ]
+    },
+    {
+      "path": "/ledger/corrections",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "ledger"
+      ],
+      "operation_ids": [
+        "get_corrections_ledger_corrections_get"
+      ]
+    },
+    {
+      "path": "/ledger/exposures",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "ledger"
+      ],
+      "operation_ids": [
+        "get_exposures_ledger_exposures_get"
+      ]
+    },
+    {
+      "path": "/ledger/performance",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "ledger"
+      ],
+      "operation_ids": [
+        "get_performance_ledger_performance_get"
+      ]
+    },
+    {
+      "path": "/ledger/positions",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "ledger"
+      ],
+      "operation_ids": [
+        "get_positions_ledger_positions_get"
+      ]
+    },
+    {
+      "path": "/ledger/positions/{instrument_id}",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "ledger"
+      ],
+      "operation_ids": [
+        "get_position_ledger_positions__instrument_id__get"
+      ]
+    },
+    {
+      "path": "/ledger/positions/{instrument_id}/decision-context",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "ledger"
+      ],
+      "operation_ids": [
+        "get_position_decision_context_ledger_positions__instrument_id__decision_context_get"
+      ]
+    },
+    {
+      "path": "/ledger/summary",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "ledger"
+      ],
+      "operation_ids": [
+        "get_summary_ledger_summary_get"
+      ]
+    },
+    {
+      "path": "/ledger/timeline",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "ledger"
+      ],
+      "operation_ids": [
+        "get_timeline_ledger_timeline_get"
+      ]
+    },
+    {
+      "path": "/ledger/trade-analytics",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "ledger"
+      ],
+      "operation_ids": [
+        "get_trade_analytics_ledger_trade_analytics_get"
+      ]
+    },
+    {
+      "path": "/ledger/trades",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "tags": [
+        "ledger"
+      ],
+      "operation_ids": [
+        "post_trade_ledger_trades_post",
+        "get_trades_ledger_trades_get"
+      ]
+    },
+    {
+      "path": "/ledger/trades/{trade_id}",
+      "methods": [
+        "PATCH"
+      ],
+      "tags": [
+        "ledger"
+      ],
+      "operation_ids": [
+        "patch_trade_ledger_trades__trade_id__patch"
+      ]
+    },
+    {
+      "path": "/market-data/check",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "market-data"
+      ],
+      "operation_ids": [
+        "post_data_source_check_market_data_check_post"
+      ]
+    },
+    {
+      "path": "/market-data/status",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "market-data"
+      ],
+      "operation_ids": [
+        "get_data_source_status_market_data_status_get"
+      ]
+    },
+    {
+      "path": "/market/breadth",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "portfolio"
+      ],
+      "operation_ids": [
+        "get_market_breadth_market_breadth_get"
+      ]
+    },
+    {
+      "path": "/market/quote",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "portfolio"
+      ],
+      "operation_ids": [
+        "get_quote_market_quote_get"
+      ]
+    },
+    {
+      "path": "/market/watchlist",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "tags": [
+        "portfolio"
+      ],
+      "operation_ids": [
+        "get_watchlist_market_watchlist_get",
+        "add_watchlist_market_watchlist_post"
+      ]
+    },
+    {
+      "path": "/market/watchlist/reset",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "portfolio"
+      ],
+      "operation_ids": [
+        "reset_watchlist_market_watchlist_reset_post"
+      ]
+    },
+    {
+      "path": "/market/watchlist/{watch_id}",
+      "methods": [
+        "DELETE",
+        "PATCH"
+      ],
+      "tags": [
+        "portfolio"
+      ],
+      "operation_ids": [
+        "update_watchlist_market_watchlist__watch_id__patch",
+        "delete_watchlist_market_watchlist__watch_id__delete"
+      ]
+    },
+    {
+      "path": "/news/analyze",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "news"
+      ],
+      "operation_ids": [
+        "analyze_news_news_analyze_post"
+      ]
+    },
+    {
+      "path": "/news/events/research",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "news"
+      ],
+      "operation_ids": [
+        "research_news_events_news_events_research_post"
+      ]
+    },
+    {
+      "path": "/news/events/validate",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "news"
+      ],
+      "operation_ids": [
+        "validate_news_events_news_events_validate_post"
+      ]
+    },
+    {
+      "path": "/news/health",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "news"
+      ],
+      "operation_ids": [
+        "news_health_news_health_get"
+      ]
+    },
+    {
+      "path": "/portfolio",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "portfolio"
+      ],
+      "operation_ids": [
+        "get_portfolio_portfolio_get"
+      ]
+    },
+    {
+      "path": "/portfolio/holdings",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "portfolio"
+      ],
+      "operation_ids": [
+        "add_holding_portfolio_holdings_post"
+      ]
+    },
+    {
+      "path": "/portfolio/holdings/reset",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "portfolio"
+      ],
+      "operation_ids": [
+        "reset_holdings_portfolio_holdings_reset_post"
+      ]
+    },
+    {
+      "path": "/portfolio/holdings/{holding_id}",
+      "methods": [
+        "DELETE",
+        "PATCH"
+      ],
+      "tags": [
+        "portfolio"
+      ],
+      "operation_ids": [
+        "update_holding_portfolio_holdings__holding_id__patch",
+        "delete_holding_portfolio_holdings__holding_id__delete"
+      ]
+    },
+    {
+      "path": "/portfolio/manage",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "portfolio"
+      ],
+      "operation_ids": [
+        "get_portfolio_manage_portfolio_manage_get"
+      ]
+    },
+    {
+      "path": "/portfolio/manage/allocations",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "portfolio"
+      ],
+      "operation_ids": [
+        "create_allocation_portfolio_manage_allocations_post"
+      ]
+    },
+    {
+      "path": "/portfolio/manage/allocations/{allocation_id}",
+      "methods": [
+        "DELETE"
+      ],
+      "tags": [
+        "portfolio"
+      ],
+      "operation_ids": [
+        "delete_allocation_portfolio_manage_allocations__allocation_id__delete"
+      ]
+    },
+    {
+      "path": "/portfolio/manage/allocations/{allocation_id}/live",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "portfolio"
+      ],
+      "operation_ids": [
+        "update_allocation_live_portfolio_manage_allocations__allocation_id__live_post"
+      ]
+    },
+    {
+      "path": "/predict/ensemble",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "ensemble"
+      ],
+      "operation_ids": [
+        "predict_ensemble_predict_ensemble_post"
+      ]
+    },
+    {
+      "path": "/research/compare",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "research"
+      ],
+      "operation_ids": [
+        "compare_runs_research_compare_post"
+      ]
+    },
+    {
+      "path": "/research/runs",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "tags": [
+        "research"
+      ],
+      "operation_ids": [
+        "create_run_research_runs_post",
+        "list_runs_research_runs_get"
+      ]
+    },
+    {
+      "path": "/research/runs/batch",
+      "methods": [
+        "PATCH"
+      ],
+      "tags": [
+        "research"
+      ],
+      "operation_ids": [
+        "update_runs_batch_research_runs_batch_patch"
+      ]
+    },
+    {
+      "path": "/research/runs/{run_id}",
+      "methods": [
+        "GET",
+        "PATCH"
+      ],
+      "tags": [
+        "research"
+      ],
+      "operation_ids": [
+        "get_run_research_runs__run_id__get",
+        "update_run_research_runs__run_id__patch"
+      ]
+    },
+    {
+      "path": "/research/runs/{run_id}/evidence",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "research"
+      ],
+      "operation_ids": [
+        "add_evidence_research_runs__run_id__evidence_post"
+      ]
+    },
+    {
+      "path": "/research/runs/{run_id}/export",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "research"
+      ],
+      "operation_ids": [
+        "export_run_research_runs__run_id__export_get"
+      ]
+    },
+    {
+      "path": "/research/runs/{run_id}/verify",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "research"
+      ],
+      "operation_ids": [
+        "verify_run_research_runs__run_id__verify_get"
+      ]
+    },
+    {
+      "path": "/search",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "search"
+      ],
+      "operation_ids": [
+        "global_search_search_get"
+      ]
+    },
+    {
+      "path": "/signals",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "signals"
+      ],
+      "operation_ids": [
+        "list_signals_signals_get"
+      ]
+    },
+    {
+      "path": "/signals/publish",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "signals"
+      ],
+      "operation_ids": [
+        "publish_signal_signals_publish_post"
+      ]
+    },
+    {
+      "path": "/signals/{signal_id}",
+      "methods": [
+        "DELETE"
+      ],
+      "tags": [
+        "signals"
+      ],
+      "operation_ids": [
+        "delete_signal_signals__signal_id__delete"
+      ]
+    },
+    {
+      "path": "/signals/{signal_id}/status",
+      "methods": [
+        "PATCH"
+      ],
+      "tags": [
+        "signals"
+      ],
+      "operation_ids": [
+        "review_signal_signals__signal_id__status_patch"
+      ]
+    },
+    {
+      "path": "/simulation/account",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "simulation"
+      ],
+      "operation_ids": [
+        "get_account_simulation_account_get"
+      ]
+    },
+    {
+      "path": "/simulation/orders",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "tags": [
+        "simulation"
+      ],
+      "operation_ids": [
+        "create_order_simulation_orders_post",
+        "list_orders_simulation_orders_get"
+      ]
+    },
+    {
+      "path": "/simulation/orders/preview",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "simulation"
+      ],
+      "operation_ids": [
+        "preview_order_simulation_orders_preview_post"
+      ]
+    },
+    {
+      "path": "/simulation/orders/{order_id}",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "simulation"
+      ],
+      "operation_ids": [
+        "get_order_simulation_orders__order_id__get"
+      ]
+    },
+    {
+      "path": "/simulation/orders/{order_id}/cancel",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "simulation"
+      ],
+      "operation_ids": [
+        "cancel_order_simulation_orders__order_id__cancel_post"
+      ]
+    },
+    {
+      "path": "/simulation/orders/{order_id}/executions/{execution_id}/ledger-sync",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "simulation"
+      ],
+      "operation_ids": [
+        "retry_ledger_sync_simulation_orders__order_id__executions__execution_id__ledger_sync_post"
+      ]
+    },
+    {
+      "path": "/simulation/orders/{order_id}/fills",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "simulation"
+      ],
+      "operation_ids": [
+        "fill_order_simulation_orders__order_id__fills_post"
+      ]
+    },
+    {
+      "path": "/strategies",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "strategies"
+      ],
+      "operation_ids": [
+        "list_catalog_strategies_get"
+      ]
+    },
+    {
+      "path": "/strategies/alphamaster/engine",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "strategies"
+      ],
+      "operation_ids": [
+        "alphamaster_engine_strategies_alphamaster_engine_get"
+      ]
+    },
+    {
+      "path": "/strategies/pa_agent/analyze",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "strategies"
+      ],
+      "operation_ids": [
+        "pa_analyze_strategies_pa_agent_analyze_post"
+      ]
+    },
+    {
+      "path": "/strategies/presets",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "strategies"
+      ],
+      "operation_ids": [
+        "all_presets_strategies_presets_get"
+      ]
+    },
+    {
+      "path": "/strategies/runs",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "strategies"
+      ],
+      "operation_ids": [
+        "all_runs_strategies_runs_get"
+      ]
+    },
+    {
+      "path": "/strategies/{name}",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "strategies"
+      ],
+      "operation_ids": [
+        "strategy_info_strategies__name__get"
+      ]
+    },
+    {
+      "path": "/strategies/{name}/backtest",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "strategies"
+      ],
+      "operation_ids": [
+        "backtest_strategies__name__backtest_post"
+      ]
+    },
+    {
+      "path": "/strategies/{name}/live",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "strategies"
+      ],
+      "operation_ids": [
+        "live_status_strategies__name__live_get"
+      ]
+    },
+    {
+      "path": "/strategies/{name}/live/tick",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "strategies"
+      ],
+      "operation_ids": [
+        "live_tick_strategies__name__live_tick_post"
+      ]
+    },
+    {
+      "path": "/strategies/{name}/presets",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "tags": [
+        "strategies"
+      ],
+      "operation_ids": [
+        "presets_strategies__name__presets_get",
+        "create_preset_strategies__name__presets_post"
+      ]
+    },
+    {
+      "path": "/strategies/{name}/presets/{preset_id}",
+      "methods": [
+        "DELETE"
+      ],
+      "tags": [
+        "strategies"
+      ],
+      "operation_ids": [
+        "delete_preset_strategies__name__presets__preset_id__delete"
+      ]
+    },
+    {
+      "path": "/strategies/{name}/run",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "strategies"
+      ],
+      "operation_ids": [
+        "run_strategy_strategies__name__run_post"
+      ]
+    },
+    {
+      "path": "/strategies/{name}/runs",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "strategies"
+      ],
+      "operation_ids": [
+        "create_run_strategies__name__runs_post"
+      ]
+    },
+    {
+      "path": "/strategy-lab/compare",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "strategy-lab"
+      ],
+      "operation_ids": [
+        "compare_runs_strategy_lab_compare_get"
+      ]
+    },
+    {
+      "path": "/strategy-lab/definitions",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "tags": [
+        "strategy-lab"
+      ],
+      "operation_ids": [
+        "create_definition_strategy_lab_definitions_post",
+        "list_definitions_strategy_lab_definitions_get"
+      ]
+    },
+    {
+      "path": "/strategy-lab/definitions/{definition_id}",
+      "methods": [
+        "GET",
+        "PATCH"
+      ],
+      "tags": [
+        "strategy-lab"
+      ],
+      "operation_ids": [
+        "get_definition_strategy_lab_definitions__definition_id__get",
+        "update_definition_strategy_lab_definitions__definition_id__patch"
+      ]
+    },
+    {
+      "path": "/strategy-lab/definitions/{definition_id}/archive",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "strategy-lab"
+      ],
+      "operation_ids": [
+        "archive_definition_strategy_lab_definitions__definition_id__archive_post"
+      ]
+    },
+    {
+      "path": "/strategy-lab/definitions/{definition_id}/copy",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "strategy-lab"
+      ],
+      "operation_ids": [
+        "copy_definition_strategy_lab_definitions__definition_id__copy_post"
+      ]
+    },
+    {
+      "path": "/strategy-lab/definitions/{definition_id}/versions",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "strategy-lab"
+      ],
+      "operation_ids": [
+        "create_version_strategy_lab_definitions__definition_id__versions_post"
+      ]
+    },
+    {
+      "path": "/strategy-lab/experiments",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "tags": [
+        "strategy-lab"
+      ],
+      "operation_ids": [
+        "create_experiment_strategy_lab_experiments_post",
+        "list_experiments_strategy_lab_experiments_get"
+      ]
+    },
+    {
+      "path": "/strategy-lab/experiments/{experiment_id}",
+      "methods": [
+        "PATCH"
+      ],
+      "tags": [
+        "strategy-lab"
+      ],
+      "operation_ids": [
+        "update_experiment_strategy_lab_experiments__experiment_id__patch"
+      ]
+    },
+    {
+      "path": "/strategy-lab/experiments/{experiment_id}/archive",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "strategy-lab"
+      ],
+      "operation_ids": [
+        "archive_experiment_strategy_lab_experiments__experiment_id__archive_post"
+      ]
+    },
+    {
+      "path": "/strategy-lab/experiments/{experiment_id}/backtest",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "strategy-lab"
+      ],
+      "operation_ids": [
+        "run_backtest_strategy_lab_experiments__experiment_id__backtest_post"
+      ]
+    },
+    {
+      "path": "/strategy-lab/experiments/{experiment_id}/copy",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "strategy-lab"
+      ],
+      "operation_ids": [
+        "copy_experiment_strategy_lab_experiments__experiment_id__copy_post"
+      ]
+    },
+    {
+      "path": "/strategy-lab/experiments/{experiment_id}/runs",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "strategy-lab"
+      ],
+      "operation_ids": [
+        "list_runs_strategy_lab_experiments__experiment_id__runs_get"
+      ]
+    },
+    {
+      "path": "/strategy-lab/runs/{run_id}",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "strategy-lab"
+      ],
+      "operation_ids": [
+        "get_run_strategy_lab_runs__run_id__get"
+      ]
+    },
+    {
+      "path": "/strategy-lab/versions/{version_id}",
+      "methods": [
+        "PATCH"
+      ],
+      "tags": [
+        "strategy-lab"
+      ],
+      "operation_ids": [
+        "update_version_strategy_lab_versions__version_id__patch"
+      ]
+    },
+    {
+      "path": "/strategy-lab/versions/{version_id}/archive",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "strategy-lab"
+      ],
+      "operation_ids": [
+        "archive_version_strategy_lab_versions__version_id__archive_post"
+      ]
+    },
+    {
+      "path": "/strategy-lab/versions/{version_id}/copy",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "strategy-lab"
+      ],
+      "operation_ids": [
+        "copy_version_strategy_lab_versions__version_id__copy_post"
+      ]
+    },
+    {
+      "path": "/trading/accounts/{account_id}",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "trading"
+      ],
+      "operation_ids": [
+        "trading_account_trading_accounts__account_id__get"
+      ]
+    },
+    {
+      "path": "/trading/dashboard",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "trading"
+      ],
+      "operation_ids": [
+        "trading_dashboard_trading_dashboard_get"
+      ]
+    },
+    {
+      "path": "/trading/health",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "trading"
+      ],
+      "operation_ids": [
+        "trading_health_trading_health_get"
+      ]
+    },
+    {
+      "path": "/trading/orders",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "trading"
+      ],
+      "operation_ids": [
+        "trading_submit_order_trading_orders_post"
+      ]
+    },
+    {
+      "path": "/trading/orders/{order_id}",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "trading"
+      ],
+      "operation_ids": [
+        "trading_order_trading_orders__order_id__get"
+      ]
+    },
+    {
+      "path": "/trading/orders/{order_id}/cancel",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "trading"
+      ],
+      "operation_ids": [
+        "trading_cancel_order_trading_orders__order_id__cancel_post"
+      ]
+    },
+    {
+      "path": "/trading/reconciliation/diffs/{diff_id}",
+      "methods": [
+        "GET"
+      ],
+      "tags": [
+        "trading"
+      ],
+      "operation_ids": [
+        "trading_reconciliation_diff_trading_reconciliation_diffs__diff_id__get"
+      ]
+    },
+    {
+      "path": "/trading/reconciliation/diffs/{diff_id}/resolve",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "trading"
+      ],
+      "operation_ids": [
+        "trading_resolve_diff_trading_reconciliation_diffs__diff_id__resolve_post"
+      ]
+    },
+    {
+      "path": "/trading/reconciliation/{account_id}",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "trading"
+      ],
+      "operation_ids": [
+        "trading_reconcile_trading_reconciliation__account_id__post"
+      ]
+    },
+    {
+      "path": "/trading/recovery/orders",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "trading"
+      ],
+      "operation_ids": [
+        "trading_recover_orders_trading_recovery_orders_post"
+      ]
+    },
+    {
+      "path": "/trading/risk/mode",
+      "methods": [
+        "POST"
+      ],
+      "tags": [
+        "trading"
+      ],
+      "operation_ids": [
+        "trading_set_risk_mode_trading_risk_mode_post"
+      ]
+    }
+  ],
+  "orphan_frontend_files": [
+    "web/src/components/CommandPalette/index.ts",
+    "web/src/components/KpiCard.tsx",
+    "web/src/components/StatusBar/index.ts",
+    "web/src/components/WorkspaceHeader/index.ts",
+    "web/src/components/ui/Badge/index.ts",
+    "web/src/components/ui/Button/index.ts",
+    "web/src/components/ui/Card/index.ts",
+    "web/src/components/ui/EmptyState/index.ts",
+    "web/src/components/ui/Field/index.ts",
+    "web/src/components/ui/Icon/index.ts",
+    "web/src/components/ui/IconButton/index.ts",
+    "web/src/components/ui/Input/index.ts",
+    "web/src/components/ui/Modal/index.ts",
+    "web/src/components/ui/Panel/index.ts",
+    "web/src/components/ui/SegmentedControl/index.ts",
+    "web/src/components/ui/Select/index.ts",
+    "web/src/components/ui/Skeleton/index.ts",
+    "web/src/components/ui/Spinner/index.ts",
+    "web/src/components/ui/Table/index.ts",
+    "web/src/components/ui/Tag/index.ts",
+    "web/src/components/ui/Textarea/index.ts",
+    "web/src/components/ui/Toggle/index.ts",
+    "web/src/components/ui/Tooltip/index.ts",
+    "web/src/components/ui/index.ts"
+  ],
+  "databases": {
+    "store": {
+      "path": "apps/api/store.db",
+      "exists": true,
+      "sha256": "fc865f9dd77675f5b2aa1b6588f9ec438824caa3764efdb4dd086dbebbb1e809",
+      "size_bytes": 4616192,
+      "integrity_check": "ok",
+      "table_count": 49,
+      "row_total": 982,
+      "tables": {
+        "alembic_version": 1,
+        "alert_events": 0,
+        "alert_rules": 0,
+        "analysis_tasks": 13,
+        "api_tokens": 0,
+        "app_meta": 2,
+        "audit_logs": 368,
+        "automation_audit_logs": 0,
+        "automation_job_overrides": 0,
+        "automation_runs": 0,
+        "backtest_runs": 0,
+        "data_source_incidents": 9,
+        "experiments": 0,
+        "factor_ai_search_rounds": 0,
+        "factor_candidate_validations": 0,
+        "factor_confirmation_set_openings": 0,
+        "factor_definitions": 14,
+        "factor_experiment_events": 0,
+        "factor_experiments": 0,
+        "factor_lifecycle_events": 14,
+        "factor_research_jobs": 0,
+        "factor_research_plans": 0,
+        "factor_universe_members": 0,
+        "factor_universes": 0,
+        "holdings": 2,
+        "instruments": 36,
+        "kol_figures": 18,
+        "ledger_benchmarks": 0,
+        "ledger_cash": 1,
+        "ledger_corrections": 0,
+        "ledger_positions": 0,
+        "ledger_trades": 35,
+        "permissions": 12,
+        "portfolio_allocs": 0,
+        "research_evidence": 69,
+        "research_incidents": 0,
+        "research_runs": 66,
+        "role_permissions": 27,
+        "roles": 4,
+        "signals": 107,
+        "simulation_executions": 34,
+        "simulation_orders": 19,
+        "strategy_definitions": 0,
+        "strategy_presets": 0,
+        "strategy_runs": 123,
+        "strategy_versions": 0,
+        "user_roles": 1,
+        "users": 1,
+        "watchlist": 6
+      }
+    },
+    "okx_runner_shadow": {
+      "path": "data/okx_runner/runner-shadow.db",
+      "exists": true,
+      "sha256": "d04c78f390b149302acd7d72a0ed0ba9f5e99aa5ad9074caa8ba43ff1d857c27",
+      "size_bytes": 106496,
+      "integrity_check": "ok",
+      "table_count": 12,
+      "row_total": 2,
+      "tables": {
+        "audit_events": 0,
+        "balance_snapshots": 0,
+        "fills": 0,
+        "order_events": 0,
+        "orders": 0,
+        "position_snapshots": 0,
+        "reconciliation_diffs": 0,
+        "risk_decisions": 0,
+        "risk_states": 1,
+        "runtime_results": 0,
+        "schema_meta": 1,
+        "strategy_versions": 0
+      }
+    }
+  },
+  "startup": {
+    "web_npm_scripts": {
+      "dev": "vite",
+      "test": "vitest run",
+      "test:watch": "vitest",
+      "typecheck": "tsc -b",
+      "build": "tsc -b && vite build",
+      "preview": "vite preview"
+    },
+    "shell_scripts": [],
+    "dockerfiles": [
+      "Dockerfile",
+      "docker/Dockerfile.okx-runner"
+    ],
+    "github_workflows": [
+      ".github/workflows/ci.yml",
+      ".github/workflows/okx-runner.yml",
+      ".github/workflows/release.yml"
+    ]
+  }
+}

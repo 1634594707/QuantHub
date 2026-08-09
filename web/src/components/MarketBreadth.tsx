@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import type { CSSProperties } from 'react'
 import type { MarketBreadthResp } from '../api/types'
-import { BREADTH, SECTORS } from '../data/mock'
 import s from './MarketBreadth.module.css'
 
 const PREVIEW_COUNT = 4
@@ -12,8 +11,23 @@ export default function MarketBreadth({
   data?: MarketBreadthResp | null
 }) {
   const [expanded, setExpanded] = useState(false)
-  const b = data || BREADTH
-  const sectors = data?.sectors || SECTORS
+  // M3 无假数据：没有后端返回时渲染空态，不使用任何硬编码广度/行业数据
+  if (!data) {
+    return (
+      <div className={`card ${s.card}`}>
+        <div className="card-head">
+          <div className="card-title">
+            市场广度 <span className="sub">暂无数据</span>
+          </div>
+        </div>
+        <div className={s.body}>
+          <div className={`muted ${s.note}`}>未取到市场广度数据，稍后重试或检查数据源状态。</div>
+        </div>
+      </div>
+    )
+  }
+  const b = data
+  const sectors = data.sectors ?? []
   const total = Math.max(1, b.up + b.flat + b.down)
   const pct = (v: number) => ((v / total) * 100).toFixed(1)
   const top = [...sectors].sort((a, c) => c.chgPct - a.chgPct)
@@ -62,6 +76,7 @@ export default function MarketBreadth({
         </div>
 
         <div className={s.sectors}>
+          {visible.length === 0 && <div className={`muted ${s.note}`}>暂无行业涨跌数据</div>}
           {visible.map((sec) => {
             const up = sec.chgPct >= 0
             return (

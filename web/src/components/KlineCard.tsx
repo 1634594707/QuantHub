@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
-import { genCandles, type Candle } from '../data/mock'
+import type { Candle } from '../data/types'
 import { api } from '../api/client'
 import { useApi } from '../api/useApi'
 import s from './KlineCard.module.css'
@@ -24,7 +24,6 @@ const INTERVAL_MAP: Record<Period, string> = {
   '1D': '1d',
   '1W': '1w',
 }
-const SEEDS: Record<string, number> = { '5m': 11, '15m': 23, '1H': 31, '1D': 42, '1W': 77 }
 const ZOOM_STEPS = [60, 45, 30, 20, 12]
 
 const H = 300
@@ -69,10 +68,10 @@ function computeMA(candles: Candle[], period: number): (number | null)[] {
 }
 
 function dataFreshness(
-  source: 'live' | 'offline' | 'mock' | 'invalid',
+  source: 'live' | 'offline' | 'empty' | 'invalid',
   candles: Candle[],
 ): { stale: boolean; text: string } {
-  // 仅离线/模拟源需要提示滞后；实时源（腾讯/akshare）本身即最新行情
+  // 仅离线源需要提示滞后；实时源（腾讯/akshare）本身即最新行情
   if (source === 'live' || !candles.length) return { stale: false, text: '' }
   const last = candles[candles.length - 1]
   const dt = Date.parse(last.t)
@@ -121,7 +120,7 @@ export default function KlineCard({
     setWindowOffset(0)
   }, [effectivePeriod, market, period, symbol])
 
-  // ── 真实数据接入：经统一 API 客户端取 K 线，失败/无数据自动降级到模拟 ──
+  // ── 真实数据接入：经统一 API 客户端取 K 线；失败/无数据一律走空态，不降级到模拟 ──
   const { data, loading, error } = useApi(
     () => api.kline(symbol, market, INTERVAL_MAP[effectivePeriod], 240),
     [effectivePeriod, symbol, market],
@@ -131,22 +130,20 @@ export default function KlineCard({
   const blockedByQuality = data?.quality?.status === 'invalid' && !data.quality.usable
   // 如实分类数据来源：腾讯/akshare 才算实时；local_parquet 等离线源标为离线，避免伪装成实时
   const isLive = data?.source === 'tencent' || data?.source === 'akshare'
-  const source: 'live' | 'offline' | 'mock' | 'invalid' = blockedByQuality
+  const source: 'live' | 'offline' | 'empty' | 'invalid' = blockedByQuality
     ? 'invalid'
     : isLive
       ? 'live'
       : isReal
         ? 'offline'
-        : 'mock'
-  const hasData = data !== null
+        : 'empty'
 
   const allCandles = useMemo<Candle[]>(() => {
+    // M3 无假数据：只渲染后端真实返回的 K 线；质量拦截/失败/空返回一律走空态，
+    // 不再生成任何模拟蜡烛图，避免用户把占位图形误认为行情。
     if (isReal) return data!.candles
-    // 仅在后端失败/返回空时才降级到模拟数据；首次加载中显示骨架屏，避免一闪而过的假价格
-    if (blockedByQuality) return []
-    if (!loading || hasData) return genCandles(240, SEEDS[effectivePeriod] ?? 42)
     return []
-  }, [blockedByQuality, isReal, data, effectivePeriod, loading, hasData])
+  }, [isReal, data])
 
   // 容器宽度（响应式铺满）
   useEffect(() => {
@@ -375,12 +372,12 @@ export default function KlineCard({
               : `${lastUp ? '▲' : '▼'} ${fmt(Math.abs(change))} (${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%)`}
           </span>
           <span
-            className={`src-pill ${source === 'live' ? 'live' : source === 'offline' || source === 'invalid' ? 'warn' : 'mock'}`}
+            className={`src-pill ${source === 'live' ? 'live' : source === 'offline' || source === 'invalid' ? 'warn' : 'empty'}`}
             title={data?.quality
               ? `质量 ${data.quality.status} · 缺失 ${(data.quality.missing_rate * 100).toFixed(2)}% · 非法 ${data.quality.invalid_rows} 行 · 延迟 ${data.quality.latency_ms ?? '—'}ms`
               : undefined}
           >
-            {source === 'live' ? '实时' : source === 'offline' ? '离线' : source === 'invalid' ? '质量拦截' : '模拟'}
+            {source === 'live' ? '实时' : source === 'offline' ? '离线' : source === 'invalid' ? '质量拦截' : '无数据'}
           </span>
           {freshness.stale && <span className="src-pill warn">{freshness.text}</span>}
           {loading && <span className="src-pill loading">加载中…</span>}
@@ -462,15 +459,15 @@ export default function KlineCard({
             <div>
               <div className={s.errTitle}>后端连接失败</div>
               <div className={`muted ${s.errHint}`}>
-                已降级为模拟数据展示
+                未取到行情数据，本卡片不展示任何替代数值
               </div>
             </div>
           </div>
         )}
-        {!loading && allCandles.length === 0 && (
+        {!loading && !error && allCandles.length === 0 && (
           <div className="kline-overlay">
             <div className={`muted ${s.emptyHint}`}>
-              暂无 K 线数据
+              {blockedByQuality ? '数据质量校验未通过，已拦截展示' : '暂无 K 线数据'}
             </div>
           </div>
         )}

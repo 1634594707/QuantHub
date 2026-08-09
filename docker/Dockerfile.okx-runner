@@ -1,0 +1,12 @@
+FROM python:3.11-slim-bookworm
+WORKDIR /app
+RUN python -m pip install --no-cache-dir --upgrade pip==26.1.2 uv==0.11.15
+COPY . .
+RUN uv sync --frozen --no-dev --no-editable --package quanthub-okx-runner
+RUN .venv/bin/python tools/check_product_licenses.py --product okx-runner
+RUN .venv/bin/python tools/check_product_secrets.py --product okx-runner
+ENV PATH="/app/.venv/bin:${PATH}" PYTHONUNBUFFERED=1 QH_RUNNER_HOST=0.0.0.0 QH_RUNNER_DATABASE_PATH=/data/runner.db QH_RUNNER_ENVIRONMENT=shadow
+VOLUME ["/data"]
+EXPOSE 8103
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8103/health',timeout=5)"
+ENTRYPOINT ["uvicorn", "apps.okx_runner.main:app", "--host", "0.0.0.0", "--port", "8103"]

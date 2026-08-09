@@ -1,0 +1,27 @@
+{
+  "task": "M3-03",
+  "generated_at": "2026-08-09T23:57:00+08:00",
+  "contract_fields": [
+    "status",
+    "source",
+    "observed_at",
+    "freshness",
+    "error_code",
+    "data"
+  ],
+  "statuses_covered": ["ok", "empty", "stale", "error"],
+  "fix": {
+    "file": "apps/api/domains/trading/router.py",
+    "before": "Trading errors manually assembled an incomplete envelope without observed_at.",
+    "after": "All TradingError responses use apps.api.contracts.error_envelope."
+  },
+  "tests": {
+    "module": "tests.test_trading_proxy",
+    "error_envelope_fields_asserted": true,
+    "stale_uses_runner_snapshot_time": true,
+    "empty_does_not_become_ok": true,
+    "full_backend_gate_tests": 225,
+    "failures": 0
+  },
+  "passed": true
+}

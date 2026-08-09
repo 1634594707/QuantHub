@@ -102,7 +102,9 @@ export default function StrategiesPage() {
         metrics={[
           { label: '已注册', value: list.length },
           { label: '当前筛选', value: filtered.length },
-          { label: '可实盘', value: list.filter((strategy) => strategy.live_capable).length },
+          // M2-04：live_capable 是策略元数据里的**自声明**字段，不代表已通过实盘核准。
+          // 实际能否下单由交易通道（trading_enabled + live_approved）决定，此处如实措辞。
+          { label: '声明支持实盘', value: list.filter((strategy) => strategy.live_capable).length },
         ]}
       />
       <div className="card">
@@ -139,7 +141,7 @@ export default function StrategiesPage() {
               <Toggle
                 checked={liveOnly}
                 onChange={setLiveOnly}
-                label="仅可实盘"
+                label="仅看声明支持实盘"
               />
               <Select
                 className={s.sortSelect}

@@ -2265,3 +2265,79 @@ export const ENTITY_META: Record<string, { label: string; cls: string }> = {
   org: { label: '机构', cls: 'org' },
   location: { label: '地点', cls: 'location' },
 }
+
+// ---- M1/M2 交易域（/api/trading/*）----
+// 统一数据来源契约外壳，对应 apps/api/contracts.py 的 envelope()。
+export type ContractStatus = 'ok' | 'stale' | 'empty' | 'error'
+
+export interface ContractSource {
+  name: string
+  kind: string
+  environment: string | null
+}
+
+export interface ContractFreshness {
+  age_seconds: number
+  ttl_seconds: number | null
+  expired: boolean
+}
+
+export interface ContractEnvelope<T> {
+  status: ContractStatus
+  source: ContractSource
+  observed_at: string | null
+  freshness: ContractFreshness
+  error_code: string | null
+  message?: string | null
+  detail?: string | null
+  hint?: string | null
+  retryable?: boolean
+  data: T | null
+}
+
+export type TradingEnvironment = 'shadow' | 'demo' | 'live'
+export type RiskMode = 'normal' | 'cancel_only' | 'halted'
+
+export interface TradingHealth {
+  configured: boolean
+  reachable: boolean
+  environment: TradingEnvironment | null
+  trading_enabled: boolean
+  live_approved: boolean
+  runner: Record<string, unknown> | null
+}
+
+export interface OkxDemoCredentialStatus {
+  ok: boolean
+  configured: boolean
+  environment: 'demo'
+  source: 'local_vault'
+  fingerprint: string | null
+  updated_at: string | null
+  validated_at: string | null
+}
+
+export interface OkxDemoConnectionTest extends OkxDemoCredentialStatus {
+  latency_ms?: number
+  currency_count?: number
+  nonzero_currency_count?: number
+  permission?: 'read_only_test'
+  error_code?: string | null
+  error?: string | null
+  diagnostic_stage?: string | null
+  diagnostic_type?: string | null
+  exchange_code?: string | null
+}
+
+export interface TradingOrderIntent {
+  strategy_id: string
+  strategy_version: string
+  intent_id: string
+  account_id: string
+  symbol: string
+  side: 'buy' | 'sell'
+  order_type: 'limit' | 'market'
+  quantity: number
+  price?: number | null
+  leverage?: number
+}

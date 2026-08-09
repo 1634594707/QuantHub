@@ -28,6 +28,18 @@ QuantHub 将综合评估、因子验证、AI 研究证据、策略回测、信�
 
 完整变更、证据边界和升级说明见 [v0.3.0 发布说明](docs/releases/v0.3.0.md) 与 [AI 因子发现路线图](AI_FACTOR_DISCOVERY_ROADMAP.md)。
 
+## Web 工作台收口与 OKX 接入进展
+
+当前开发分支将产品收口为 `http://127.0.0.1:5173` 一个 Web 入口，并按驾驶舱、研究、策略、执行、运营和系统设置组织主要流程。新手模式保留高频入口，高级模式开放完整研究、交易与治理能力。
+
+- **真实数据边界**：移除前端 mock 数据和首次访问时自动写入的演示持仓、自选种子；假数据扫描覆盖 Python、TypeScript、JSON 与 YAML。
+- **交易服务隔离**：Web 只访问统一 API，API 再代理无界面的 OKX Runner；Runner 默认处于 `shadow`，不会下单。
+- **安全凭据录入**：Windows 本地版可在系统设置中填写 OKX API Key、Secret Key 和 API Passphrase，后端使用当前 Windows 用户的 DPAPI 加密保存，前端无法取回原文。
+- **只读连接验证**：设置页支持保存、替换、只读测试和确认删除，错误信息会脱敏；应用不会在 Demo 失败后静默回退到实盘。
+- **当前里程碑**：M4 仍需一把确实绑定 OKX 模拟交易环境的只读 Key 才能继续验证。现有测试 Key 在实盘环境只读认证成功、在 Demo 环境返回 `50101`，因此未启用 Demo 或实盘交易。
+
+具体任务、依赖与验收证据见 [Web 工作台与 OKX 路线图](docs/Plan/2026-08-09-Web工作台收口与OKX实盘路线图.md) 和 [交易安全边界](docs/TRADING_SAFETY.md)。
+
 ## 为什么使用 QuantHub
 
 - **单一综合评估入口**：工作台支持一键启动量化快照、新闻 AI、价格结构 AI 和模型共识，并将结果写入同一份研究记录。
@@ -38,7 +50,7 @@ QuantHub 将综合评估、因子验证、AI 研究证据、策略回测、信�
 - **插件式策略系统**：策略独立注册，共享行情、信号、回测、LLM 与告警能力。
 - **审核优先的执行链路**：信号先进入审核中心，再进入模拟订单与账户账本。
 - **闭合交易质量分析**：账户账本使用 FIFO 配对计算真实胜率、利润因子、盈亏比、持仓时长、多空差异和费用侵蚀。
-- **本地优先与安全默认值**：默认使用本地 SQLite，密钥只从环境变量读取，实盘开关默认关闭。
+- **本地优先与安全默认值**：默认使用本地 SQLite；LLM 密钥沿用运行时配置，OKX 桌面端凭据使用 Windows DPAPI 加密保存且不回显原文；实盘开关默认关闭。
 - **完整运营视角**：提供自动化任务、故障状态、备份、访问治理和运行健康检查。
 - **统一结果回链**：研究任务、作业调度、提醒、信号与全局检索共享同一结果定位规则，最多一次点击返回研究正文；自动化页面只保存产出类型和记录 ID，不复制研究内容。
 - **隐私友好的易用性指标**：仅在本机记录研究步骤、完成耗时、放弃步骤与错误分类，不采集标的、密钥、持仓明细或模型配置。
@@ -84,6 +96,7 @@ cd QuantHub
 ### 2. Windows 一键启动
 
 启动脚本会检查运行环境、同步依赖、检查端口与 API 健康状态，并将日志写入 `logs/launcher/`。
+一条命令同时启动三个进程：Web 工作台、统一 API、无 UI 的 OKX Runner。
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File tools/start-quanthub.ps1
@@ -91,9 +104,14 @@ powershell -ExecutionPolicy Bypass -File tools/start-quanthub.ps1
 
 启动完成后访问：
 
-- Web 工作台：<http://127.0.0.1:5173>
+- Web 工作台：<http://127.0.0.1:5173>（唯一用户入口）
 - API 文档：<http://127.0.0.1:8001/docs>
 - 健康检查：<http://127.0.0.1:8001/health>
+
+OKX Runner 监听 `127.0.0.1:8103`，**不对浏览器开放**，也没有独立界面；
+Web 只经统一 API 的 `/api/trading/*` 访问它。Runner 默认以 `shadow`（只读、不下单）
+环境启动，切换模拟盘需显式设置 `QH_RUNNER_ENVIRONMENT=demo`，实盘另需
+`QH_RUNNER_LIVE_APPROVED=1`，脚本不会代为开启。只做研究/只读时可加 `-SkipRunner`。
 
 停止由脚本启动的服务：
 
@@ -184,6 +202,18 @@ QUANTHUB_CUSTOM_LLM_API_KEY=your-key-here
 
 界面支持配置 API 地址、默认模型、超时、重试次数和连接测试。密钥仅写入运行时环境，不会回显明文；`apps/api/.env` 已被 Git 忽略。请勿将 API Key、数据库密码、交易所密钥或访问令牌提交到仓库。
 
+### OKX 本地凭据
+
+打开“系统设置 → OKX 连接”，依次填写 API Key、Secret Key 和 API Passphrase，然后先执行只读连接测试。这里的 API Passphrase 是创建这把 API Key 时单独设置的口令，不是 OKX 登录密码或查看 API 列表时使用的验证密码。
+
+首次联调建议只授予“读取”权限，并在 OKX 的“模拟交易”环境中创建专用 Key。若测试返回 `50101`，表示 OKX 判定该 Key 与当前请求环境不一致；请在模拟交易环境重新创建 Key，而不是开启实盘回退。凭据加密文件保存在 `%LOCALAPPDATA%\QuantHub\secrets\`，位于仓库和业务数据库之外，状态接口只返回指纹和时间，不返回密钥原文。
+
+Runner 的安全默认值如下：
+
+- `QH_RUNNER_ENVIRONMENT=shadow`：只读影子模式，不下单。
+- `QH_RUNNER_ENVIRONMENT=demo`：显式连接 OKX 模拟交易环境。
+- 实盘还必须额外设置 `QH_RUNNER_LIVE_APPROVED=1`，且应在完成 Demo 观察期和人工验收后才启用。
+
 ### 主要配置文件
 
 | 文件 | 用途 |
@@ -215,6 +245,7 @@ QuantHub 支持 `local`、`lan` 和 `postgresql` 三种部署模式。局域网�
 apps/
   api/          FastAPI 网关与领域 API
   dispatcher/   信号聚合、风控与订单路由
+  okx_runner/   无独立 UI 的 OKX 执行、风控与对账服务
   scheduler/    自动化任务定义
 core/           配置、行情、信号、回测、告警和 LLM 公共能力
 strategies/     A 股、加密、AI 分析与 MT5 策略插件
@@ -239,7 +270,7 @@ uv run pre-commit install
 
 ```bash
 uv sync --locked --group test
-uv run python -m unittest discover -s tests -p "test_*.py" -v
+uv run --frozen python -B tools/run_backend_tests.py
 ```
 
 运行前端测试、类型检查和生产构建：
@@ -249,6 +280,15 @@ npm --prefix web test
 npm --prefix web run typecheck
 npm --prefix web run build
 ```
+
+运行数据与凭据门禁：
+
+```bash
+uv run --frozen python -B tools/check_fake_data.py
+uv run --frozen python -B tools/check_product_secrets.py --product okx-runner
+```
+
+当前收口基线为后端 `232` 项、前端 `99` 项测试通过，前端类型检查与生产构建通过；假数据扫描和 OKX 产品凭据扫描均为 `0` 违规。浏览器验收覆盖 28 个页面、11 条导航路径和 2 条 shadow 安全检查，未发现控制台、资源或 API 错误。详细结果以 `docs/Plan/evidence/` 中的落盘证据为准。
 
 创建新策略前可以先用 `--dry-run` 预览变更：
 
@@ -265,7 +305,8 @@ uv run python tools/scaffold_strategy.py \
 ## 安全边界
 
 - `configs/base.yaml` 中的 `live_trading` 默认为 `false`。
-- 真实执行需要同时满足全局开关、模块开关、凭据和人工确认条件。
+- OKX Runner 默认使用 `shadow`；真实执行需要同时满足环境、全局开关、模块开关、有效凭据和人工批准条件。
+- Demo 凭据与实盘凭据不混用，连接失败时不会自动尝试另一环境。
 - 当前项目重点是研究、回测和模拟执行；接入真实券商或交易所前请阅读 [实盘适配评估](docs/LIVE_TRADING_ADAPTER_EVALUATION.md)。
 - 公开仓库前建议执行 `git status --short`，确认 `.env`、数据库、日志、模型和大型行情文件均未进入暂存区。
 

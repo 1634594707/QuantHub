@@ -1,0 +1,383 @@
+{
+  "task": "P1-audit-cleanup",
+  "store_path": "D:\\Administrator\\Desktop\\finance\\apps\\api\\store.db",
+  "sha256_before": "02b86fb8101797f4a45f63587101911537be9a03b9dae44bee5da41d89c2f1d7",
+  "audit_logs_total_before": 390,
+  "matched_rows": 66,
+  "matched_by_action": {
+    "POST /trading/orders": 54,
+    "POST /trading/recovery/orders": 6,
+    "POST /trading/risk/mode": 6
+  },
+  "applied": true,
+  "row_ids": [
+    "cdd8a32b-2664-4ad2-891c-7efcbf7a8001",
+    "ecd9b667-c753-4029-ad4d-df94eb7d649c",
+    "e41d8e49-60be-4269-afb5-cf069e5ad1e0",
+    "8d4f5721-ae68-41a7-b4d6-e8c4c00427c2",
+    "69ad35fe-36cf-4a46-a79d-2247356c774a",
+    "28ada3a4-e651-4832-a0a3-a7b9b8cc3797",
+    "b3c0e696-0c3a-4970-8c4b-43e6d25407b2",
+    "7c904f48-7851-406d-9647-e05e20815c7b",
+    "6a93649e-b974-4e00-9a8a-fd0b3d849ac8",
+    "a6ecb0d9-735f-4f37-8b26-830d6f5391b9",
+    "dddf2577-6679-48e8-84ca-3de79fa64551",
+    "32fc5b95-d1db-454f-8684-859f47df94d9",
+    "af00f48b-dcaf-4808-9945-89e76252a176",
+    "1a068e57-e2a1-40b9-9b91-b398d0d652e7",
+    "ca6d856e-302b-4d7c-95b8-767d99c0ae21",
+    "fdf76117-fdd9-4b3b-8cc2-3e9459f48d07",
+    "e7cf3bc4-2ed9-4ce1-aad4-0127ea1856aa",
+    "fd7e6cb6-3174-476c-ab32-0f63285d9a5f",
+    "4b1c6844-242a-4fe6-b026-f8d29512cdb2",
+    "b5a9c8ee-b3b3-48ab-b6ec-2214606fb6a7",
+    "22a32014-7535-4aec-86dc-4506233cc3bc",
+    "3311c63e-2f64-4d18-936f-e3bc7ea3e376",
+    "6920ee78-c74d-4640-94a3-57088f5727c9",
+    "9518a0b1-c1c8-4a3b-9d5e-f1882b14487b",
+    "6a2a215b-99c9-4a60-bd20-9d061dfa3842",
+    "7689b41f-9e3c-4aee-896f-68b42de1a97f",
+    "daada559-8fbb-4cb7-954c-13d302b2f224",
+    "0122559f-f828-41fb-b951-d88a1a203301",
+    "bbbac464-09a2-4f51-8019-ec5727b36180",
+    "1c25c750-c15f-474e-bac7-3d2c35d78fc5",
+    "90b82eef-935c-4774-8d95-ba8215f1288d",
+    "013628f6-0e3c-4076-bca8-2a9e0b3967ff",
+    "2a60fda7-5425-4ee8-9b45-63e05a1c9d37",
+    "e840fcb5-ce3e-44f9-a16c-23b7f500018a",
+    "a5d13ca4-71af-426b-b59d-e63aece3452d",
+    "c9c0fd77-0c60-4554-bf17-25009986d8f0",
+    "5cfd3466-4bb7-47f8-a0c1-9bb3eece97ee",
+    "73622960-55fd-489a-a842-a82aeed07900",
+    "a0d8461d-eefb-4c9f-8774-34a05b758663",
+    "e96b57d8-e1e1-41c8-8464-cf9c0775d7fc",
+    "07eb928f-965c-4614-af09-f9fa764e98df",
+    "bbe4aca7-82e2-4481-9cec-2439ffba6397",
+    "8d2f5d21-5197-4cb0-94a7-7cb262d8bf36",
+    "604c5640-4155-4979-8ab0-44c208091b5c",
+    "ca72e4f9-74ec-4fc6-bc0a-f15f0971c292",
+    "bd66fddc-6984-4b25-b412-b41b0ec222de",
+    "a8871493-f3f4-494c-a0ca-1b7b4b286948",
+    "df387270-441f-4ae4-ba5c-9dbbf47d3d72",
+    "e866b176-bc85-4c3d-a170-1d1b28e9d6fb",
+    "347b3baf-24a3-4bed-856b-0ad9b80ace0f",
+    "33c9b804-f8c2-4130-817a-13bfd78541b4",
+    "3f31515a-778a-4b68-b61b-5d46a45b4f51",
+    "079a951c-3e5e-476d-9a94-bd7d2f4ce927",
+    "4166a41b-a3d3-472c-9904-07e4ef7d1648",
+    "4ce892f5-b169-439a-a728-0ace2eca4041",
+    "39390d79-1181-48a9-a62a-a650b2774853",
+    "0ab10174-6da9-43fd-8c58-be52aff138be",
+    "17a02b8d-9c61-4935-8024-ee907feb731d",
+    "a53cbc90-1dac-4a2e-8d12-745a8a32892b",
+    "8a968fad-d753-4b03-816a-728ffd7e724e",
+    "64f67244-f4ec-4855-a67e-1aa36ac0a270",
+    "12410675-bd2a-4cec-b59e-159fbb50b8c7",
+    "1f539f6c-5c5f-4cb1-8f5f-ccf96bc059a1",
+    "83c4575e-d2ca-4ce1-8de4-46c5ec28ed4f",
+    "852a457c-3dc9-4e38-98e3-509121d7b793",
+    "ee18cc88-18be-4a69-a758-5c6be1e50ad7"
+  ],
+  "backup_path": "D:\\Administrator\\Desktop\\finance\\backups\\store.db.pre-purge-20260809-183631.bak",
+  "audit_logs_total_after": 324,
+  "sha256_after": "2f540251ae0d4042e15f6aa75f0d25c7bfaf0600414ff00b179450ae140acd12",
+  "verification": {
+    "integrity_check_current": "ok",
+    "integrity_check_backup": "ok",
+    "total_tables": 49,
+    "tables_excluding_audit_logs": 48,
+    "residual_matched_ids": 0,
+    "residual_row_ids": [],
+    "other_tables_identical_to_backup": true,
+    "tables": [
+      {
+        "name": "alembic_version",
+        "rows": 1,
+        "content_sha256": "65b6169f0f053655867e2399bc2acc2ea2796750e007dc0eb374c5eb3718bf0a",
+        "identical_to_backup": true
+      },
+      {
+        "name": "alert_events",
+        "rows": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "identical_to_backup": true
+      },
+      {
+        "name": "alert_rules",
+        "rows": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "identical_to_backup": true
+      },
+      {
+        "name": "analysis_tasks",
+        "rows": 13,
+        "content_sha256": "f90c58e35037ac67fc3ee3fec1d19e16b838ab33e7eac508b71c2ffe59b17743",
+        "identical_to_backup": true
+      },
+      {
+        "name": "api_tokens",
+        "rows": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "identical_to_backup": true
+      },
+      {
+        "name": "app_meta",
+        "rows": 2,
+        "content_sha256": "015b590ec7492974c6547dfd086e56688fbdf4e302a2553db5a39c2b7b1686d2",
+        "identical_to_backup": true
+      },
+      {
+        "name": "automation_audit_logs",
+        "rows": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "identical_to_backup": true
+      },
+      {
+        "name": "automation_job_overrides",
+        "rows": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "identical_to_backup": true
+      },
+      {
+        "name": "automation_runs",
+        "rows": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "identical_to_backup": true
+      },
+      {
+        "name": "backtest_runs",
+        "rows": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "identical_to_backup": true
+      },
+      {
+        "name": "data_source_incidents",
+        "rows": 9,
+        "content_sha256": "ca655565df809b99cb15b8f14f1875c717d7f00fbb9a3508089ffd9a03ac5e68",
+        "identical_to_backup": true
+      },
+      {
+        "name": "experiments",
+        "rows": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "identical_to_backup": true
+      },
+      {
+        "name": "factor_ai_search_rounds",
+        "rows": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "identical_to_backup": true
+      },
+      {
+        "name": "factor_candidate_validations",
+        "rows": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "identical_to_backup": true
+      },
+      {
+        "name": "factor_confirmation_set_openings",
+        "rows": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "identical_to_backup": true
+      },
+      {
+        "name": "factor_definitions",
+        "rows": 14,
+        "content_sha256": "79ea2e890a75df939c10643badb1aaefb2596d8ba328bc8c441c61259308917d",
+        "identical_to_backup": true
+      },
+      {
+        "name": "factor_experiment_events",
+        "rows": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "identical_to_backup": true
+      },
+      {
+        "name": "factor_experiments",
+        "rows": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "identical_to_backup": true
+      },
+      {
+        "name": "factor_lifecycle_events",
+        "rows": 14,
+        "content_sha256": "9c77663cbd9163b1e6b6ced2504e9deabd8822bd5a2668dbb497689bd3eec9ea",
+        "identical_to_backup": true
+      },
+      {
+        "name": "factor_research_jobs",
+        "rows": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "identical_to_backup": true
+      },
+      {
+        "name": "factor_research_plans",
+        "rows": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "identical_to_backup": true
+      },
+      {
+        "name": "factor_universe_members",
+        "rows": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "identical_to_backup": true
+      },
+      {
+        "name": "factor_universes",
+        "rows": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "identical_to_backup": true
+      },
+      {
+        "name": "holdings",
+        "rows": 2,
+        "content_sha256": "a04406b7d9986a5f92851fb7600a0370ee9416c5df74eece3543763ff751aeb2",
+        "identical_to_backup": true
+      },
+      {
+        "name": "instruments",
+        "rows": 36,
+        "content_sha256": "2257878140fa2fa66a00bd6efdb56e54d4ffd59f3154e23acc3dd658901a4fbf",
+        "identical_to_backup": true
+      },
+      {
+        "name": "kol_figures",
+        "rows": 18,
+        "content_sha256": "e894e42728c5862702d4ba18fd04cd49f6cbdedce5e1faa28d80c8bf5132f38a",
+        "identical_to_backup": true
+      },
+      {
+        "name": "ledger_benchmarks",
+        "rows": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "identical_to_backup": true
+      },
+      {
+        "name": "ledger_cash",
+        "rows": 1,
+        "content_sha256": "6e93d82af727c89e72dc9aa4a41b8bcb56198f73a3589861ed49ce588084c670",
+        "identical_to_backup": true
+      },
+      {
+        "name": "ledger_corrections",
+        "rows": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "identical_to_backup": true
+      },
+      {
+        "name": "ledger_positions",
+        "rows": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "identical_to_backup": true
+      },
+      {
+        "name": "ledger_trades",
+        "rows": 35,
+        "content_sha256": "eaa8b964cea6744c74c4128e756b042bf9cbbf8d90693106e57306857e858ced",
+        "identical_to_backup": true
+      },
+      {
+        "name": "permissions",
+        "rows": 12,
+        "content_sha256": "630dc9d61106df2d1ef702850025136f4417c2a5000c87a8e54e8d46de9d1079",
+        "identical_to_backup": true
+      },
+      {
+        "name": "portfolio_allocs",
+        "rows": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "identical_to_backup": true
+      },
+      {
+        "name": "research_evidence",
+        "rows": 69,
+        "content_sha256": "4b7a8d98285305f008df47504c3037a8919292c0d8794b0b3cfa00fe1f8af92a",
+        "identical_to_backup": true
+      },
+      {
+        "name": "research_incidents",
+        "rows": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "identical_to_backup": true
+      },
+      {
+        "name": "research_runs",
+        "rows": 66,
+        "content_sha256": "42347788e7a53022ab4ab7a274818492c13d9b74613036c3df153b1c622e9c13",
+        "identical_to_backup": true
+      },
+      {
+        "name": "role_permissions",
+        "rows": 27,
+        "content_sha256": "d041040f61bbf2a0ec8857d8ed9fc5be260b0325617669b5a83c4555f71529db",
+        "identical_to_backup": true
+      },
+      {
+        "name": "roles",
+        "rows": 4,
+        "content_sha256": "57f1c084ef59885e85e8f30a9668788ccb9c7ae5c345663744fd373b6e24273d",
+        "identical_to_backup": true
+      },
+      {
+        "name": "signals",
+        "rows": 107,
+        "content_sha256": "a318b67f638ec808077637deaf884fc191061a4f7633e786e42913ef65b43024",
+        "identical_to_backup": true
+      },
+      {
+        "name": "simulation_executions",
+        "rows": 34,
+        "content_sha256": "100f7ed4dde8c753dfd725683c012c418698bae8564316fc3fcacd5042e7542f",
+        "identical_to_backup": true
+      },
+      {
+        "name": "simulation_orders",
+        "rows": 19,
+        "content_sha256": "2971ce25c68a774e3aad6d44be8a7aa71d9319aa6d21f08dfd22debb4cbfc809",
+        "identical_to_backup": true
+      },
+      {
+        "name": "strategy_definitions",
+        "rows": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "identical_to_backup": true
+      },
+      {
+        "name": "strategy_presets",
+        "rows": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "identical_to_backup": true
+      },
+      {
+        "name": "strategy_runs",
+        "rows": 123,
+        "content_sha256": "756c74225d65518fc386e7e4ff17ce3f230ea042ba571e1f349dc17428ae9f05",
+        "identical_to_backup": true
+      },
+      {
+        "name": "strategy_versions",
+        "rows": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "identical_to_backup": true
+      },
+      {
+        "name": "user_roles",
+        "rows": 1,
+        "content_sha256": "e93ed9be87836105f5db354915a5abfe93cd66d2816747887c21772804733105",
+        "identical_to_backup": true
+      },
+      {
+        "name": "users",
+        "rows": 1,
+        "content_sha256": "c86ab4f7499dfcfce7e5ef9955141565710f44e09b9fa71ecd032ef94765adef",
+        "identical_to_backup": true
+      },
+      {
+        "name": "watchlist",
+        "rows": 6,
+        "content_sha256": "ae570ca2bc9ef21022f83bfb4234198918e7b2b90da3f7bce8e2677fa983759c",
+        "identical_to_backup": true
+      }
+    ]
+  }
+}

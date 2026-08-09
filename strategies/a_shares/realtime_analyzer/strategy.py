@@ -93,7 +93,7 @@ class RealtimeAnalyzerStrategy(StrategyBase):
 
         logger.info("realtime_analyzer: 抓取 %d 只实时行情", len(codes))
         market_data: dict[str, Any] = {
-            "timestamp": dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "timestamp": dt.datetime.now(dt.UTC).astimezone().strftime("%Y-%m-%d %H:%M:%S"),
             "codes": codes,
             "quotes": fetch_quotes(codes),
         }
@@ -104,7 +104,7 @@ class RealtimeAnalyzerStrategy(StrategyBase):
             for c in codes:
                 try:
                     kline[c] = fetch_kline(c, days=kline_days)
-                except Exception as exc:
+                except Exception as exc:  # noqa: BLE001 - fetchers expose provider-specific failures
                     kline[c] = {"error": str(exc)}
             market_data["kline"] = kline
 
@@ -140,7 +140,7 @@ class RealtimeAnalyzerStrategy(StrategyBase):
             from core.llm import get_llm
 
             llm = get_llm()
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - optional LLM providers vary by installation
             logger.warning("realtime_analyzer: LLM 不可用（%s），降级为快照报告", exc)
             return None
         user_msg = "\n".join(
@@ -158,7 +158,7 @@ class RealtimeAnalyzerStrategy(StrategyBase):
             ]
         )
         try:
-            resp = llm.chat.completions.create(
+            resp = llm.chat(
                 messages=[
                     {"role": "system", "content": _SYSTEM_PROMPT},
                     {"role": "user", "content": user_msg},
@@ -167,8 +167,8 @@ class RealtimeAnalyzerStrategy(StrategyBase):
                 max_tokens=2000,
             )
             return resp.content
-        except Exception as exc:
-            logger.exception("realtime_analyzer: LLM 调用失败: %s", exc)
+        except Exception:  # noqa: BLE001 - provider SDKs expose different exception hierarchies
+            logger.exception("realtime_analyzer: LLM 调用失败")
             return None
 
     @staticmethod

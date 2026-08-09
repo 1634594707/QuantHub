@@ -90,14 +90,29 @@ class TencentSource(DataSource):
             )
             r.raise_for_status()
             payload = r.json()
-        except Exception:
-            logger.exception("腾讯 K线请求失败 %s", symbol)
+        except Exception as exc:  # noqa: BLE001 - normalize transport and payload failures
+            logger.warning(
+                "腾讯 K线请求失败 %s (proxies=%s): %s",
+                symbol,
+                {
+                    k: v
+                    for k, v in requests.utils.defaults().items()
+                    if k in ("HTTPS_PROXY", "HTTP_PROXY")
+                },
+                exc,
+            )
             return pd.DataFrame()
 
         data = payload.get("data", {}).get(code, {})
         key = "qfqday" if "qfqday" in data else ("day" if "day" in data else "week")
         rows = data.get(key, [])
         if not rows:
+            logger.warning(
+                "腾讯 K线 %s 拿空: code=%s data_keys=%s",
+                symbol,
+                code,
+                list(data.keys()),
+            )
             return pd.DataFrame()
         if self.market == "us_stocks" and len(rows) < min(limit, 20):
             logger.warning(
@@ -134,11 +149,15 @@ class TencentSource(DataSource):
                 "turnover",
             ]
         ]
+        # tencent 内部 datacol: datetime 列无 tzinfo；外部 start/end 可能带 tz，
+        # 比较前必须 strip tzinfo，否则 pandas 抛 "Invalid comparison between dtype=datetime64[us] and Timestamp"
+        start_dt = pd.to_datetime(start).tz_localize(None) if start is not None else None
+        end_dt = pd.to_datetime(end).tz_localize(None) if end is not None else None
         df = normalize_ohlcv_rows(df)
-        if start:
-            df = df[df["datetime"] >= pd.to_datetime(start)]
-        if end:
-            df = df[df["datetime"] <= pd.to_datetime(end)]
+        if start_dt is not None:
+            df = df[df["datetime"] >= start_dt]
+        if end_dt is not None:
+            df = df[df["datetime"] <= end_dt]  # type: ignore[operator]
         if limit and len(df) > limit:
             df = df.tail(limit).reset_index(drop=True)
         df = df.reset_index(drop=True)

@@ -1,0 +1,87 @@
+{
+  "generatedAt": "2026-08-09T18:33:02.184Z",
+  "baseUrl": "http://127.0.0.1:5173",
+  "results": [
+    {
+      "viewport": "mobile-390x844",
+      "box": {
+        "x": 12,
+        "y": 151.921875,
+        "width": 366,
+        "height": 543
+      },
+      "labels": [
+        "API Key",
+        "Secret Key",
+        "API Passphrase"
+      ],
+      "inputInfo": [
+        {
+          "type": "password",
+          "autocomplete": "new-password",
+          "value": "",
+          "width": 340,
+          "scrollWidth": 338
+        },
+        {
+          "type": "password",
+          "autocomplete": "new-password",
+          "value": "",
+          "width": 340,
+          "scrollWidth": 338
+        },
+        {
+          "type": "password",
+          "autocomplete": "new-password",
+          "value": "",
+          "width": 340,
+          "scrollWidth": 338
+        }
+      ],
+      "runtimeErrors": [],
+      "screenshot": "mobile-390x844.png",
+      "passed": true
+    },
+    {
+      "viewport": "desktop-1440x900",
+      "box": {
+        "x": 304,
+        "y": 554.5,
+        "width": 920,
+        "height": 304
+      },
+      "labels": [
+        "API Key",
+        "Secret Key",
+        "API Passphrase"
+      ],
+      "inputInfo": [
+        {
+          "type": "password",
+          "autocomplete": "new-password",
+          "value": "",
+          "width": 290,
+          "scrollWidth": 288
+        },
+        {
+          "type": "password",
+          "autocomplete": "new-password",
+          "value": "",
+          "width": 290,
+          "scrollWidth": 288
+        },
+        {
+          "type": "password",
+          "autocomplete": "new-password",
+          "value": "",
+          "width": 290,
+          "scrollWidth": 288
+        }
+      ],
+      "runtimeErrors": [],
+      "screenshot": "desktop-1440x900.png",
+      "passed": true
+    }
+  ],
+  "passed": true
+}

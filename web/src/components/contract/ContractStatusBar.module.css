@@ -1,0 +1,40 @@
+/* 统一数据来源 / 新鲜度状态条（M3-04）。移动端自动换行，不产生横向溢出。 */
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  background: var(--bg-subtle);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-2);
+  min-width: 0;
+}
+
+.bar.error {
+  border-color: var(--down);
+  background: var(--down-weak);
+}
+
+.label {
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.text {
+  overflow-wrap: anywhere;
+}
+
+.code {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  color: var(--down-ink);
+  overflow-wrap: anywhere;
+}
+
+.hint {
+  color: var(--warn-ink);
+  overflow-wrap: anywhere;
+}

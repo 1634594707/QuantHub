@@ -95,11 +95,6 @@ def delete_holding(holding_id: str) -> dict:
     return {"ok": True}
 
 
-@router.post("/portfolio/holdings/reset")
-def reset_holdings() -> dict:
-    return {"ok": True, "holdings": repository.reset_holdings(service.CONFIG["holdings"])}
-
-
 @router.get("/market/breadth")
 def get_market_breadth() -> dict:
     return service.market_breadth()
@@ -160,11 +155,6 @@ def delete_watchlist(watch_id: str) -> dict:
     if not repository.delete_watchlist(watch_id):
         raise HTTPException(status_code=404, detail=f"关注标的不存在: {watch_id}")
     return {"ok": True}
-
-
-@router.post("/market/watchlist/reset")
-def reset_watchlist() -> dict:
-    return {"ok": True, "items": repository.reset_watchlist(service.CONFIG["watchlist"])}
 
 
 @router.get("/market/quote")

@@ -228,7 +228,8 @@ export default function StrategyDetailPage() {
           </Link>
           <span>{strategy.name}</span>
           <Tag variant="accent">{marketBadge(strategy.market)}</Tag>
-          {strategy.live_capable && <Tag variant="up">可实盘</Tag>}
+          {/* M2-04：如实标注为策略自声明，避免被误读为「已核准可实盘」 */}
+          {strategy.live_capable && <Tag variant="accent">声明支持实盘</Tag>}
         </div>
       </div>
 
@@ -266,8 +267,10 @@ export default function StrategyDetailPage() {
                 <span className="v">{marketBadge(strategy.market)}</span>
               </div>
               <div className="stat-tile">
-                <span className="k">实盘能力</span>
-                <span className="v">{strategy.live_capable ? '可实盘' : '回测/分析'}</span>
+                <span className="k">实盘能力（自声明）</span>
+                <span className="v" title="来自策略元数据 live_capable，非实盘核准结果；能否真实下单由交易通道审批决定">
+                  {strategy.live_capable ? '声明支持实盘' : '仅回测 / 分析'}
+                </span>
               </div>
               <div className="stat-tile">
                 <span className="k">当前模式</span>

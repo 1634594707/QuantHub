@@ -25,12 +25,9 @@ class UnknownStrategyError(ValueError):
 def _load_config() -> dict:
     path = CONFIGS_DIR / "portfolio.yaml"
     if not path.exists():
-        return {"cash": 0.0, "holdings": [], "watchlist": [], "breadth_basket": []}
+        return {"breadth_basket": []}
     config = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     return {
-        "cash": float(config.get("cash", 0)),
-        "holdings": list(config.get("holdings", [])),
-        "watchlist": list(config.get("watchlist", [])),
         "breadth_basket": [
             (item["code"], item["sector"])
             for item in config.get("breadth_basket", [])
@@ -92,7 +89,7 @@ def latest_close(symbol: str, market: str, interval: str = "1h") -> float | None
     try:
         frame = get_data_source(market).get_kline(symbol, interval, limit=2)
         return None if frame is None or frame.empty else float(frame["close"].iloc[-1])
-    except Exception:
+    except Exception:  # noqa: BLE001 - data-source adapters may raise provider-specific errors
         return None
 
 
@@ -118,7 +115,7 @@ def tencent_quote_detail(symbol: str, market: str) -> tuple[str | None, float | 
             float(parts[3]) if parts[3] else None,
             float(parts[4]) if parts[4] else None,
         )
-    except Exception:
+    except Exception:  # noqa: BLE001 - quote fallback must tolerate provider-specific errors
         logging.getLogger(__name__).exception("腾讯报价失败 %s/%s", market, symbol)
         return (None, None, None)
 
@@ -157,7 +154,7 @@ def quote_item(symbol: str, market: str, name: str = "") -> dict:
             }
     try:
         frame = get_data_source(market).get_kline(symbol, "1d", limit=10)
-    except Exception:
+    except Exception:  # noqa: BLE001 - quote fallback must tolerate provider-specific errors
         frame = None
     if frame is None or frame.empty or "close" not in frame or pd.isna(frame["close"].iloc[-1]):
         return {
@@ -186,7 +183,6 @@ def quote_item(symbol: str, market: str, name: str = "") -> dict:
 
 
 def portfolio_snapshot() -> dict:
-    repository.seed_holdings(CONFIG["holdings"])
     holdings = []
     total_value = total_cost = daily_pnl = 0.0
     for item in repository.list_holdings():
@@ -222,10 +218,10 @@ def portfolio_snapshot() -> dict:
     return {
         "ok": True,
         "summary": {
-            "nav": round(total_value + CONFIG["cash"], 2),
+            "nav": round(total_value, 2),
             "dailyPnl": round(daily_pnl, 2),
             "dailyPnlPct": round(pnl_percent, 2),
-            "cash": round(CONFIG["cash"], 2),
+            "cash": 0.0,
             "chgBasedScore": score,
             "totalPositions": len(holdings),
         },
@@ -234,7 +230,6 @@ def portfolio_snapshot() -> dict:
 
 
 def watchlist_snapshot() -> dict:
-    repository.seed_watchlist(CONFIG["watchlist"])
     output = []
     for item in repository.list_watchlist():
         quote = quote_item(item["sym"], item["market"], item["name"])

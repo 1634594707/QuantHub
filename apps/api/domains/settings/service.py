@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import re
 from time import perf_counter
 
 import requests
@@ -9,6 +10,16 @@ from apps.api import database, store
 from apps.api.domains.backups import service as backup_service
 from core.config import get_config, get_path
 from core.llm import reset_clients
+from packages.credential_vault import (
+    OkxCredentials,
+    load_okx_demo_credentials,
+    okx_demo_credential_status,
+    save_okx_demo_credentials,
+    update_okx_demo_validation,
+)
+from packages.credential_vault import (
+    delete_okx_demo_credentials as delete_okx_demo_vault,
+)
 
 from . import repository
 from .domain import mask_secret, provider_key_env
@@ -48,6 +59,98 @@ _LLM_PROVIDER_PRESETS = {
         "key_env": "QUANTHUB_CUSTOM_LLM_API_KEY",
     },
 }
+
+
+def okx_demo_status() -> dict:
+    return okx_demo_credential_status()
+
+
+def update_okx_demo_credentials(api_key: str, secret_key: str, passphrase: str) -> dict:
+    return save_okx_demo_credentials(OkxCredentials(api_key, secret_key, passphrase))
+
+
+def delete_okx_demo_credentials() -> dict:
+    return delete_okx_demo_vault()
+
+
+def _okx_error(exc: Exception, stage: str) -> tuple[str, str]:
+    if stage == "vault_load":
+        return "credential_vault_unavailable", "本机 OKX 凭据无法解密，请删除后重新保存"
+    if stage in {"sdk_import", "sdk_initialize", "sandbox_enable"}:
+        return "connector_unavailable", "OKX 连接器初始化失败，请检查本机运行环境"
+    if _okx_numeric_code(exc) == "50101":
+        return "environment_mismatch", "这把 API Key 不属于 OKX Demo，请在模拟交易环境重新创建"
+    name = type(exc).__name__
+    if name in {"AuthenticationError", "PermissionDenied"}:
+        return "authentication_failed", "OKX 拒绝了凭据，请检查 API Key、Secret 和 Passphrase"
+    if name in {"NetworkError", "RequestTimeout", "ExchangeNotAvailable", "DDoSProtection"}:
+        return "network_unavailable", "无法连接 OKX Demo，请检查网络后重试"
+    return "connection_failed", "OKX Demo 只读连接测试失败"
+
+
+def _okx_numeric_code(exc: Exception) -> str | None:
+    match = re.search(r'["\']code["\']\s*:\s*["\']?(\d{4,8})', str(exc))
+    return match.group(1) if match else None
+
+
+def test_okx_demo_connection() -> dict:
+    status = okx_demo_credential_status()
+    if not status["configured"]:
+        return {
+            **status,
+            "ok": False,
+            "error_code": "not_configured",
+            "error": "尚未保存 OKX Demo 凭据",
+        }
+    started = perf_counter()
+    stage = "vault_load"
+    try:
+        credentials = load_okx_demo_credentials()
+        stage = "sdk_import"
+        import ccxt
+
+        stage = "sdk_initialize"
+        exchange = ccxt.okx(
+            {
+                "apiKey": credentials.api_key,
+                "secret": credentials.secret_key,
+                "password": credentials.passphrase,
+                "enableRateLimit": True,
+            }
+        )
+        exchange.session.trust_env = True
+        stage = "sandbox_enable"
+        exchange.set_sandbox_mode(True)
+        stage = "account_read"
+        balance = exchange.fetch_balance()
+        totals = balance.get("total") or {}
+        nonzero_currencies = sum(1 for value in totals.values() if float(value or 0) != 0)
+        update_okx_demo_validation()
+        return {
+            **okx_demo_credential_status(),
+            "ok": True,
+            "latency_ms": round((perf_counter() - started) * 1000),
+            "currency_count": len(totals),
+            "nonzero_currency_count": nonzero_currencies,
+            "permission": "read_only_test",
+            "error_code": None,
+            "error": None,
+        }
+    except Exception as exc:  # noqa: BLE001 - sanitize every third-party SDK failure
+        code, message = _okx_error(exc, stage)
+        return {
+            **status,
+            "ok": False,
+            "latency_ms": round((perf_counter() - started) * 1000),
+            "currency_count": 0,
+            "nonzero_currency_count": 0,
+            "permission": "read_only_test",
+            "error_code": code,
+            "error": message,
+            "diagnostic_stage": stage,
+            "diagnostic_type": type(exc).__name__,
+            "exchange_code": _okx_numeric_code(exc),
+        }
 
 
 def notification_status() -> dict:
@@ -282,7 +385,12 @@ def system_status() -> dict:
         name: importlib.util.find_spec(name) is not None
         for name in ("akshare", "snownlp", "torch", "transformers")
     }
-    model_available = bool(sentiment_model_path and sentiment_model_path.is_dir())
+    # model_available 原义：FinBERT2 权重目录是否存在。
+    # snownlp 自带本地语料模型，安装后即具备本地情绪分析能力，应一并视为「本地模型可用」，
+    # 否则会出现「snownlp · 本地模型不可用」的自相矛盾。
+    model_available = (
+        bool(sentiment_model_path and sentiment_model_path.is_dir()) or optional_modules["snownlp"]
+    )
     if optional_modules["transformers"] and optional_modules["torch"] and model_available:
         sentiment_engine = "transformers"
     elif optional_modules["snownlp"]:

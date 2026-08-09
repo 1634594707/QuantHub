@@ -1,0 +1,36 @@
+{
+  "task": "Q0-01",
+  "generated_at": "2026-08-09T23:57:00+08:00",
+  "unit_and_component_tests": {
+    "files": 24,
+    "tests": 97,
+    "failures": 0,
+    "passed": true
+  },
+  "typecheck": {
+    "command": "npm run typecheck",
+    "exit_code": 0
+  },
+  "production_build": {
+    "command": "npm run build",
+    "exit_code": 0,
+    "modules_transformed": 1748
+  },
+  "critical_interactions": {
+    "order_submit_and_cancel_page_flow": true,
+    "halt_page_flow": true,
+    "confirmation_and_cancel_dialogs": true
+  },
+  "browser_acceptance": {
+    "report": "docs/Plan/evidence/pre-m4-web-acceptance/report.json",
+    "screenshots": 28,
+    "navigation_checks": 11,
+    "shadow_safety_checks": 2,
+    "console_errors": 0,
+    "page_errors": 0,
+    "failed_resources": 0,
+    "api_errors": 0,
+    "passed": true
+  },
+  "passed": true
+}

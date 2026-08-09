@@ -1,0 +1,20 @@
+{
+  "task": "M1-06 Runner unavailable browser acceptance",
+  "generated_at": "2026-08-09T15:50:38.426Z",
+  "mutation_policy": "Read-only; Runner is unavailable and no mutation is submitted.",
+  "research": {
+    "status": 200,
+    "required_text_visible": true,
+    "screenshot": "runner-down-research.png"
+  },
+  "trading": {
+    "status": 200,
+    "source_error_visible": true,
+    "submit_disabled": true,
+    "cancel_disabled": true,
+    "screenshot": "runner-down-trading.png"
+  },
+  "console_errors": [],
+  "page_errors": [],
+  "passed": true
+}

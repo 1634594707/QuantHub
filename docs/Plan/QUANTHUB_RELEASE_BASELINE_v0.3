@@ -1,0 +1,121 @@
+# QuantHub 发布基线 + 风险台账（P0-01 产物）
+
+> **对应工作包：** `docs/Plan/2026-08-08-研究矩阵扩展-可执行工作安排.md` 第 6 节 **P0-01**
+> **基线日期：** 2026-08-08（T0）
+> **目的：** G0 基线冻结。所有证据来自本机真实命令输出（bash / git），非记忆推断。
+> **存档方式说明：** 当前 Dev server **未运行**（`curl localhost:5173` → `000` / no-server），故本基线以**文本快照**存档，未采集位图截图。若后续需要可视化截图，请先 `cd web && npm run dev` 启动后再补。
+
+---
+
+## A. Release 标识（可核验）
+
+| 项 | 值 | 取数命令 |
+| --- | --- | --- |
+| 当前 release tag | **`v0.3.0`** | `git describe --tags --abbrev=0` |
+| 对应 commit | **`9abd1d5`** `release: QuantHub v0.3.0` | `git log --oneline -5` |
+| 全部 v0.* tag | `v0.1.0` / `v0.1.1` / `v0.2.0` / `v0.3.0` | `git tag -l "v0.*"` |
+| 回滚目标（上一稳定版） | **`v0.2.0`** @ `d0f8886` | `git tag -l "v0.*"` 次新 |
+| 回滚命令 | `git checkout v0.2.0 && <按 README 重启>` | 见 `README.md` |
+
+> **铁律声明**：以上 tag / commit 均为 `git` 实测输出，未做任何推断。
+
+---
+
+## B. 后端领域快照（22 目录 / 21 已挂载）
+
+**命令：** `ls -1 apps/api/domains/ | grep -v __pycache__` → **22 个子目录**（按字母序）
+`alerts automation backups ensemble evaluation factor_research governance incidents instrument ledger market market_data news portfolio research search settings signals simulation strategies strategy_lab tasks`
+
+**挂载核验：** `apps/api/main.py` 第 163–183 行 `include_router(XXX_router)` **共 21 行**（`grep -c include_router`=22，含第 9 行 docstring 1 次，需排除）。
+
+**冒烟结果（逐域 router.py 存在 + 挂载）：**
+
+| Domain | router.py | 挂载于 main.py |
+| --- | --- | --- |
+| alerts | ✅ | ✅ |
+| automation | ✅ | ✅ |
+| backups | ✅ | ✅ |
+| ensemble | ✅ | ✅ |
+| **evaluation** | ❌（仅 service.py） | ❌ **未挂载（F1）** |
+| factor_research | ✅ | ✅ |
+| governance | ✅ | ✅ |
+| incidents | ✅ | ✅ |
+| instrument | ✅ | ✅ |
+| ledger | ✅ | ✅ |
+| market | ✅ | ✅ |
+| market_data | ✅ | ✅ |
+| news | ✅ | ✅ |
+| portfolio | ✅ | ✅ |
+| research | ✅ | ✅ |
+| search | ✅ | ✅ |
+| settings | ✅ | ✅ |
+| signals | ✅ | ✅ |
+| simulation | ✅ | ✅ |
+| strategies | ✅ | ✅ |
+| strategy_lab | ✅ | ✅ |
+| tasks | ✅ | ✅ |
+
+> **结论：** 21/22 域已暴露为 HTTP 路由；`evaluation` 仅有 `service.py`、无 `router.py`、未被主网关集成。前端 `/evaluate`（StockEvaluationStartPage）未直接调用 `evaluation` 域 HTTP（client.ts 中无 `evaluate` 匹配）。
+
+---
+
+## C. 前端快照（5 工作区 / 32 页面）
+
+**命令：** `ls -1 web/src/pages/*.tsx | wc -l` → **32**
+
+**工作区（5）：** `web/src/navigation/workspaces.tsx` 第 49–111 行 `WORKSPACES`：`cockpit` / `research` / `strategy` / `execution` / `operations`。
+
+**与三件套相关的现状页面（已存在，本安排将改造而非新建者）：**
+- `FactorResearchPage.tsx` + `FactorEvidenceWorkbench.tsx` + `FactorConfirmationPanel.tsx` + `CrossSectionResearchPanel.tsx` → 对应 D2（因子库实时面板升级）
+- `ResearchWorkspacePage.tsx` → 对应三件套总入口 `/research`
+- `StockEvaluationStartPage.tsx` → 对应 `/evaluate`（board=evaluation，与 F1 关联）
+- `EnsemblePage.tsx` / `NewsPage.tsx` / `PaAnalysisPage.tsx` → 研究矩阵既有相邻能力
+
+**本三件套将新增的页面（当前不存在）：**
+- `RadarPage.tsx`（D1，新增）
+- `KolPage.tsx`（D3，新增）
+- `FactorLiveBoard.tsx`（D2，由 `FactorResearchPage` 拆分升级）
+
+---
+
+## D. 数据 / 数据源快照
+
+| 源 | 状态 | 证据 |
+| --- | --- | --- |
+| tencent（`web.ifzq.gtimg.cn`） | ✅ 穿透代理 `127.0.0.1:62613` 可用，为 A 股 primary | 历史 commit `7583c4a`；`.workbuddy/memory/2026-07-24.md` |
+| akshare / 东财（`push2his.eastmoney.com`） | ❌ 走同一代理报 `ProxyError`，不可用 | 同 7-24 日志 |
+| 本地 parquet | ✅ 离线兜底 | 同 7-24 日志 |
+| crypto（OKX / 币安） | ❌ 代理拦截，无可用源 | 同 7-24 日志 |
+
+> **影响：** `/radar` 与 `/factor-research` 实时数据**仅 A 股**可信；crypto / 美股盘中能力有限（美股日线常只回 1 根）。D1 / D2 的首屏必须诚实标注来源（`live` / `offline` / `sample`），沿用现有 `MarketBreadth` 的 `sample:true` 模式。
+
+---
+
+## E. 发布门禁现状（G0 基线）
+
+| 门禁项 | 现状 | 缺口 |
+| --- | --- | --- |
+| 版本号 / commit / 迁移 / 回滚登记 | ✅ tag 体系存在（`v0.1.0`→`v0.3.0`） | 缺 Canary / verified 状态机（仅直跳 tag） |
+| 正常 / 失败 / 越权 / 并发验证 | ⚠️ 有 `tests/` 与 E2E 雏形 | 缺三件套专项回归 |
+| 幂等 / 对账 / 审计 | ✅ `apps/api/store.py` + 既有 `audit`（调研） | 跨三件套 `request_id` 串联未统一 |
+| schema 改造隔离 | ✅ 迁移文件 `migrations/versions/0003..0008` | 新增 `0009_research_pool` 需沿用 |
+| Canary → production 灰度 | ❌ 不支持 | **M3-02 补** |
+
+---
+
+## F. 风险台账（G0 冻结时登记）
+
+| ID | 风险 | 等级 | 触发条件 | 应对 / 负责人 |
+| --- | --- | --- | --- | --- |
+| **R1（F1）** | `evaluation` 域后端未集成，前端 `/evaluate` 功能闭环存疑 | 中 | P0 审查发现 | 不在本三件套范围；登记为已知项，后续独立立项 |
+| **R2** | 数据源仅 tencent 可用，crypto / 美股盘中受限 | 中 | `/radar` 跨市场需求 | D1 / D2 首屏强制来源徽标；crypto 显式不可用 |
+| **R3** | 缺 Canary 发布机制，v0.4.0 直跳 tag 风险高 | 中 | M3-02 未完成即发布 | M3-02 强制：`v0.4.0-canary.0` 演练通过才进 production |
+| **R4** | `/radar` 卡片墙并发拉取 30+ 标的可能超时 | 低-中 | G3 实测 | M2-01 加骨架占位 + 超时降级空态 |
+| **R5** | KOL 抓取源（雪球 / 东财）可能限流 / 改版 | 中 | M1-03 crawler 实跑 | crawler 限速 + mock fallback；标注 `data-source=degraded` |
+| **R6** | LLM 抽取 KOL↔标的越权 / 幻觉 | 中 | M1-03 / Q0-02 | 沿用 `FACTOR_RESEARCH_BASELINE.md` §2.3 治理边界 + Q0-02 审查 |
+
+---
+
+## G. 一句话结论（供 P0 审查）
+
+> **基线可冻结。** v0.3.0 @ `9abd1d5` 为合法冻结点；22 域 / 21 路由 / 5 工作区 / 32 页面已实测；回滚目标 `v0.2.0` 明确。唯一需知会审查者的已知项 = **R1（evaluation 未挂载）**，已登记为 F1，不影响三件套启动。

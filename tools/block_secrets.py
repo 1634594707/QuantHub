@@ -24,6 +24,7 @@ SECRET_PATTERN = re.compile(
     r'|"api_key"\s*:\s*"[^*]{8,}"'
     r"|sk-[A-Za-z0-9]{12,}"
 )
+SAFE_TEST_SENTINELS = ("must-not-leak",)
 
 
 def run_git(*args: str) -> bytes:
@@ -66,6 +67,13 @@ def added_lines() -> list[str]:
     ]
 
 
+def contains_secret_material(line: str) -> bool:
+    sanitized = line
+    for sentinel in SAFE_TEST_SENTINELS:
+        sanitized = sanitized.replace(sentinel, "*" * len(sentinel))
+    return SECRET_PATTERN.search(sanitized) is not None
+
+
 def main() -> int:
     paths = staged_paths()
     if not paths:
@@ -77,7 +85,7 @@ def main() -> int:
             print(f"pre-commit: blocked {reason}: {path}", file=sys.stderr)
             return 1
 
-    if any(SECRET_PATTERN.search(line) for line in added_lines()):
+    if any(contains_secret_material(line) for line in added_lines()):
         print(
             "pre-commit: staged diff may contain API key material "
             "(api_key / api_key_encrypted / sk-...)",

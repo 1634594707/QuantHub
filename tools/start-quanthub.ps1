@@ -1,6 +1,22 @@
+# QuantHub unified launcher (work package M1-05).
+#
+# One command starts three processes: Web (5173), unified API (8001)
+# and the headless OKX Runner (8103).
+# The Runner starts in the 'shadow' environment (read-only, never places orders).
+# Switching to demo requires QH_RUNNER_ENVIRONMENT=demo; live additionally requires
+# QH_RUNNER_LIVE_APPROVED=1. This script never sets those for you.
+# Re-running is idempotent: a port already served by this project is left alone,
+# and the PID recorded for that service is preserved (adopted from the previous
+# run record, or discovered from the listening port) so stop-quanthub.ps1 can
+# still tear it down. A re-run never overwrites a live PID with null.
+#
+# Keep this file ASCII-only. Windows PowerShell 5.1 reads BOM-less .ps1 as ANSI,
+# so non-ASCII comments corrupt the parse.
 [CmdletBinding()]
 param(
-    [switch]$SkipSync
+    [switch]$SkipSync,
+    # Start only Web + API and leave the Runner down (research / read-only use).
+    [switch]$SkipRunner
 )
 
 $ErrorActionPreference = 'Stop'
@@ -63,6 +79,105 @@ function Wait-ForPort {
     throw "$Name did not listen on port $Port within ${TimeoutSeconds}s. Check $LogRoot\web.err.log and $LogRoot\web.out.log"
 }
 
+function Get-PortOwnerPid {
+    # Resolve the PID that currently listens on a local TCP port.
+    # Used so a re-run can adopt processes started by an earlier run.
+    param([int]$Port)
+    try {
+        $connection = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction Stop |
+            Select-Object -First 1
+        if ($connection) { return [int]$connection.OwningProcess }
+    } catch {
+        # Get-NetTCPConnection is missing on some SKUs; fall back to netstat.
+        $line = netstat -ano -p TCP |
+            Select-String -Pattern 'LISTENING' |
+            Select-String -Pattern ":$Port\s" |
+            Select-Object -First 1
+        if ($line) {
+            $fields = ($line.ToString().Trim() -split '\s+')
+            $candidate = $fields[-1]
+            if ($candidate -match '^\d+$') { return [int]$candidate }
+        }
+    }
+    return $null
+}
+
+function Resolve-ServicePid {
+    # M1-05 idempotency: prefer the process that owns the listening port.
+    # npm.cmd and uv are wrappers which can remain alive while a child process
+    # owns the socket; persisting the wrapper PID breaks identity checks on a
+    # repeated start and makes teardown depend on an extra port lookup.
+    param([int]$Port, $PreviousPid)
+    $owner = Get-PortOwnerPid -Port $Port
+    if ($owner -and (Get-Process -Id $owner -ErrorAction SilentlyContinue)) {
+        return [int]$owner
+    }
+    if ($PreviousPid) {
+        $previous = [int]$PreviousPid
+        if (Get-Process -Id $previous -ErrorAction SilentlyContinue) { return $previous }
+    }
+    return $null
+}
+
+# Verify a PID actually belongs to a QuantHub component before adopting it, so an
+# unrelated process listening on the same port is never taken over.
+function Get-ProcessCommandLine {
+    param([int]$ProcessId)
+    if ($ProcessId -le 0) { return $null }
+    try {
+        $proc = Get-CimInstance -ClassName Win32_Process -Filter "ProcessId = $ProcessId" -ErrorAction SilentlyContinue
+        if ($proc -and $proc.CommandLine) { return $proc.CommandLine }
+    } catch {}
+    return $null
+}
+
+# Probe the dev server for the QuantHub page title as a fallback identity signal,
+# so a vite dev server from another project on the same port is rejected.
+function Test-QuantHubWebMarker {
+    param([int]$Port)
+    if ($Port -le 0) { return $false }
+    try {
+        $resp = Invoke-WebRequest -Uri "http://127.0.0.1:$Port/" -TimeoutSec 2 -UseBasicParsing -ErrorAction Stop
+        return ($resp.Content -match 'QuantHub')
+    } catch {
+        return $false
+    }
+}
+
+function Test-QuantHubProcess {
+    param([int]$ProcessId, [string]$Kind, [int]$Port = 0)
+    $cmd = Get-ProcessCommandLine -ProcessId $ProcessId
+    if ([string]::IsNullOrWhiteSpace($cmd)) { return $false }
+    # Normalize to forward slashes so Windows backslash paths match reliably.
+    $norm = $cmd.Replace('\', '/')
+    $webRoot = $WebRoot.Replace('\', '/')
+    switch ($Kind) {
+        'web' {
+            # Generic 'vite' is not enough: another project's vite on 5173 must be
+            # rejected. Require the command line to reference THIS project's web dir,
+            # or the port to serve the QuantHub page marker.
+            if ($norm -notmatch 'vite') { return $false }
+            if ($norm -like "*$webRoot*") { return $true }
+            if ($Port -gt 0 -and (Test-QuantHubWebMarker -Port $Port)) { return $true }
+            return $false
+        }
+        'api'    { return ($norm -match 'uvicorn') -and ($norm -match 'apps\.api\.main') }
+        'runner' { return ($norm -match 'uvicorn') -and ($norm -match 'apps\.okx_runner\.main') }
+        default  { return $false }
+    }
+}
+
+# Load the previous run record so an already-running service keeps its PID.
+$Previous = $null
+if (Test-Path -LiteralPath $PidFile) {
+    try {
+        $Previous = Get-Content -Raw -Encoding UTF8 -LiteralPath $PidFile | ConvertFrom-Json
+    } catch {
+        Write-Warning "Existing $PidFile is unreadable; falling back to port discovery."
+        $Previous = $null
+    }
+}
+
 $UvCommand = Require-Command 'uv' 'Install uv and run this script again.'
 $NodeCommand = Require-Command 'node' 'Install Node.js 18 or newer and run this script again.'
 $NpmCommand = Require-Command 'npm.cmd' 'Install Node.js with npm and run this script again.'
@@ -108,27 +223,90 @@ if (Test-Port 8001) {
     if ($ExistingHealth.build_id -ne $SourceBuildId) {
         throw "Port 8001 runs build_id $($ExistingHealth.build_id), but the current source is $SourceBuildId. Action: stop the old API process and retry."
     }
-    $ApiProcess = $null
+    # Adopt the running API instead of recording a null PID (M1-05 idempotency).
+    $ApiPid = Resolve-ServicePid -Port 8001 -PreviousPid $Previous.api_pid
+    $ApiState = 'already-running'
     $Health = $ExistingHealth
 } else {
     $ApiProcess = Start-Process -FilePath $UvCommand -ArgumentList @('run', 'uvicorn', 'apps.api.main:app', '--host', '127.0.0.1', '--port', '8001') -WorkingDirectory $ProjectRoot -RedirectStandardOutput (Join-Path $LogRoot 'api.out.log') -RedirectStandardError (Join-Path $LogRoot 'api.err.log') -WindowStyle Hidden -PassThru
+    $ApiPid = $ApiProcess.Id
+    $ApiState = 'started'
     $Health = Wait-ForHealth 60
 }
 
 if (Test-Port 5173) {
-    $WebProcess = $null
+    $Candidate = Resolve-ServicePid -Port 5173 -PreviousPid $Previous.web_pid
+    if (-not $Candidate -or -not (Test-QuantHubProcess -ProcessId $Candidate -Kind 'web' -Port 5173)) {
+        throw 'Port 5173 is used by a non-QuantHub process (not a vite dev server). Action: release port 5173 and retry.'
+    }
+    $WebPid = $Candidate
+    $WebState = 'already-running'
 } else {
     $WebProcess = Start-Process -FilePath $NpmCommand -ArgumentList @('run', 'dev') -WorkingDirectory $WebRoot -RedirectStandardOutput (Join-Path $LogRoot 'web.out.log') -RedirectStandardError (Join-Path $LogRoot 'web.err.log') -WindowStyle Hidden -PassThru
+    $WebState = 'started'
     Wait-ForPort -Port 5173 -TimeoutSeconds 60 -Name 'Web app'
+    $WebPid = Resolve-ServicePid -Port 5173 -PreviousPid $WebProcess.Id
+    if (-not $WebPid -or -not (Test-QuantHubProcess -ProcessId $WebPid -Kind 'web' -Port 5173)) {
+        throw 'Web app started, but its listening process could not be identified as this QuantHub Vite server.'
+    }
 }
 
+# --- Headless OKX Runner (M1-05) -------------------------------------------
+# The Runner binds 127.0.0.1 only. Browsers never reach it directly; the Web app
+# always goes through the unified API at /api/trading/*.
+$RunnerPort = if ($env:QH_RUNNER_PORT) { [int]$env:QH_RUNNER_PORT } else { 8103 }
+$RunnerEnvironment = if ($env:QH_RUNNER_ENVIRONMENT) { $env:QH_RUNNER_ENVIRONMENT } else { 'shadow' }
+$RunnerPid = $null
+$RunnerState = 'skipped'
+
+if (-not $SkipRunner) {
+    if (Test-Port $RunnerPort) {
+        try {
+            $ExistingRunner = Invoke-RestMethod -Uri "http://127.0.0.1:$RunnerPort/health" -TimeoutSec 3
+        } catch {
+            throw "Port $RunnerPort is used by a non-QuantHub service. Action: release the port or pass -SkipRunner."
+        }
+        if (-not $ExistingRunner) {
+            throw "Port $RunnerPort did not return a valid Runner health response. Action: release the port and retry."
+        }
+        $RunnerPid = Resolve-ServicePid -Port $RunnerPort -PreviousPid $Previous.runner_pid
+        $RunnerState = 'already-running'
+    } else {
+        $env:QH_RUNNER_HOST = '127.0.0.1'
+        $env:QH_RUNNER_PORT = "$RunnerPort"
+        $env:QH_RUNNER_ENVIRONMENT = $RunnerEnvironment
+        $RunnerProcess = Start-Process -FilePath $UvCommand -ArgumentList @('run', 'uvicorn', 'apps.okx_runner.main:app', '--host', '127.0.0.1', '--port', "$RunnerPort") -WorkingDirectory $ProjectRoot -RedirectStandardOutput (Join-Path $LogRoot 'runner.out.log') -RedirectStandardError (Join-Path $LogRoot 'runner.err.log') -WindowStyle Hidden -PassThru
+        Wait-ForPort -Port $RunnerPort -TimeoutSeconds 60 -Name 'OKX Runner'
+        $RunnerPid = $RunnerProcess.Id
+        $RunnerState = 'started'
+    }
+} elseif ($Previous -and $Previous.runner_pid) {
+    # -SkipRunner must not orphan a Runner started by an earlier run.
+    $RunnerPid = Resolve-ServicePid -Port $RunnerPort -PreviousPid $Previous.runner_pid
+    if ($RunnerPid) { $RunnerState = 'left-running' }
+}
+
+# Ports are persisted so the stop script can fall back to port ownership when a
+# recorded PID is a wrapper (npm.cmd) or has already exited.
 @{
-    api_pid = if ($ApiProcess) { $ApiProcess.Id } else { $null }
-    web_pid = if ($WebProcess) { $WebProcess.Id } else { $null }
+    api_pid = $ApiPid
+    api_port = 8001
+    api_state = $ApiState
+    web_pid = $WebPid
+    web_port = 5173
+    web_state = $WebState
+    runner_pid = $RunnerPid
+    runner_port = $RunnerPort
+    runner_environment = if ($SkipRunner) { $null } else { $RunnerEnvironment }
+    runner_state = $RunnerState
+    first_started_at = if ($Previous -and $Previous.first_started_at) { $Previous.first_started_at } else { (Get-Date).ToString('o') }
     started_at = (Get-Date).ToString('o')
     build_id = $Health.build_id
 } | ConvertTo-Json | Set-Content -LiteralPath $PidFile -Encoding UTF8
 
 Write-Host "QuantHub is ready: http://127.0.0.1:5173"
 Write-Host "API build_id: $($Health.build_id)"
+Write-Host "API: $ApiState (pid $ApiPid, port 8001)"
+Write-Host "Web: $WebState (pid $WebPid, port 5173)"
+Write-Host "OKX Runner: $RunnerState (pid $RunnerPid, port $RunnerPort, environment $RunnerEnvironment)"
 Write-Host "Logs: $LogRoot"

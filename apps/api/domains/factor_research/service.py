@@ -1968,10 +1968,21 @@ def run_factor_research(req: FactorResearchRequest, *, capture_snapshot: bool = 
         frame.attrs.update(attributes)
     quality = assess_ohlcv(frame)
     if not quality.usable:
+        # 把 reason + status 暴露给上层调用方以便排查空数据
         return {
             "ok": False,
             "error": f"K线质量不合格: {quality.reason or quality.status}",
             "quality": quality.to_dict(),
+            "diagnostic": {
+                "market": req.market,
+                "symbol": req.symbol,
+                "interval": req.interval,
+                "limit": req.limit,
+                "start_date": req.start_date.isoformat() if req.start_date else None,
+                "end_date": req.end_date.isoformat() if req.end_date else None,
+                "source": getattr(source, "name", "unknown"),
+                "rows_raw": int(len(frame)) if frame is not None else 0,
+            },
         }
     try:
         result = analyze_factors(

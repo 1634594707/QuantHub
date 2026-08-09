@@ -1,0 +1,31 @@
+{
+  "task": "M3-04",
+  "generated_at": "2026-08-09T23:57:00+08:00",
+  "component": "web/src/components/contract/ContractStatusBar.tsx",
+  "component_tests": {
+    "file": "web/src/components/contract/ContractStatusBar.test.tsx",
+    "tests": 6,
+    "statuses": {
+      "ok": "实时",
+      "empty": "无数据",
+      "stale": "已过期",
+      "error": "源异常"
+    },
+    "transport_error_distinct": true,
+    "source_and_observed_time_visible": true,
+    "mock_fallback_absent": true,
+    "passed": true
+  },
+  "browser_acceptance": {
+    "report": "docs/Plan/evidence/pre-m4-web-acceptance/report.json",
+    "viewports": 4,
+    "routes": 7,
+    "page_checks": 28,
+    "document_overflow_failures": 0,
+    "clipped_text_failures": 0,
+    "console_errors": 0,
+    "page_errors": 0,
+    "passed": true
+  },
+  "passed": true
+}

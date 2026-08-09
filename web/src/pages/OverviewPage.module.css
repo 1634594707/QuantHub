@@ -3,11 +3,11 @@
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--sp-5);
-  margin-bottom: var(--sp-4);
   padding: var(--sp-5);
   border: 1px solid var(--border);
-  border-left: 4px solid var(--accent);
-  background: var(--surface-1);
+  border-left: 3px solid var(--accent);
+  background: var(--bg-elevated);
+  border-radius: var(--r-card);
 }
 
 .layoutSettings {
@@ -81,9 +81,10 @@
 }
 
 .entryCopy h2 {
-  margin: 3px 0 0;
+  margin: 0;
   color: var(--text-1);
-  font-size: var(--fs-title);
+  font-size: var(--fs-h1);
+  font-weight: var(--fw-semibold);
   letter-spacing: 0;
 }
 
@@ -91,7 +92,7 @@
   max-width: 680px;
   margin: var(--sp-1) 0 0;
   color: var(--text-3);
-  font-size: var(--fs-caption);
+  font-size: var(--fs-small);
   line-height: 1.5;
 }
 

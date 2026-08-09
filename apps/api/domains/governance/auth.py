@@ -34,6 +34,8 @@ def required_permission(method: str, path: str) -> str:
     if method in {"GET", "HEAD", "OPTIONS"}:
         return "read"
     mappings = (
+        # 交易写操作是最高危动作，独立权限，不与 signals/simulation 复用。
+        ("/trading", "trading.write"),
         ("/signals", "signals.write"),
         ("/ledger", "ledger.write"),
         ("/strategy-lab", "strategy.write"),

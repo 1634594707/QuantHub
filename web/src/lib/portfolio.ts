@@ -7,9 +7,6 @@ type Quote = Pick<QuoteResp, 'price' | 'chgPct' | 'available'>
 
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n))
 
-/** 后端未返回 cash 时的回退值（仅用于首屏闪烁，真值来自 /portfolio.summary.cash）。 */
-const DEFAULT_CASH = 426300
-
 /** 由持仓输入 + 实时报价派生展示行（价格/市值/盈亏/涨跌派生分）。
  * 无实时价时回退成本价。chgBasedScore 是由涨跌幅派生的情绪分（非真实胜率），
  * 真实胜率见 DecisionPanel 的 estimated_win_rate。 */
@@ -33,7 +30,7 @@ export function deriveWatch(w: WatchInput, q?: Quote): WatchRow {
 
 /** 由持仓派生账户汇总，供 KPI 联动（编辑持仓后 KPI 同步变化）。
  * cash 透传后端 /portfolio.summary.cash，避免与 configs/portfolio.yaml 漂移。 */
-export function computeSummary(rows: HoldingRow[], cash: number = DEFAULT_CASH): PortfolioSummary {
+export function computeSummary(rows: HoldingRow[], cash: number = 0): PortfolioSummary {
   const totalValue = rows.reduce((s, r) => s + r.marketValue, 0)
   const totalCost = rows.reduce((s, r) => s + r.cost * r.shares, 0)
   const pnl = totalValue - totalCost

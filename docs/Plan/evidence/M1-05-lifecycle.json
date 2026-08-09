@@ -1,0 +1,51 @@
+{
+  "task": "M1-05",
+  "generated_at": "2026-08-09T23:57:00+08:00",
+  "source_build_id": "163214735f75",
+  "ports": {
+    "web": 5173,
+    "api": 8001,
+    "runner": 8103
+  },
+  "lifecycle": {
+    "started_from_stopped": true,
+    "start_order": ["api", "web", "runner"],
+    "stop_order": ["runner", "api", "web"],
+    "repeated_start": {
+      "exit_code": 0,
+      "api": "already-running",
+      "web": "already-running",
+      "runner": "already-running",
+      "api_pid": 20580,
+      "web_pid": 5336,
+      "runner_pid": 20684
+    },
+    "repeated_stop": "no-op",
+    "ports_released_after_stop": [5173, 8001, 8103],
+    "pid_file_removed_after_stop": true
+  },
+  "identity_guards": {
+    "stale_api_build_rejected": {
+      "running_build_id": "245ce897583d",
+      "source_build_id": "163214735f75",
+      "launcher_exit_code": 1
+    },
+    "external_vite_fixture": {
+      "port": 5173,
+      "fixture_marker": "ExternalVite",
+      "launcher_refused_takeover": true,
+      "stop_script_skipped_external_process": true,
+      "fixture_remained_http_200_until_explicit_fixture_cleanup": true
+    },
+    "listener_pid_persisted_instead_of_npm_wrapper": true
+  },
+  "current_runtime": {
+    "web_http_status": 200,
+    "api_http_status": 200,
+    "runner_http_status": 200,
+    "api_version": "0.3.0",
+    "runner_version": "1.0.0",
+    "runner_environment": "shadow"
+  },
+  "passed": true
+}

@@ -131,13 +131,8 @@ export function useEditableWatchlist() {
     }
   }, [list, setList])
 
-  const reset = useCallback(() => {
-    setMutationError('')
-    setList([])
-  }, [setList])
-
   return {
-    list, add, update, remove, reset, commit, seeded,
+    list, add, update, remove, commit, seeded,
     resolveName, resolvingIds, mutationError,
   }
 }

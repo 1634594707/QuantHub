@@ -9,9 +9,54 @@ from .schemas import (
     NotificationChannel,
     NotificationChannelUpdate,
     NotificationEnabledUpdate,
+    OkxDemoCredentialsUpdate,
 )
 
 router = APIRouter(prefix="/config", tags=["settings"])
+
+
+@router.get("/okx-demo")
+def get_okx_demo_status() -> dict:
+    try:
+        return service.okx_demo_status()
+    except (OSError, RuntimeError) as exc:
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=503, detail="本地凭据库不可用") from exc
+
+
+@router.put("/okx-demo")
+def update_okx_demo_credentials(req: OkxDemoCredentialsUpdate) -> dict:
+    try:
+        return service.update_okx_demo_credentials(
+            req.api_key.get_secret_value(),
+            req.secret_key.get_secret_value(),
+            req.passphrase.get_secret_value(),
+        )
+    except (OSError, RuntimeError) as exc:
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=503, detail="本地凭据库不可用") from exc
+
+
+@router.post("/okx-demo/test")
+def test_okx_demo_connection() -> dict:
+    try:
+        return service.test_okx_demo_connection()
+    except (OSError, RuntimeError) as exc:
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=503, detail="本地凭据库不可用") from exc
+
+
+@router.delete("/okx-demo")
+def delete_okx_demo_credentials() -> dict:
+    try:
+        return service.delete_okx_demo_credentials()
+    except (OSError, RuntimeError) as exc:
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=503, detail="本地凭据库不可用") from exc
 
 
 @router.get("/apikey")
