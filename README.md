@@ -7,7 +7,7 @@ QuantHub 将综合评估、因子验证、AI 研究证据、策略回测、信�
 ![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12-3776AB?logo=python&logoColor=white)
 ![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=111827)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-009688?logo=fastapi&logoColor=white)
-![Version](https://img.shields.io/badge/version-v0.3.0-4FB3C8)
+![Version](https://img.shields.io/badge/version-v0.4.0-4FB3C8)
 ![License](https://img.shields.io/badge/License-AGPL--3.0-blue)
 
 ![QuantHub 因子研究工作台](design/screenshots/quanthub-factor-research.png)
@@ -17,7 +17,7 @@ QuantHub 将综合评估、因子验证、AI 研究证据、策略回测、信�
 
 ## 当前版本内容
 
-当前 `main` 基于 `v0.3.0`，已完成单一 Web 工作台收口、Factor Factory 可执行研究链路和 OKX Demo 只读验证。产品入口统一为 `http://127.0.0.1:5173`，并按总览、研究、策略、交易、风控和设置组织功能；精简界面保留常用流程，完整界面开放全部研究与治理能力。
+当前版本为 `v0.4.0`，已完成单一 Web 工作台收口、Factor Factory 可执行研究链路和 OKX Demo 只读验证。产品入口统一为 `http://127.0.0.1:5173`，并按总览、研究、策略、交易、风控和设置组织功能；精简界面保留常用流程，完整界面开放全部研究与治理能力。
 
 ### Factor Factory：从候选生成到 7 天模拟门禁
 
@@ -73,7 +73,7 @@ QuantHub 将综合评估、因子验证、AI 研究证据、策略回测、信�
 
 内置策略覆盖情绪分析、新闻扫描、选股、SuperTrend、早报、实时分析、OKX 网格、AlphaGPT、PA Agent 和 AlphaMaster 等方向。
 
-`v0.3.0` 加入安全 DSL、全局试验账本、AI 候选治理、真实 A 股横截面证据、预注册实验队列、因子证据工作台、逐笔模拟审计和自动漂移降级。完整说明见 [v0.3.0 发布说明](docs/releases/v0.3.0.md)，研究实施状态见 [AI 因子发现路线图](AI_FACTOR_DISCOVERY_ROADMAP.md)，成本来源边界见 [交易成本来源](docs/TRADING_COST_SOURCES.md)，长期职责边界见 [功能边界](docs/FUNCTION_BOUNDARIES.md)。
+`v0.4.0` 在 `v0.3.0` 研究治理基础上加入单一 Web 工作台、目标绑定的 Factor Factory、候选表达式检查器、相似性预检、7 天 Demo 门禁、AI 提案模型选择和真实 OKX 行情接入。完整说明见 [v0.4.0 发布说明](docs/releases/v0.4.0.md)，研究实施状态见 [AI 因子发现路线图](AI_FACTOR_DISCOVERY_ROADMAP.md)，成本来源边界见 [交易成本来源](docs/TRADING_COST_SOURCES.md)，长期职责边界见 [功能边界](docs/FUNCTION_BOUNDARIES.md)。
 
 ## 技术栈
 
@@ -318,6 +318,7 @@ uv run python tools/scaffold_strategy.py \
 ## 文档
 
 - [文档索引](docs/README.md)
+- [v0.4.0 发布说明](docs/releases/v0.4.0.md)
 - [v0.3.0 发布说明](docs/releases/v0.3.0.md)
 - [AI 因子发现路线图](AI_FACTOR_DISCOVERY_ROADMAP.md)
 - [v0.2.0 发布说明](docs/releases/v0.2.0.md)

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "quanthub-news-analyzer"
-version = "0.3.0"
+version = "0.4.0"
 description = "A股新闻结构化分析（NER/情绪/主题/摘要，本地 LM Studio）"
 requires-python = ">=3.11,<3.13"
 dependencies = ["quanthub-core", "openai>=1.40", "tiktoken>=0.7"]

@@ -50,7 +50,7 @@ jobs:
           uv sync --locked --group test
           uv run python -m compileall -q apps/api apps/dispatcher apps/scheduler core strategies
           uv run python -c "from apps.api.main import app; assert app.version == '${GITHUB_REF_NAME#v}'"
-          uv run python -m unittest discover -s tests -p "test_*.py"
+          uv run --frozen python -B tools/run_backend_tests.py
 
   publish:
     needs: validate
@@ -93,6 +93,12 @@ jobs:
 
       - name: Create GitHub release
         shell: bash
-        run: gh release create "$GITHUB_REF_NAME" --verify-tag --title "QuantHub $GITHUB_REF_NAME" --generate-notes
+        run: |
+          notes_file="docs/releases/${GITHUB_REF_NAME}.md"
+          if [[ -f "$notes_file" ]]; then
+            gh release create "$GITHUB_REF_NAME" --verify-tag --title "QuantHub $GITHUB_REF_NAME" --notes-file "$notes_file"
+          else
+            gh release create "$GITHUB_REF_NAME" --verify-tag --title "QuantHub $GITHUB_REF_NAME" --generate-notes
+          fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

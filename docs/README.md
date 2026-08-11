@@ -5,6 +5,7 @@
 ## 使用与部署
 
 - [项目说明](../README.md)：功能介绍、环境要求、安装、启动和验证命令。
+- [v0.4.0 发布说明](releases/v0.4.0.md)：Web 工作台收口、Factor Factory、OKX Demo、真实行情与发布边界。
 - [v0.3.0 发布说明](releases/v0.3.0.md)：AI 因子发现、安全 DSL、试验治理、真实基线、模拟审计和升级说明。
 - [AI 因子发现路线图](../AI_FACTOR_DISCOVERY_ROADMAP.md)：任务状态、真实证据快照和剩余数据边界。
 - [Web 工作台收口与 OKX 实盘路线图](Plan/2026-08-09-Web工作台收口与OKX实盘路线图.md)：单一前端、仓库清理、真实数据和 OKX 执行的阶段任务。
