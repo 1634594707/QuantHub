@@ -10,7 +10,7 @@ from collections import Counter
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from apps.api import database, store
 from apps.api.domains.factor_factory.alpha_mining import (
@@ -487,9 +487,11 @@ class FactorFactoryAutomationTests(unittest.TestCase):
             paper_target="simulation_orders",
         )
         request = FactorFactoryStartRequest(**payload)
+        source = Mock()
+        source.get_kline.return_value = frame
         with patch(
-            "core.data_feed.akshare_source.AkshareSource.get_kline",
-            return_value=frame,
+            "core.data_feed.akshare_source.AkshareSource",
+            return_value=source,
         ):
             response = start_factor_factory(request)
 

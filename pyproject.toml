@@ -66,6 +66,7 @@ heavy-solana = [
 [dependency-groups]
 test = [
     "httpx2>=2.7,<3",
+    "pytest>=8.3,<9",
 ]
 
 [tool.uv.workspace]
