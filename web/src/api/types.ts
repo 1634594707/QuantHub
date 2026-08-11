@@ -1033,6 +1033,7 @@ export interface FactorFactoryCandidateRecord {
   rank: number | null
   metrics: Record<string, unknown>
   gate: Record<string, unknown>
+  definition?: FactorDefinitionRecord | null
   created_at: number
   updated_at: number
 }
@@ -1205,6 +1206,7 @@ export interface FactorFactoryArchiveResponse {
 }
 
 export interface FactorFactoryStartPayload {
+  experiment_nonce?: string
   market?: 'crypto' | 'a_shares'
   source: 'okx_local' | 'okx_live' | 'akshare_live' | 'synthetic'
   symbol: string

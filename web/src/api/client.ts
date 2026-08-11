@@ -786,10 +786,18 @@ export const api = {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
     }),
   alphaDslCatalog: () => getJSON<AlphaDslCatalog & { ok: true }>('/factor-factory/alpha-dsl'),
-  factorFactoryRuns: (limit = 50) =>
-    getJSON<{ ok: boolean; count: number; runs: FactorFactoryRunResponse['run'][]; live_trading_enabled: false }>(
-      `/factor-factory/runs?limit=${limit}`,
-    ),
+  factorFactoryRuns: (
+    limit = 50,
+    filters?: { market?: 'crypto' | 'a_shares'; symbol?: string; interval?: '1h' | '4h' | '1d' },
+  ) => {
+    const params = new URLSearchParams({ limit: String(limit) })
+    if (filters?.market) params.set('market', filters.market)
+    if (filters?.symbol) params.set('symbol', filters.symbol)
+    if (filters?.interval) params.set('interval', filters.interval)
+    return getJSON<{ ok: boolean; count: number; runs: FactorFactoryRunResponse['run'][]; live_trading_enabled: false }>(
+      `/factor-factory/runs?${params.toString()}`,
+    )
+  },
   factorFactoryArchive: (lifecycleState?: string, limit = 100, eligibleOnly = true) => {
     const params = new URLSearchParams({
       limit: String(limit),

@@ -59,6 +59,12 @@ class ManualAlphaCandidate(BaseModel):
 
 
 class FactorFactoryStartRequest(BaseModel):
+    experiment_nonce: str | None = Field(
+        default=None,
+        min_length=8,
+        max_length=80,
+        pattern=r"^[a-zA-Z0-9._:-]+$",
+    )
     market: Literal["crypto", "a_shares"] = "crypto"
     source: Literal["okx_local", "okx_live", "akshare_live", "synthetic"] = "okx_local"
     symbol: str = Field(default="BTCUSDT", min_length=1, max_length=40)

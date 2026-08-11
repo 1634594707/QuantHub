@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Archive, Beaker, BookOpenCheck, CandlestickChart, Check, ChevronRight, CircleAlert, Database, FileCheck2, FlaskConical, Link2, ListFilter, Play, RefreshCw, ScanSearch, Search, ShieldAlert, ShieldCheck, TimerReset, WalletCards, X } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { api } from '../api/client'
@@ -227,6 +227,38 @@ const FACTORY_STATUS: Record<string, string> = {
   failed: '运行失败',
 }
 
+const CANDIDATE_SOURCE_LABELS: Record<string, string> = {
+  ai: 'AI 提案',
+  human: '手工输入',
+  template: '固定模板',
+  random_dsl: '规则生成',
+  symbolic_regression: '符号组合',
+  parameter_search: '参数搜索',
+}
+
+const RESEARCH_CHECK_LABELS: Record<string, string> = {
+  validation_return: '滚动验证收益达到阈值',
+  validation_drawdown: '滚动验证回撤受控',
+  validation_sharpe: '滚动验证夏普达到阈值',
+  minimum_trades: '有效交易次数充足',
+  direction_consistency: '发现集与验证集方向一致',
+  validation_window_majority: '多数滚动窗口为正',
+  validation_p_value: '统计显著性达到阈值',
+  validation_rank_ic_direction: 'Rank IC 方向正确',
+  cost_stress_return: '成本压力后收益达标',
+  cost_stress_drawdown: '成本压力后回撤受控',
+  cost_stress_sharpe: '成本压力后夏普达标',
+  cost_stress_window_majority: '成本压力下多数窗口为正',
+  confirmation_return: '锁定确认集收益达标',
+  incremental_return: '确认集增量收益达标',
+  confirmation_drawdown: '锁定确认集回撤受控',
+  confirmation_sharpe: '锁定确认集夏普达标',
+  p_value: '确认集 p 值达标',
+  window_majority: '确认集多数窗口为正',
+  parameter_plateau: '相邻参数存在稳定平台',
+  regime_stability: '不同市场状态表现稳定',
+}
+
 const LIFECYCLE_STATUS: Record<FactorLifecycleState, string> = {
   draft: '待验证',
   exploratory: '探索中',
@@ -295,6 +327,99 @@ function nestedRecord(value: unknown, ...path: string[]) {
     current = (current as Record<string, unknown>)[key]
   }
   return current && typeof current === 'object' ? current as Record<string, unknown> : null
+}
+
+function newExperimentNonce() {
+  if (typeof globalThis.crypto?.randomUUID === 'function') return globalThis.crypto.randomUUID()
+  return `run-${Date.now()}-${Math.random().toString(16).slice(2)}`
+}
+
+function factorFamilyLabel(value: string | null | undefined) {
+  const family = value?.toLowerCase() ?? ''
+  if (!family) return '未分类'
+  if (family.includes('manual')) return '手工 Alpha'
+  if (family.includes('reversal')) return '均值反转'
+  if (family.includes('breakout')) return '价格突破'
+  if (family.includes('momentum') || family.includes('trend') || family.includes('efficiency')) return '趋势动量'
+  if (family.includes('volume') || family.includes('liquidity') || family.includes('pressure')) return '量价流动性'
+  if (family.includes('volatility')) return '波动率状态'
+  if (family.includes('location') || family.includes('range')) return '价格位置'
+  if (family.includes('ai')) return 'AI 复合提案'
+  return value?.replace(/^factor_factory_/, '').replace(/^brain_/, '').replace(/_/g, ' ') ?? '未分类'
+}
+
+function alphaAstExpression(value: unknown): string {
+  if (!value || typeof value !== 'object') return '定义不可用'
+  const node = value as Record<string, unknown>
+  const op = typeof node.op === 'string' ? node.op : ''
+  if (op === 'field') return asString(node.name, 'field')
+  if (op === 'const') return typeof node.value === 'number' ? String(node.value) : 'const'
+  if (op === 'builtin_factor') return `builtin_factor(${asString(node.name ?? node.key, 'unknown')})`
+  if (['add', 'sub', 'mul', 'div', 'gt', 'lt'].includes(op)) {
+    return `${op}(${alphaAstExpression(node.left)}, ${alphaAstExpression(node.right)})`
+  }
+  if (['neg', 'abs'].includes(op)) return `${op}(${alphaAstExpression(node.value)})`
+  if (['lag', 'diff', 'pct_change'].includes(op)) {
+    return `${op}(${alphaAstExpression(node.value)}, ${String(node.periods ?? '?')})`
+  }
+  if (['rolling_mean', 'rolling_std', 'rolling_min', 'rolling_max', 'rolling_sum', 'rolling_zscore', 'rank'].includes(op)) {
+    return `${op}(${alphaAstExpression(node.value)}, ${String(node.window ?? '?')})`
+  }
+  if (op === 'rolling_winsorize') {
+    const bounds = typeof node.lower === 'number' && typeof node.upper === 'number'
+      ? `, ${node.lower}, ${node.upper}`
+      : ''
+    return `${op}(${alphaAstExpression(node.value)}, ${String(node.window ?? '?')}${bounds})`
+  }
+  if (op === 'where') {
+    return `where(${alphaAstExpression(node.condition)}, ${alphaAstExpression(node.then)}, ${alphaAstExpression(node.else)})`
+  }
+  if (op === 'industry_neutralize') {
+    return `industry_neutralize(${alphaAstExpression(node.value)}, ${alphaAstExpression(node.industry)}, ${alphaAstExpression(node.date)})`
+  }
+  return JSON.stringify(node)
+}
+
+function candidateStageLabel(candidate: FactorFactoryRunResponse['candidates'][number], run: FactorFactoryRunResponse['run']) {
+  const selected = candidate.factor_key === run.selected_factor_key
+  if (selected && run.status === 'paper_observing') return '7 天模拟中'
+  if (selected && run.status === 'paper_rejected') return '7 天模拟淘汰'
+  if (selected && run.status === 'trading_validated') return '7 天模拟通过'
+  if (candidate.status === 'preflight_rejected') {
+    return nestedString(candidate.gate, 'reason') === 'formula_duplicate' ? '重复公式淘汰' : '相似信号淘汰'
+  }
+  if (candidate.status === 'gate_rejected') return '滚动门禁淘汰'
+  if (candidate.status === 'preliminary_passed') return '滚动初筛通过'
+  if (candidate.status === 'confirmation_rejected') return '确认集淘汰'
+  if (candidate.status === 'research_passed') return '确认集通过'
+  if (candidate.status === 'invalid') return '表达式无效'
+  return candidate.status
+}
+
+function ObservationCurve({ observations }: { observations: FactorFactoryRunResponse['observations'] }) {
+  const points = observations
+    .map((item) => ({ equity: Number(item.equity), label: new Date(item.market_time).toLocaleString('zh-CN', { hour12: false }) }))
+    .filter((item) => Number.isFinite(item.equity))
+  if (points.length < 2) {
+    return <div className={s.curveEmpty}>至少需要 2 个真实前向观察点，当前不绘制曲线。</div>
+  }
+  const values = points.map((item) => item.equity)
+  const minimum = Math.min(...values)
+  const maximum = Math.max(...values)
+  const span = Math.max(maximum - minimum, Math.abs(maximum) * 0.002, 1)
+  const path = points.map((item, index) => {
+    const x = points.length === 1 ? 0 : (index / (points.length - 1)) * 100
+    const y = 38 - ((item.equity - minimum) / span) * 34
+    return `${x.toFixed(2)},${y.toFixed(2)}`
+  }).join(' ')
+  const latest = points[points.length - 1]
+  return <div className={s.observationCurve}>
+    <svg viewBox="0 0 100 42" preserveAspectRatio="none" role="img" aria-label="真实前向观察权益曲线">
+      <line x1="0" y1="38" x2="100" y2="38" />
+      <polyline points={path} />
+    </svg>
+    <div><span>{points[0].label}</span><strong>{num(latest.equity, 0)}</strong><span>{latest.label}</span></div>
+  </div>
 }
 
 function gateState(value: boolean | null) {
@@ -386,6 +511,10 @@ export function FactorFactoryWorkflow() {
   const [alphaDsl, setAlphaDsl] = useState<AlphaDslCatalog>(DEFAULT_ALPHA_DSL)
   const [alphaDslQuery, setAlphaDslQuery] = useState('')
   const [autoRun, setAutoRun] = useState<FactorFactoryRunResponse | null>(null)
+  const autoLoadSequence = useRef(0)
+  const [selectedAutoCandidateId, setSelectedAutoCandidateId] = useState('')
+  const [candidateQuery, setCandidateQuery] = useState('')
+  const [candidateFamilyFilter, setCandidateFamilyFilter] = useState('')
   const [autoBusy, setAutoBusy] = useState<'load' | 'start' | 'observe' | ''>('load')
   const [error, setError] = useState('')
   const [selectedStage, setSelectedStage] = useState<number | null>(null)
@@ -540,16 +669,27 @@ export function FactorFactoryWorkflow() {
   }, [archiveOpen, loadArchive])
 
   const loadLatestAutoRun = useCallback(async () => {
+    const sequence = ++autoLoadSequence.current
     setAutoBusy('load')
-    try {
-      const history = await api.factorFactoryRuns(1)
-      if (history.runs[0]) setAutoRun(await api.factorFactoryRun(history.runs[0].id))
-    } catch {
+    if (!autoSymbol) {
       setAutoRun(null)
-    } finally {
       setAutoBusy('')
+      return
     }
-  }, [])
+    try {
+      const history = await api.factorFactoryRuns(1, {
+        market: autoMarket,
+        symbol: autoSymbol,
+        interval: autoInterval,
+      })
+      const detail = history.runs[0] ? await api.factorFactoryRun(history.runs[0].id) : null
+      if (sequence === autoLoadSequence.current) setAutoRun(detail)
+    } catch {
+      if (sequence === autoLoadSequence.current) setAutoRun(null)
+    } finally {
+      if (sequence === autoLoadSequence.current) setAutoBusy('')
+    }
+  }, [autoInterval, autoMarket, autoSymbol])
 
   useEffect(() => { void loadLatestAutoRun() }, [loadLatestAutoRun])
 
@@ -617,6 +757,7 @@ export function FactorFactoryWorkflow() {
     try {
       const liveSource = autoMarket === 'a_shares' ? 'akshare_live' : autoSource
       const response = await api.startFactorFactory({
+        experiment_nonce: newExperimentNonce(),
         market: autoMarket,
         source: liveSource,
         symbol: autoSymbol,
@@ -838,6 +979,53 @@ export function FactorFactoryWorkflow() {
   const autoBest = autoRun?.candidates.find(
     (item) => item.factor_key === autoRun.run.selected_factor_key,
   ) ?? autoRun?.candidates.find((item) => item.rank === 1) ?? autoRun?.candidates[0]
+  const autoCandidateFamilies = useMemo(() => {
+    const counts = new Map<string, { label: string; count: number }>()
+    for (const candidate of autoRun?.candidates ?? []) {
+      const value = candidate.definition?.family ?? 'unclassified'
+      const current = counts.get(value)
+      counts.set(value, { label: factorFamilyLabel(value), count: (current?.count ?? 0) + 1 })
+    }
+    return [...counts.entries()].map(([value, item]) => ({ value, ...item }))
+  }, [autoRun])
+  const visibleAutoCandidates = useMemo(() => {
+    const needle = candidateQuery.trim().toLowerCase()
+    return (autoRun?.candidates ?? []).filter((candidate) => {
+      const family = candidate.definition?.family ?? 'unclassified'
+      if (candidateFamilyFilter && family !== candidateFamilyFilter) return false
+      if (!needle) return true
+      const searchable = [
+        candidate.definition?.label,
+        candidate.factor_key,
+        factorFamilyLabel(family),
+        CANDIDATE_SOURCE_LABELS[candidate.source] ?? candidate.source,
+        alphaAstExpression(candidate.definition?.ast),
+      ].filter(Boolean).join(' ').toLowerCase()
+      return searchable.includes(needle)
+    })
+  }, [autoRun, candidateFamilyFilter, candidateQuery])
+  const selectedAutoCandidate = autoRun?.candidates.find((candidate) => candidate.id === selectedAutoCandidateId)
+    ?? visibleAutoCandidates[0]
+    ?? autoBest
+  const selectedGateChecks = Object.entries(nestedRecord(selectedAutoCandidate?.gate, 'checks') ?? {})
+    .filter((entry): entry is [string, boolean] => typeof entry[1] === 'boolean')
+  const selectedPassedChecks = selectedGateChecks.filter(([, passed]) => passed)
+  const selectedFailedChecks = selectedGateChecks.filter(([, passed]) => !passed)
+  const selectedCandidateValidationReturn = nestedNumber(selectedAutoCandidate?.metrics, 'rolling_validation', 'summary', 'total_return')
+  const selectedCandidateValidationDrawdown = nestedNumber(selectedAutoCandidate?.metrics, 'rolling_validation', 'summary', 'max_drawdown')
+  const selectedCandidateValidationSharpe = nestedNumber(selectedAutoCandidate?.metrics, 'rolling_validation', 'summary', 'metrics', 'sharpe')
+  const selectedCandidateValidationIc = nestedNumber(selectedAutoCandidate?.metrics, 'rolling_validation', 'summary', 'rank_ic')
+
+  useEffect(() => {
+    if (!autoRun) {
+      setSelectedAutoCandidateId('')
+      return
+    }
+    const preferred = autoRun.candidates.find((candidate) => candidate.factor_key === autoRun.run.selected_factor_key)
+      ?? autoRun.candidates.find((candidate) => candidate.rank === 1)
+      ?? autoRun.candidates[0]
+    setSelectedAutoCandidateId(preferred?.id ?? '')
+  }, [autoRun])
   const autoMessage = asString(autoRun?.run.result.message, '尚未启动自动研究')
   const autoEndsAt = autoRun?.run.observation_ends_at
     ? new Date(autoRun.run.observation_ends_at * 1000).toLocaleString('zh-CN', { hour12: false })
@@ -855,6 +1043,9 @@ export function FactorFactoryWorkflow() {
   const autoDemoFillRate = nestedNumber(autoRun?.run.result, 'paper', 'okx_demo', 'latest_evidence', 'fill_rate')
   const autoDemoFunding = nestedNumber(autoRun?.run.result, 'paper', 'okx_demo', 'latest_evidence', 'funding_rate', 'funding_rate')
   const autoPreflightAccepted = nestedNumber(autoRun?.run.result, 'candidate_preflight', 'accepted_candidates')
+  const autoPreflightRejected = nestedNumber(autoRun?.run.result, 'candidate_preflight', 'rejected_candidates')
+  const autoCorrelationRejected = nestedNumber(autoRun?.run.result, 'candidate_preflight', 'correlation_cluster_rejections')
+  const autoFormulaDuplicates = nestedNumber(autoRun?.run.result, 'candidate_preflight', 'formula_duplicate_count')
   const autoCandidateGeneration = nestedRecord(autoRun?.run.result, 'candidate_generation')
     ?? nestedRecord(autoRun?.run.config, 'candidate_generation')
   const autoSourceCounts = nestedRecord(autoCandidateGeneration, 'source_counts')
@@ -867,6 +1058,11 @@ export function FactorFactoryWorkflow() {
   const demoRiskNormal = nestedBoolean(autoRun?.run.result, 'paper', 'okx_demo', 'latest_evidence', 'risk_mode_normal')
   const demoReconciliationClear = nestedBoolean(autoRun?.run.result, 'paper', 'okx_demo', 'latest_evidence', 'reconciliation_clear')
   const autoRunPaperTarget = nestedString(autoRun?.run.config, 'paper_target')
+  const autoRunMarket = nestedString(autoRun?.run.config, 'market') ?? autoMarket
+  const autoRunSymbol = nestedString(autoRun?.run.config, 'symbol') ?? autoSymbol
+  const autoRunInterval = nestedString(autoRun?.run.config, 'interval') ?? autoInterval
+  const autoDataBars = nestedNumber(autoRun?.run.config, 'data_provenance', 'bars')
+  const autoRequestedBars = nestedNumber(autoRun?.run.config, 'data_provenance', 'requested_bars')
   const autoValidationReturn = nestedNumber(autoBest?.metrics, 'rolling_validation', 'summary', 'total_return')
   const autoValidationDrawdown = nestedNumber(autoBest?.metrics, 'rolling_validation', 'summary', 'max_drawdown')
   const autoValidationSharpe = nestedNumber(autoBest?.metrics, 'rolling_validation', 'summary', 'metrics', 'sharpe')
@@ -1056,7 +1252,7 @@ export function FactorFactoryWorkflow() {
           <Field label="历史样本"><Input type="number" min={240} max={5000} value={autoBars} onChange={(event) => setAutoBars(Number(event.target.value))} /></Field>
           <Field label="候选预算"><Input type="number" min={1} max={30} value={autoBudget} onChange={(event) => setAutoBudget(Number(event.target.value))} /></Field>
           <Field label="观察天数"><Input type="number" min={7} max={365} value={autoDays} onChange={(event) => setAutoDays(Math.max(7, Number(event.target.value)))} /></Field>
-          <Button variant="primary" loading={autoBusy === 'start'} disabled={!autoSymbol} onClick={() => void startAutoResearch()} icon={<ScanSearch size={16} />}>启动自动研究</Button>
+          <Button variant="primary" loading={autoBusy === 'start'} disabled={!autoSymbol} onClick={() => void startAutoResearch()} icon={<ScanSearch size={16} />}>{autoRun ? '启动新实验' : '启动自动研究'}</Button>
         </div>
         {autoMarket === 'crypto' && <div className={s.marketDataBar}>
           <span className={autoSymbol ? s.marketVerified : s.marketUnverified}>
@@ -1105,6 +1301,12 @@ export function FactorFactoryWorkflow() {
           <KlineCard key={`${autoSymbol}:${autoInterval}`} symbol={autoSymbol} market="crypto" defaultPeriod={autoInterval === '4h' ? '4H' : '1H'} showInstrumentControls={false} />
         </section>}
         {autoRun && <>
+          <div className={s.researchContextBar}>
+            <span><small>研究标的</small><strong>{autoRunSymbol}</strong></span>
+            <span><small>市场 / 周期</small><strong>{autoRunMarket} / {autoRunInterval}</strong></span>
+            <span><small>相似预检淘汰</small><strong>{autoPreflightRejected ?? 0}（公式 {autoFormulaDuplicates ?? 0} / 信号 {autoCorrelationRejected ?? 0}）</strong></span>
+            <span><small>下一轮规则</small><strong>仅排名最高且门禁通过的 1 个</strong></span>
+          </div>
           <div className={s.autoKpis}>
             <div><small>AI / 规则 / 手工</small><strong>{autoGeneratedAi} / {autoGeneratedGrammar} / {autoGeneratedManual}</strong></div>
             <div><small>预检 / 生成状态</small><strong>{autoPreflightAccepted ?? '—'} / {autoAiStatus ?? nestedString(autoRun.run.config, 'candidate_mode') ?? '—'}</strong></div>
@@ -1131,22 +1333,68 @@ export function FactorFactoryWorkflow() {
           </div>}
           <div className={s.autoBody}>
             <div className={s.candidateTable}>
-              <div className={s.candidateHead}><span>排名</span><span>候选因子</span><span>滚动收益</span><span>夏普</span><span>门禁</span></div>
-              {autoRun.candidates.slice(0, 6).map((candidate) => {
+              <div className={s.candidateToolbar}>
+                <Input value={candidateQuery} placeholder="搜索名称、家族或 DSL" onChange={(event) => setCandidateQuery(event.target.value)} />
+                <Select value={candidateFamilyFilter} options={[{ value: '', label: '全部因子家族' }, ...autoCandidateFamilies.map((family) => ({ value: family.value, label: `${family.label} (${family.count})` }))]} onChange={(event) => setCandidateFamilyFilter(event.target.value)} />
+                <strong>{visibleAutoCandidates.length} / {autoRun.candidates.length}</strong>
+              </div>
+              {autoCandidateFamilies.length > 0 && <div className={s.candidateFamilyBar}><strong>因子家族</strong>{autoCandidateFamilies.map((family) => <span key={family.value}>{family.label} {family.count}</span>)}</div>}
+              <div className={s.candidateHead}><span>排名</span><span>候选因子</span><span>滚动收益</span><span>夏普</span><span>阶段</span></div>
+              {visibleAutoCandidates.map((candidate) => {
                 const validationReturn = nestedNumber(candidate.metrics, 'rolling_validation', 'summary', 'total_return')
                 const sharpe = nestedNumber(candidate.metrics, 'rolling_validation', 'summary', 'metrics', 'sharpe')
-                return <div className={s.candidateRow} key={candidate.id}><span>{candidate.rank ?? '—'}</span><span><strong>{candidate.factor_key}</strong><small>{candidate.source}</small></span><span className={(validationReturn ?? 0) >= 0 ? s.up : s.down}>{pct(validationReturn)}</span><span>{num(sharpe)}</span><span><Badge variant={candidate.status === 'research_passed' ? 'up' : candidate.status.includes('rejected') || candidate.status === 'invalid' ? 'down' : 'info'}>{candidate.status}</Badge></span></div>
+                const expression = alphaAstExpression(candidate.definition?.ast)
+                const stageLabel = candidateStageLabel(candidate, autoRun.run)
+                return <button type="button" className={s.candidateRow} aria-selected={candidate.id === selectedAutoCandidate?.id} key={candidate.id} onClick={() => setSelectedAutoCandidateId(candidate.id)}><span>{candidate.rank ?? '—'}</span><span className={s.candidateIdentity}><span><strong>{candidate.definition?.label ?? candidate.factor_key}</strong><em>{factorFamilyLabel(candidate.definition?.family)}</em></span><code title={expression}>{expression}</code><small>{CANDIDATE_SOURCE_LABELS[candidate.source] ?? candidate.source} · {candidate.factor_key}</small></span><span className={(validationReturn ?? 0) >= 0 ? s.up : s.down}>{pct(validationReturn)}</span><span>{num(sharpe)}</span><span><Badge variant={stageLabel.includes('通过') ? 'up' : stageLabel.includes('淘汰') || stageLabel.includes('无效') ? 'down' : 'info'}>{stageLabel}</Badge></span></button>
               })}
+              {visibleAutoCandidates.length === 0 && <p className={s.candidateEmpty}>没有匹配候选。</p>}
             </div>
-            <div className={s.observationRail}>
-              <div className={s.observationTitle}><TimerReset size={16} /><span>收益记录</span></div>
-              {autoRun.observations.length === 0 ? <p>尚未进入模拟观察。</p> : autoRun.observations.slice(-6).reverse().map((item) => {
-                const simulationOrderId = nestedString(item.payload, 'simulation_order', 'simulation_order_id')
-                return <div key={item.id}><span>{new Date(item.market_time).toLocaleString('zh-CN', { hour12: false })}</span><strong className={item.net_return >= 0 ? s.up : s.down}>{pct(item.net_return, 3)}</strong><small>权益 {num(item.equity, 0)} · 仓位 {pct(item.position_weight, 1)}{simulationOrderId ? ` · ${simulationOrderId}` : ' · 无调仓'}</small></div>
-              })}
+            <div className={s.researchSideRail}>
+              {selectedAutoCandidate && <section className={s.candidateInspector} aria-label="Alpha 详情">
+                <header><div><span>ALPHA DETAIL · {autoRunSymbol}</span><h4>{selectedAutoCandidate.definition?.label ?? selectedAutoCandidate.factor_key}</h4></div><Badge variant={candidateStageLabel(selectedAutoCandidate, autoRun.run).includes('通过') ? 'up' : candidateStageLabel(selectedAutoCandidate, autoRun.run).includes('淘汰') || candidateStageLabel(selectedAutoCandidate, autoRun.run).includes('无效') ? 'down' : 'info'}>{candidateStageLabel(selectedAutoCandidate, autoRun.run)}</Badge></header>
+                <div className={s.candidateCode}><small>DSL CODE</small><code>{alphaAstExpression(selectedAutoCandidate.definition?.ast)}</code></div>
+                <div className={s.alphaSummary} aria-label="Alpha 指标摘要">
+                  <div><small>滚动收益</small><strong className={(selectedCandidateValidationReturn ?? 0) >= 0 ? s.up : s.down}>{pct(selectedCandidateValidationReturn)}</strong></div>
+                  <div><small>夏普</small><strong>{num(selectedCandidateValidationSharpe)}</strong></div>
+                  <div><small>最大回撤</small><strong>{pct(selectedCandidateValidationDrawdown)}</strong></div>
+                  <div><small>Rank IC</small><strong>{num(selectedCandidateValidationIc, 3)}</strong></div>
+                </div>
+                <section className={s.alphaCurvePanel} aria-label="真实前向收益曲线">
+                  <header><strong>前向权益</strong><span>{autoRun.observations.length} 个真实观察点</span></header>
+                  <ObservationCurve observations={autoRun.observations} />
+                </section>
+                <section className={s.alphaTesting} aria-label="Alpha 测试状态">
+                  <header><strong>测试状态</strong><span className={selectedFailedChecks.length > 0 ? s.down : s.up}>{selectedPassedChecks.length} 通过 · {selectedFailedChecks.length} 未通过</span></header>
+                  <div className={s.alphaCoverage}>
+                    <span>样本覆盖</span>
+                    <strong>{autoDataBars ?? '—'} / {autoRequestedBars ?? '—'} 根</strong>
+                    <Badge variant={autoDataBars !== null && autoRequestedBars !== null && autoDataBars < autoRequestedBars ? 'warn' : 'neutral'}>{autoDataBars !== null && autoRequestedBars !== null && autoDataBars < autoRequestedBars ? '部分样本' : '完整/未知'}</Badge>
+                  </div>
+                  {selectedGateChecks.length > 0 ? <div className={s.alphaCheckList}>
+                    {selectedGateChecks.map(([key, passed]) => <span className={passed ? s.alphaCheckPass : s.alphaCheckFail} key={key}>{passed ? <Check size={13} /> : <X size={13} />}<b>{RESEARCH_CHECK_LABELS[key] ?? key.replace(/_/g, ' ')}</b></span>)}
+                  </div> : nestedString(selectedAutoCandidate.gate, 'reason') ? <p>预检淘汰：{nestedString(selectedAutoCandidate.gate, 'reason') === 'formula_duplicate' ? '公式完全重复' : '发现集信号高度相似'}；保留 {nestedString(selectedAutoCandidate.gate, 'kept_candidate') ?? '更早候选'}。</p> : <p>该候选没有可展示的门禁明细。</p>}
+                </section>
+                <dl>
+                  <div><dt>因子家族</dt><dd>{factorFamilyLabel(selectedAutoCandidate.definition?.family)}</dd></div>
+                  <div><dt>生成来源</dt><dd>{CANDIDATE_SOURCE_LABELS[selectedAutoCandidate.source] ?? selectedAutoCandidate.source}</dd></div>
+                  <div><dt>输入字段</dt><dd>{selectedAutoCandidate.definition?.input_fields?.join(' · ') || '—'}</dd></div>
+                  <div><dt>预测周期</dt><dd>{selectedAutoCandidate.definition?.horizon ?? '—'}</dd></div>
+                  <div><dt>滚动收益</dt><dd>{pct(selectedCandidateValidationReturn)}</dd></div>
+                  <div><dt>滚动夏普</dt><dd>{num(selectedCandidateValidationSharpe)}</dd></div>
+                  <div><dt>公式哈希</dt><dd title={selectedAutoCandidate.definition?.formula_hash}>{selectedAutoCandidate.definition?.formula_hash?.slice(0, 12) ?? '—'}</dd></div>
+                  <div><dt>实验编号</dt><dd title={selectedAutoCandidate.experiment_id ?? ''}>{selectedAutoCandidate.experiment_id?.slice(0, 12) ?? '—'}</dd></div>
+                </dl>
+              </section>}
+              <div className={s.observationRail}>
+                <div className={s.observationTitle}><TimerReset size={16} /><span>收益记录</span></div>
+                {autoRun.observations.length === 0 ? <p>尚未进入模拟观察。</p> : autoRun.observations.slice(-6).reverse().map((item) => {
+                  const simulationOrderId = nestedString(item.payload, 'simulation_order', 'simulation_order_id')
+                  return <div key={item.id}><span>{new Date(item.market_time).toLocaleString('zh-CN', { hour12: false })}</span><strong className={item.net_return >= 0 ? s.up : s.down}>{pct(item.net_return, 3)}</strong><small>权益 {num(item.equity, 0)} · 仓位 {pct(item.position_weight, 1)}{simulationOrderId ? ` · ${simulationOrderId}` : ' · 无调仓'}</small></div>
+                })}
+              </div>
             </div>
           </div>
-          <footer className={s.autoAudit}><span>运行 {autoRun.run.id.slice(0, 12)}</span><span>计划 {autoRun.run.research_plan_id}</span><span>实盘开关关闭</span>{autoBest && <span>首位 {autoBest.factor_key}</span>}{autoRun.simulation_orders.length > 0 && <Link to={`/simulation?q=${encodeURIComponent(`factor-factory:${autoRun.run.id}`)}`}>查看模拟订单</Link>}</footer>
+          <footer className={s.autoAudit}><span>运行 {autoRun.run.id.slice(0, 12)}</span><span>计划 {autoRun.run.research_plan_id}</span><span>样本 {autoDataBars ?? '—'} / 请求 {autoRequestedBars ?? '—'}</span><span>实盘开关关闭</span>{autoBest && <span>首位 {autoBest.definition?.label ?? autoBest.factor_key}</span>}{autoRun.simulation_orders.length > 0 && <Link to={`/simulation?q=${encodeURIComponent(`factor-factory:${autoRun.run.id}`)}`}>查看模拟订单</Link>}</footer>
         </>}
       </section> : null}
 

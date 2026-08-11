@@ -4,6 +4,8 @@ from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query
 
+from core.backtest.market_data import MarketDataError
+
 from .alpha_mining import alpha_expression_catalog
 from .schemas import FactorFactoryObserveRequest, FactorFactoryStartRequest
 from .service import (
@@ -26,6 +28,8 @@ def get_alpha_dsl() -> dict:
 def create_run(req: FactorFactoryStartRequest) -> dict:
     try:
         return start_factor_factory(req)
+    except MarketDataError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -43,9 +47,18 @@ def list_runs(
         "failed",
     ]
     | None = None,
+    market: Literal["crypto", "a_shares"] | None = None,
+    symbol: str | None = Query(default=None, min_length=1, max_length=40),
+    interval: Literal["1h", "4h", "1d"] | None = None,
     limit: int = Query(default=50, ge=1, le=200),
 ) -> dict:
-    return list_factor_factory_runs(status=status, limit=limit)
+    return list_factor_factory_runs(
+        status=status,
+        market=market,
+        symbol=symbol.strip().upper() if symbol else None,
+        interval=interval,
+        limit=limit,
+    )
 
 
 @router.get("/archive")

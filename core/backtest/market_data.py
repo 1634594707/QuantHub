@@ -339,6 +339,7 @@ def fetch_live_ohlcv(
     start: str | None = None,
     end: str | None = None,
     use_cache: bool = True,
+    allow_partial: bool = False,
 ) -> MarketSnapshot:
     """从 OKX 公共行情接口拉取真实 K 线，并落盘快照保证可复现。
 
@@ -354,7 +355,7 @@ def fetch_live_ohlcv(
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
             frame = _frame_from_rows(payload["rows"])
-            if start is None and len(frame) < n_bars:
+            if start is None and len(frame) < n_bars and not allow_partial:
                 raise ValueError(f"快照只有 {len(frame)} 根，少于请求的 {n_bars} 根")
             return MarketSnapshot(
                 df=frame,
@@ -369,6 +370,7 @@ def fetch_live_ohlcv(
                     "fetched_at": payload.get("fetched_at"),
                     "ccxt_symbol": payload.get("ccxt_symbol"),
                     "requested_bars": n_bars,
+                    "partial": len(frame) < n_bars,
                     "requested_start": start,
                     "requested_end": end,
                     "bars": int(len(frame)),
@@ -434,7 +436,7 @@ def fetch_live_ohlcv(
     )
     if frame.empty:
         raise MarketDataError(f"{symbol} {interval} 在所选区间内无数据")
-    if start_at is None and len(frame) < n_bars:
+    if start_at is None and len(frame) < n_bars and not allow_partial:
         raise MarketDataError(
             f"OKX 仅返回 {len(frame)} 根 {symbol} {interval} K 线，少于请求的 {n_bars} 根"
         )
@@ -488,6 +490,7 @@ def fetch_live_ohlcv(
             "fetched_at": fetched_at.isoformat(),
             "ccxt_symbol": ccxt_symbol,
             "requested_bars": n_bars,
+            "partial": len(frame) < n_bars,
             "requested_start": start,
             "requested_end": end,
             "bars": int(len(frame)),
@@ -548,6 +551,7 @@ def load_market_data(
     start: str | None = None,
     end: str | None = None,
     use_cache: bool = True,
+    allow_partial: bool = False,
 ) -> MarketSnapshot:
     """按数据源统一取数（真实通道专用；合成通道由 dataset 模块负责）。"""
     if source == "okx_local":
@@ -562,5 +566,6 @@ def load_market_data(
             start=start,
             end=end,
             use_cache=use_cache,
+            allow_partial=allow_partial,
         )
     raise MarketDataError(f"未知真实数据源: {source}")

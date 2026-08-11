@@ -31,6 +31,7 @@ from apps.api.domains.factor_factory.service import (
     _score,
     _window_stability,
     list_factor_factory_archive,
+    list_factor_factory_runs,
     observe_factor_factory,
     start_factor_factory,
 )
@@ -101,6 +102,10 @@ class FactorFactoryAutomationTests(unittest.TestCase):
 
         self.assertEqual(response["run"]["status"], "paper_observing")
         self.assertEqual(len(response["candidates"]), 9)
+        ranked_candidate = next(item for item in response["candidates"] if item["rank"] == 1)
+        self.assertIsNotNone(ranked_candidate["definition"])
+        self.assertTrue(ranked_candidate["definition"]["label"])
+        self.assertTrue(ranked_candidate["definition"]["ast"])
         self.assertEqual(len(response["observations"]), 1)
         self.assertEqual(len(response["simulation_orders"]), 1)
         self.assertFalse(response["live_trading_enabled"])
@@ -214,6 +219,41 @@ class FactorFactoryAutomationTests(unittest.TestCase):
         self.assertEqual(len(store.list_factor_factory_runs(limit=10)), 1)
         opening = store.get_factor_confirmation_opening(first["run"]["research_plan_id"])
         self.assertIsNotNone(opening)
+
+    def test_run_list_filters_by_research_context(self) -> None:
+        runs = [
+            {
+                "id": "btc-run",
+                "config": {"market": "crypto", "symbol": "BTC-USDT-SWAP", "interval": "4h"},
+            },
+            {
+                "id": "avgo-run",
+                "config": {"market": "crypto", "symbol": "AVGO-USDT-SWAP", "interval": "4h"},
+            },
+        ]
+        with (
+            patch(
+                "apps.api.domains.factor_factory.service.store.list_factor_factory_runs",
+                return_value=runs,
+            ),
+            patch(
+                "apps.api.domains.factor_factory.service.store.list_factor_factory_candidates",
+                return_value=[],
+            ),
+            patch(
+                "apps.api.domains.factor_factory.service.store.list_factor_factory_observations",
+                return_value=[],
+            ),
+        ):
+            response = list_factor_factory_runs(
+                market="crypto",
+                symbol="avgo-usdt-swap",
+                interval="4h",
+                limit=1,
+            )
+
+        self.assertEqual(response["count"], 1)
+        self.assertEqual(response["runs"][0]["id"], "avgo-run")
 
     def test_archive_gate_does_not_combine_duration_from_different_runs(self) -> None:
         gate = _archive_admission_gate(

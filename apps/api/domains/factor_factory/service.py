@@ -184,6 +184,7 @@ def _load_frame(
             n_bars=req.n_bars,
             end=live_snapshot_end,
             use_cache=not force_refresh,
+            allow_partial=True,
         )
         frame = snapshot.df
         provenance = {
@@ -1148,7 +1149,15 @@ def _register_candidate(
 
 def _detail(run: dict[str, Any]) -> dict[str, Any]:
     observations = store.list_factor_factory_observations(run["id"])
-    candidates = store.list_factor_factory_candidates(run["id"])
+    candidates = [
+        {
+            **candidate,
+            "definition": store.get_factor_definition(
+                candidate["factor_key"], candidate["factor_version"]
+            ),
+        }
+        for candidate in store.list_factor_factory_candidates(run["id"])
+    ]
     paper = run.get("result", {}).get("paper", {})
     account_id = paper.get("account_id")
     simulation_orders = (
@@ -2275,8 +2284,26 @@ def get_factor_factory_run(run_id: str) -> dict[str, Any] | None:
     return _detail(run) if run else None
 
 
-def list_factor_factory_runs(*, status: str | None = None, limit: int = 50) -> dict[str, Any]:
-    runs = store.list_factor_factory_runs(status=status, limit=limit)
+def list_factor_factory_runs(
+    *,
+    status: str | None = None,
+    market: str | None = None,
+    symbol: str | None = None,
+    interval: str | None = None,
+    limit: int = 50,
+) -> dict[str, Any]:
+    runs = store.list_factor_factory_runs(status=status, limit=10_000)
+    normalized_symbol = symbol.strip().upper() if symbol else None
+    runs = [
+        run
+        for run in runs
+        if (market is None or run["config"].get("market") == market)
+        and (
+            normalized_symbol is None
+            or str(run["config"].get("symbol") or "").upper() == normalized_symbol
+        )
+        and (interval is None or run["config"].get("interval") == interval)
+    ][:limit]
     return {
         "ok": True,
         "count": len(runs),

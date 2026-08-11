@@ -24,6 +24,20 @@ const LLM_CONFIG: LLMConfigResp = {
   ],
 }
 
+const GENERATED_DEFINITION = {
+  id: 'definition-generated-1', key: 'ff_volume_pressure', factor_key: 'ff_volume_pressure',
+  label: '量价复合 Alpha', market: 'crypto' as const, input_fields: ['close', 'volume'],
+  ast: {
+    op: 'mul',
+    left: { op: 'rolling_zscore', value: { op: 'pct_change', value: { op: 'field', name: 'close' }, periods: 5 }, window: 20 },
+    right: { op: 'rank', value: { op: 'field', name: 'volume' }, window: 20 },
+  },
+  direction: 'positive' as const, horizon: 5, availability_lag: 1,
+  rationale: '价格变化与成交量排名联合。', family: 'brain_volume_pressure', version: '1.0.0',
+  parameters: {}, formula_hash: 'a'.repeat(64), definition_hash: 'b'.repeat(64),
+  validation: { unit: 'dimensionless', shape: 'series' as const, fields: ['close', 'volume'], depth: 4, operators: 6 }, created_at: 1,
+}
+
 afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
@@ -103,10 +117,18 @@ describe('FactorFactoryWorkflow', () => {
         selected_factor_key: null, selected_factor_version: null, selected_experiment_id: null, error: null,
         started_at: 1, updated_at: 1, observation_started_at: null, observation_ends_at: null,
       },
-      candidates: [], observations: [], simulation_orders: [], observation_summary: { count: 0, latest_equity: null, after_cost_return: null, max_drawdown: 0 }, live_trading_enabled: false,
+      candidates: [{
+        id: 'candidate-generated-1', run_id: 'auto-run-1', factor_key: 'ff_volume_pressure', factor_version: '1.0.0',
+        source: 'ai', experiment_id: 'experiment-generated-1', status: 'gate_rejected', rank: 1,
+        metrics: { rolling_validation: { summary: { total_return: 0.012, metrics: { sharpe: 0.42 } } } }, gate: {},
+        definition: GENERATED_DEFINITION, created_at: 1, updated_at: 1,
+      }], observations: [], simulation_orders: [], observation_summary: { count: 0, latest_equity: null, after_cost_return: null, max_drawdown: 0 }, live_trading_enabled: false,
     })
 
     const { container } = render(<FactorFactoryWorkflow />)
+    await waitFor(() => expect(api.factorFactoryRuns).toHaveBeenCalledWith(1, {
+      market: 'crypto', symbol: 'BTC-USDT-SWAP', interval: '4h',
+    }))
     await waitFor(() => expect([...container.querySelectorAll('select')].some((select) => [...select.options].some((option) => option.value === 'custom'))).toBe(true))
     const providerSelect = [...container.querySelectorAll('select')].find((select) => [...select.options].some((option) => option.value === 'custom'))
     fireEvent.change(providerSelect!, { target: { value: 'custom' } })
@@ -114,12 +136,65 @@ describe('FactorFactoryWorkflow', () => {
 
     await waitFor(() => expect(start).toHaveBeenCalledWith(expect.objectContaining({
       source: 'okx_live', symbol: 'BTC-USDT-SWAP', interval: '4h', candidate_budget: 30,
+      experiment_nonce: expect.any(String),
       n_bars: 720, observation_days: 7, paper_target: 'okx_demo',
       candidate_mode: 'brain', use_ai: true, ai_provider: 'custom', ai_candidate_count: 6,
       alpha_brief: expect.stringContaining('Alpha'), maximum_ai_tokens: 12_000,
       maximum_demo_exposure: 0.1, maximum_demo_loss: 25,
     })))
+    expect((await screen.findAllByText('量价复合 Alpha')).length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('BTC-USDT-SWAP').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getByText('仅排名最高且门禁通过的 1 个')).toBeTruthy()
+    expect(screen.getAllByText('量价流动性').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getByTitle('mul(rolling_zscore(pct_change(close, 5), 20), rank(volume, 20))')).toBeTruthy()
+    const rerunButton = screen.getByRole('button', { name: '启动新实验' })
+    fireEvent.click(rerunButton)
+    await waitFor(() => expect(start).toHaveBeenCalledTimes(2))
+    expect(start.mock.calls[0][0].experiment_nonce).not.toBe(start.mock.calls[1][0].experiment_nonce)
     expect((await screen.findAllByText('没有候选通过滚动验证门禁')).length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('clears candidates when the research target changes and reloads only that target', async () => {
+    vi.spyOn(api, 'factorFactoryArchive').mockResolvedValue({ ok: true, count: 0, total: 0, research_record_count: 0, ineligible_count: 0, verified_count: 0, eligible_only: true, archives: [], live_trading_enabled: false })
+    const runs = vi.spyOn(api, 'factorFactoryRuns').mockImplementation(async (_limit, filters) => ({
+      ok: true,
+      count: filters?.symbol === 'BTC-USDT-SWAP' ? 1 : 0,
+      runs: filters?.symbol === 'BTC-USDT-SWAP' ? [{
+        id: 'btc-history', research_plan_id: 'btc-plan', status: 'no_qualified_factor' as const,
+        config: { market: 'crypto', symbol: 'BTC-USDT-SWAP', interval: '4h' }, result: { message: 'BTC 研究结果' },
+        selected_factor_key: null, selected_factor_version: null, selected_experiment_id: null, error: null,
+        started_at: 1, updated_at: 1, observation_started_at: null, observation_ends_at: null,
+      }] : [],
+      live_trading_enabled: false as const,
+    }))
+    vi.spyOn(api, 'factorFactoryRun').mockResolvedValue({
+      ok: true,
+      run: {
+        id: 'btc-history', research_plan_id: 'btc-plan', status: 'no_qualified_factor',
+        config: { market: 'crypto', symbol: 'BTC-USDT-SWAP', interval: '4h' }, result: { message: 'BTC 研究结果' },
+        selected_factor_key: null, selected_factor_version: null, selected_experiment_id: null, error: null,
+        started_at: 1, updated_at: 1, observation_started_at: null, observation_ends_at: null,
+      },
+      candidates: [{
+        id: 'btc-candidate', run_id: 'btc-history', factor_key: 'ff_volume_pressure', factor_version: '1.0.0',
+        source: 'ai', experiment_id: 'btc-experiment', status: 'gate_rejected', rank: 1,
+        metrics: { rolling_validation: { summary: { total_return: 0.01, metrics: { sharpe: 0.2 } } } }, gate: {},
+        definition: GENERATED_DEFINITION, created_at: 1, updated_at: 1,
+      }],
+      observations: [], simulation_orders: [], observation_summary: { count: 0, latest_equity: null, after_cost_return: null, max_drawdown: 0 }, live_trading_enabled: false,
+    })
+
+    render(<FactorFactoryWorkflow />)
+    expect((await screen.findAllByText('量价复合 Alpha')).length).toBeGreaterThanOrEqual(1)
+    fireEvent.change(screen.getByPlaceholderText('代码或名称，如 AVGO / 博通'), { target: { value: '博通' } })
+    expect(await screen.findByRole('option', { name: /博通.*AVGO-USDT-SWAP/ })).toBeTruthy()
+    fireEvent.click(screen.getByRole('option', { name: /博通.*AVGO-USDT-SWAP/ }))
+
+    await waitFor(() => expect(runs).toHaveBeenCalledWith(1, {
+      market: 'crypto', symbol: 'AVGO-USDT-SWAP', interval: '4h',
+    }))
+    await waitFor(() => expect(screen.queryByText('量价复合 Alpha')).toBeNull())
+    expect(screen.getByRole('button', { name: '启动自动研究' })).toBeTruthy()
   })
 
   it('accepts a manual alpha expression and an uploaded JSON batch', async () => {

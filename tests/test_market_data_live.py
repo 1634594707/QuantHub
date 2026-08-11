@@ -1,11 +1,17 @@
 from __future__ import annotations
 
+import importlib
 import json
 from datetime import UTC, datetime
+
+import pytest
+from fastapi import HTTPException
 
 from apps.api.domains.factor_factory import service as factor_factory_service
 from apps.api.domains.factor_factory.schemas import FactorFactoryStartRequest
 from core.backtest import market_data
+
+factor_factory_router = importlib.import_module("apps.api.domains.factor_factory.router")
 
 
 class FakeExchange:
@@ -65,6 +71,40 @@ def test_live_ohlcv_pages_forward_and_returns_latest_requested_window(
     assert len(exchange.calls) > 1
     assert all(value is not None for value in exchange.calls)
     assert exchange.calls == sorted(exchange.calls)
+
+
+def test_live_ohlcv_can_use_available_partial_history(tmp_path, monkeypatch) -> None:
+    rows = _rows(6)
+    exchange = FakeExchange(rows)
+    monkeypatch.setattr(market_data, "MARKET_CACHE_DIR", tmp_path)
+    monkeypatch.setattr(market_data, "_build_public_exchange", lambda: exchange)
+
+    snapshot = market_data.fetch_live_ohlcv(
+        "AVGO-USDT-SWAP",
+        "1h",
+        n_bars=8,
+        use_cache=False,
+        allow_partial=True,
+    )
+
+    assert len(snapshot.df) == 6
+    assert snapshot.provenance["requested_bars"] == 8
+    assert snapshot.provenance["partial"] is True
+
+
+def test_factor_factory_market_data_error_is_a_validation_error(monkeypatch) -> None:
+    def fail(_request):
+        raise market_data.MarketDataError("历史样本不足")
+
+    monkeypatch.setattr(factor_factory_router, "start_factor_factory", fail)
+
+    with pytest.raises(HTTPException) as exc_info:
+        factor_factory_router.create_run(
+            FactorFactoryStartRequest(candidate_mode="library", use_ai=False)
+        )
+
+    assert exc_info.value.status_code == 422
+    assert exc_info.value.detail == "历史样本不足"
 
 
 def test_live_ohlcv_refetches_incomplete_unbounded_cache(tmp_path, monkeypatch) -> None:
@@ -166,4 +206,5 @@ def test_factor_factory_live_snapshot_cache_key_tracks_current_bar(monkeypatch) 
 
     assert captured["end"] == boundary.isoformat()
     assert captured["use_cache"] is True
+    assert captured["allow_partial"] is True
     assert provenance["requested_end"] == boundary.isoformat()
