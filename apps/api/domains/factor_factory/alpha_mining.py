@@ -611,15 +611,20 @@ def generate_ai_proposals(
     count: int,
     market: str = "crypto",
     maximum_tokens: int = 4_000,
+    provider: str | None = None,
     client: LLMClient | None = None,
 ) -> tuple[list[AlphaProposal], dict[str, Any]]:
     if count <= 0:
-        return [], {"status": "disabled", "candidate_count": 0}
+        return [], {
+            "status": "disabled",
+            "candidate_count": 0,
+            "requested_provider": provider,
+        }
     messages = _ai_messages(brief=brief, interval=interval, count=count, market=market)
     input_text = json.dumps(messages, ensure_ascii=False, sort_keys=True)
     input_fingerprint = hashlib.sha256(input_text.encode("utf-8")).hexdigest()
     try:
-        llm = client or get_llm()
+        llm = client or get_llm(provider)
         prompt_tokens = llm.estimate_tokens(input_text)
         completion_budget = min(10_000, maximum_tokens - prompt_tokens)
         if completion_budget <= 0:
@@ -629,6 +634,7 @@ def generate_ai_proposals(
                 "input_fingerprint": input_fingerprint,
                 "estimated_prompt_tokens": prompt_tokens,
                 "maximum_tokens": maximum_tokens,
+                "requested_provider": provider,
             }
         response = llm.chat(
             messages,
@@ -644,6 +650,7 @@ def generate_ai_proposals(
             "candidate_count": 0,
             "input_fingerprint": input_fingerprint,
             "error": f"{type(exc).__name__}: {exc}",
+            "requested_provider": provider,
         }
     token_usage = response.usage or {}
     if int(token_usage.get("total_tokens", 0)) > maximum_tokens:
@@ -653,6 +660,7 @@ def generate_ai_proposals(
             "input_fingerprint": input_fingerprint,
             "token_usage": token_usage,
             "maximum_tokens": maximum_tokens,
+            "requested_provider": provider,
         }
     payload = _extract_json(response.content)
     rows = payload.get("candidates", []) if payload else []
@@ -717,6 +725,7 @@ def generate_ai_proposals(
         "status": "generated" if proposals else "invalid_output",
         "candidate_count": len(proposals),
         "requested_candidates": count,
+        "requested_provider": provider,
         "provider": getattr(llm, "_provider", "unknown"),
         "model": response.model,
         "token_usage": token_usage,
@@ -739,6 +748,7 @@ def generate_alpha_batch(
     use_ai: bool,
     ai_candidate_count: int,
     maximum_ai_tokens: int = 4_000,
+    provider: str | None = None,
     client: LLMClient | None = None,
 ) -> tuple[list[AlphaProposal], dict[str, Any]]:
     seed = int(hashlib.sha256(run_seed.encode("utf-8")).hexdigest()[:16], 16)
@@ -749,6 +759,7 @@ def generate_alpha_batch(
         count=ai_requested,
         market=market,
         maximum_tokens=maximum_ai_tokens,
+        provider=provider,
         client=client,
     )
     grammar_count = budget - len(ai_proposals)

@@ -8,15 +8,11 @@
 }
 
 .sectionNav {
-  position: sticky;
-  top: 52px;
-  z-index: var(--z-sticky);
   display: flex;
   gap: var(--sp-1);
   padding: var(--sp-2);
   border: 1px solid var(--border);
-  background: color-mix(in srgb, var(--bg) 92%, transparent);
-  backdrop-filter: blur(10px);
+  background: var(--bg-subtle);
 }
 
 .sectionNav a {
@@ -37,7 +33,7 @@
 
 .settingsSection {
   display: flex;
-  scroll-margin-top: 104px;
+  scroll-margin-top: 68px;
   flex-direction: column;
   gap: var(--sp-4);
 }
@@ -528,7 +524,6 @@
 
 @media (max-width: 767px) {
   .sectionNav {
-    top: 48px;
     overflow-x: auto;
   }
   .sectionNav a {

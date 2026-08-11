@@ -1,7 +1,28 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../api/client'
+import type { LLMConfigResp } from '../api/types'
 import { FactorFactoryWorkflow } from './FactorFactoryWorkflow'
+
+const LLM_CONFIG: LLMConfigResp = {
+  ok: true,
+  configured: true,
+  provider: 'deepseek',
+  provider_label: 'DeepSeek',
+  official_url: 'https://platform.deepseek.com',
+  key_env: 'DEEPSEEK_API_KEY',
+  masked: '****test',
+  base_url: 'https://api.deepseek.com',
+  models_endpoint: 'https://api.deepseek.com/models',
+  model: 'deepseek-v4-flash',
+  timeout: 60,
+  max_retries: 3,
+  providers: [
+    { id: 'deepseek', label: 'DeepSeek', description: 'DeepSeek', official_url: 'https://platform.deepseek.com', base_url: 'https://api.deepseek.com', model: 'deepseek-v4-flash', key_env: 'DEEPSEEK_API_KEY', configured: true },
+    { id: 'openai', label: 'OpenAI', description: 'OpenAI', official_url: 'https://platform.openai.com', base_url: 'https://api.openai.com/v1', model: 'gpt-4o-mini', key_env: 'OPENAI_API_KEY', configured: false },
+    { id: 'custom', label: '兼容 API', description: '兼容 API', official_url: '', base_url: 'http://localhost:1234/v1', model: 'local-model', key_env: 'QUANTHUB_CUSTOM_LLM_API_KEY', configured: true },
+  ],
+}
 
 afterEach(() => {
   cleanup()
@@ -9,6 +30,7 @@ afterEach(() => {
 })
 
 beforeEach(() => {
+  vi.spyOn(api, 'llmConfig').mockResolvedValue(LLM_CONFIG)
   vi.spyOn(api, 'instruments').mockResolvedValue({ count: 0, instruments: [] })
   vi.spyOn(api, 'okxSwapCatalog').mockImplementation(async (query = '') => {
     const normalized = query.toUpperCase()
@@ -84,13 +106,16 @@ describe('FactorFactoryWorkflow', () => {
       candidates: [], observations: [], simulation_orders: [], observation_summary: { count: 0, latest_equity: null, after_cost_return: null, max_drawdown: 0 }, live_trading_enabled: false,
     })
 
-    render(<FactorFactoryWorkflow />)
+    const { container } = render(<FactorFactoryWorkflow />)
+    await waitFor(() => expect([...container.querySelectorAll('select')].some((select) => [...select.options].some((option) => option.value === 'custom'))).toBe(true))
+    const providerSelect = [...container.querySelectorAll('select')].find((select) => [...select.options].some((option) => option.value === 'custom'))
+    fireEvent.change(providerSelect!, { target: { value: 'custom' } })
     fireEvent.click(screen.getByRole('button', { name: '启动自动研究' }))
 
     await waitFor(() => expect(start).toHaveBeenCalledWith(expect.objectContaining({
       source: 'okx_live', symbol: 'BTC-USDT-SWAP', interval: '4h', candidate_budget: 30,
       n_bars: 720, observation_days: 7, paper_target: 'okx_demo',
-      candidate_mode: 'brain', use_ai: true, ai_candidate_count: 6,
+      candidate_mode: 'brain', use_ai: true, ai_provider: 'custom', ai_candidate_count: 6,
       alpha_brief: expect.stringContaining('Alpha'), maximum_ai_tokens: 12_000,
       maximum_demo_exposure: 0.1, maximum_demo_loss: 25,
     })))

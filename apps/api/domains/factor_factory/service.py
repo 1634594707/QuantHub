@@ -700,6 +700,7 @@ def _candidate_specs_for_request(
             use_ai=req.use_ai,
             ai_candidate_count=req.ai_candidate_count,
             maximum_ai_tokens=req.maximum_ai_tokens,
+            provider=req.ai_provider,
         )
         specs = _brain_candidate_specs(run_id, proposals)
     manifest = []

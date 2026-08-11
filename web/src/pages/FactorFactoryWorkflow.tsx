@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Archive, Beaker, BookOpenCheck, CandlestickChart, Check, ChevronRight, CircleAlert, Database, FileCheck2, FlaskConical, Link2, ListFilter, Play, RefreshCw, ScanSearch, Search, ShieldAlert, ShieldCheck, TimerReset, WalletCards, X } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { api } from '../api/client'
-import type { AlphaDslCatalog, DemoRunResult, FactorDefinitionRecord, FactorFactoryArchiveRecord, FactorFactoryRunResponse, FactorLifecycleRecord, FactorLifecycleState, Instrument, OkxSwapCatalogResponse, OkxSwapInstrument, SimulationAccount, SimulationOrder } from '../api/types'
+import type { AlphaDslCatalog, DemoRunResult, FactorDefinitionRecord, FactorFactoryArchiveRecord, FactorFactoryRunResponse, FactorLifecycleRecord, FactorLifecycleState, Instrument, LLMConfigResp, LLMProviderId, OkxSwapCatalogResponse, OkxSwapInstrument, SimulationAccount, SimulationOrder } from '../api/types'
 import KlineCard from '../components/KlineCard'
 import { Badge, Button, Field, Input, Panel, SegmentedControl, Select, Textarea } from '../components/ui'
 import s from './FactorFactoryWorkflow.module.css'
@@ -375,6 +375,8 @@ export function FactorFactoryWorkflow() {
   const [autoDays, setAutoDays] = useState(7)
   const [autoCandidateMode, setAutoCandidateMode] = useState<'brain' | 'library' | 'manual'>('brain')
   const [autoUseAi, setAutoUseAi] = useState(true)
+  const [aiProviders, setAiProviders] = useState<LLMConfigResp['providers']>([])
+  const [autoAiProvider, setAutoAiProvider] = useState<LLMProviderId | ''>('')
   const [autoAiCount, setAutoAiCount] = useState(6)
   const [autoAlphaBrief, setAutoAlphaBrief] = useState('寻找因果安全、成本后收益稳定、回撤受控，并对相邻参数稳健的量价 Alpha 表达式。')
   const [manualPreset, setManualPreset] = useState<ManualAlphaPreset>('volume_pressure')
@@ -394,6 +396,32 @@ export function FactorFactoryWorkflow() {
     setRationale(initialRationale(template))
     setInvalidation(template.invalidation)
   }, [template])
+
+  useEffect(() => {
+    let cancelled = false
+    void api.llmConfig()
+      .then((response) => {
+        if (cancelled) return
+        const configured = response.providers.filter((provider) => provider.configured)
+        setAiProviders(configured)
+        setAutoAiProvider((current) => (
+          configured.some((provider) => provider.id === current)
+            ? current
+            : configured.find((provider) => provider.id === response.provider)?.id
+              ?? configured[0]?.id
+              ?? ''
+        ))
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setAiProviders([])
+          setAutoAiProvider('')
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     if (autoCandidateMode !== 'manual') return
@@ -596,6 +624,9 @@ export function FactorFactoryWorkflow() {
         candidate_budget: autoCandidateMode === 'manual' ? Math.max(autoBudget, manualCandidates.length) : autoBudget, horizon, commission_bps: 3,
         candidate_mode: autoCandidateMode, alpha_brief: autoAlphaBrief,
         use_ai: autoCandidateMode === 'brain' && autoUseAi,
+        ...(autoCandidateMode === 'brain' && autoUseAi && autoAiProvider
+          ? { ai_provider: autoAiProvider }
+          : {}),
         ai_candidate_count: autoCandidateMode === 'brain' && autoUseAi ? Math.min(autoAiCount, autoBudget) : 0,
         maximum_ai_tokens: 12_000,
         initial_capital: 1_000_000, observation_days: Math.max(7, autoDays),
@@ -608,7 +639,7 @@ export function FactorFactoryWorkflow() {
     } finally {
       setAutoBusy('')
     }
-  }, [autoAiCount, autoAlphaBrief, autoBars, autoBudget, autoCandidateMode, autoDays, autoInterval, autoMarket, autoPaperTarget, autoSource, autoSymbol, autoUseAi, horizon, manualAlphaText, manualBatch])
+  }, [autoAiCount, autoAiProvider, autoAlphaBrief, autoBars, autoBudget, autoCandidateMode, autoDays, autoInterval, autoMarket, autoPaperTarget, autoSource, autoSymbol, autoUseAi, horizon, manualAlphaText, manualBatch])
 
   const refreshAutoObservation = useCallback(async () => {
     if (!autoRun) return
@@ -1004,6 +1035,7 @@ export function FactorFactoryWorkflow() {
           </div></Field>
           <Field label="候选引擎"><Select value={autoCandidateMode} options={[{ value: 'brain', label: 'BRAIN 式表达式挖掘' }, { value: 'manual', label: '手工 / JSON 批次' }, { value: 'library', label: '固定候选库' }]} onChange={(event) => setAutoCandidateMode(event.target.value as typeof autoCandidateMode)} /></Field>
           <Field label="AI 提案"><label className={s.aiToggle}><input type="checkbox" checked={autoUseAi} disabled={autoCandidateMode !== 'brain'} onChange={(event) => setAutoUseAi(event.target.checked)} /><span>{autoCandidateMode === 'manual' ? '手工批次模式' : autoCandidateMode === 'library' ? '候选库模式' : autoUseAi ? '已启用' : '仅规则生成'}</span></label></Field>
+          <Field label="AI 模型来源"><Select value={autoAiProvider} disabled={autoCandidateMode !== 'brain' || !autoUseAi || aiProviders.length === 0} options={aiProviders.length > 0 ? aiProviders.map((provider) => ({ value: provider.id, label: provider.label })) : [{ value: '', label: '跟随系统设置' }]} onChange={(event) => setAutoAiProvider(event.target.value as LLMProviderId)} /></Field>
           <Field label="AI 候选数"><Input type="number" min={0} max={autoBudget} disabled={autoCandidateMode !== 'brain' || !autoUseAi} value={Math.min(autoAiCount, autoBudget)} onChange={(event) => setAutoAiCount(Math.max(0, Number(event.target.value)))} /></Field>
           <Field label="模拟目标"><Select value={autoPaperTarget} options={autoMarket === 'crypto' ? [{ value: 'okx_demo', label: 'OKX Demo' }, { value: 'simulation_orders', label: '本地独立模拟' }] : [{ value: 'simulation_orders', label: '本地独立模拟' }]} onChange={(event) => {
             const target = event.target.value as typeof autoPaperTarget

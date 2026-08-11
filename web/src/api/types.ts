@@ -1216,6 +1216,7 @@ export interface FactorFactoryStartPayload {
   candidate_mode?: 'brain' | 'library' | 'manual'
   alpha_brief?: string
   use_ai?: boolean
+  ai_provider?: LLMProviderId
   ai_candidate_count?: number
   maximum_ai_tokens?: number
   manual_candidates?: Array<{

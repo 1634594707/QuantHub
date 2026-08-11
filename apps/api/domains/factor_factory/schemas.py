@@ -77,6 +77,7 @@ class FactorFactoryStartRequest(BaseModel):
         max_length=2_000,
     )
     use_ai: bool = True
+    ai_provider: Literal["deepseek", "openai", "custom"] | None = None
     ai_candidate_count: int = Field(default=6, ge=0, le=30)
     maximum_ai_tokens: int = Field(default=12_000, ge=0, le=100_000)
     manual_candidates: list[ManualAlphaCandidate] = Field(default_factory=list, max_length=30)
@@ -130,6 +131,7 @@ class FactorFactoryStartRequest(BaseModel):
             raise ValueError("ai_candidate_count 不能超过 candidate_budget")
         if self.candidate_mode != "brain" or not self.use_ai:
             self.use_ai = False
+            self.ai_provider = None
             self.ai_candidate_count = 0
         elif self.ai_candidate_count > 0 and self.maximum_ai_tokens <= 0:
             raise ValueError("启用 AI 候选时 maximum_ai_tokens 必须大于 0")

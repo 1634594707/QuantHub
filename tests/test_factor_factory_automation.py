@@ -509,6 +509,7 @@ class FactorFactoryAutomationTests(unittest.TestCase):
         payload.update(
             candidate_mode="brain",
             use_ai=True,
+            ai_provider="custom",
             ai_candidate_count=1,
             candidate_budget=3,
             maximum_ai_tokens=2_000,
@@ -517,13 +518,19 @@ class FactorFactoryAutomationTests(unittest.TestCase):
         with patch(
             "apps.api.domains.factor_factory.alpha_mining.get_llm",
             return_value=client,
-        ):
+        ) as get_llm_mock:
             first = start_factor_factory(request)
             replay = start_factor_factory(request)
 
         self.assertEqual(client.calls, 1)
+        get_llm_mock.assert_called_once_with("custom")
         self.assertTrue(replay["idempotent_replay"])
         self.assertEqual(replay["run"]["id"], first["run"]["id"])
+        self.assertEqual(first["run"]["config"]["ai_provider"], "custom")
+        self.assertEqual(
+            first["run"]["config"]["candidate_generation"]["ai"]["requested_provider"],
+            "custom",
+        )
         experiments = store.list_factor_experiments(
             research_plan_id=first["run"]["research_plan_id"],
             limit=100,
