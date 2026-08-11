@@ -5,7 +5,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 SCHEMA = """
 PRAGMA foreign_keys=ON;
@@ -74,6 +74,20 @@ CREATE TABLE IF NOT EXISTS position_snapshots (
     symbol TEXT NOT NULL,
     quantity REAL NOT NULL,
     mark_price REAL NOT NULL,
+    entry_price REAL,
+    unrealized_pnl REAL NOT NULL DEFAULT 0,
+    leverage REAL,
+    position_side TEXT,
+    observed_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS account_snapshots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    account_id TEXT NOT NULL,
+    environment TEXT NOT NULL,
+    equity REAL NOT NULL,
+    realized_pnl REAL NOT NULL DEFAULT 0,
+    unrealized_pnl REAL NOT NULL DEFAULT 0,
+    peak_equity REAL,
     observed_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS reconciliation_diffs (
@@ -136,6 +150,20 @@ def initialize(path: Path) -> None:
         row = connection.execute("SELECT version FROM schema_meta LIMIT 1").fetchone()
         if row is None:
             connection.execute("INSERT INTO schema_meta VALUES (?)", (SCHEMA_VERSION,))
+        elif row[0] < SCHEMA_VERSION:
+            existing_columns = {
+                item[1] for item in connection.execute("PRAGMA table_info(position_snapshots)")
+            }
+            migrations = {
+                "entry_price": "ALTER TABLE position_snapshots ADD COLUMN entry_price REAL",
+                "unrealized_pnl": "ALTER TABLE position_snapshots ADD COLUMN unrealized_pnl REAL NOT NULL DEFAULT 0",
+                "leverage": "ALTER TABLE position_snapshots ADD COLUMN leverage REAL",
+                "position_side": "ALTER TABLE position_snapshots ADD COLUMN position_side TEXT",
+            }
+            for column, statement in migrations.items():
+                if column not in existing_columns:
+                    connection.execute(statement)
+            connection.execute("UPDATE schema_meta SET version=?", (SCHEMA_VERSION,))
         elif row[0] != SCHEMA_VERSION:
             raise RuntimeError(f"unsupported Runner schema version {row[0]}")
         connection.execute(

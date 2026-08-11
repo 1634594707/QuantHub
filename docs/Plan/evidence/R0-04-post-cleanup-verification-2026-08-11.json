@@ -1,0 +1,75 @@
+{
+  "task": "R0-04 production signal cleanup verification",
+  "generated_at": "2026-08-11T22:10:06.7379439+08:00",
+  "cleanup": {
+    "report": "docs/Plan/evidence/R0-04-production-cleanup-applied-2026-08-11.json",
+    "expected_records": 41,
+    "matched_records": 41,
+    "deleted_records": 41,
+    "remaining_manifest_records": 0,
+    "signals_before": 107,
+    "signals_after": 66,
+    "integrity_check": "ok",
+    "foreign_key_violations": 0,
+    "passed": true
+  },
+  "production_database": {
+    "path": "apps/api/store.db",
+    "sha256_before_cleanup": "2fa90f39739b5b5e559b8ef4b903126845947dfa8baf718dbb2623c231d8e704",
+    "sha256_after_cleanup": "c1e21317c8bd1a11be8ee9c063183cf21a50291b0fa59a79b7e343cade98fb20",
+    "sha256_before_post_cleanup_tests": "c1e21317c8bd1a11be8ee9c063183cf21a50291b0fa59a79b7e343cade98fb20",
+    "sha256_after_post_cleanup_tests": "c1e21317c8bd1a11be8ee9c063183cf21a50291b0fa59a79b7e343cade98fb20",
+    "post_cleanup_tests_untouched": true
+  },
+  "api": {
+    "signals_path": "/signals?limit=2000",
+    "signals_returned": 66,
+    "signals_contaminated": 0,
+    "radar_path": "/signals/radar",
+    "radar_signals_returned": 10,
+    "radar_contaminated": 0,
+    "blocked_sources": [
+      "api_test",
+      "playwright_mobile"
+    ],
+    "blocked_symbol_prefix": "E2E-",
+    "passed": true
+  },
+  "quality_gates": {
+    "backend": {
+      "report": "docs/Plan/evidence/R0-04-post-cleanup-backend-gate-2026-08-11.json",
+      "tests": 276,
+      "failures": 0,
+      "errors": 0,
+      "passed": true
+    },
+    "frontend": {
+      "test_files": 36,
+      "tests": 142,
+      "typecheck": true,
+      "production_build": true,
+      "passed": true
+    },
+    "fake_data_scan": {
+      "report": "docs/Plan/evidence/R7-fake-data-scan-2026-08-11.json",
+      "production_files_scanned": 414,
+      "findings": 0,
+      "passed": true
+    },
+    "browser_acceptance": {
+      "report": "docs/Plan/evidence/R0-04-post-cleanup-web-acceptance-2026-08-11/report.json",
+      "cases": 56,
+      "passed_cases": 56,
+      "failed_cases": 0,
+      "issues": 0,
+      "console_errors": 0,
+      "bad_responses": 0,
+      "horizontal_overflow_cases": 0,
+      "touch_target_violations": 0,
+      "text_clips": 0,
+      "passed": true
+    }
+  },
+  "roadmap_complete": true,
+  "passed": true
+}

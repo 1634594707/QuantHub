@@ -139,6 +139,23 @@ class PaAgentStrategy(StrategyBase):
         if sig is not None:
             self.publish(sig)
             return [sig]
+        stage2 = result.stage2_json or {}
+        decision = stage2.get("decision") or {}
+        if not isinstance(decision.get("trade_confidence"), (int, float)) and not isinstance(
+            decision.get("diagnosis_confidence"), (int, float)
+        ):
+            self.last_report = {
+                "kind": "pa_analysis",
+                "stage1": result.stage1_json,
+                "stage2": result.stage2_json,
+                "validation": result.validation,
+                "error": result.error,
+            }
+            self.last_signal_rejection = {
+                "code": "confidence_missing",
+                "message": "PA 分析缺少 trade_confidence 与 diagnosis_confidence，未发布信号。",
+                "details": {"source": _SOURCE, "symbol": symbol, "market": actual_market},
+            }
         return []
 
     @staticmethod
@@ -157,7 +174,7 @@ class PaAgentStrategy(StrategyBase):
             - score: next_bar_prediction.probabilities 归一化（buy 用 bullish,
                      sell 用 bearish, hold 用 0.5）；unpredictable 时取 0.5
             - confidence: decision.trade_confidence（0-100）→ /100；缺失时用
-                          diagnosis_confidence；仍缺失取 0.3 兜底
+                          diagnosis_confidence；两者均缺失时拒绝发布信号
         """
         if result.error and result.stage2_json is None:
             logger.warning("pa_agent 分析失败 %s: %s", symbol, result.error)
@@ -202,7 +219,8 @@ class PaAgentStrategy(StrategyBase):
         elif isinstance(dc, (int, float)):
             confidence = _clamp_01(float(dc) / 100.0)
         else:
-            confidence = 0.3
+            logger.warning("pa_agent 缺少真实把握度，拒绝发布信号: %s", symbol)
+            return None
 
         # meta：携带阶段一诊断摘要与决策计划
         s1 = result.stage1_json or {}

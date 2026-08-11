@@ -57,3 +57,10 @@
   font-size: var(--fs-small);
   min-height: 32px;
 }
+
+@media (max-width: 767px) {
+  .sm .btn,
+  .md .btn {
+    min-height: 44px;
+  }
+}

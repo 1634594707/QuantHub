@@ -27,6 +27,7 @@ const LEDGER_SYNC_META: Record<SimulationLedgerSyncStatus, string> = {
   pending: '待同步',
   synced: '已同步',
   failed: '同步失败',
+  isolated: '独立模拟账本',
 }
 
 function formatTime(value: number) {
@@ -46,12 +47,20 @@ function ledgerSyncSummary(executions: SimulationExecution[]) {
   const failed = executions.filter((execution) => execution.ledger_sync_status === 'failed')
   const pending = executions.filter((execution) => execution.ledger_sync_status === 'pending')
   const synced = executions.filter((execution) => execution.ledger_sync_status === 'synced')
-  const status: SimulationLedgerSyncStatus = failed.length ? 'failed' : pending.length ? 'pending' : 'synced'
+  const isolated = executions.filter((execution) => execution.ledger_sync_status === 'isolated')
+  const status: SimulationLedgerSyncStatus = failed.length
+    ? 'failed'
+    : pending.length
+      ? 'pending'
+      : isolated.length === executions.length
+        ? 'isolated'
+        : 'synced'
   const latestSynced = [...synced].reverse().find((execution) => execution.ledger_trade_id)
   return {
     status,
     label: LEDGER_SYNC_META[status],
-    detail: failed[0]?.ledger_sync_error || `${synced.length}/${executions.length} 笔账本流水`,
+    detail: failed[0]?.ledger_sync_error
+      || (status === 'isolated' ? '自动因子专属账户，不写入共享手工账本' : `${synced.length}/${executions.length} 笔账本流水`),
     latestTradeId: latestSynced?.ledger_trade_id ?? null,
   }
 }
@@ -132,7 +141,10 @@ export default function SimulationOrdersPage() {
     const normalized = query.trim().toUpperCase()
     return rows.filter((order) => {
       if (status && order.status !== status) return false
-      return !normalized || order.symbol.includes(normalized) || order.id.includes(normalized)
+      return !normalized
+        || order.symbol.includes(normalized)
+        || order.id.includes(normalized)
+        || order.account_id.toUpperCase().includes(normalized)
     })
   }, [query, rows, status])
 
@@ -306,7 +318,7 @@ export default function SimulationOrdersPage() {
                 <span><b className="mono-num">{formatQuantity(order.quantity)}</b><small>已成交 {formatQuantity(order.filled_quantity)} · 剩余 {formatQuantity(remaining(order))}</small></span>
                 <span><b className="mono-num">{order.average_price?.toFixed(3) ?? '—'}</b><small>{order.order_type === 'market' ? '市价' : `限价 ${order.limit_price}`}</small></span>
                 <span>
-                  <b>{order.signal_id ? '信号转单' : '手工模拟'}</b>
+                  <b>{order.signal_id ? '信号转单' : order.account_id.startsWith('factor-factory:') ? '自动因子' : '手工模拟'}</b>
                   <small>{order.signal_id ?? order.account_id}</small>
                   {sync && <>
                     <b className={`simulation-ledger-sync ${sync.status}`}>{sync.label}</b>

@@ -5,6 +5,7 @@ import ctypes
 import hashlib
 import json
 import os
+import subprocess
 import tempfile
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -102,6 +103,37 @@ def _unprotect(ciphertext: bytes) -> bytes:
         del source_buffer
 
 
+def _restrict_windows_acl(path: Path) -> None:
+    if os.name != "nt":
+        return
+    identity_result = subprocess.run(
+        ["whoami"],
+        check=False,
+        capture_output=True,
+        text=True,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+    )
+    identity = identity_result.stdout.strip()
+    if identity_result.returncode != 0 or not identity:
+        raise OSError("Windows user identity is unavailable for credential ACL")
+    completed = subprocess.run(
+        [
+            "icacls",
+            str(path),
+            "/inheritance:r",
+            "/grant:r",
+            f"{identity}:(F)",
+            "*S-1-5-18:(F)",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+    )
+    if completed.returncode != 0:
+        raise OSError("Windows credential ACL could not be restricted")
+
+
 def _read_payload() -> dict[str, Any] | None:
     path = _vault_path()
     if not path.is_file():
@@ -134,6 +166,7 @@ def _write_payload(payload: dict[str, Any]) -> None:
         temporary.chmod(0o600)
         os.replace(temporary, path)
         path.chmod(0o600)
+        _restrict_windows_acl(path)
     finally:
         temporary.unlink(missing_ok=True)
 

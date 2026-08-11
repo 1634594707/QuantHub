@@ -52,10 +52,9 @@
   align-items: center;
   gap: var(--sp-3);
   margin-bottom: var(--sp-3);
-  font-weight: 700;
-  font-size: var(--fs-13);
+  font-weight: var(--fw-semibold);
+  font-size: var(--fs-body);
   letter-spacing: 0;
-  text-transform: uppercase;
   color: var(--text-2);
 }
 .groupTitle::before {
@@ -82,14 +81,14 @@
   grid-template-columns: minmax(190px, .8fr) minmax(240px, 1.4fr) minmax(300px, 1.2fr);
   gap: var(--sp-3);
   align-items: center;
-  min-height: 66px;
-  padding: var(--sp-2) var(--sp-3);
+  min-height: 64px;
+  padding: var(--sp-3);
   border: 0;
   border-bottom: 1px solid var(--divider);
   border-radius: 0;
   background: var(--bg-elevated);
   cursor: pointer;
-  transition: background var(--t-fast), box-shadow var(--t-fast);
+  transition: background var(--t-fast);
 }
 /* 顶部 3px 状态色条（默认 idle 灰） */
 .card::before {
@@ -126,7 +125,6 @@
 }
 .card:hover {
   background: var(--surface-hover);
-  box-shadow: inset 3px 0 var(--board, var(--accent));
 }
 .card:hover::before {
   opacity: 1;

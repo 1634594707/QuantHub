@@ -169,3 +169,17 @@
 .fullWidth {
   width: 100%;
 }
+
+@media (max-width: 767px) {
+  .sm,
+  .md,
+  .lg {
+    height: 44px;
+    min-height: 44px;
+  }
+
+  .linkBtn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}

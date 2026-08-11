@@ -44,6 +44,7 @@
 .simulation-ledger-sync.pending { color: var(--warn-ink); }
 .simulation-ledger-sync.synced { color: var(--up-ink); }
 .simulation-ledger-sync.failed { color: var(--down-ink); }
+.simulation-ledger-sync.isolated { color: var(--accent-strong); }
 .simulation-ledger-link { width: fit-content; color: var(--accent-strong); font-size: var(--fs-11); text-decoration: none; }
 .simulation-ledger-link:hover { text-decoration: underline; }
 .simulation-status { width: fit-content; border: 1px solid var(--border); border-radius: var(--r-sm); padding: 3px 6px; }

@@ -1,0 +1,1540 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Archive, Beaker, BookOpenCheck, CandlestickChart, Check, ChevronRight, CircleAlert, Database, FileCheck2, FlaskConical, Link2, ListFilter, Play, RefreshCw, ScanSearch, Search, ShieldAlert, ShieldCheck, TimerReset, WalletCards, X } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { api } from '../api/client'
+import type { AlphaDslCatalog, DemoRunResult, FactorDefinitionRecord, FactorFactoryArchiveRecord, FactorFactoryRunResponse, FactorLifecycleRecord, FactorLifecycleState, Instrument, LLMConfigResp, LLMProviderId, OkxSwapCatalogResponse, OkxSwapInstrument, SimulationAccount, SimulationOrder } from '../api/types'
+import KlineCard from '../components/KlineCard'
+import { Badge, Button, Field, Input, Panel, SegmentedControl, Select, Textarea } from '../components/ui'
+import s from './FactorFactoryWorkflow.module.css'
+
+type TemplateKey = 'volatility_adjusted_momentum' | 'liquidity_shock_reversal' | 'volume_confirmed_breakout'
+
+type Ast = Record<string, unknown>
+type ManualAlphaDraft = {
+  candidate_id?: string
+  label?: string
+  family?: string
+  expression?: string
+  formula_ast?: Ast
+  hypothesis?: string
+  invalidation?: string
+  falsification_tests?: string[]
+}
+
+type InstrumentSuggestion = Pick<Instrument, 'code' | 'market' | 'name' | 'exchange'> & { verified?: boolean }
+type ManualAlphaPreset = 'momentum' | 'reversal' | 'volume_pressure' | 'breakout'
+type ManualAlphaProfile = 'fast' | 'balanced' | 'robust'
+
+type Template = {
+  key: TemplateKey
+  label: string
+  angle: string
+  hypothesis: string
+  invalidation: string
+  fields: string[]
+  ast: Ast
+}
+
+const TEMPLATES: Template[] = [
+  {
+    key: 'volatility_adjusted_momentum',
+    label: '波动率调整动量',
+    angle: '趋势延续 × 风险归一化',
+    hypothesis: '中期价格趋势仍会延续，但用短期实现波动率缩放后，信号不应只奖励高波动行情。',
+    invalidation: '趋势方向翻转，或成本后收益下降且回撤扩大。',
+    fields: ['close'],
+    ast: {
+      op: 'rolling_zscore',
+      value: {
+        op: 'div',
+        left: { op: 'pct_change', value: { op: 'field', name: 'close' }, periods: 20 },
+        right: { op: 'rolling_std', value: { op: 'pct_change', value: { op: 'field', name: 'close' }, periods: 1 }, window: 20 },
+      },
+      window: 60,
+    },
+  },
+  {
+    key: 'liquidity_shock_reversal',
+    label: '流动性冲击反转',
+    angle: '价格冲击 × 成交量异常',
+    hypothesis: '单日价格冲击伴随成交量异常时，短期价格更可能出现均值回复，而非继续追涨杀跌。',
+    invalidation: '冲击后的方向延续占优，或成交量异常不能提升反转信号的命中率。',
+    fields: ['close', 'volume'],
+    ast: {
+      op: 'neg',
+      value: {
+        op: 'mul',
+        left: { op: 'rolling_zscore', value: { op: 'pct_change', value: { op: 'field', name: 'close' }, periods: 1 }, window: 20 },
+        right: { op: 'abs', value: { op: 'rolling_zscore', value: { op: 'pct_change', value: { op: 'field', name: 'volume' }, periods: 1 }, window: 20 } },
+      },
+    },
+  },
+  {
+    key: 'volume_confirmed_breakout',
+    label: '成交量确认突破',
+    angle: '突破幅度 × 成交活跃度',
+    hypothesis: '价格突破只有在成交量同步改善时才更可能代表新的供需平衡，而不是一次性噪声。',
+    invalidation: '突破后的收益无法覆盖成本，或活跃度确认反而提高换手与回撤。',
+    fields: ['close', 'volume'],
+    ast: {
+      op: 'mul',
+      left: { op: 'rolling_zscore', value: { op: 'pct_change', value: { op: 'field', name: 'close' }, periods: 20 }, window: 60 },
+      right: { op: 'rank', value: { op: 'pct_change', value: { op: 'field', name: 'volume' }, periods: 1 }, window: 20 },
+    },
+  },
+]
+
+const COMMON_INSTRUMENTS: Record<'crypto' | 'a_shares', InstrumentSuggestion[]> = {
+  crypto: [
+    { code: 'BTC-USDT-SWAP', market: 'crypto', name: '比特币 / Bitcoin 永续', exchange: 'okx' },
+    { code: 'ETH-USDT-SWAP', market: 'crypto', name: '以太坊 / Ethereum 永续', exchange: 'okx' },
+    { code: 'SOL-USDT-SWAP', market: 'crypto', name: 'Solana 永续', exchange: 'okx' },
+    { code: 'NVDA-USDT-SWAP', market: 'crypto', name: '英伟达 / NVIDIA 永续', exchange: 'okx' },
+    { code: 'AVGO-USDT-SWAP', market: 'crypto', name: '博通 / Broadcom 永续', exchange: 'okx' },
+  ],
+  a_shares: [
+    { code: '600519', market: 'a_shares', name: '贵州茅台', exchange: 'sse' },
+    { code: '000001', market: 'a_shares', name: '平安银行', exchange: 'szse' },
+    { code: '300750', market: 'a_shares', name: '宁德时代', exchange: 'szse' },
+    { code: '601318', market: 'a_shares', name: '中国平安', exchange: 'sse' },
+  ],
+}
+
+const ALPHA_PRESET_OPTIONS = [
+  { value: 'momentum', label: '趋势动量' },
+  { value: 'reversal', label: '短期反转' },
+  { value: 'volume_pressure', label: '量价压力' },
+  { value: 'breakout', label: '放量突破' },
+]
+
+const ALPHA_PROFILE_OPTIONS = [
+  { value: 'fast', label: '短线 · 2 / 12' },
+  { value: 'balanced', label: '均衡 · 3 / 20' },
+  { value: 'robust', label: '稳健 · 5 / 40' },
+]
+
+const ALPHA_PROFILE_PARAMS: Record<ManualAlphaProfile, { period: number; window: number }> = {
+  fast: { period: 2, window: 12 },
+  balanced: { period: 3, window: 20 },
+  robust: { period: 5, window: 40 },
+}
+
+const DEFAULT_ALPHA_DSL: AlphaDslCatalog = {
+  version: 'brain-alpha-v1.1',
+  fields: [
+    { name: 'open', label: '开盘价', unit: 'price' },
+    { name: 'high', label: '最高价', unit: 'price' },
+    { name: 'low', label: '最低价', unit: 'price' },
+    { name: 'close', label: '收盘价', unit: 'price' },
+    { name: 'volume', label: '成交量', unit: 'volume' },
+  ],
+  parameters: [
+    { name: 'value', description: '字段、数值常量或另一个算子的结果' },
+    { name: 'left / right', description: '二元算子的左右输入' },
+    { name: 'periods', description: '回看或滞后的 K 线数量；整数 1–500' },
+    { name: 'window', description: '滚动统计窗口；整数 1–500' },
+    { name: 'lower / upper', description: '缩尾分位数；0 ≤ lower < upper ≤ 1' },
+    { name: 'condition / then / else', description: '布尔条件、条件成立值、条件不成立值' },
+  ],
+  operators: [
+    { name: 'add', signature: 'add(left, right)', description: '相加；两侧单位必须一致', example: 'add(close, neg(open))' },
+    { name: 'sub', signature: 'sub(left, right)', description: '相减；两侧单位必须一致', example: 'sub(close, open)' },
+    { name: 'mul', signature: 'mul(left, right)', description: '相乘，用于组合两个信号', example: 'mul(pct_change(close, 3), rank(volume, 20))' },
+    { name: 'div', signature: 'div(left, right)', description: '相除；同单位结果为无量纲', example: 'div(sub(close, open), open)' },
+    { name: 'gt', signature: 'gt(left, right)', description: '大于比较，生成布尔条件', example: 'gt(close, rolling_mean(close, 20))' },
+    { name: 'lt', signature: 'lt(left, right)', description: '小于比较，生成布尔条件', example: 'lt(close, rolling_mean(close, 20))' },
+    { name: 'neg', signature: 'neg(value)', description: '信号取反，常用于反转因子', example: 'neg(pct_change(close, 3))' },
+    { name: 'abs', signature: 'abs(value)', description: '取绝对值', example: 'abs(pct_change(close, 1))' },
+    { name: 'lag', signature: 'lag(value, periods)', description: '向后滞后 periods 根 K 线', example: 'lag(close, 1)' },
+    { name: 'diff', signature: 'diff(value, periods)', description: '与 periods 根 K 线前做差', example: 'diff(close, 5)' },
+    { name: 'pct_change', signature: 'pct_change(value, periods)', description: '计算 periods 根 K 线收益率', example: 'pct_change(close, 3)' },
+    { name: 'rolling_mean', signature: 'rolling_mean(value, window)', description: '滚动均值', example: 'rolling_mean(close, 20)' },
+    { name: 'rolling_std', signature: 'rolling_std(value, window)', description: '滚动标准差', example: 'rolling_std(pct_change(close, 1), 20)' },
+    { name: 'rolling_min', signature: 'rolling_min(value, window)', description: '滚动最小值', example: 'rolling_min(low, 20)' },
+    { name: 'rolling_max', signature: 'rolling_max(value, window)', description: '滚动最大值', example: 'rolling_max(high, 20)' },
+    { name: 'rolling_sum', signature: 'rolling_sum(value, window)', description: '滚动求和', example: 'rolling_sum(volume, 20)' },
+    { name: 'rolling_zscore', signature: 'rolling_zscore(value, window)', description: '滚动标准分，常用于归一化', example: 'rolling_zscore(pct_change(close, 3), 20)' },
+    { name: 'rolling_winsorize', signature: 'rolling_winsorize(value, window[, lower, upper])', description: '滚动缩尾；默认分位数 0.01 / 0.99', example: 'rolling_winsorize(pct_change(close, 1), 20, 0.01, 0.99)' },
+    { name: 'rank', signature: 'rank(value, window)', description: '当前值在滚动窗口内的百分位排名', example: 'rank(volume, 20)' },
+    { name: 'where', signature: 'where(condition, then, else)', description: '按布尔条件选择两个同单位结果', example: 'where(gt(close, open), volume, neg(volume))' },
+  ],
+  limits: { periods_min: 1, periods_max: 500, window_min: 1, window_max: 500, max_depth: 10, max_operators: 30, winsor_lower_min: 0, winsor_upper_max: 1 },
+}
+
+function manualAlphaExpression(preset: ManualAlphaPreset, profile: ManualAlphaProfile) {
+  const { period, window } = ALPHA_PROFILE_PARAMS[profile]
+  if (preset === 'momentum') return `rolling_zscore(pct_change(close, ${period}), ${window})`
+  if (preset === 'reversal') return `neg(rolling_zscore(pct_change(close, ${period}), ${window}))`
+  if (preset === 'breakout') return `mul(rolling_zscore(pct_change(close, ${window}), ${window}), rank(volume, ${window}))`
+  return `mul(rolling_zscore(pct_change(close, ${period}), ${window}), rank(volume, ${window}))`
+}
+
+function normalizedDirectSymbol(value: string, market: 'crypto' | 'a_shares') {
+  const normalized = value.trim().toUpperCase().replace(/\s/g, '').replace('/', '-')
+  if (market === 'a_shares') return /^\d{6}$/.test(normalized) ? normalized : ''
+  if (/^[A-Z][A-Z0-9]{1,14}$/.test(normalized)) return `${normalized}-USDT-SWAP`
+  if (/^[A-Z0-9]+USDT$/.test(normalized)) return `${normalized.slice(0, -4)}-USDT-SWAP`
+  if (/^[A-Z0-9]+-USDT$/.test(normalized)) return `${normalized}-SWAP`
+  return /^[A-Z0-9]+-USDT-SWAP$/.test(normalized) ? normalized : ''
+}
+
+function matchesInstrument(item: InstrumentSuggestion, query: string) {
+  const needle = query.trim().toUpperCase()
+  if (!needle) return true
+  return `${item.code} ${item.name}`.toUpperCase().includes(needle)
+}
+
+function okxCatalogErrorMessage(reason: unknown) {
+  const raw = typeof reason === 'string'
+    ? reason
+    : reason instanceof Error
+      ? reason.message
+      : ''
+  const normalized = raw.toLowerCase()
+  if (normalized.includes('timeout') || normalized.includes('timed out') || raw.includes('连接超时')) {
+    return 'OKX 公共合约目录连接超时，公共目录暂时不可用，请稍后重试。'
+  }
+  if (normalized.includes('connection') || normalized.includes('network') || raw.includes('无法连接')) {
+    return 'OKX 公共合约目录暂时无法连接，请稍后重试。'
+  }
+  return 'OKX 公共合约目录暂不可用，请稍后重试。'
+}
+
+const GATE_THRESHOLDS = {
+  minimum_return: 0.03,
+  maximum_drawdown: 0.15,
+  minimum_sharpe: 0.8,
+  minimum_trades: 2,
+  minimum_fill_rate: 0.95,
+  minimum_capacity_ratio: 0,
+}
+
+const STAGES = [
+  { label: 'Alpha 挖掘', icon: Beaker },
+  { label: '固定回测', icon: FlaskConical },
+  { label: '至少 7 天模拟', icon: WalletCards },
+  { label: '收益与证据', icon: Archive },
+]
+
+const FACTORY_STATUS: Record<string, string> = {
+  discovering: '搜索中',
+  no_qualified_factor: '滚动验证无通过',
+  no_research_passed_factor: '锁定确认未通过',
+  paper_observing: '模拟观察中',
+  paper_rejected: '模拟门禁未通过',
+  trading_validated: '模拟验证通过',
+  degraded: '已降级',
+  failed: '运行失败',
+}
+
+const CANDIDATE_SOURCE_LABELS: Record<string, string> = {
+  ai: 'AI 提案',
+  human: '手工输入',
+  template: '固定模板',
+  random_dsl: '规则生成',
+  symbolic_regression: '符号组合',
+  parameter_search: '参数搜索',
+}
+
+const RESEARCH_CHECK_LABELS: Record<string, string> = {
+  validation_return: '滚动验证收益达到阈值',
+  validation_drawdown: '滚动验证回撤受控',
+  validation_sharpe: '滚动验证夏普达到阈值',
+  minimum_trades: '有效交易次数充足',
+  direction_consistency: '发现集与验证集方向一致',
+  validation_window_majority: '多数滚动窗口为正',
+  validation_p_value: '统计显著性达到阈值',
+  validation_rank_ic_direction: 'Rank IC 方向正确',
+  cost_stress_return: '成本压力后收益达标',
+  cost_stress_drawdown: '成本压力后回撤受控',
+  cost_stress_sharpe: '成本压力后夏普达标',
+  cost_stress_window_majority: '成本压力下多数窗口为正',
+  confirmation_return: '锁定确认集收益达标',
+  incremental_return: '确认集增量收益达标',
+  confirmation_drawdown: '锁定确认集回撤受控',
+  confirmation_sharpe: '锁定确认集夏普达标',
+  p_value: '确认集 p 值达标',
+  window_majority: '确认集多数窗口为正',
+  parameter_plateau: '相邻参数存在稳定平台',
+  regime_stability: '不同市场状态表现稳定',
+}
+
+const LIFECYCLE_STATUS: Record<FactorLifecycleState, string> = {
+  draft: '待验证',
+  exploratory: '探索中',
+  research_passed: '研究通过',
+  trading_validated: '模拟验证通过',
+  degraded: '已降级',
+  retired: '已退役',
+}
+
+const ARCHIVE_RISK: Record<string, string> = {
+  candidate_data_validation_not_completed: '候选数据覆盖验证未完成',
+  locked_confirmation_not_passed: '锁定确认尚未通过',
+  simulation_observation_not_completed: '模拟观察周期尚未完成',
+  monitoring_gate_failed: '持续监控门禁失败',
+  factor_retired: '因子已退役',
+  no_factor_factory_run: '没有关联的自动研究运行',
+  rolling_validation_not_passed: '滚动验证未通过',
+  observation_period_incomplete: '真实观察期未结束',
+  simulation_gate_not_passed: '模拟交易门禁未通过',
+  factor_factory_run_failed: '自动研究运行失败',
+}
+
+function pct(value: number | null | undefined, digits = 2) {
+  return value === null || value === undefined || !Number.isFinite(value) ? '—' : `${(value * 100).toFixed(digits)}%`
+}
+
+function num(value: number | null | undefined, digits = 2) {
+  return value === null || value === undefined || !Number.isFinite(value) ? '—' : value.toLocaleString('zh-CN', { maximumFractionDigits: digits, minimumFractionDigits: digits })
+}
+
+function asString(value: unknown, fallback = '—') {
+  return typeof value === 'string' && value ? value : fallback
+}
+
+function nestedNumber(value: unknown, ...path: string[]) {
+  let current: unknown = value
+  for (const key of path) {
+    if (!current || typeof current !== 'object') return null
+    current = (current as Record<string, unknown>)[key]
+  }
+  return typeof current === 'number' && Number.isFinite(current) ? current : null
+}
+
+function nestedString(value: unknown, ...path: string[]) {
+  let current: unknown = value
+  for (const key of path) {
+    if (!current || typeof current !== 'object') return null
+    current = (current as Record<string, unknown>)[key]
+  }
+  return typeof current === 'string' && current ? current : null
+}
+
+function nestedBoolean(value: unknown, ...path: string[]) {
+  let current: unknown = value
+  for (const key of path) {
+    if (!current || typeof current !== 'object') return null
+    current = (current as Record<string, unknown>)[key]
+  }
+  return typeof current === 'boolean' ? current : null
+}
+
+function nestedRecord(value: unknown, ...path: string[]) {
+  let current: unknown = value
+  for (const key of path) {
+    if (!current || typeof current !== 'object') return null
+    current = (current as Record<string, unknown>)[key]
+  }
+  return current && typeof current === 'object' ? current as Record<string, unknown> : null
+}
+
+function newExperimentNonce() {
+  if (typeof globalThis.crypto?.randomUUID === 'function') return globalThis.crypto.randomUUID()
+  return `run-${Date.now()}-${Math.random().toString(16).slice(2)}`
+}
+
+function factorFamilyLabel(value: string | null | undefined) {
+  const family = value?.toLowerCase() ?? ''
+  if (!family) return '未分类'
+  if (family.includes('manual')) return '手工 Alpha'
+  if (family.includes('reversal')) return '均值反转'
+  if (family.includes('breakout')) return '价格突破'
+  if (family.includes('momentum') || family.includes('trend') || family.includes('efficiency')) return '趋势动量'
+  if (family.includes('volume') || family.includes('liquidity') || family.includes('pressure')) return '量价流动性'
+  if (family.includes('volatility')) return '波动率状态'
+  if (family.includes('location') || family.includes('range')) return '价格位置'
+  if (family.includes('ai')) return 'AI 复合提案'
+  return value?.replace(/^factor_factory_/, '').replace(/^brain_/, '').replace(/_/g, ' ') ?? '未分类'
+}
+
+function alphaAstExpression(value: unknown): string {
+  if (!value || typeof value !== 'object') return '定义不可用'
+  const node = value as Record<string, unknown>
+  const op = typeof node.op === 'string' ? node.op : ''
+  if (op === 'field') return asString(node.name, 'field')
+  if (op === 'const') return typeof node.value === 'number' ? String(node.value) : 'const'
+  if (op === 'builtin_factor') return `builtin_factor(${asString(node.name ?? node.key, 'unknown')})`
+  if (['add', 'sub', 'mul', 'div', 'gt', 'lt'].includes(op)) {
+    return `${op}(${alphaAstExpression(node.left)}, ${alphaAstExpression(node.right)})`
+  }
+  if (['neg', 'abs'].includes(op)) return `${op}(${alphaAstExpression(node.value)})`
+  if (['lag', 'diff', 'pct_change'].includes(op)) {
+    return `${op}(${alphaAstExpression(node.value)}, ${String(node.periods ?? '?')})`
+  }
+  if (['rolling_mean', 'rolling_std', 'rolling_min', 'rolling_max', 'rolling_sum', 'rolling_zscore', 'rank'].includes(op)) {
+    return `${op}(${alphaAstExpression(node.value)}, ${String(node.window ?? '?')})`
+  }
+  if (op === 'rolling_winsorize') {
+    const bounds = typeof node.lower === 'number' && typeof node.upper === 'number'
+      ? `, ${node.lower}, ${node.upper}`
+      : ''
+    return `${op}(${alphaAstExpression(node.value)}, ${String(node.window ?? '?')}${bounds})`
+  }
+  if (op === 'where') {
+    return `where(${alphaAstExpression(node.condition)}, ${alphaAstExpression(node.then)}, ${alphaAstExpression(node.else)})`
+  }
+  if (op === 'industry_neutralize') {
+    return `industry_neutralize(${alphaAstExpression(node.value)}, ${alphaAstExpression(node.industry)}, ${alphaAstExpression(node.date)})`
+  }
+  return JSON.stringify(node)
+}
+
+function candidateStageLabel(candidate: FactorFactoryRunResponse['candidates'][number], run: FactorFactoryRunResponse['run']) {
+  const selected = candidate.factor_key === run.selected_factor_key
+  if (selected && run.status === 'paper_observing') return '7 天模拟中'
+  if (selected && run.status === 'paper_rejected') return '7 天模拟淘汰'
+  if (selected && run.status === 'trading_validated') return '7 天模拟通过'
+  if (candidate.status === 'preflight_rejected') {
+    return nestedString(candidate.gate, 'reason') === 'formula_duplicate' ? '重复公式淘汰' : '相似信号淘汰'
+  }
+  if (candidate.status === 'gate_rejected') return '滚动门禁淘汰'
+  if (candidate.status === 'preliminary_passed') return '滚动初筛通过'
+  if (candidate.status === 'confirmation_rejected') return '确认集淘汰'
+  if (candidate.status === 'research_passed') return '确认集通过'
+  if (candidate.status === 'invalid') return '表达式无效'
+  return candidate.status
+}
+
+function ObservationCurve({ observations }: { observations: FactorFactoryRunResponse['observations'] }) {
+  const points = observations
+    .map((item) => ({ equity: Number(item.equity), label: new Date(item.market_time).toLocaleString('zh-CN', { hour12: false }) }))
+    .filter((item) => Number.isFinite(item.equity))
+  if (points.length < 2) {
+    return <div className={s.curveEmpty}>至少需要 2 个真实前向观察点，当前不绘制曲线。</div>
+  }
+  const values = points.map((item) => item.equity)
+  const minimum = Math.min(...values)
+  const maximum = Math.max(...values)
+  const span = Math.max(maximum - minimum, Math.abs(maximum) * 0.002, 1)
+  const path = points.map((item, index) => {
+    const x = points.length === 1 ? 0 : (index / (points.length - 1)) * 100
+    const y = 38 - ((item.equity - minimum) / span) * 34
+    return `${x.toFixed(2)},${y.toFixed(2)}`
+  }).join(' ')
+  const latest = points[points.length - 1]
+  return <div className={s.observationCurve}>
+    <svg viewBox="0 0 100 42" preserveAspectRatio="none" role="img" aria-label="真实前向观察权益曲线">
+      <line x1="0" y1="38" x2="100" y2="38" />
+      <polyline points={path} />
+    </svg>
+    <div><span>{points[0].label}</span><strong>{num(latest.equity, 0)}</strong><span>{latest.label}</span></div>
+  </div>
+}
+
+function gateState(value: boolean | null) {
+  return value === null ? '待采集' : value ? '正常' : '阻断'
+}
+
+function archiveRiskLabel(value: string) {
+  if (ARCHIVE_RISK[value]) return ARCHIVE_RISK[value]
+  if (value.startsWith('confirmation:')) return `确认门禁：${value.slice('confirmation:'.length)}`
+  if (value.startsWith('simulation:')) return `模拟门禁：${value.slice('simulation:'.length)}`
+  return value
+}
+
+function archiveCriteria(value: Record<string, unknown> | undefined) {
+  if (!value) return '—'
+  const entries = Object.entries(value)
+  if (entries.length === 0) return '—'
+  return entries.slice(0, 4).map(([key, item]) => `${key}=${typeof item === 'object' ? JSON.stringify(item) : String(item)}`).join(' · ')
+}
+
+function timeLabel(value: number | null | undefined) {
+  return value ? new Date(value * 1000).toLocaleString('zh-CN', { hour12: false }) : '—'
+}
+
+function evidenceWindow(result: DemoRunResult | null) {
+  const provenance = result?.data_provenance
+  const points = result?.equity_curve ?? []
+  return {
+    start: provenance?.selected_first || points[0]?.datetime || 'unknown',
+    end: provenance?.selected_last || points[points.length - 1]?.datetime || 'unknown',
+  }
+}
+
+function initialRationale(template: Template) {
+  return `${template.angle}。${template.hypothesis} 失效条件：${template.invalidation}`
+}
+
+export function FactorFactoryWorkflow() {
+  const [templateKey, setTemplateKey] = useState<TemplateKey>('volatility_adjusted_momentum')
+  const template = TEMPLATES.find((item) => item.key === templateKey) ?? TEMPLATES[0]
+  const [label, setLabel] = useState(template.label)
+  const [symbol, setSymbol] = useState('BTCUSDT')
+  const [interval, setInterval] = useState('1d')
+  const [horizon, setHorizon] = useState(5)
+  const [rationale, setRationale] = useState(initialRationale(template))
+  const [invalidation, setInvalidation] = useState(template.invalidation)
+  const [checks, setChecks] = useState({ future: true, causal: true, data: true, budget: true })
+  const [definition, setDefinition] = useState<FactorDefinitionRecord | null>(null)
+  const [backtest, setBacktest] = useState<DemoRunResult | null>(null)
+  const [order, setOrder] = useState<SimulationOrder | null>(null)
+  const [account, setAccount] = useState<SimulationAccount | null>(null)
+  const [simulationValidation, setSimulationValidation] = useState<Record<string, unknown> | null>(null)
+  const [archiveNote, setArchiveNote] = useState('')
+  const [archiveState, setArchiveState] = useState<FactorLifecycleRecord | null>(null)
+  const [archive, setArchive] = useState<FactorFactoryArchiveRecord[]>([])
+  const [archiveOpen, setArchiveOpen] = useState(false)
+  const [archiveFilter, setArchiveFilter] = useState<'' | FactorLifecycleState>('')
+  const [archiveMeta, setArchiveMeta] = useState({ admitted: 0, research: 0, excluded: 0 })
+  const [selectedArchiveId, setSelectedArchiveId] = useState('')
+  const [busy, setBusy] = useState<'register' | 'backtest' | 'paper' | 'archive' | 'refresh' | ''>('')
+  const [autoPaperTarget, setAutoPaperTarget] = useState<'simulation_orders' | 'okx_demo'>('okx_demo')
+  const [autoMarket, setAutoMarket] = useState<'crypto' | 'a_shares'>('crypto')
+  const [autoSymbol, setAutoSymbol] = useState('BTC-USDT-SWAP')
+  const [instrumentQuery, setInstrumentQuery] = useState('BTC-USDT-SWAP')
+  const [instrumentOptions, setInstrumentOptions] = useState<InstrumentSuggestion[]>(COMMON_INSTRUMENTS.crypto)
+  const [instrumentSearchOpen, setInstrumentSearchOpen] = useState(false)
+  const [instrumentSearchBusy, setInstrumentSearchBusy] = useState(false)
+  const [okxCatalogOpen, setOkxCatalogOpen] = useState(false)
+  const [okxCatalogQuery, setOkxCatalogQuery] = useState('')
+  const [okxCatalog, setOkxCatalog] = useState<OkxSwapCatalogResponse | null>(null)
+  const [okxCatalogBusy, setOkxCatalogBusy] = useState(false)
+  const [okxCatalogError, setOkxCatalogError] = useState('')
+  const [okxKlineOpen, setOkxKlineOpen] = useState(false)
+  const [autoSource, setAutoSource] = useState<'okx_local' | 'okx_live' | 'akshare_live' | 'synthetic'>('okx_live')
+  const [autoInterval, setAutoInterval] = useState<'1h' | '4h' | '1d'>('4h')
+  const [autoBars, setAutoBars] = useState(720)
+  const [autoBudget, setAutoBudget] = useState(30)
+  const [autoDays, setAutoDays] = useState(7)
+  const [autoCandidateMode, setAutoCandidateMode] = useState<'brain' | 'library' | 'manual'>('brain')
+  const [autoUseAi, setAutoUseAi] = useState(true)
+  const [aiProviders, setAiProviders] = useState<LLMConfigResp['providers']>([])
+  const [autoAiProvider, setAutoAiProvider] = useState<LLMProviderId | ''>('')
+  const [autoAiCount, setAutoAiCount] = useState(6)
+  const [autoAlphaBrief, setAutoAlphaBrief] = useState('寻找因果安全、成本后收益稳定、回撤受控，并对相邻参数稳健的量价 Alpha 表达式。')
+  const [manualPreset, setManualPreset] = useState<ManualAlphaPreset>('volume_pressure')
+  const [manualProfile, setManualProfile] = useState<ManualAlphaProfile>('balanced')
+  const [manualAlphaText, setManualAlphaText] = useState(manualAlphaExpression('volume_pressure', 'balanced'))
+  const [manualBatch, setManualBatch] = useState<ManualAlphaDraft[]>([])
+  const [alphaDsl, setAlphaDsl] = useState<AlphaDslCatalog>(DEFAULT_ALPHA_DSL)
+  const [alphaDslQuery, setAlphaDslQuery] = useState('')
+  const [autoRun, setAutoRun] = useState<FactorFactoryRunResponse | null>(null)
+  const autoLoadSequence = useRef(0)
+  const [selectedAutoCandidateId, setSelectedAutoCandidateId] = useState('')
+  const [candidateQuery, setCandidateQuery] = useState('')
+  const [candidateFamilyFilter, setCandidateFamilyFilter] = useState('')
+  const [autoBusy, setAutoBusy] = useState<'load' | 'start' | 'observe' | ''>('load')
+  const [error, setError] = useState('')
+  const [selectedStage, setSelectedStage] = useState<number | null>(null)
+  const [workflowMode, setWorkflowMode] = useState<'auto' | 'manual'>('auto')
+
+  useEffect(() => {
+    setLabel(template.label)
+    setRationale(initialRationale(template))
+    setInvalidation(template.invalidation)
+  }, [template])
+
+  useEffect(() => {
+    let cancelled = false
+    void api.llmConfig()
+      .then((response) => {
+        if (cancelled) return
+        const configured = response.providers.filter((provider) => provider.configured)
+        setAiProviders(configured)
+        setAutoAiProvider((current) => (
+          configured.some((provider) => provider.id === current)
+            ? current
+            : configured.find((provider) => provider.id === response.provider)?.id
+              ?? configured[0]?.id
+              ?? ''
+        ))
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setAiProviders([])
+          setAutoAiProvider('')
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (autoCandidateMode !== 'manual') return
+    let cancelled = false
+    void api.alphaDslCatalog()
+      .then((catalog) => {
+        if (!cancelled) setAlphaDsl(catalog)
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [autoCandidateMode])
+
+  useEffect(() => {
+    let cancelled = false
+    const common = COMMON_INSTRUMENTS[autoMarket].filter((item) => matchesInstrument(item, instrumentQuery))
+    setInstrumentOptions(autoMarket === 'crypto' ? [] : common)
+    const timer = window.setTimeout(async () => {
+      setInstrumentSearchBusy(true)
+      try {
+        const response = autoMarket === 'crypto'
+          ? await api.okxSwapCatalog(instrumentQuery.trim(), 20)
+          : await api.instruments(instrumentQuery.trim(), 12, autoMarket)
+        if (cancelled) return
+        const remote = response.instruments
+          .flatMap<InstrumentSuggestion>((item) => {
+            const code = autoMarket === 'crypto'
+              ? normalizedDirectSymbol(item.code, 'crypto')
+              : item.code
+            return code ? [{ code, market: item.market, name: item.name, exchange: item.exchange, verified: autoMarket === 'crypto' }] : []
+          })
+        const merged = [...remote, ...(autoMarket === 'crypto' ? [] : common)].filter(
+          (item, index, rows) => rows.findIndex((candidate) => candidate.code === item.code) === index,
+        )
+        setInstrumentOptions(merged.slice(0, 12))
+        if (autoMarket === 'crypto') {
+          const direct = normalizedDirectSymbol(instrumentQuery, 'crypto')
+          setAutoSymbol(remote.some((item) => item.code === direct) ? direct : '')
+        }
+      } catch {
+        if (!cancelled) setInstrumentOptions(autoMarket === 'crypto' ? [] : common)
+      } finally {
+        if (!cancelled) setInstrumentSearchBusy(false)
+      }
+    }, 180)
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [autoMarket, instrumentQuery])
+
+  const loadOkxCatalog = useCallback(async (refresh = false) => {
+    setOkxCatalogBusy(true)
+    setOkxCatalogError('')
+    try {
+      const response = await api.okxSwapCatalog(okxCatalogQuery.trim(), 120, refresh)
+      setOkxCatalog(response)
+      if (!response.ok) setOkxCatalogError(okxCatalogErrorMessage(response.error))
+    } catch (reason) {
+      setOkxCatalogError(okxCatalogErrorMessage(reason))
+    } finally {
+      setOkxCatalogBusy(false)
+    }
+  }, [okxCatalogQuery])
+
+  useEffect(() => {
+    if (!okxCatalogOpen) return
+    const timer = window.setTimeout(() => void loadOkxCatalog(false), 160)
+    return () => window.clearTimeout(timer)
+  }, [loadOkxCatalog, okxCatalogOpen])
+
+  const backtestMetrics = backtest?.summary.metrics ?? {}
+  const visibleAlphaOperators = useMemo(() => {
+    const needle = alphaDslQuery.trim().toLowerCase()
+    if (!needle) return alphaDsl.operators
+    return alphaDsl.operators.filter((item) => `${item.name} ${item.signature} ${item.description}`.toLowerCase().includes(needle))
+  }, [alphaDsl, alphaDslQuery])
+  const backtestGate = useMemo(() => {
+    if (!backtest) return null
+    return [
+      { label: '成本后收益 ≥ 3%', value: backtest.summary.total_return, passed: backtest.summary.total_return >= GATE_THRESHOLDS.minimum_return, display: pct(backtest.summary.total_return) },
+      { label: '最大回撤 ≤ 15%', value: Math.abs(backtest.summary.max_drawdown), passed: Math.abs(backtest.summary.max_drawdown) <= GATE_THRESHOLDS.maximum_drawdown, display: pct(backtest.summary.max_drawdown) },
+      { label: '夏普 ≥ 0.8', value: backtestMetrics.sharpe ?? null, passed: Number(backtestMetrics.sharpe ?? -Infinity) >= GATE_THRESHOLDS.minimum_sharpe, display: num(backtestMetrics.sharpe) },
+      { label: '已实现交易 ≥ 2', value: backtest.summary.n_trades, passed: backtest.summary.n_trades >= GATE_THRESHOLDS.minimum_trades, display: String(backtest.summary.n_trades) },
+    ]
+  }, [backtest, backtestMetrics.sharpe])
+  const researchGatePassed = Boolean(backtestGate?.every((item) => item.passed))
+  const simulationGatePassed = simulationValidation?.eligible_for_trading_validated === true
+  const readyToArchive = Boolean(definition && researchGatePassed && simulationGatePassed && order)
+
+  const loadArchive = useCallback(async () => {
+    setBusy('refresh')
+    try {
+      const response = await api.factorFactoryArchive(archiveFilter || undefined, 100)
+      setArchive(response.archives)
+      setArchiveMeta({
+        admitted: response.total,
+        research: response.research_record_count,
+        excluded: response.ineligible_count,
+      })
+      setSelectedArchiveId((current) => response.archives.some((item) => item.archive_id === current)
+        ? current
+        : response.archives[0]?.archive_id ?? '')
+    } catch {
+      setArchive([])
+      setArchiveMeta({ admitted: 0, research: 0, excluded: 0 })
+      setSelectedArchiveId('')
+    } finally {
+      setBusy('')
+    }
+  }, [archiveFilter])
+
+  useEffect(() => {
+    if (archiveOpen) void loadArchive()
+  }, [archiveOpen, loadArchive])
+
+  const loadLatestAutoRun = useCallback(async () => {
+    const sequence = ++autoLoadSequence.current
+    setAutoBusy('load')
+    if (!autoSymbol) {
+      setAutoRun(null)
+      setAutoBusy('')
+      return
+    }
+    try {
+      const history = await api.factorFactoryRuns(1, {
+        market: autoMarket,
+        symbol: autoSymbol,
+        interval: autoInterval,
+      })
+      const detail = history.runs[0] ? await api.factorFactoryRun(history.runs[0].id) : null
+      if (sequence === autoLoadSequence.current) setAutoRun(detail)
+    } catch {
+      if (sequence === autoLoadSequence.current) setAutoRun(null)
+    } finally {
+      if (sequence === autoLoadSequence.current) setAutoBusy('')
+    }
+  }, [autoInterval, autoMarket, autoSymbol])
+
+  useEffect(() => { void loadLatestAutoRun() }, [loadLatestAutoRun])
+
+  const loadManualAlphaFile = useCallback(async (file: File) => {
+    setError('')
+    try {
+      const parsed = JSON.parse(await file.text()) as unknown
+      const rows = Array.isArray(parsed)
+        ? parsed
+        : parsed && typeof parsed === 'object' && Array.isArray((parsed as Record<string, unknown>).candidates)
+          ? (parsed as { candidates: unknown[] }).candidates
+          : null
+      if (!rows || rows.length === 0 || rows.length > 30) {
+        throw new Error('JSON 必须是 1 到 30 个候选的数组，或包含 candidates 数组。')
+      }
+      const candidates = rows.map((row, index) => {
+        if (!row || typeof row !== 'object') throw new Error(`第 ${index + 1} 个候选不是对象。`)
+        const candidate = row as ManualAlphaDraft
+        const hasExpression = typeof candidate.expression === 'string' && candidate.expression.trim().length > 0
+        const hasAst = Boolean(candidate.formula_ast && typeof candidate.formula_ast === 'object')
+        if (hasExpression === hasAst) {
+          throw new Error(`第 ${index + 1} 个候选必须且只能提供 expression 或 formula_ast。`)
+        }
+        return {
+          ...candidate,
+          candidate_id: candidate.candidate_id || `uploaded_alpha_${index + 1}`,
+          label: candidate.label || `上传 Alpha ${index + 1}`,
+        }
+      })
+      setManualBatch(candidates)
+      setAutoCandidateMode('manual')
+      setAutoBudget(Math.max(1, candidates.length + (manualAlphaText.trim() ? 1 : 0)))
+    } catch (reason) {
+      setManualBatch([])
+      setError(reason instanceof Error ? reason.message : 'Alpha JSON 文件解析失败')
+    }
+  }, [manualAlphaText])
+
+  const startAutoResearch = useCallback(async () => {
+    setAutoBusy('start')
+    setError('')
+    const manualCandidates = [...manualBatch]
+    if (autoCandidateMode === 'manual' && manualAlphaText.trim()) {
+      const manualId = manualCandidates.some((item) => item.candidate_id === 'manual_alpha_input')
+        ? 'manual_alpha_input_2'
+        : 'manual_alpha_input'
+      manualCandidates.unshift({
+        candidate_id: manualId,
+        label: '手工输入 Alpha',
+        family: 'manual_alpha',
+        expression: manualAlphaText.trim(),
+        hypothesis: autoAlphaBrief.trim(),
+      })
+    }
+    if (autoCandidateMode === 'manual' && manualCandidates.length === 0) {
+      setError('请填写手工 Alpha 表达式，或先上传 JSON 批次。')
+      setAutoBusy('')
+      return
+    }
+    if (manualCandidates.length > 30) {
+      setError('手工与上传的 Alpha 合计不能超过 30 个。')
+      setAutoBusy('')
+      return
+    }
+    try {
+      const liveSource = autoMarket === 'a_shares' ? 'akshare_live' : autoSource
+      const response = await api.startFactorFactory({
+        experiment_nonce: newExperimentNonce(),
+        market: autoMarket,
+        source: liveSource,
+        symbol: autoSymbol,
+        dataset: 'uptrend', seed: 12, interval: autoInterval, n_bars: autoBars,
+        candidate_budget: autoCandidateMode === 'manual' ? Math.max(autoBudget, manualCandidates.length) : autoBudget, horizon, commission_bps: 3,
+        candidate_mode: autoCandidateMode, alpha_brief: autoAlphaBrief,
+        use_ai: autoCandidateMode === 'brain' && autoUseAi,
+        ...(autoCandidateMode === 'brain' && autoUseAi && autoAiProvider
+          ? { ai_provider: autoAiProvider }
+          : {}),
+        ai_candidate_count: autoCandidateMode === 'brain' && autoUseAi ? Math.min(autoAiCount, autoBudget) : 0,
+        maximum_ai_tokens: 12_000,
+        initial_capital: 1_000_000, observation_days: Math.max(7, autoDays),
+        paper_target: autoPaperTarget, maximum_demo_exposure: 0.1, maximum_demo_loss: 25,
+        manual_candidates: manualCandidates,
+      })
+      setAutoRun(response)
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '自动因子研究失败')
+    } finally {
+      setAutoBusy('')
+    }
+  }, [autoAiCount, autoAiProvider, autoAlphaBrief, autoBars, autoBudget, autoCandidateMode, autoDays, autoInterval, autoMarket, autoPaperTarget, autoSource, autoSymbol, autoUseAi, horizon, manualAlphaText, manualBatch])
+
+  const refreshAutoObservation = useCallback(async () => {
+    if (!autoRun) return
+    setAutoBusy('observe')
+    setError('')
+    try {
+      const response = autoRun.run.status === 'paper_observing'
+        ? await api.observeFactorFactory(autoRun.run.id, autoRun.run.config.source === 'okx_live')
+        : await api.factorFactoryRun(autoRun.run.id)
+      setAutoRun(response)
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '模拟观察刷新失败')
+    } finally {
+      setAutoBusy('')
+    }
+  }, [autoRun])
+
+  const registerCandidate = useCallback(async () => {
+    setError('')
+    if (!Object.values(checks).every(Boolean)) {
+      setError('请先通过未来信息、因果、数据可用性和研究预算确认。')
+      return
+    }
+    setBusy('register')
+    try {
+      const response = await api.registerFactorDefinition({
+        key: template.key,
+        label: label.trim() || template.label,
+        market: 'crypto',
+        ast: template.ast,
+        direction: 'positive',
+        horizon,
+        availability_lag: 1,
+        rationale: rationale.trim() || initialRationale(template),
+        family: 'factor_factory',
+        version: '1.0.0',
+        parameters: {
+          source: 'template',
+          research_angle: template.angle,
+          economic_hypothesis: template.hypothesis,
+          invalidation_condition: invalidation.trim() || template.invalidation,
+          interval,
+          data_fields: template.fields,
+        },
+      })
+      setDefinition(response.definition)
+      setBacktest(null)
+      setOrder(null)
+      setAccount(null)
+      setSimulationValidation(null)
+      setArchiveState(null)
+      setArchiveNote('')
+      await loadArchive()
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '候选因子登记失败')
+    } finally {
+      setBusy('')
+    }
+  }, [checks, horizon, invalidation, interval, label, loadArchive, rationale, template])
+
+  const runDrawdown = useCallback(async () => {
+    if (!definition) return
+    setBusy('backtest')
+    setError('')
+    try {
+      const response = await api.demoRun({
+        source: 'okx_local', symbol, n_bars: 365, interval, use_cache: true,
+        initial_capital: 1_000_000, commission: 0.0003, position_fraction: 1,
+        strategy: 'factor_follow', factor: definition.key, factor_params: {},
+        factor_ast: definition.ast, factor_label: definition.label, factor_version: definition.version,
+      })
+      setBacktest(response)
+      setOrder(null)
+      setAccount(null)
+      setSimulationValidation(null)
+      setArchiveState(null)
+      setArchiveNote(`回测收益 ${pct(response.summary.total_return)}，最大回撤 ${pct(response.summary.max_drawdown)}，夏普 ${num(response.summary.metrics.sharpe)}。${template.angle}角度的信号在成本后仍保持正向，值得进入一个模拟再平衡周期。`)
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '回撤实验失败')
+    } finally {
+      setBusy('')
+    }
+  }, [definition, interval, symbol, template.angle])
+
+  const runPaperTrial = useCallback(async () => {
+    if (!definition || !backtest || !researchGatePassed) return
+    const lastTrade = backtest.trades[backtest.trades.length - 1]
+    if (!lastTrade || !Number.isFinite(lastTrade.price) || !Number.isFinite(lastTrade.qty) || lastTrade.qty === 0) {
+      setError('本次回测没有可绑定的成交信号，暂不能创建模拟订单。')
+      return
+    }
+    setBusy('paper')
+    setError('')
+    try {
+      const currentAccount = (await api.simulationAccount())
+      const price = Number(lastTrade.price)
+      const quantity = Math.abs(Number(lastTrade.qty))
+      const capacity = (price * quantity) / Math.max(currentAccount.equity, 1)
+      const created = await api.createSimulationOrder({
+        symbol, market: 'crypto', side: lastTrade.side, order_type: 'market', quantity,
+        factor_key: definition.key, factor_version: definition.version, research_run_id: backtest.run_id,
+        rebalance_cycle_id: `${definition.key}:${backtest.run_id}:cycle-1`,
+        signal_time: String(lastTrade.datetime), tradable_time: new Date().toISOString(), theoretical_price: price,
+        capacity_used: capacity,
+      })
+      const filled = await api.fillSimulationOrder(created.order.id, { price, quantity, fee_rate: 0.0003 })
+      const execution = filled.order.executions[filled.order.executions.length - 1]
+      const fillRate = filled.order.quantity > 0 ? filled.order.filled_quantity / filled.order.quantity : 0
+      const validation = await api.validateFactorSimulation({
+        completed_rebalance_cycles: 1,
+        after_cost_return: backtest.summary.total_return,
+        fill_rate: fillRate,
+        capacity_ratio: Number(execution?.capacity_used ?? capacity),
+        thresholds: {
+          'minimum_after_cost_return': GATE_THRESHOLDS.minimum_return,
+          'minimum_fill_rate': GATE_THRESHOLDS.minimum_fill_rate,
+          'minimum_capacity_ratio': GATE_THRESHOLDS.minimum_capacity_ratio,
+        },
+        execution_records: execution ? [{
+          signal_time: execution.signal_time ?? String(lastTrade.datetime),
+          tradable_time: execution.tradable_time ?? new Date().toISOString(),
+          theoretical_price: execution.theoretical_price ?? price,
+          simulated_price: execution.simulated_price,
+          slippage_bps: execution.slippage_bps ?? 0,
+          rejection_reason: execution.rejection_reason,
+          capacity_used: execution.capacity_used,
+        }] : [],
+      })
+      setOrder(filled.order)
+      setAccount(await api.simulationAccount())
+      setSimulationValidation(validation.validation)
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '模拟账户试验失败')
+    } finally {
+      setBusy('')
+    }
+  }, [backtest, definition, researchGatePassed, symbol])
+
+  const archiveFactor = useCallback(async () => {
+    if (!definition || !backtest || !order || !simulationGatePassed) return
+    setBusy('archive')
+    setError('')
+    const window = evidenceWindow(backtest)
+    const dataHash = backtest.data_provenance.fingerprint
+    if (!/^[0-9a-f]{64}$/i.test(dataHash)) {
+      setError('行情快照没有可用的 64 位指纹，不能写入生命周期证据。')
+      setBusy('')
+      return
+    }
+    try {
+      const response = await api.transitionFactorLifecycle(definition.key, definition.version, {
+        state: 'exploratory', target_market: 'crypto', actor_type: 'researcher', actor: 'factor-factory', rule: 'candidate_approved',
+        evidence: {
+          formula_definition_hash: definition.definition_hash,
+          formula_hash: definition.formula_hash,
+          formula_version: definition.version,
+          data_snapshot_hash: dataHash,
+          cumulative_attempts: 1,
+          validation_window: window,
+          cost_profile_version: 'okx-demo-0.0003-v1',
+          gate_version: 'factor-factory-gate-v1',
+          why_good: archiveNote.trim() || rationale.trim(),
+          research_angle: template.angle,
+          economic_hypothesis: template.hypothesis,
+          invalidation_condition: invalidation.trim() || template.invalidation,
+          drawdown_experiment: backtest.summary,
+          simulation_run_id: backtest.run_id,
+          simulation_order_id: order.id,
+          simulation_validation: simulationValidation,
+        },
+      })
+      setArchiveState(await api.factorLifecycle(definition.key, definition.version, 'crypto'))
+      await loadArchive()
+      if (!response.ok) setError('因子实验完成，但生命周期归档被门禁拒绝。')
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '因子档案写入失败')
+    } finally {
+      setBusy('')
+    }
+  }, [archiveNote, backtest, definition, invalidation, loadArchive, order, rationale, simulationGatePassed, simulationValidation, template])
+
+  const currentState = archiveState?.current_by_market?.crypto?.state ?? (definition ? 'draft' : '未登记')
+  const currentStage = !definition ? 0 : !backtest ? 1 : !order ? 2 : 3
+  const activeStage = selectedStage === null ? currentStage : Math.min(selectedStage, currentStage)
+  const nextAction = activeStage === 0
+    ? '登记候选定义'
+    : activeStage === 1
+      ? '运行固定回撤实验'
+      : activeStage === 2
+        ? '完成模拟再平衡'
+        : '保存预研究证据'
+
+  useEffect(() => {
+    setSelectedStage(null)
+  }, [currentStage])
+  const autoBest = autoRun?.candidates.find(
+    (item) => item.factor_key === autoRun.run.selected_factor_key,
+  ) ?? autoRun?.candidates.find((item) => item.rank === 1) ?? autoRun?.candidates[0]
+  const autoCandidateFamilies = useMemo(() => {
+    const counts = new Map<string, { label: string; count: number }>()
+    for (const candidate of autoRun?.candidates ?? []) {
+      const value = candidate.definition?.family ?? 'unclassified'
+      const current = counts.get(value)
+      counts.set(value, { label: factorFamilyLabel(value), count: (current?.count ?? 0) + 1 })
+    }
+    return [...counts.entries()].map(([value, item]) => ({ value, ...item }))
+  }, [autoRun])
+  const visibleAutoCandidates = useMemo(() => {
+    const needle = candidateQuery.trim().toLowerCase()
+    return (autoRun?.candidates ?? []).filter((candidate) => {
+      const family = candidate.definition?.family ?? 'unclassified'
+      if (candidateFamilyFilter && family !== candidateFamilyFilter) return false
+      if (!needle) return true
+      const searchable = [
+        candidate.definition?.label,
+        candidate.factor_key,
+        factorFamilyLabel(family),
+        CANDIDATE_SOURCE_LABELS[candidate.source] ?? candidate.source,
+        alphaAstExpression(candidate.definition?.ast),
+      ].filter(Boolean).join(' ').toLowerCase()
+      return searchable.includes(needle)
+    })
+  }, [autoRun, candidateFamilyFilter, candidateQuery])
+  const selectedAutoCandidate = autoRun?.candidates.find((candidate) => candidate.id === selectedAutoCandidateId)
+    ?? visibleAutoCandidates[0]
+    ?? autoBest
+  const selectedGateChecks = Object.entries(nestedRecord(selectedAutoCandidate?.gate, 'checks') ?? {})
+    .filter((entry): entry is [string, boolean] => typeof entry[1] === 'boolean')
+  const selectedPassedChecks = selectedGateChecks.filter(([, passed]) => passed)
+  const selectedFailedChecks = selectedGateChecks.filter(([, passed]) => !passed)
+  const selectedCandidateValidationReturn = nestedNumber(selectedAutoCandidate?.metrics, 'rolling_validation', 'summary', 'total_return')
+  const selectedCandidateValidationDrawdown = nestedNumber(selectedAutoCandidate?.metrics, 'rolling_validation', 'summary', 'max_drawdown')
+  const selectedCandidateValidationSharpe = nestedNumber(selectedAutoCandidate?.metrics, 'rolling_validation', 'summary', 'metrics', 'sharpe')
+  const selectedCandidateValidationIc = nestedNumber(selectedAutoCandidate?.metrics, 'rolling_validation', 'summary', 'rank_ic')
+
+  useEffect(() => {
+    if (!autoRun) {
+      setSelectedAutoCandidateId('')
+      return
+    }
+    const preferred = autoRun.candidates.find((candidate) => candidate.factor_key === autoRun.run.selected_factor_key)
+      ?? autoRun.candidates.find((candidate) => candidate.rank === 1)
+      ?? autoRun.candidates[0]
+    setSelectedAutoCandidateId(preferred?.id ?? '')
+  }, [autoRun])
+  const autoMessage = asString(autoRun?.run.result.message, '尚未启动自动研究')
+  const autoEndsAt = autoRun?.run.observation_ends_at
+    ? new Date(autoRun.run.observation_ends_at * 1000).toLocaleString('zh-CN', { hour12: false })
+    : '—'
+  const autoStatusVariant = autoRun?.run.status === 'trading_validated'
+    ? 'up'
+    : autoRun?.run.status === 'paper_observing'
+      ? 'live'
+      : autoRun?.run.status === 'failed' || autoRun?.run.status === 'degraded'
+        ? 'down'
+        : 'warn'
+  const autoDemoStatus = nestedString(autoRun?.run.result, 'paper', 'okx_demo', 'latest_activation', 'status')
+  const autoDemoStrategy = nestedString(autoRun?.run.result, 'paper', 'okx_demo', 'latest_activation', 'strategy_id')
+  const autoDemoOrders = nestedNumber(autoRun?.run.result, 'paper', 'okx_demo', 'latest_evidence', 'order_count')
+  const autoDemoFillRate = nestedNumber(autoRun?.run.result, 'paper', 'okx_demo', 'latest_evidence', 'fill_rate')
+  const autoDemoFunding = nestedNumber(autoRun?.run.result, 'paper', 'okx_demo', 'latest_evidence', 'funding_rate', 'funding_rate')
+  const autoPreflightAccepted = nestedNumber(autoRun?.run.result, 'candidate_preflight', 'accepted_candidates')
+  const autoPreflightRejected = nestedNumber(autoRun?.run.result, 'candidate_preflight', 'rejected_candidates')
+  const autoCorrelationRejected = nestedNumber(autoRun?.run.result, 'candidate_preflight', 'correlation_cluster_rejections')
+  const autoFormulaDuplicates = nestedNumber(autoRun?.run.result, 'candidate_preflight', 'formula_duplicate_count')
+  const autoCandidateGeneration = nestedRecord(autoRun?.run.result, 'candidate_generation')
+    ?? nestedRecord(autoRun?.run.config, 'candidate_generation')
+  const autoSourceCounts = nestedRecord(autoCandidateGeneration, 'source_counts')
+  const autoGeneratedAi = nestedNumber(autoSourceCounts, 'ai') ?? 0
+  const autoGeneratedGrammar = (nestedNumber(autoSourceCounts, 'random_dsl') ?? 0)
+    + (nestedNumber(autoSourceCounts, 'symbolic_regression') ?? 0)
+    + (nestedNumber(autoSourceCounts, 'template') ?? 0)
+  const autoGeneratedManual = nestedNumber(autoSourceCounts, 'human') ?? 0
+  const autoAiStatus = nestedString(autoCandidateGeneration, 'ai', 'status')
+  const demoRiskNormal = nestedBoolean(autoRun?.run.result, 'paper', 'okx_demo', 'latest_evidence', 'risk_mode_normal')
+  const demoReconciliationClear = nestedBoolean(autoRun?.run.result, 'paper', 'okx_demo', 'latest_evidence', 'reconciliation_clear')
+  const autoRunPaperTarget = nestedString(autoRun?.run.config, 'paper_target')
+  const autoRunMarket = nestedString(autoRun?.run.config, 'market') ?? autoMarket
+  const autoRunSymbol = nestedString(autoRun?.run.config, 'symbol') ?? autoSymbol
+  const autoRunInterval = nestedString(autoRun?.run.config, 'interval') ?? autoInterval
+  const autoDataBars = nestedNumber(autoRun?.run.config, 'data_provenance', 'bars')
+  const autoRequestedBars = nestedNumber(autoRun?.run.config, 'data_provenance', 'requested_bars')
+  const autoValidationReturn = nestedNumber(autoBest?.metrics, 'rolling_validation', 'summary', 'total_return')
+  const autoValidationDrawdown = nestedNumber(autoBest?.metrics, 'rolling_validation', 'summary', 'max_drawdown')
+  const autoValidationSharpe = nestedNumber(autoBest?.metrics, 'rolling_validation', 'summary', 'metrics', 'sharpe')
+  const autoValidationIc = nestedNumber(autoBest?.metrics, 'rolling_validation', 'summary', 'rank_ic')
+  const autoConfirmationReturn = nestedNumber(autoBest?.metrics, 'locked_confirmation', 'summary', 'total_return')
+  const autoConfirmationSharpe = nestedNumber(autoBest?.metrics, 'locked_confirmation', 'summary', 'metrics', 'sharpe')
+  const autoConfirmationPValue = nestedNumber(autoBest?.metrics, 'locked_confirmation', 'summary', 'raw_p_value')
+  const autoParameterPlateau = nestedBoolean(autoRun?.run.result, 'confirmation_gate', 'checks', 'parameter_plateau')
+  const autoRegimeStability = nestedBoolean(autoRun?.run.result, 'confirmation_gate', 'checks', 'regime_stability')
+  const selectedArchive = archive.find((item) => item.archive_id === selectedArchiveId) ?? archive[0]
+  const selectedPreregistration = selectedArchive?.preregistration.experiments[0]
+  const selectedLatestRun = selectedArchive?.post_study_evidence.latest_run
+  const selectedValidationReturn = nestedNumber(selectedLatestRun?.candidate.metrics, 'rolling_validation', 'summary', 'total_return')
+  const selectedConfirmationReturn = nestedNumber(selectedLatestRun?.candidate.metrics, 'locked_confirmation', 'summary', 'total_return')
+  const selectedDataHash = selectedArchive?.evidence_chain.data_snapshot_hashes[0]
+
+  return (
+    <section className={s.workflow} aria-label="因子工厂工作流">
+      <header className={s.workflowHeader}>
+        <div>
+          <span className={s.eyebrow}>BRAIN-STYLE ALPHA LAB / OKX DEMO</span>
+          <h2>{workflowMode === 'auto' ? 'AI Alpha 研究与 7 天模拟验证' : '手动因子分阶段验证'}</h2>
+          <p>{workflowMode === 'auto' ? 'AI 和语法搜索只生成安全表达式；固定回测逻辑负责筛选，通过后进入 OKX Demo 并连续记录真实前向收益。' : '一次只处理当前阶段；前置证据完成后才开放下一阶段。'}</p>
+        </div>
+        <div className={s.headerState}>
+          <SegmentedControl value={workflowMode} onChange={(value) => setWorkflowMode(value as 'auto' | 'manual')} options={[{ value: 'auto', label: '自动研究' }, { value: 'manual', label: '手动流程' }]} size="sm" />
+          <Badge variant={currentState === 'exploratory' ? 'up' : 'neutral'} dot>{currentState}</Badge>
+          <span>{workflowMode === 'manual' ? `阶段 ${activeStage + 1} / ${STAGES.length} · 下一步：${nextAction}` : autoMessage}</span>
+          <span>实盘开关：关闭</span>
+        </div>
+      </header>
+
+      {workflowMode === 'manual' ? <nav className={s.stepper} aria-label="因子工厂步骤">
+        {STAGES.map((stage, index) => {
+          const Icon = stage.icon
+          const unlocked = index <= currentStage
+          const active = index === activeStage
+          return <button type="button" key={stage.label} className={active ? s.stepActive : s.step} disabled={!unlocked} aria-current={active ? 'step' : undefined} onClick={() => setSelectedStage(index)}><span>{index + 1}</span><Icon size={15} /><b>{stage.label}</b><small>{index + 1} / {STAGES.length}</small>{index < STAGES.length - 1 && <ChevronRight size={14} />}</button>
+        })}
+      </nav> : null}
+
+      {workflowMode === 'auto' ? <section className={s.autoPanel} aria-label="自动因子研究与模拟观察">
+        <header className={s.autoHeader}>
+          <div><span className={s.eyebrow}>ALPHA EXPRESSION MINER</span><h3>表达式挖掘、统一回测、前向观察</h3><p>{autoMessage}</p></div>
+          <div className={s.autoHeaderActions}>
+            {autoRun && <Badge variant={autoStatusVariant} dot>{FACTORY_STATUS[autoRun.run.status] ?? autoRun.run.status}</Badge>}
+            <Button variant="ghost" size="sm" loading={autoBusy === 'observe' || autoBusy === 'load'} disabled={!autoRun} onClick={() => void refreshAutoObservation()} icon={<RefreshCw size={15} />}>刷新观察</Button>
+          </div>
+        </header>
+        <div className={s.alphaBriefBar}>
+          <Field label="Alpha 研究方向"><Textarea rows={2} value={autoAlphaBrief} onChange={(event) => setAutoAlphaBrief(event.target.value)} /></Field>
+          <div className={s.alphaPolicy}>
+            <span><ShieldCheck size={15} />仅安全 DSL AST</span>
+            <span><FlaskConical size={15} />统一回测与回撤门禁</span>
+            <span><TimerReset size={15} />OKX Demo 至少 7 天</span>
+          </div>
+        </div>
+        {autoCandidateMode === 'manual' && <div className={s.manualAlphaPanel}>
+          <div className={s.manualAlphaEditor}>
+            <div className={s.manualPresetRow}>
+              <Field label="Alpha 模板"><Select value={manualPreset} options={ALPHA_PRESET_OPTIONS} onChange={(event) => {
+                const next = event.target.value as ManualAlphaPreset
+                setManualPreset(next)
+                setManualAlphaText(manualAlphaExpression(next, manualProfile))
+              }} /></Field>
+              <Field label="参数风格"><Select value={manualProfile} options={ALPHA_PROFILE_OPTIONS} onChange={(event) => {
+                const next = event.target.value as ManualAlphaProfile
+                setManualProfile(next)
+                setManualAlphaText(manualAlphaExpression(manualPreset, next))
+              }} /></Field>
+            </div>
+            <Field label="手工 Alpha 表达式"><Textarea rows={3} value={manualAlphaText} placeholder="mul(rolling_zscore(pct_change(close, 3), 20), rank(volume, 20))" onChange={(event) => setManualAlphaText(event.target.value)} /></Field>
+            <div className={s.manualUpload}>
+              <label><input type="file" accept="application/json,.json" onChange={(event) => {
+                const file = event.target.files?.[0]
+                if (file) void loadManualAlphaFile(file)
+              }} /><FileCheck2 size={16} /><span>上传 Alpha JSON</span></label>
+              <strong>{manualBatch.length} 个上传候选</strong>
+              {manualBatch.length > 0 && <button type="button" onClick={() => setManualBatch([])}>清空批次</button>}
+            </div>
+          </div>
+          <aside className={s.alphaDslGuide} aria-label="Alpha 参数手册">
+            <header>
+              <div><span className={s.eyebrow}>DSL REFERENCE</span><strong>字段与参数</strong></div>
+              <small>{alphaDsl.version}</small>
+            </header>
+            <Input value={alphaDslQuery} placeholder="搜索算子，如 zscore / window" prefix={<Search size={14} />} onChange={(event) => setAlphaDslQuery(event.target.value)} />
+            <div className={s.alphaDslLimits}>
+              <span><b>periods</b>{alphaDsl.limits.periods_min}–{alphaDsl.limits.periods_max}</span>
+              <span><b>window</b>{alphaDsl.limits.window_min}–{alphaDsl.limits.window_max}</span>
+              <span><b>深度</b>≤ {alphaDsl.limits.max_depth}</span>
+              <span><b>算子</b>≤ {alphaDsl.limits.max_operators}</span>
+            </div>
+            <div className={s.alphaDslFields}>
+              {alphaDsl.fields.map((field) => <button type="button" key={field.name} title={`使用字段 ${field.name}`} onClick={() => setManualAlphaText(field.name)}>
+                <code>{field.name}</code><span>{field.label}</span><small>{field.unit}</small>
+              </button>)}
+            </div>
+            <div className={s.alphaDslParameters}>
+              {alphaDsl.parameters.map((parameter) => <span key={parameter.name}><code>{parameter.name}</code><small>{parameter.description}</small></span>)}
+            </div>
+            <div className={s.alphaDslOperators}>
+              {visibleAlphaOperators.map((operator) => <button type="button" key={operator.name} title={`使用示例：${operator.example}`} onClick={() => setManualAlphaText(operator.example)}>
+                <code>{operator.signature}</code><span>{operator.description}</span>
+              </button>)}
+              {visibleAlphaOperators.length === 0 && <p>没有匹配算子</p>}
+            </div>
+          </aside>
+        </div>}
+        <div className={s.autoControls}>
+          <Field label="研究市场"><Select value={autoMarket} options={[{ value: 'crypto', label: '虚拟货币' }, { value: 'a_shares', label: 'A 股' }]} onChange={(event) => {
+            const market = event.target.value as typeof autoMarket
+            setAutoMarket(market)
+            if (market === 'a_shares') {
+              setOkxCatalogOpen(false)
+              setOkxKlineOpen(false)
+              setAutoSymbol('600519')
+              setInstrumentQuery('600519')
+              setAutoSource('akshare_live')
+              setAutoInterval('1d')
+              setAutoPaperTarget('simulation_orders')
+              setAutoBars(720)
+            } else {
+              setAutoSymbol('BTC-USDT-SWAP')
+              setInstrumentQuery('BTC-USDT-SWAP')
+              setAutoSource('okx_live')
+              setAutoInterval('4h')
+              setAutoPaperTarget('okx_demo')
+              setAutoBars(720)
+              setAutoDays((current) => Math.max(7, current))
+            }
+          }} /></Field>
+          <Field label="研究标的"><div className={s.instrumentPicker} onBlur={() => window.setTimeout(() => setInstrumentSearchOpen(false), 120)}>
+            <Input
+              value={instrumentQuery}
+              placeholder={autoMarket === 'crypto' ? '代码或名称，如 AVGO / 博通' : '代码或名称，如 600519 / 贵州茅台'}
+              prefix={<Search size={15} />}
+              invalid={!autoSymbol && instrumentQuery.trim().length > 0}
+              role="combobox"
+              aria-expanded={instrumentSearchOpen}
+              aria-controls="factor-instrument-options"
+              onFocus={() => setInstrumentSearchOpen(true)}
+              onChange={(event) => {
+                const next = event.target.value.slice(0, 64)
+                setInstrumentQuery(next)
+                setAutoSymbol(autoMarket === 'a_shares' ? normalizedDirectSymbol(next, autoMarket) : '')
+                setInstrumentSearchOpen(true)
+              }}
+            />
+            {instrumentSearchOpen && <div id="factor-instrument-options" className={s.instrumentOptions} role="listbox">
+              {instrumentOptions.map((item) => <button type="button" role="option" aria-selected={item.code === autoSymbol} key={`${item.market}:${item.code}`} onMouseDown={(event) => event.preventDefault()} onClick={() => {
+                if (autoMarket === 'crypto' && !item.verified) {
+                  setError('请从 OKX 当前可交易合约目录中选择已验证标的。')
+                  return
+                }
+                setAutoSymbol(item.code)
+                setInstrumentQuery(item.code)
+                setInstrumentSearchOpen(false)
+              }}>
+                <span><strong>{item.name || item.code}</strong><small>{item.code}</small></span>
+                <span>{item.verified ? 'OKX 已验证' : item.exchange.toUpperCase() || 'LOCAL'}{item.code === autoSymbol && <Check size={14} />}</span>
+              </button>)}
+              {!instrumentSearchBusy && instrumentOptions.length === 0 && <p>{autoMarket === 'crypto' ? 'OKX 当前目录没有匹配合约' : '没有匹配标的'}</p>}
+              {instrumentSearchBusy && <p>正在搜索…</p>}
+            </div>}
+          </div></Field>
+          <Field label="候选引擎"><Select value={autoCandidateMode} options={[{ value: 'brain', label: 'BRAIN 式表达式挖掘' }, { value: 'manual', label: '手工 / JSON 批次' }, { value: 'library', label: '固定候选库' }]} onChange={(event) => setAutoCandidateMode(event.target.value as typeof autoCandidateMode)} /></Field>
+          <Field label="AI 提案"><label className={s.aiToggle}><input type="checkbox" checked={autoUseAi} disabled={autoCandidateMode !== 'brain'} onChange={(event) => setAutoUseAi(event.target.checked)} /><span>{autoCandidateMode === 'manual' ? '手工批次模式' : autoCandidateMode === 'library' ? '候选库模式' : autoUseAi ? '已启用' : '仅规则生成'}</span></label></Field>
+          <Field label="AI 模型来源"><Select value={autoAiProvider} disabled={autoCandidateMode !== 'brain' || !autoUseAi || aiProviders.length === 0} options={aiProviders.length > 0 ? aiProviders.map((provider) => ({ value: provider.id, label: provider.label })) : [{ value: '', label: '跟随系统设置' }]} onChange={(event) => setAutoAiProvider(event.target.value as LLMProviderId)} /></Field>
+          <Field label="AI 候选数"><Input type="number" min={0} max={autoBudget} disabled={autoCandidateMode !== 'brain' || !autoUseAi} value={Math.min(autoAiCount, autoBudget)} onChange={(event) => setAutoAiCount(Math.max(0, Number(event.target.value)))} /></Field>
+          <Field label="模拟目标"><Select value={autoPaperTarget} options={autoMarket === 'crypto' ? [{ value: 'okx_demo', label: 'OKX Demo' }, { value: 'simulation_orders', label: '本地独立模拟' }] : [{ value: 'simulation_orders', label: '本地独立模拟' }]} onChange={(event) => {
+            const target = event.target.value as typeof autoPaperTarget
+            setAutoPaperTarget(target)
+            if (target === 'okx_demo') {
+              setAutoSource('okx_live')
+              setAutoInterval('4h')
+              setAutoBars(720)
+              setAutoDays((current) => Math.max(7, current))
+            }
+          }} /></Field>
+          <Field label="行情通道"><Select value={autoSource} disabled={autoPaperTarget === 'okx_demo' || autoMarket === 'a_shares'} options={autoMarket === 'a_shares' ? [{ value: 'akshare_live', label: 'AkShare 实时行情' }] : [{ value: 'okx_local', label: 'OKX 本地归档' }, { value: 'okx_live', label: 'OKX 实时公共行情' }, { value: 'synthetic', label: '确定性合成' }]} onChange={(event) => setAutoSource(event.target.value as typeof autoSource)} /></Field>
+          <Field label="研究周期"><Select value={autoInterval} options={autoMarket === 'a_shares' ? [{ value: '1d', label: '日线' }, { value: '1h', label: '1 小时' }] : [{ value: '1h', label: '1 小时' }, { value: '4h', label: '4 小时' }]} onChange={(event) => {
+            const nextInterval = event.target.value as typeof autoInterval
+            setAutoInterval(nextInterval)
+            setAutoBars(nextInterval === '1h' && autoMarket === 'crypto' ? 2880 : 720)
+          }} /></Field>
+          <Field label="历史样本"><Input type="number" min={240} max={5000} value={autoBars} onChange={(event) => setAutoBars(Number(event.target.value))} /></Field>
+          <Field label="候选预算"><Input type="number" min={1} max={30} value={autoBudget} onChange={(event) => setAutoBudget(Number(event.target.value))} /></Field>
+          <Field label="观察天数"><Input type="number" min={7} max={365} value={autoDays} onChange={(event) => setAutoDays(Math.max(7, Number(event.target.value)))} /></Field>
+          <Button variant="primary" loading={autoBusy === 'start'} disabled={!autoSymbol} onClick={() => void startAutoResearch()} icon={<ScanSearch size={16} />}>{autoRun ? '启动新实验' : '启动自动研究'}</Button>
+        </div>
+        {autoMarket === 'crypto' && <div className={s.marketDataBar}>
+          <span className={autoSymbol ? s.marketVerified : s.marketUnverified}>
+            {autoSymbol ? <ShieldCheck size={15} /> : <ShieldAlert size={15} />}
+            <strong>{autoSymbol || '尚未选择已验证合约'}</strong>
+            <small>{autoSymbol ? 'OKX 公共目录已验证' : '输入代码后从目录结果中选择'}</small>
+          </span>
+          <div>
+            <button type="button" onClick={() => setOkxCatalogOpen((current) => !current)}><ListFilter size={15} />合约目录</button>
+            <button type="button" disabled={!autoSymbol} onClick={() => setOkxKlineOpen((current) => !current)}><CandlestickChart size={15} />实时 K 线</button>
+          </div>
+        </div>}
+        {autoMarket === 'crypto' && okxCatalogOpen && <section className={s.okxCatalog} aria-label="OKX 永续合约目录">
+          <header>
+            <div><span className={s.eyebrow}>OKX PUBLIC INSTRUMENTS</span><h4>当前可交易 USDT 永续</h4><p>代码、中文关键词和基础币均可搜索；结果来自 OKX 公共市场目录。</p></div>
+            <div className={s.okxCatalogActions}>
+              <button type="button" aria-label="刷新 OKX 合约目录" title="强制刷新 OKX 合约目录" onClick={() => void loadOkxCatalog(true)}><RefreshCw size={15} /></button>
+              <button type="button" aria-label="关闭 OKX 合约目录" title="关闭" onClick={() => setOkxCatalogOpen(false)}><X size={16} /></button>
+            </div>
+          </header>
+          <div className={s.okxCatalogSearch}>
+            <Input value={okxCatalogQuery} placeholder="搜索代码或名称，如 BTC、黄金、石油、博通" prefix={<Search size={15} />} onChange={(event) => setOkxCatalogQuery(event.target.value.slice(0, 64))} />
+            <span><b>{okxCatalog?.count ?? 0}</b> 个匹配 / {okxCatalog?.total ?? 0} 个合约</span>
+            <small>{okxCatalog?.cache_age_seconds === null || okxCatalog?.cache_age_seconds === undefined ? '等待公共目录' : `缓存 ${okxCatalog.cache_age_seconds}s / ${okxCatalog.cache_ttl_seconds}s`}</small>
+          </div>
+          {okxCatalogError && <div className={s.okxCatalogError}><CircleAlert size={15} />{okxCatalogError}</div>}
+          <div className={s.okxContractList}>
+            {okxCatalog?.instruments.map((item: OkxSwapInstrument) => <button type="button" key={item.code} className={item.code === autoSymbol ? s.okxContractActive : s.okxContract} onClick={() => {
+              setAutoSymbol(item.code)
+              setInstrumentQuery(item.code)
+              setOkxCatalogOpen(false)
+              setOkxKlineOpen(true)
+            }}>
+              <span><strong>{item.name || item.code}</strong><code>{item.code}</code></span>
+              <span><small>面值</small><b>{num(item.contract_size, 6)}</b></span>
+              <span><small>价格精度</small><b>{item.price_precision ?? '—'}</b></span>
+              <span><small>最小数量</small><b>{item.minimum_amount ?? '—'}</b></span>
+              <ShieldCheck size={15} />
+            </button>)}
+            {!okxCatalogBusy && okxCatalog?.ok && okxCatalog.instruments.length === 0 && <p>OKX 当前目录没有匹配合约。</p>}
+            {okxCatalogBusy && <p>正在读取 OKX 公共合约目录…</p>}
+          </div>
+        </section>}
+        {autoMarket === 'crypto' && okxKlineOpen && autoSymbol && <section className={s.okxKlinePanel} aria-label="OKX 实时公共 K 线">
+          <header><div><span className={s.eyebrow}>LIVE PUBLIC OHLCV</span><h4>{autoSymbol} 实时 K 线</h4></div><button type="button" aria-label="关闭实时 K 线" title="关闭" onClick={() => setOkxKlineOpen(false)}><X size={16} /></button></header>
+          <KlineCard key={`${autoSymbol}:${autoInterval}`} symbol={autoSymbol} market="crypto" defaultPeriod={autoInterval === '4h' ? '4H' : '1H'} showInstrumentControls={false} />
+        </section>}
+        {autoRun && <>
+          <div className={s.researchContextBar}>
+            <span><small>研究标的</small><strong>{autoRunSymbol}</strong></span>
+            <span><small>市场 / 周期</small><strong>{autoRunMarket} / {autoRunInterval}</strong></span>
+            <span><small>相似预检淘汰</small><strong>{autoPreflightRejected ?? 0}（公式 {autoFormulaDuplicates ?? 0} / 信号 {autoCorrelationRejected ?? 0}）</strong></span>
+            <span><small>下一轮规则</small><strong>仅排名最高且门禁通过的 1 个</strong></span>
+          </div>
+          <div className={s.autoKpis}>
+            <div><small>AI / 规则 / 手工</small><strong>{autoGeneratedAi} / {autoGeneratedGrammar} / {autoGeneratedManual}</strong></div>
+            <div><small>预检 / 生成状态</small><strong>{autoPreflightAccepted ?? '—'} / {autoAiStatus ?? nestedString(autoRun.run.config, 'candidate_mode') ?? '—'}</strong></div>
+            <div><small>当前优胜因子</small><strong title={autoRun.run.selected_factor_key ?? ''}>{autoRun.run.selected_factor_key ?? '无通过因子'}</strong></div>
+            <div><small>模拟累计收益</small><strong className={(autoRun.observation_summary.after_cost_return ?? 0) >= 0 ? s.up : s.down}>{pct(autoRun.observation_summary.after_cost_return)}</strong></div>
+            <div><small>模拟最大回撤</small><strong>{pct(autoRun.observation_summary.max_drawdown)}</strong></div>
+            <div><small>观察 / 成交</small><strong>{autoRun.observation_summary.count} / {autoRun.simulation_orders.length}</strong></div>
+            <div><small>观察截止</small><strong>{autoEndsAt}</strong></div>
+          </div>
+          {autoRunPaperTarget === 'okx_demo' && <div className={s.demoStatusBar}>
+            <span><small>Demo 状态</small><strong>{autoDemoStatus ?? (autoRun ? '等待研究通过' : '未启动')}</strong></span>
+            <span><small>Runner 策略</small><strong title={autoDemoStrategy ?? ''}>{autoDemoStrategy ?? '—'}</strong></span>
+            <span><small>订单 / 成交率</small><strong>{autoDemoOrders === null ? '—' : `${autoDemoOrders} / ${pct(autoDemoFillRate)}`}</strong></span>
+            <span><small>资金费率</small><strong>{autoDemoFunding === null ? '—' : pct(autoDemoFunding, 4)}</strong></span>
+            <span><small>风险 / 对账</small><strong>{gateState(demoRiskNormal)} / {gateState(demoReconciliationClear)}</strong></span>
+          </div>}
+          {autoBest && <div className={s.researchEvidenceBar}>
+            <span><small>滚动收益 / 回撤</small><strong>{pct(autoValidationReturn)} / {pct(autoValidationDrawdown)}</strong></span>
+            <span><small>滚动夏普 / IC</small><strong>{num(autoValidationSharpe)} / {num(autoValidationIc, 3)}</strong></span>
+            <span><small>确认收益 / 夏普</small><strong>{pct(autoConfirmationReturn)} / {num(autoConfirmationSharpe)}</strong></span>
+            <span><small>确认 p 值</small><strong>{num(autoConfirmationPValue, 4)}</strong></span>
+            <span><small>参数平台</small><strong>{gateState(autoParameterPlateau)}</strong></span>
+            <span><small>状态稳定</small><strong>{gateState(autoRegimeStability)}</strong></span>
+          </div>}
+          <div className={s.autoBody}>
+            <div className={s.candidateTable}>
+              <div className={s.candidateToolbar}>
+                <Input value={candidateQuery} placeholder="搜索名称、家族或 DSL" onChange={(event) => setCandidateQuery(event.target.value)} />
+                <Select value={candidateFamilyFilter} options={[{ value: '', label: '全部因子家族' }, ...autoCandidateFamilies.map((family) => ({ value: family.value, label: `${family.label} (${family.count})` }))]} onChange={(event) => setCandidateFamilyFilter(event.target.value)} />
+                <strong>{visibleAutoCandidates.length} / {autoRun.candidates.length}</strong>
+              </div>
+              {autoCandidateFamilies.length > 0 && <div className={s.candidateFamilyBar}><strong>因子家族</strong>{autoCandidateFamilies.map((family) => <span key={family.value}>{family.label} {family.count}</span>)}</div>}
+              <div className={s.candidateHead}><span>排名</span><span>候选因子</span><span>滚动收益</span><span>夏普</span><span>阶段</span></div>
+              {visibleAutoCandidates.map((candidate) => {
+                const validationReturn = nestedNumber(candidate.metrics, 'rolling_validation', 'summary', 'total_return')
+                const sharpe = nestedNumber(candidate.metrics, 'rolling_validation', 'summary', 'metrics', 'sharpe')
+                const expression = alphaAstExpression(candidate.definition?.ast)
+                const stageLabel = candidateStageLabel(candidate, autoRun.run)
+                return <button type="button" className={s.candidateRow} aria-selected={candidate.id === selectedAutoCandidate?.id} key={candidate.id} onClick={() => setSelectedAutoCandidateId(candidate.id)}><span>{candidate.rank ?? '—'}</span><span className={s.candidateIdentity}><span><strong>{candidate.definition?.label ?? candidate.factor_key}</strong><em>{factorFamilyLabel(candidate.definition?.family)}</em></span><code title={expression}>{expression}</code><small>{CANDIDATE_SOURCE_LABELS[candidate.source] ?? candidate.source} · {candidate.factor_key}</small></span><span className={(validationReturn ?? 0) >= 0 ? s.up : s.down}>{pct(validationReturn)}</span><span>{num(sharpe)}</span><span><Badge variant={stageLabel.includes('通过') ? 'up' : stageLabel.includes('淘汰') || stageLabel.includes('无效') ? 'down' : 'info'}>{stageLabel}</Badge></span></button>
+              })}
+              {visibleAutoCandidates.length === 0 && <p className={s.candidateEmpty}>没有匹配候选。</p>}
+            </div>
+            <div className={s.researchSideRail}>
+              {selectedAutoCandidate && <section className={s.candidateInspector} aria-label="Alpha 详情">
+                <header><div><span>ALPHA DETAIL · {autoRunSymbol}</span><h4>{selectedAutoCandidate.definition?.label ?? selectedAutoCandidate.factor_key}</h4></div><Badge variant={candidateStageLabel(selectedAutoCandidate, autoRun.run).includes('通过') ? 'up' : candidateStageLabel(selectedAutoCandidate, autoRun.run).includes('淘汰') || candidateStageLabel(selectedAutoCandidate, autoRun.run).includes('无效') ? 'down' : 'info'}>{candidateStageLabel(selectedAutoCandidate, autoRun.run)}</Badge></header>
+                <div className={s.candidateCode}><small>DSL CODE</small><code>{alphaAstExpression(selectedAutoCandidate.definition?.ast)}</code></div>
+                <div className={s.alphaSummary} aria-label="Alpha 指标摘要">
+                  <div><small>滚动收益</small><strong className={(selectedCandidateValidationReturn ?? 0) >= 0 ? s.up : s.down}>{pct(selectedCandidateValidationReturn)}</strong></div>
+                  <div><small>夏普</small><strong>{num(selectedCandidateValidationSharpe)}</strong></div>
+                  <div><small>最大回撤</small><strong>{pct(selectedCandidateValidationDrawdown)}</strong></div>
+                  <div><small>Rank IC</small><strong>{num(selectedCandidateValidationIc, 3)}</strong></div>
+                </div>
+                <section className={s.alphaCurvePanel} aria-label="真实前向收益曲线">
+                  <header><strong>前向权益</strong><span>{autoRun.observations.length} 个真实观察点</span></header>
+                  <ObservationCurve observations={autoRun.observations} />
+                </section>
+                <section className={s.alphaTesting} aria-label="Alpha 测试状态">
+                  <header><strong>测试状态</strong><span className={selectedFailedChecks.length > 0 ? s.down : s.up}>{selectedPassedChecks.length} 通过 · {selectedFailedChecks.length} 未通过</span></header>
+                  <div className={s.alphaCoverage}>
+                    <span>样本覆盖</span>
+                    <strong>{autoDataBars ?? '—'} / {autoRequestedBars ?? '—'} 根</strong>
+                    <Badge variant={autoDataBars !== null && autoRequestedBars !== null && autoDataBars < autoRequestedBars ? 'warn' : 'neutral'}>{autoDataBars !== null && autoRequestedBars !== null && autoDataBars < autoRequestedBars ? '部分样本' : '完整/未知'}</Badge>
+                  </div>
+                  {selectedGateChecks.length > 0 ? <div className={s.alphaCheckList}>
+                    {selectedGateChecks.map(([key, passed]) => <span className={passed ? s.alphaCheckPass : s.alphaCheckFail} key={key}>{passed ? <Check size={13} /> : <X size={13} />}<b>{RESEARCH_CHECK_LABELS[key] ?? key.replace(/_/g, ' ')}</b></span>)}
+                  </div> : nestedString(selectedAutoCandidate.gate, 'reason') ? <p>预检淘汰：{nestedString(selectedAutoCandidate.gate, 'reason') === 'formula_duplicate' ? '公式完全重复' : '发现集信号高度相似'}；保留 {nestedString(selectedAutoCandidate.gate, 'kept_candidate') ?? '更早候选'}。</p> : <p>该候选没有可展示的门禁明细。</p>}
+                </section>
+                <dl>
+                  <div><dt>因子家族</dt><dd>{factorFamilyLabel(selectedAutoCandidate.definition?.family)}</dd></div>
+                  <div><dt>生成来源</dt><dd>{CANDIDATE_SOURCE_LABELS[selectedAutoCandidate.source] ?? selectedAutoCandidate.source}</dd></div>
+                  <div><dt>输入字段</dt><dd>{selectedAutoCandidate.definition?.input_fields?.join(' · ') || '—'}</dd></div>
+                  <div><dt>预测周期</dt><dd>{selectedAutoCandidate.definition?.horizon ?? '—'}</dd></div>
+                  <div><dt>滚动收益</dt><dd>{pct(selectedCandidateValidationReturn)}</dd></div>
+                  <div><dt>滚动夏普</dt><dd>{num(selectedCandidateValidationSharpe)}</dd></div>
+                  <div><dt>公式哈希</dt><dd title={selectedAutoCandidate.definition?.formula_hash}>{selectedAutoCandidate.definition?.formula_hash?.slice(0, 12) ?? '—'}</dd></div>
+                  <div><dt>实验编号</dt><dd title={selectedAutoCandidate.experiment_id ?? ''}>{selectedAutoCandidate.experiment_id?.slice(0, 12) ?? '—'}</dd></div>
+                </dl>
+              </section>}
+              <div className={s.observationRail}>
+                <div className={s.observationTitle}><TimerReset size={16} /><span>收益记录</span></div>
+                {autoRun.observations.length === 0 ? <p>尚未进入模拟观察。</p> : autoRun.observations.slice(-6).reverse().map((item) => {
+                  const simulationOrderId = nestedString(item.payload, 'simulation_order', 'simulation_order_id')
+                  return <div key={item.id}><span>{new Date(item.market_time).toLocaleString('zh-CN', { hour12: false })}</span><strong className={item.net_return >= 0 ? s.up : s.down}>{pct(item.net_return, 3)}</strong><small>权益 {num(item.equity, 0)} · 仓位 {pct(item.position_weight, 1)}{simulationOrderId ? ` · ${simulationOrderId}` : ' · 无调仓'}</small></div>
+                })}
+              </div>
+            </div>
+          </div>
+          <footer className={s.autoAudit}><span>运行 {autoRun.run.id.slice(0, 12)}</span><span>计划 {autoRun.run.research_plan_id}</span><span>样本 {autoDataBars ?? '—'} / 请求 {autoRequestedBars ?? '—'}</span><span>实盘开关关闭</span>{autoBest && <span>首位 {autoBest.definition?.label ?? autoBest.factor_key}</span>}{autoRun.simulation_orders.length > 0 && <Link to={`/simulation?q=${encodeURIComponent(`factor-factory:${autoRun.run.id}`)}`}>查看模拟订单</Link>}</footer>
+        </>}
+      </section> : null}
+
+      {workflowMode === 'manual' ? <div className={s.grid}>
+        {activeStage === 0 ? <Panel title="01 / 候选挖掘" subtitle="先写清楚参考角度、经济假设与失效条件，再登记不可变 draft 定义。">
+          <div className={s.templateGrid}>
+            {TEMPLATES.map((item) => <button key={item.key} type="button" className={item.key === template.key ? s.templateActive : s.template} onClick={() => setTemplateKey(item.key)}><strong>{item.label}</strong><span>{item.angle}</span><small>{item.fields.join(' · ')}</small></button>)}
+          </div>
+          <div className={s.formGrid}>
+            <Field label="因子名称"><Input value={label} onChange={(event) => setLabel(event.target.value)} /></Field>
+            <Field label="目标市场"><Input value="crypto · OKX Demo" disabled /></Field>
+            <Field label="研究周期"><Select value={interval} options={[{ value: '1d', label: '日线' }, { value: '4h', label: '4 小时' }]} onChange={(event) => setInterval(event.target.value)} /></Field>
+            <Field label="持有期"><Input type="number" min={1} max={60} value={horizon} onChange={(event) => setHorizon(Number(event.target.value))} /></Field>
+            <Field label="数据字段"><Input value={template.fields.join('、')} disabled /></Field>
+            <Field label="行情标的"><Input value={symbol} onChange={(event) => setSymbol(event.target.value.toUpperCase())} /></Field>
+          </div>
+          <Field label="事前经济假设"><Textarea rows={3} value={rationale} onChange={(event) => setRationale(event.target.value)} /></Field>
+          <Field label="失效条件"><Textarea rows={2} value={invalidation} onChange={(event) => setInvalidation(event.target.value)} /></Field>
+          <div className={s.checkList} aria-label="候选门禁确认">
+            {([['future', '无未来信息'], ['causal', '因果方向可解释'], ['data', '字段有可用延迟'], ['budget', '计算预算已预留']] as const).map(([key, text]) => <label key={key}><input type="checkbox" checked={checks[key]} onChange={(event) => setChecks((current) => ({ ...current, [key]: event.target.checked }))} /><span>{text}</span></label>)}
+          </div>
+          <div className={s.actionBar}><Button variant="primary" loading={busy === 'register'} onClick={() => void registerCandidate()} icon={<Beaker size={16} />}>{definition ? '重新登记候选' : '登记为 draft'}</Button>{definition && <span className={s.muted}><Database size={14} /> {definition.key}@{definition.version} · hash {definition.formula_hash.slice(0, 10)}</span>}</div>
+        </Panel> : null}
+
+        {activeStage === 1 ? <Panel title="02 / 回撤实验" subtitle="使用 OKX 本地归档行情，固定成本和样本长度，结果会保存完整运行指纹。">
+          <div className={s.experimentMeta}><span>数据通道 <b>OKX 归档</b></span><span>样本 <b>365 根</b></span><span>单边成本 <b>3 bp</b></span></div>
+          <Button variant="primary" loading={busy === 'backtest'} disabled={!definition} onClick={() => void runDrawdown()} icon={<Play size={16} />}>运行回撤实验</Button>
+          {!definition && <p className={s.hint}>先在左侧登记一个候选因子。</p>}
+          {backtest && <div className={s.resultBlock}>
+            <div className={s.kpiGrid}><div><small>成本后收益</small><strong className={backtest.summary.total_return >= 0 ? s.up : s.down}>{pct(backtest.summary.total_return)}</strong></div><div><small>最大回撤</small><strong className={Math.abs(backtest.summary.max_drawdown) <= GATE_THRESHOLDS.maximum_drawdown ? s.up : s.down}>{pct(backtest.summary.max_drawdown)}</strong></div><div><small>夏普</small><strong>{num(backtestMetrics.sharpe)}</strong></div><div><small>成交笔数</small><strong>{backtest.summary.n_trades}</strong></div></div>
+            <div className={s.gates}>{backtestGate?.map((item) => <div key={item.label} className={item.passed ? s.gatePass : s.gateFail}><span>{item.passed ? <Check size={14} /> : <CircleAlert size={14} />}</span><small>{item.label}</small><b>{item.display}</b></div>)}</div>
+            <div className={s.provenance}><span>运行 {backtest.run_id}</span><span>快照 {backtest.data_provenance.fingerprint.slice(0, 16)}…</span></div>
+          </div>}
+        </Panel> : null}
+
+        {activeStage === 2 ? <Panel title="03 / 模拟账户" subtitle="回测通过后绑定一个完整再平衡周期，记录信号、理论价、成交、滑点与容量。">
+          <div className={s.paperCallout}><ShieldCheck size={17} /><div><strong>只允许 paper</strong><span>此动作不会调用实盘下单接口，live_trading_enabled 固定为 false。</span></div></div>
+          <Button variant="secondary" loading={busy === 'paper'} disabled={!researchGatePassed || Boolean(order)} onClick={() => void runPaperTrial()} icon={<WalletCards size={16} />}>启动模拟再平衡</Button>
+          {!researchGatePassed && backtest && <p className={s.hint}>回撤门禁未全部通过，不能创建模拟订单。</p>}
+          {order && account && <div className={s.paperResult}><div className={s.kpiGrid}><div><small>订单状态</small><strong>{order.status}</strong></div><div><small>成交率</small><strong>{pct(order.filled_quantity / Math.max(order.quantity, 1e-9))}</strong></div><div><small>模拟权益</small><strong>{num(account.equity, 0)}</strong></div><div><small>账实一致</small><strong className={account.reconciled ? s.up : s.down}>{account.reconciled ? '通过' : '需复核'}</strong></div></div><div className={s.provenance}><span>订单 {order.id}</span><span>成交 {order.executions.length} 笔</span><Badge variant={simulationGatePassed ? 'up' : 'warn'}>{simulationGatePassed ? '模拟门禁通过' : '模拟门禁未通过'}</Badge></div></div>}
+        </Panel> : null}
+
+        {activeStage === 3 ? <Panel title="04 / 预研究记录" subtitle="保存一次性回测与模拟证据，正式因子档案仍需完成至少 7 个真实自然日观察。">
+          <Field label="为什么这次值得记录"><Textarea rows={4} value={archiveNote} onChange={(event) => setArchiveNote(event.target.value)} disabled={!backtest} placeholder="先运行回撤实验，系统会生成可编辑的证据摘要。" /></Field>
+          <div className={s.archiveFacts}><span>参考角度 <b>{template.angle}</b></span><span>状态 <b>{currentState}</b></span><span>实盘 <b>不可用</b></span></div>
+          <Button variant="secondary" loading={busy === 'archive'} disabled={!readyToArchive || currentState === 'exploratory'} onClick={() => void archiveFactor()} icon={<Archive size={16} />}>保存预研究记录</Button>
+          {!readyToArchive && <p className={s.hint}>这里仅保存入档前证据；正式档案由持续模拟流程在满 7 天且全部门禁通过后自动生成。</p>}
+          {archiveState && <div className={s.lifecycle}><Badge variant="up" dot>{archiveState.current_by_market.crypto?.state ?? 'draft'}</Badge><span>生命周期证据已写入，完整链路可从因子 lineage 恢复。</span></div>}
+        </Panel> : null}
+      </div> : null}
+
+      <section className={s.archiveSection} aria-label="因子证据档案">
+        <header>
+          <div><span className={s.eyebrow}>ADMITTED FACTOR LEDGER</span><h3>可选因子档案</h3><p>只收录完成至少 7 个真实自然日模拟，并通过收益、回撤、执行、风险、资金费率和对账门禁的因子。</p></div>
+          <div className={s.archiveActions}>
+            {archiveOpen ? <Select aria-label="档案状态" value={archiveFilter} options={[
+              { value: '', label: '全部状态' },
+              { value: 'trading_validated', label: '模拟验证通过' },
+              { value: 'degraded', label: '已降级' },
+              { value: 'retired', label: '已退役' },
+            ]} onChange={(event) => setArchiveFilter(event.target.value as '' | FactorLifecycleState)} /> : null}
+            {archiveOpen ? <Button variant="ghost" size="sm" loading={busy === 'refresh'} onClick={() => void loadArchive()} icon={<RefreshCw size={15} />}>刷新档案</Button> : null}
+            <Button variant="secondary" size="sm" onClick={() => setArchiveOpen((open) => !open)}>{archiveOpen ? '收起档案' : '查看档案'}</Button>
+          </div>
+        </header>
+        {archiveOpen ? <><div className={s.archiveSummary}>
+          <span><small>已准入档案</small><strong>{archiveMeta.admitted}</strong></span>
+          <span><small>研究记录</small><strong>{archiveMeta.research}</strong></span>
+          <span><small>尚未准入</small><strong>{archiveMeta.excluded}</strong></span>
+          <span><small>当前筛选</small><strong>{archive.length}</strong></span>
+        </div>
+        {archive.length === 0 ? <p className={s.empty}>目前没有因子完成七日模拟准入。</p> : <div className={s.archiveWorkspace}>
+          <div className={s.archiveLedger}>
+            <div className={s.archiveLedgerHead}><span>因子 / 版本</span><span>范围</span><span>状态</span><span>最近运行</span></div>
+            {archive.map((item) => {
+              const latest = item.post_study_evidence.latest_run
+              const state = item.lifecycle.current_state
+              return <button type="button" key={item.archive_id} className={item.archive_id === selectedArchive?.archive_id ? s.archiveLedgerActive : s.archiveLedgerRow} onClick={() => setSelectedArchiveId(item.archive_id)} aria-pressed={item.archive_id === selectedArchive?.archive_id}>
+                <span><strong>{item.definition.label}</strong><small>{item.definition.key}@{item.definition.version}</small></span>
+                <span>{item.scope.symbol ?? item.scope.market}<small>{item.scope.interval ?? '—'} · {item.scope.data_source ?? '未关联行情'}</small></span>
+                <span><Badge variant={state === 'trading_validated' ? 'up' : state === 'degraded' || state === 'retired' ? 'down' : 'neutral'}>{LIFECYCLE_STATUS[state]}</Badge></span>
+                <span>{latest ? FACTORY_STATUS[latest.status] ?? latest.status : '仅定义'}<small>{latest ? timeLabel(latest.updated_at) : timeLabel(item.definition.created_at)}</small></span>
+              </button>
+            })}
+          </div>
+          {selectedArchive && <aside className={s.archiveDetail} aria-label={`${selectedArchive.definition.label}证据详情`}>
+            <header className={s.archiveDetailHeader}>
+              <div><span className={s.eyebrow}>IMMUTABLE FACTOR RECORD</span><h4>{selectedArchive.definition.label}</h4><p>{selectedArchive.definition.key}@{selectedArchive.definition.version}</p></div>
+              <Badge variant={selectedArchive.verified ? 'up' : 'neutral'} dot>{LIFECYCLE_STATUS[selectedArchive.lifecycle.current_state]}</Badge>
+            </header>
+            <div className={s.archiveHashRail}>
+              <span title={selectedArchive.definition.formula_hash}><small>公式哈希</small><code>{selectedArchive.definition.formula_hash.slice(0, 16)}…</code></span>
+              <span title={selectedArchive.definition.definition_hash}><small>定义哈希</small><code>{selectedArchive.definition.definition_hash.slice(0, 16)}…</code></span>
+              <span title={selectedDataHash ?? ''}><small>数据快照</small><code>{selectedDataHash ? `${selectedDataHash.slice(0, 16)}…` : '—'}</code></span>
+            </div>
+            <div className={s.archiveKpis}>
+              <span><small>滚动验证收益</small><strong className={(selectedValidationReturn ?? 0) >= 0 ? s.up : s.down}>{pct(selectedValidationReturn)}</strong></span>
+              <span><small>锁定确认收益</small><strong className={(selectedConfirmationReturn ?? 0) >= 0 ? s.up : s.down}>{pct(selectedConfirmationReturn)}</strong></span>
+              <span><small>模拟成本后收益</small><strong className={(selectedLatestRun?.observation_summary.after_cost_return ?? 0) >= 0 ? s.up : s.down}>{pct(selectedLatestRun?.observation_summary.after_cost_return)}</strong></span>
+              <span><small>真实观察天数</small><strong>{num(selectedArchive.archive_gate.observed_days, 2)}</strong></span>
+            </div>
+            <div className={s.archiveEvidenceColumns}>
+              <section className={s.archiveEvidencePane}>
+                <h5><BookOpenCheck size={16} />事前假设</h5>
+                <dl>
+                  <div><dt>原始假设</dt><dd>{selectedPreregistration?.hypothesis ?? selectedArchive.preregistration.definition_hypothesis}</dd></div>
+                  <div><dt>失效条件</dt><dd>{selectedPreregistration?.proposal.invalidation_conditions.join('；') || selectedArchive.preregistration.invalidation_condition || '未单独声明'}</dd></div>
+                  <div><dt>主指标</dt><dd>{selectedPreregistration?.pre_registration.primary_metric ?? '—'}</dd></div>
+                  <div><dt>通过门槛</dt><dd>{archiveCriteria(selectedPreregistration?.pre_registration.pass_criteria)}</dd></div>
+                  <div><dt>数据窗口</dt><dd>{selectedPreregistration ? `${selectedPreregistration.data_window.start ?? '—'} → ${selectedPreregistration.data_window.end ?? '—'}` : '—'}</dd></div>
+                  <div><dt>候选预算</dt><dd>{selectedPreregistration?.pre_registration.maximum_candidates ?? '—'}</dd></div>
+                </dl>
+              </section>
+              <section className={s.archiveEvidencePane}>
+                <h5><FileCheck2 size={16} />事后证据</h5>
+                <dl>
+                  <div><dt>当前结论</dt><dd>{LIFECYCLE_STATUS[selectedArchive.lifecycle.current_state]}</dd></div>
+                  <div><dt>决策规则</dt><dd>{selectedArchive.post_study_evidence.decision.rule}</dd></div>
+                  <div><dt>研究运行</dt><dd>{selectedLatestRun?.run_id ?? '—'}</dd></div>
+                  <div><dt>确认 p 值</dt><dd>{num(nestedNumber(selectedLatestRun?.candidate.metrics, 'locked_confirmation', 'summary', 'raw_p_value'), 4)}</dd></div>
+                  <div><dt>最大模拟回撤</dt><dd>{pct(selectedLatestRun?.observation_summary.maximum_drawdown)}</dd></div>
+                  <div><dt>账本更新时间</dt><dd>{timeLabel(selectedLatestRun?.updated_at ?? selectedArchive.post_study_evidence.decision.created_at)}</dd></div>
+                </dl>
+              </section>
+            </div>
+            <section className={s.archiveRisks}>
+              <h5><ShieldAlert size={16} />剩余风险</h5>
+              {selectedArchive.remaining_risks.length === 0 ? <span className={s.riskClear}><Check size={14} />已通过当前预注册门禁</span> : <div>{selectedArchive.remaining_risks.map((risk) => <span key={risk}>{archiveRiskLabel(risk)}</span>)}</div>}
+            </section>
+            <footer className={s.archiveChain}>
+              <span><Link2 size={14} />生命周期 {selectedArchive.evidence_chain.lifecycle_event_ids.length}</span>
+              <span>实验 {selectedArchive.evidence_chain.experiment_ids.length}</span>
+              <span>运行 {selectedArchive.evidence_chain.run_ids.length}</span>
+              <span>订单 {selectedArchive.evidence_chain.simulation_order_ids.length}</span>
+              <code title={selectedArchive.archive_id}>{selectedArchive.archive_id.slice(0, 16)}…</code>
+            </footer>
+          </aside>}
+        </div>}</> : null}
+      </section>
+      {error && <div className={s.error} role="alert"><CircleAlert size={17} />{error}</div>}
+    </section>
+  )
+}

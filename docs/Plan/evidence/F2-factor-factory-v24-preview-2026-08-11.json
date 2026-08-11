@@ -1,0 +1,75 @@
+{
+  "captured_at": "2026-08-11T04:28:00Z",
+  "research_version": "2.4.0",
+  "mode": "discovery_and_rolling_validation_preview",
+  "confirmation_labels_accessed": false,
+  "database_mutated": false,
+  "runs": [
+    {
+      "interval": "1h",
+      "bars": 2880,
+      "requested_end": "2026-08-11T04:00:00+00:00",
+      "data_fingerprint": "76a4b46957b7cbd28ff497448ccef993458d03546eb8fdc94eba4c9a1198afaa",
+      "generated_candidates": 30,
+      "preflight_accepted": 29,
+      "preflight_rejected": 1,
+      "preliminary_passed": 0,
+      "leading_candidate": {
+        "label": "RSI reversal 20",
+        "source": "template",
+        "validation_return": 0.013413,
+        "validation_sharpe": 4.084117,
+        "validation_p_value": 0.1998804024375957,
+        "validation_rank_ic": 0.0672995348576,
+        "double_cost_return": 0.010366,
+        "double_cost_sharpe": 3.182931,
+        "passed": false,
+        "failed_checks": [
+          "direction_consistency"
+        ]
+      },
+      "most_common_failures": {
+        "validation_p_value": 21,
+        "cost_stress_sharpe": 21,
+        "cost_stress_window_majority": 21,
+        "validation_rank_ic_direction": 20,
+        "cost_stress_return": 19
+      }
+    },
+    {
+      "interval": "4h",
+      "bars": 720,
+      "requested_end": "2026-08-11T04:00:00+00:00",
+      "data_fingerprint": "600d83aa199bfd94728a926d101938fcb9f1c0cd30d1ececc2015ee4c42726e9",
+      "generated_candidates": 30,
+      "preflight_accepted": 29,
+      "preflight_rejected": 1,
+      "preliminary_passed": 1,
+      "leading_candidate": {
+        "label": "short-term reversal 10",
+        "source": "random_dsl",
+        "validation_return": 0.057748,
+        "validation_sharpe": 4.491445,
+        "validation_p_value": 0.1593417262455468,
+        "validation_rank_ic": 0.12007413847231273,
+        "double_cost_return": 0.043521,
+        "double_cost_sharpe": 3.406364,
+        "passed": true,
+        "failed_checks": []
+      },
+      "most_common_failures": {
+        "validation_p_value": 26,
+        "validation_rank_ic_direction": 21,
+        "cost_stress_window_majority": 16,
+        "cost_stress_sharpe": 14,
+        "validation_sharpe": 12
+      }
+    }
+  ],
+  "verdict": {
+    "one_hour_confirmation_should_open": false,
+    "four_hour_candidate_supply_healthy": true,
+    "formal_confirmation_opened": false,
+    "next_action": "Wait for a new market data fingerprint, then run the formal preregistered 2.4.0 study."
+  }
+}

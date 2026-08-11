@@ -27,6 +27,7 @@ FINAL_STATUSES = {"FILLED", "CANCELLED", "REJECTED"}
 OPEN_STATUSES = {"PENDING_SUBMIT", "SUBMITTED", "PARTIALLY_FILLED", "UNKNOWN"}
 EXTERNAL_STATUS = {
     "live": "SUBMITTED",
+    "open": "SUBMITTED",
     "submitted": "SUBMITTED",
     "partially_filled": "PARTIALLY_FILLED",
     "filled": "FILLED",
@@ -81,6 +82,16 @@ class RunnerEngine:
         self.signing_key = signing_key
         self.environment = environment
         self.runner_version = runner_version
+
+    def preflight(self, symbols: list[str]) -> dict[str, Any]:
+        if self.environment != "demo":
+            raise ValueError("OKX preflight requires the demo environment")
+        return self.adapter.preflight(symbols)
+
+    def funding_rate(self, symbol: str) -> dict[str, Any]:
+        if self.environment != "demo":
+            raise ValueError("OKX funding-rate evidence requires the demo environment")
+        return self.adapter.funding_rate(symbol)
 
     def import_package(self, package: StrategyReleasePackage) -> dict[str, Any]:
         payload = verify_release_package(
@@ -409,7 +420,7 @@ class RunnerEngine:
         try:
             external = self.adapter.submit_order(json.loads(safe_json))
         except (TimeoutError, ConnectionError):
-            external = self.adapter.fetch_order_by_client_id(client_id)
+            external = self.adapter.fetch_order_by_client_id(client_id, request.symbol)
             if external is None:
                 self._transition(order_id, "UNKNOWN", payload={"reason": "submit outcome unknown"})
                 return self.order(order_id) | {"idempotent_replay": False}
@@ -664,6 +675,11 @@ class RunnerEngine:
             positions = connection.execute(
                 """SELECT * FROM position_snapshots ORDER BY observed_at DESC LIMIT 100"""
             ).fetchall()
+            account_snapshots = connection.execute(
+                """SELECT account_id, environment, equity, realized_pnl,
+                          unrealized_pnl, peak_equity, observed_at
+                   FROM account_snapshots ORDER BY observed_at DESC LIMIT 500"""
+            ).fetchall()
             diffs = connection.execute(
                 """SELECT diff_id, account_id, kind, key, status, owner, resolution,
                           created_at, resolved_at
@@ -690,13 +706,45 @@ class RunnerEngine:
         now = datetime.now(UTC)
         latest_times = [
             datetime.fromisoformat(row["observed_at"])
-            for row in [*balances, *positions]
+            for row in [*balances, *positions, *account_snapshots]
             if row["observed_at"]
         ]
         latest_snapshot_at = max(latest_times) if latest_times else None
         snapshot_stale = latest_snapshot_at is None or latest_snapshot_at < now - timedelta(
             seconds=90
         )
+        histories: dict[str, list[dict[str, Any]]] = {}
+        for row in reversed(account_snapshots):
+            histories.setdefault(row["account_id"], []).append(dict(row))
+        account_summary: list[dict[str, Any]] = []
+        for account_id, history in histories.items():
+            latest = history[-1]
+            equities = [float(item["equity"]) for item in history]
+            initial_equity = equities[0]
+            peak = 0.0
+            max_drawdown = 0.0
+            for value in equities:
+                peak = max(peak, value)
+                if peak > 0:
+                    max_drawdown = min(max_drawdown, (value - peak) / peak)
+            equity_change = float(latest["equity"]) - initial_equity
+            reported_pnl = float(latest["realized_pnl"]) + float(latest["unrealized_pnl"])
+            account_summary.append(
+                {
+                    "account_id": account_id,
+                    "environment": latest["environment"],
+                    "equity_currency": "USD",
+                    "equity": float(latest["equity"]),
+                    "initial_equity": initial_equity,
+                    "equity_change": equity_change,
+                    "realized_pnl": float(latest["realized_pnl"]),
+                    "unrealized_pnl": float(latest["unrealized_pnl"]),
+                    "total_pnl": reported_pnl if reported_pnl else equity_change,
+                    "peak_equity": peak,
+                    "max_drawdown": max_drawdown,
+                    "observed_at": latest["observed_at"],
+                }
+            )
         return {
             "strategies": [
                 dict(row)
@@ -709,6 +757,7 @@ class RunnerEngine:
             "fills": [dict(row) for row in fills],
             "balances": [dict(row) for row in balances],
             "positions": [dict(row) for row in positions],
+            "account_summary": {"accounts": account_summary},
             "reconciliation_diffs": [dict(row) for row in diffs],
             "risk_states": [dict(row) for row in risk_states],
             "incidents": [
@@ -750,12 +799,12 @@ class RunnerEngine:
     def recover_open_orders(self) -> list[dict[str, Any]]:
         with connect(self.database_path) as connection:
             rows = connection.execute(
-                f"SELECT order_id, client_order_id FROM orders WHERE status IN ({','.join('?' for _ in OPEN_STATUSES)})",
+                f"SELECT order_id, client_order_id, symbol FROM orders WHERE status IN ({','.join('?' for _ in OPEN_STATUSES)})",
                 tuple(sorted(OPEN_STATUSES)),
             ).fetchall()
         recovered: list[dict[str, Any]] = []
         for row in rows:
-            external = self.adapter.fetch_order_by_client_id(row["client_order_id"])
+            external = self.adapter.fetch_order_by_client_id(row["client_order_id"], row["symbol"])
             if external is not None:
                 self._apply_external(row["order_id"], external)
             elif self.order(row["order_id"])["status"] != "UNKNOWN":
@@ -815,7 +864,21 @@ class RunnerEngine:
                     (account_id,),
                 ).fetchall()
             }
-            external_orders = {order.client_order_id: order for order in snapshot.orders}
+            # OKX account history can contain manual or third-party orders. Reconciliation
+            # owns only orders whose client id is already present in the Runner ledger.
+            external_orders = {
+                order.client_order_id: order
+                for order in snapshot.orders
+                if order.client_order_id and order.client_order_id in local_orders
+            }
+            for client_order_id, local_order in local_orders.items():
+                if client_order_id in external_orders:
+                    continue
+                recovered = self.adapter.fetch_order_by_client_id(
+                    client_order_id, local_order["symbol"]
+                )
+                if recovered is not None:
+                    external_orders[client_order_id] = recovered
             diffs: list[str] = []
             for key in sorted(set(local_orders) | set(external_orders)):
                 local = local_orders.get(key)
@@ -835,11 +898,15 @@ class RunnerEngine:
                             external.__dict__ if external else {},
                         )
                     )
-            external_fills = {fill.external_fill_id: fill for fill in snapshot.fills}
             orders_by_external_id = {
                 row["external_order_id"]: row["order_id"]
                 for row in local_orders.values()
                 if row.get("external_order_id")
+            }
+            external_fills = {
+                fill.external_fill_id: fill
+                for fill in snapshot.fills
+                if fill.external_order_id in orders_by_external_id
             }
             imported_fill_ids: list[str] = []
             for key in sorted(set(local_fills) | set(external_fills)):
@@ -920,7 +987,10 @@ class RunnerEngine:
                     WHERE account_id=? AND symbol=? ORDER BY id DESC LIMIT 1""",
                     (account_id, symbol),
                 ).fetchone()
-                if local and not math.isclose(local["quantity"], values["quantity"], abs_tol=1e-8):
+                if local and (
+                    not math.isclose(local["quantity"], values["quantity"], abs_tol=1e-8)
+                    or not math.isclose(local["mark_price"], values["mark_price"], abs_tol=1e-8)
+                ):
                     diffs.append(
                         self._record_diff(
                             connection, account_id, "position", symbol, dict(local), values
@@ -928,8 +998,9 @@ class RunnerEngine:
                     )
                 connection.execute(
                     """INSERT INTO position_snapshots(
-                        account_id, environment, symbol, quantity, mark_price, observed_at
-                    ) SELECT ?, ?, ?, ?, ?, ?
+                        account_id, environment, symbol, quantity, mark_price,
+                        entry_price, unrealized_pnl, leverage, position_side, observed_at
+                    ) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
                     WHERE NOT EXISTS (
                         SELECT 1 FROM position_snapshots
                         WHERE account_id=? AND environment=? AND symbol=?
@@ -941,6 +1012,10 @@ class RunnerEngine:
                         symbol,
                         values["quantity"],
                         values["mark_price"],
+                        values.get("entry_price"),
+                        values.get("unrealized_pnl", 0),
+                        values.get("leverage"),
+                        values.get("position_side"),
                         observed_at_text,
                         account_id,
                         self.environment,
@@ -950,6 +1025,33 @@ class RunnerEngine:
                         observed_at_text,
                     ),
                 )
+            equity = float(snapshot.equity or self._snapshot_equity(snapshot))
+            connection.execute(
+                """INSERT INTO account_snapshots(
+                    account_id, environment, equity, realized_pnl,
+                    unrealized_pnl, peak_equity, observed_at
+                ) SELECT ?, ?, ?, ?, ?, ?, ?
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM account_snapshots
+                    WHERE account_id=? AND environment=? AND equity=?
+                      AND realized_pnl=? AND unrealized_pnl=? AND observed_at=?
+                )""",
+                (
+                    account_id,
+                    self.environment,
+                    equity,
+                    float(snapshot.realized_pnl or 0),
+                    float(snapshot.unrealized_pnl or 0),
+                    float(snapshot.peak_equity or equity),
+                    observed_at_text,
+                    account_id,
+                    self.environment,
+                    equity,
+                    float(snapshot.realized_pnl or 0),
+                    float(snapshot.unrealized_pnl or 0),
+                    observed_at_text,
+                ),
+            )
             self._audit(
                 connection,
                 "reconciliation_completed",

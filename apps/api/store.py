@@ -716,6 +716,64 @@ def _init() -> None:
             )"""
         )
         c.execute(
+            """CREATE TABLE IF NOT EXISTS factor_factory_runs (
+                id TEXT PRIMARY KEY,
+                research_plan_id TEXT NOT NULL,
+                status TEXT NOT NULL,
+                config_json TEXT NOT NULL DEFAULT '{}',
+                result_json TEXT NOT NULL DEFAULT '{}',
+                selected_factor_key TEXT,
+                selected_factor_version TEXT,
+                selected_experiment_id TEXT,
+                error TEXT,
+                started_at REAL NOT NULL,
+                updated_at REAL NOT NULL,
+                observation_started_at REAL,
+                observation_ends_at REAL,
+                UNIQUE (research_plan_id),
+                FOREIGN KEY (research_plan_id) REFERENCES factor_research_plans(id)
+            )"""
+        )
+        c.execute(
+            """CREATE TABLE IF NOT EXISTS factor_factory_candidates (
+                id TEXT PRIMARY KEY,
+                run_id TEXT NOT NULL,
+                factor_key TEXT NOT NULL,
+                factor_version TEXT NOT NULL,
+                source TEXT NOT NULL,
+                experiment_id TEXT,
+                status TEXT NOT NULL,
+                rank_order INTEGER,
+                metrics_json TEXT NOT NULL DEFAULT '{}',
+                gate_json TEXT NOT NULL DEFAULT '{}',
+                created_at REAL NOT NULL,
+                updated_at REAL NOT NULL,
+                UNIQUE (run_id, factor_key, factor_version),
+                FOREIGN KEY (run_id) REFERENCES factor_factory_runs(id) ON DELETE CASCADE,
+                FOREIGN KEY (experiment_id) REFERENCES factor_experiments(id)
+            )"""
+        )
+        c.execute(
+            """CREATE TABLE IF NOT EXISTS factor_factory_observations (
+                id TEXT PRIMARY KEY,
+                run_id TEXT NOT NULL,
+                observed_at REAL NOT NULL,
+                market_time TEXT NOT NULL,
+                price REAL NOT NULL,
+                signal REAL NOT NULL,
+                position_weight REAL NOT NULL,
+                gross_return REAL NOT NULL,
+                cost REAL NOT NULL,
+                net_return REAL NOT NULL,
+                equity REAL NOT NULL,
+                drawdown REAL NOT NULL,
+                fill_rate REAL NOT NULL,
+                payload_json TEXT NOT NULL DEFAULT '{}',
+                UNIQUE (run_id, market_time),
+                FOREIGN KEY (run_id) REFERENCES factor_factory_runs(id) ON DELETE CASCADE
+            )"""
+        )
+        c.execute(
             """CREATE TABLE IF NOT EXISTS automation_runs (
                 id TEXT PRIMARY KEY,
                 job_name TEXT NOT NULL,
@@ -866,6 +924,18 @@ def _init() -> None:
         c.execute(
             "CREATE INDEX IF NOT EXISTS idx_factor_research_jobs_enabled "
             "ON factor_research_jobs(enabled)"
+        )
+        c.execute(
+            "CREATE INDEX IF NOT EXISTS idx_factor_factory_runs_status "
+            "ON factor_factory_runs(status, updated_at)"
+        )
+        c.execute(
+            "CREATE INDEX IF NOT EXISTS idx_factor_factory_candidates_run "
+            "ON factor_factory_candidates(run_id, rank_order)"
+        )
+        c.execute(
+            "CREATE INDEX IF NOT EXISTS idx_factor_factory_observations_run "
+            "ON factor_factory_observations(run_id, observed_at)"
         )
         c.execute(
             "CREATE INDEX IF NOT EXISTS idx_research_instrument ON research_runs(instrument_id)"
@@ -1585,15 +1655,25 @@ def get_simulation_order(order_id: str) -> dict | None:
 
 
 def list_simulation_orders(
-    *, status: str | None = None, symbol: str | None = None, limit: int = 100
+    *,
+    status: str | None = None,
+    symbol: str | None = None,
+    account_id: str | None = None,
+    limit: int = 100,
 ) -> list[dict]:
-    return list_simulation_orders_page(status=status, symbol=symbol, limit=limit)["items"]
+    return list_simulation_orders_page(
+        status=status,
+        symbol=symbol,
+        account_id=account_id,
+        limit=limit,
+    )["items"]
 
 
 def list_simulation_orders_page(
     *,
     status: str | None = None,
     symbol: str | None = None,
+    account_id: str | None = None,
     limit: int = 100,
     cursor: str | None = None,
 ) -> dict:
@@ -1606,6 +1686,9 @@ def list_simulation_orders_page(
     if symbol:
         clauses.append("symbol=?")
         params.append(symbol)
+    if account_id:
+        clauses.append("account_id=?")
+        params.append(account_id)
     base_clauses = list(clauses)
     base_params = list(params)
     if cursor:
@@ -3247,3 +3330,291 @@ def list_factor_universe_members(
             params,
         ).fetchall()
     return [_factor_universe_member_dict(row) for row in rows]
+
+
+# ---------------------------------------------------------------------------
+# 自动因子工厂运行、候选与模拟观察
+# ---------------------------------------------------------------------------
+def _factor_factory_run_dict(row) -> dict:
+    return {
+        "id": row["id"],
+        "research_plan_id": row["research_plan_id"],
+        "status": row["status"],
+        "config": json.loads(row["config_json"] or "{}"),
+        "result": json.loads(row["result_json"] or "{}"),
+        "selected_factor_key": row["selected_factor_key"],
+        "selected_factor_version": row["selected_factor_version"],
+        "selected_experiment_id": row["selected_experiment_id"],
+        "error": row["error"],
+        "started_at": float(row["started_at"]),
+        "updated_at": float(row["updated_at"]),
+        "observation_started_at": (
+            float(row["observation_started_at"])
+            if row["observation_started_at"] is not None
+            else None
+        ),
+        "observation_ends_at": (
+            float(row["observation_ends_at"]) if row["observation_ends_at"] is not None else None
+        ),
+    }
+
+
+def create_factor_factory_run(
+    run_id: str,
+    *,
+    research_plan_id: str,
+    status: str,
+    config: dict,
+) -> dict:
+    now = _now()
+    with _lock, _conn() as c:
+        c.execute(
+            """INSERT INTO factor_factory_runs
+               (id, research_plan_id, status, config_json, result_json,
+                started_at, updated_at)
+               VALUES (?, ?, ?, ?, '{}', ?, ?)""",
+            (
+                run_id,
+                research_plan_id,
+                status,
+                json.dumps(config, ensure_ascii=False, default=str),
+                now,
+                now,
+            ),
+        )
+        row = c.execute("SELECT * FROM factor_factory_runs WHERE id=?", (run_id,)).fetchone()
+    return _factor_factory_run_dict(row)
+
+
+def update_factor_factory_run(
+    run_id: str,
+    *,
+    status: str | None = None,
+    result: dict | None = None,
+    selected_factor_key: str | None = None,
+    selected_factor_version: str | None = None,
+    selected_experiment_id: str | None = None,
+    error: str | None = None,
+    observation_started_at: float | None = None,
+    observation_ends_at: float | None = None,
+) -> dict | None:
+    assignments = ["updated_at=?"]
+    params: list[Any] = [_now()]
+    values = {
+        "status": status,
+        "result_json": (
+            json.dumps(result, ensure_ascii=False, default=str) if result is not None else None
+        ),
+        "selected_factor_key": selected_factor_key,
+        "selected_factor_version": selected_factor_version,
+        "selected_experiment_id": selected_experiment_id,
+        "error": error,
+        "observation_started_at": observation_started_at,
+        "observation_ends_at": observation_ends_at,
+    }
+    for column, value in values.items():
+        if value is not None:
+            assignments.append(f"{column}=?")
+            params.append(value)
+    params.append(run_id)
+    with _lock, _conn() as c:
+        c.execute(
+            f"UPDATE factor_factory_runs SET {', '.join(assignments)} WHERE id=?",
+            params,
+        )
+        row = c.execute("SELECT * FROM factor_factory_runs WHERE id=?", (run_id,)).fetchone()
+    return _factor_factory_run_dict(row) if row else None
+
+
+def get_factor_factory_run(run_id: str) -> dict | None:
+    with _lock, _conn() as c:
+        row = c.execute("SELECT * FROM factor_factory_runs WHERE id=?", (run_id,)).fetchone()
+    return _factor_factory_run_dict(row) if row else None
+
+
+def list_factor_factory_runs(*, status: str | None = None, limit: int = 100) -> list[dict]:
+    sql = "SELECT * FROM factor_factory_runs"
+    params: list[Any] = []
+    if status:
+        sql += " WHERE status=?"
+        params.append(status)
+    sql += " ORDER BY started_at DESC, id DESC LIMIT ?"
+    params.append(limit)
+    with _lock, _conn() as c:
+        rows = c.execute(sql, params).fetchall()
+    return [_factor_factory_run_dict(row) for row in rows]
+
+
+def _factor_factory_candidate_dict(row) -> dict:
+    return {
+        "id": row["id"],
+        "run_id": row["run_id"],
+        "factor_key": row["factor_key"],
+        "factor_version": row["factor_version"],
+        "source": row["source"],
+        "experiment_id": row["experiment_id"],
+        "status": row["status"],
+        "rank": int(row["rank_order"]) if row["rank_order"] is not None else None,
+        "metrics": json.loads(row["metrics_json"] or "{}"),
+        "gate": json.loads(row["gate_json"] or "{}"),
+        "created_at": float(row["created_at"]),
+        "updated_at": float(row["updated_at"]),
+    }
+
+
+def upsert_factor_factory_candidate(
+    *,
+    run_id: str,
+    factor_key: str,
+    factor_version: str,
+    source: str,
+    status: str,
+    experiment_id: str | None = None,
+    rank: int | None = None,
+    metrics: dict | None = None,
+    gate: dict | None = None,
+) -> dict:
+    now = _now()
+    candidate_id = uuid.uuid4().hex
+    metrics_json = json.dumps(metrics or {}, ensure_ascii=False, default=str)
+    gate_json = json.dumps(gate or {}, ensure_ascii=False, default=str)
+    with _lock, _conn() as c:
+        existing = c.execute(
+            """SELECT id FROM factor_factory_candidates
+               WHERE run_id=? AND factor_key=? AND factor_version=?""",
+            (run_id, factor_key, factor_version),
+        ).fetchone()
+        if existing:
+            candidate_id = existing["id"]
+            c.execute(
+                """UPDATE factor_factory_candidates
+                   SET source=?, experiment_id=?, status=?, rank_order=?, metrics_json=?,
+                       gate_json=?, updated_at=? WHERE id=?""",
+                (
+                    source,
+                    experiment_id,
+                    status,
+                    rank,
+                    metrics_json,
+                    gate_json,
+                    now,
+                    candidate_id,
+                ),
+            )
+        else:
+            c.execute(
+                """INSERT INTO factor_factory_candidates
+                   (id, run_id, factor_key, factor_version, source, experiment_id,
+                    status, rank_order, metrics_json, gate_json, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    candidate_id,
+                    run_id,
+                    factor_key,
+                    factor_version,
+                    source,
+                    experiment_id,
+                    status,
+                    rank,
+                    metrics_json,
+                    gate_json,
+                    now,
+                    now,
+                ),
+            )
+        row = c.execute(
+            "SELECT * FROM factor_factory_candidates WHERE id=?", (candidate_id,)
+        ).fetchone()
+    return _factor_factory_candidate_dict(row)
+
+
+def list_factor_factory_candidates(run_id: str) -> list[dict]:
+    with _lock, _conn() as c:
+        rows = c.execute(
+            """SELECT * FROM factor_factory_candidates WHERE run_id=?
+               ORDER BY CASE WHEN rank_order IS NULL THEN 1 ELSE 0 END,
+                        rank_order ASC, created_at ASC""",
+            (run_id,),
+        ).fetchall()
+    return [_factor_factory_candidate_dict(row) for row in rows]
+
+
+def _factor_factory_observation_dict(row) -> dict:
+    return {
+        "id": row["id"],
+        "run_id": row["run_id"],
+        "observed_at": float(row["observed_at"]),
+        "market_time": row["market_time"],
+        "price": float(row["price"]),
+        "signal": float(row["signal"]),
+        "position_weight": float(row["position_weight"]),
+        "gross_return": float(row["gross_return"]),
+        "cost": float(row["cost"]),
+        "net_return": float(row["net_return"]),
+        "equity": float(row["equity"]),
+        "drawdown": float(row["drawdown"]),
+        "fill_rate": float(row["fill_rate"]),
+        "payload": json.loads(row["payload_json"] or "{}"),
+    }
+
+
+def append_factor_factory_observation(
+    run_id: str,
+    *,
+    market_time: str,
+    price: float,
+    signal: float,
+    position_weight: float,
+    gross_return: float,
+    cost: float,
+    net_return: float,
+    equity: float,
+    drawdown: float,
+    fill_rate: float,
+    payload: dict,
+) -> tuple[dict, bool]:
+    observation_id = uuid.uuid4().hex
+    now = _now()
+    with _lock, _conn() as c:
+        existing = c.execute(
+            "SELECT * FROM factor_factory_observations WHERE run_id=? AND market_time=?",
+            (run_id, market_time),
+        ).fetchone()
+        if existing:
+            return _factor_factory_observation_dict(existing), False
+        c.execute(
+            """INSERT INTO factor_factory_observations
+               (id, run_id, observed_at, market_time, price, signal, position_weight,
+                gross_return, cost, net_return, equity, drawdown, fill_rate, payload_json)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                observation_id,
+                run_id,
+                now,
+                market_time,
+                price,
+                signal,
+                position_weight,
+                gross_return,
+                cost,
+                net_return,
+                equity,
+                drawdown,
+                fill_rate,
+                json.dumps(payload, ensure_ascii=False, default=str),
+            ),
+        )
+        row = c.execute(
+            "SELECT * FROM factor_factory_observations WHERE id=?", (observation_id,)
+        ).fetchone()
+    return _factor_factory_observation_dict(row), True
+
+
+def list_factor_factory_observations(run_id: str, *, limit: int = 10_000) -> list[dict]:
+    with _lock, _conn() as c:
+        rows = c.execute(
+            """SELECT * FROM factor_factory_observations WHERE run_id=?
+               ORDER BY observed_at ASC, id ASC LIMIT ?""",
+            (run_id, limit),
+        ).fetchall()
+    return [_factor_factory_observation_dict(row) for row in rows]

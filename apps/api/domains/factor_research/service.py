@@ -381,6 +381,24 @@ def transition_factor_lifecycle(
                 raise ValueError("trading_validated 至少需要一个完整模拟再平衡周期")
             if int(evidence.get("execution_record_count", 0)) < 1:
                 raise ValueError("trading_validated 必须保存逐笔模拟执行审计")
+            if evidence.get("observation_period_completed") is not True:
+                raise ValueError("trading_validated 必须完成模拟观察期")
+            observed_days = evidence.get("observation_days_completed")
+            if (
+                isinstance(observed_days, bool)
+                or not isinstance(observed_days, int | float)
+                or float(observed_days) < 7
+            ):
+                raise ValueError("trading_validated 必须完成至少 7 个真实自然日的模拟观察")
+            try:
+                observed_from = datetime.fromisoformat(str(evidence["observation_started_at"]))
+                observed_to = datetime.fromisoformat(str(evidence["observation_ended_at"]))
+            except (KeyError, TypeError, ValueError) as exc:
+                raise ValueError("trading_validated 必须保存模拟观察起止时间") from exc
+            if observed_from.tzinfo is None or observed_to.tzinfo is None:
+                raise ValueError("模拟观察起止时间必须包含时区")
+            if observed_to - observed_from < timedelta(days=7):
+                raise ValueError("trading_validated 模拟观察起止时间不足 7 天")
         elif req.state == "degraded":
             if req.rule not in {
                 "monitoring_gate_failed",

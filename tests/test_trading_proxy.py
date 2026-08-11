@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import unittest
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi.testclient import TestClient
@@ -76,7 +77,13 @@ class ConnectionError_(Exception):
 def build_client(
     settings: TradingProxySettings, responses: dict
 ) -> tuple[TestClient, RecordingTransport]:
-    transport = RecordingTransport(responses)
+    configured_responses = dict(responses)
+    if settings.environment == "demo" and ("POST", "/api/orders") in configured_responses:
+        configured_responses.setdefault(
+            ("GET", "/api/preflight?symbols=BTC-USDT-SWAP"),
+            RunnerResponse(200, demo_preflight("BTC-USDT-SWAP")),
+        )
+    transport = RecordingTransport(configured_responses)
     service = TradingService(settings, RunnerClient(settings, transport))
     set_service(service)
     return TestClient(app), transport
@@ -240,9 +247,79 @@ class TradingProxyContractTests(unittest.TestCase):
         self.assertEqual(response.json()["error_code"], errors.TRADING_ORDER_TYPE_NOT_ALLOWED)
         self.assertEqual(transport.calls, [])
 
-    def test_symbol_outside_first_phase_is_refused(self) -> None:
-        client, transport = build_client(make_settings(), {})
+    def test_inactive_demo_symbol_is_refused_by_dynamic_preflight(self) -> None:
+        path = "/api/preflight?symbols=ETH-USDT-SWAP"
+        client, transport = build_client(
+            make_settings(),
+            {("GET", path): RunnerResponse(200, demo_preflight("ETH-USDT-SWAP", active=False))},
+        )
         response = client.post("/trading/orders", json=valid_order() | {"symbol": "ETH-USDT-SWAP"})
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.json()["error_code"], errors.TRADING_INSTRUMENT_NOT_ALLOWED)
+        self.assertEqual(len(transport.calls), 1)
+
+    def test_active_demo_nvda_contract_is_allowed(self) -> None:
+        symbol = "NVDA-USDT-SWAP"
+        path = f"/api/preflight?symbols={symbol}"
+        client, transport = build_client(
+            make_settings(),
+            {
+                ("GET", path): RunnerResponse(200, demo_preflight(symbol)),
+                ("POST", "/api/orders"): RunnerResponse(
+                    200,
+                    {"order_id": "nvda-demo-order", "status": "PENDING_SUBMIT"},
+                ),
+            },
+        )
+
+        response = client.post("/trading/orders", json=valid_order() | {"symbol": symbol})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["data"]["order_id"], "nvda-demo-order")
+        self.assertEqual([call["method"] for call in transport.calls], ["GET", "POST"])
+
+    def test_demo_rejects_spot_or_non_usdt_contracts(self) -> None:
+        cases = [
+            ("BTC-USDT", "spot", "USDT"),
+            ("BTC-USD-SWAP", "swap", "USD"),
+        ]
+        for symbol, product_type, settle_currency in cases:
+            with self.subTest(symbol=symbol):
+                path = f"/api/preflight?symbols={symbol}"
+                client, transport = build_client(
+                    make_settings(),
+                    {
+                        ("GET", path): RunnerResponse(
+                            200,
+                            demo_preflight(
+                                symbol,
+                                product_type=product_type,
+                                settle_currency=settle_currency,
+                            ),
+                        )
+                    },
+                )
+
+                response = client.post(
+                    "/trading/orders",
+                    json=valid_order() | {"symbol": symbol},
+                )
+
+                self.assertEqual(response.status_code, 422)
+                self.assertEqual(
+                    response.json()["error_code"],
+                    errors.TRADING_INSTRUMENT_NOT_ALLOWED,
+                )
+                self.assertEqual(len(transport.calls), 1)
+
+    def test_live_environment_keeps_static_btc_allowlist(self) -> None:
+        client, transport = build_client(make_settings("live", live_approved=True), {})
+
+        response = client.post(
+            "/trading/orders",
+            json=valid_order() | {"symbol": "NVDA-USDT-SWAP"},
+        )
+
         self.assertEqual(response.status_code, 422)
         self.assertEqual(response.json()["error_code"], errors.TRADING_INSTRUMENT_NOT_ALLOWED)
         self.assertEqual(transport.calls, [])
@@ -273,8 +350,8 @@ class TradingProxyContractTests(unittest.TestCase):
         self.assertEqual(body["status"], "ok")
         self.assertTrue(body["data"]["idempotent_replay"])
 
-        self.assertEqual(len(transport.calls), 1)
-        sent = transport.calls[0]
+        self.assertEqual(len(transport.calls), 2)
+        sent = transport.calls[-1]
         self.assertEqual(sent["method"], "POST")
         self.assertIn("/api/orders", sent["url"])
         # 服务令牌走 Header，不出现在 body
@@ -302,6 +379,60 @@ class TradingProxyContractTests(unittest.TestCase):
         self.assertEqual(body["status"], "stale")
         self.assertTrue(body["freshness"]["expired"])
         self.assertGreater(body["freshness"]["age_seconds"], 60)
+
+    def test_preflight_proxies_only_the_server_allowed_symbols(self) -> None:
+        payload = {
+            "environment": "demo",
+            "observed_at": datetime.now(UTC).isoformat(),
+            "account": {
+                "account_level": "2",
+                "position_mode": "net_mode",
+                "permissions": ["read_only", "trade"],
+            },
+            "ip_whitelist": {
+                "field_exposed": False,
+                "status": "manual_confirmation_required",
+            },
+            "clock": {"absolute_drift_ms": 398, "within_tolerance": True},
+            "instruments": [{"symbol": "BTC-USDT-SWAP", "active": True}],
+        }
+        path = "/api/preflight?symbols=BTC-USDT-SWAP"
+        client, transport = build_client(
+            make_settings(), {("GET", path): RunnerResponse(200, payload)}
+        )
+
+        response = client.get("/trading/preflight")
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["status"], "ok")
+        self.assertEqual(body["data"]["account"]["position_mode"], "net_mode")
+        self.assertEqual(body["data"]["instruments"][0]["symbol"], "BTC-USDT-SWAP")
+        self.assertEqual(transport.calls[0]["url"].split("8103", 1)[-1], path)
+
+    def test_preflight_accepts_a_requested_demo_contract(self) -> None:
+        symbol = "NVDA-USDT-SWAP"
+        path = f"/api/preflight?symbols={symbol}"
+        client, transport = build_client(
+            make_settings(),
+            {("GET", path): RunnerResponse(200, demo_preflight(symbol))},
+        )
+
+        response = client.get(f"/trading/preflight?symbols={symbol}")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["data"]["instruments"][0]["symbol"], symbol)
+        self.assertEqual(transport.calls[0]["url"].split("8103", 1)[-1], path)
+
+    def test_shadow_preflight_is_rejected_before_calling_runner(self) -> None:
+        client, transport = build_client(make_settings("shadow"), {})
+
+        response = client.get("/trading/preflight")
+
+        self.assertEqual(response.status_code, 403)
+        body = response.json()
+        self.assertEqual(body["error_code"], errors.TRADING_ENVIRONMENT_FORBIDDEN)
+        self.assertIn("demo", body["hint"])
+        self.assertEqual(transport.calls, [])
 
     def test_risk_mode_is_proxied_with_operator_and_reason(self) -> None:
         client, transport = build_client(
@@ -371,6 +502,29 @@ def valid_order() -> dict:
         "quantity": 0.01,
         "price": 50000.0,
         "leverage": 1,
+    }
+
+
+def demo_preflight(
+    symbol: str,
+    *,
+    active: bool = True,
+    product_type: str = "swap",
+    settle_currency: str = "USDT",
+) -> dict[str, Any]:
+    return {
+        "environment": "demo",
+        "observed_at": datetime.now(UTC).isoformat(),
+        "account": {"permissions": ["read_only", "trade"]},
+        "clock": {"within_tolerance": True},
+        "instruments": [
+            {
+                "symbol": symbol,
+                "active": active,
+                "product_type": product_type,
+                "settle_currency": settle_currency,
+            }
+        ],
     }
 
 

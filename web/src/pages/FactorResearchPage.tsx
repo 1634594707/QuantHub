@@ -49,6 +49,7 @@ import { buildFactorResearchExport, type FactorResearchExportFormat } from '../l
 import { CrossSectionResearchPanel } from './CrossSectionResearchPanel'
 import { FactorConfirmationPanel } from './FactorConfirmationPanel'
 import { FactorEvidenceWorkbench } from './FactorEvidenceWorkbench'
+import { FactorFactoryWorkflow } from './FactorFactoryWorkflow'
 import s from './FactorResearchPage.module.css'
 
 const MARKETS = [
@@ -82,12 +83,28 @@ const EXPORT_FORMATS = [
   { value: 'md', label: 'Markdown 报告' },
 ]
 
-const VIEW_OPTIONS = [
+const TASK_VIEW_OPTIONS = [
+  { value: 'factory', label: '因子工厂' },
   { value: 'current', label: '当前研究' },
+]
+
+const ASSET_VIEW_OPTIONS = [
   { value: 'cross_section', label: '横截面' },
   { value: 'governance', label: '研究治理' },
   { value: 'history', label: '历史记录' },
 ]
+
+type FactorResearchView = 'factory' | 'current' | 'cross_section' | 'governance' | 'history'
+
+const LAST_FACTOR_VIEW_KEY = 'quanthub.factor-research.last-view.v1'
+const FACTOR_VIEWS = new Set<FactorResearchView>(['factory', 'current', 'cross_section', 'governance', 'history'])
+
+function initialFactorView(): FactorResearchView {
+  if (new URLSearchParams(window.location.search).has('run_id')) return 'current'
+  if (window.location.pathname !== '/factor-research') return 'current'
+  const stored = localStorage.getItem(LAST_FACTOR_VIEW_KEY) as FactorResearchView | null
+  return stored && FACTOR_VIEWS.has(stored) ? stored : 'factory'
+}
 
 const RUN_STATUS_LABEL: Record<string, string> = {
   queued: '排队中',
@@ -477,7 +494,7 @@ export default function FactorResearchPage() {
   const [aiReview, setAiReview] = useState<FactorAiReviewResp | null>(null)
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState('')
-  const [viewMode, setViewMode] = useState<'current' | 'cross_section' | 'governance' | 'history'>('current')
+  const [viewMode, setViewMode] = useState<FactorResearchView>(initialFactorView)
   const [historyRuns, setHistoryRuns] = useState<ResearchRun[]>([])
   const [historyTotal, setHistoryTotal] = useState(0)
   const [historyCursor, setHistoryCursor] = useState<string | null>(null)
@@ -517,6 +534,12 @@ export default function FactorResearchPage() {
   useEffect(() => {
     if (initialRunId) void restoreRun(initialRunId)
   }, [initialRunId])
+
+  useEffect(() => {
+    if (!initialRunId && viewMode === 'history') void loadHistory(true)
+    // Only the restored initial view should trigger this bootstrap load.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     const markAbandoned = () => {
@@ -702,12 +725,15 @@ export default function FactorResearchPage() {
   }
 
   function changeView(value: string) {
-    const next = value === 'history'
+    const next: FactorResearchView = value === 'factory'
+      ? 'factory'
+      : value === 'history'
       ? 'history'
       : value === 'cross_section'
         ? 'cross_section'
         : value === 'governance' ? 'governance' : 'current'
     setViewMode(next)
+    localStorage.setItem(LAST_FACTOR_VIEW_KEY, next)
     if (next === 'history' && !historyLoaded) void loadHistory(true)
   }
 
@@ -740,6 +766,7 @@ export default function FactorResearchPage() {
       setComparisonError('')
       if (response.run.status === 'partial' && response.run.error) setAiError(response.run.error)
       setViewMode('current')
+      localStorage.setItem(LAST_FACTOR_VIEW_KEY, 'current')
       replaceRunId(runId)
     } catch (reason) {
       setHistoryError(reason instanceof Error ? reason.message : '恢复因子研究记录失败')
@@ -888,9 +915,9 @@ export default function FactorResearchPage() {
   return (
     <div className={s.page}>
       <WorkspaceHeader
-        context="研究 / 因子验证"
-        title="因子有效性与回撤验证"
-        description="训练期锁定 · 样本外检验 · 成本后回测"
+        context={viewMode === 'factory' ? '研究 / 因子工厂' : ['cross_section', 'governance', 'history'].includes(viewMode) ? '研究 / 研究资产' : '研究 / 因子验证'}
+        title={viewMode === 'factory' ? '因子挖掘与模拟验证' : viewMode === 'cross_section' ? '横截面研究' : viewMode === 'governance' ? '因子研究治理' : viewMode === 'history' ? '因子研究历史' : '因子有效性与回撤验证'}
+        description={viewMode === 'factory' ? '候选假设 · 回撤门禁 · 模拟账户 · 因子档案' : ['cross_section', 'governance', 'history'].includes(viewMode) ? '研究资产、状态与历史证据' : '训练期锁定 · 样本外检验 · 成本后回测'}
         metrics={result ? [
           { label: '可用因子', value: result.summary.usable_factors },
           { label: '已检验因子', value: result.factors.length },
@@ -899,7 +926,22 @@ export default function FactorResearchPage() {
       />
 
       <div className={s.viewBar}>
-        <SegmentedControl value={viewMode} onChange={changeView} options={VIEW_OPTIONS} size="sm" />
+        <div className={s.viewNavigation}>
+          <SegmentedControl value={viewMode} onChange={changeView} options={TASK_VIEW_OPTIONS} size="sm" />
+          <label className={s.assetSelect}>
+            <span>研究资产</span>
+            <select
+              aria-label="研究资产"
+              value={ASSET_VIEW_OPTIONS.some((option) => option.value === viewMode) ? viewMode : ''}
+              onChange={(event) => {
+                if (event.target.value) changeView(event.target.value)
+              }}
+            >
+              <option value="">选择视图</option>
+              {ASSET_VIEW_OPTIONS.map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}
+            </select>
+          </label>
+        </div>
         {viewMode === 'current' && result?.saved && result.run_id ? (
           <div className={s.savedState} title={result.run_id}>
             <Database size={15} />
@@ -938,7 +980,9 @@ export default function FactorResearchPage() {
         />
       )}
 
-      {viewMode === 'cross_section' ? (
+      {viewMode === 'factory' ? (
+        <FactorFactoryWorkflow />
+      ) : viewMode === 'cross_section' ? (
         <CrossSectionResearchPanel />
       ) : viewMode === 'governance' ? (
         <FactorConfirmationPanel />

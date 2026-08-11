@@ -107,3 +107,13 @@
 .md {
   height: 36px;
 }
+
+@media (max-width: 767px) {
+  .input,
+  .wrapper,
+  .sm,
+  .md {
+    height: 44px;
+    min-height: 44px;
+  }
+}

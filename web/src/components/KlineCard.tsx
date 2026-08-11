@@ -6,7 +6,7 @@ import { useApi } from '../api/useApi'
 import s from './KlineCard.module.css'
 
 // UI 周期 → 后端 interval（A股在线源支持 5m/15m/1h/daily/weekly）
-const ALL_PERIODS = ['5m', '15m', '1H', '1D', '1W'] as const
+const ALL_PERIODS = ['5m', '15m', '1H', '4H', '1D', '1W'] as const
 type Period = (typeof ALL_PERIODS)[number]
 const PERIODS_BY_MARKET: Record<string, readonly Period[]> = {
   a_shares: ['1D', '1W'],
@@ -21,6 +21,7 @@ const INTERVAL_MAP: Record<Period, string> = {
   '5m': '5m',
   '15m': '15m',
   '1H': '1h',
+  '4H': '4h',
   '1D': '1d',
   '1W': '1w',
 }
@@ -88,6 +89,8 @@ interface Props {
   market?: string
   onSymbolChange?: (s: string) => void
   onMarketChange?: (m: 'a_shares' | 'crypto' | 'us_stocks') => void
+  defaultPeriod?: Period
+  showInstrumentControls?: boolean
 }
 
 export default function KlineCard({
@@ -95,8 +98,10 @@ export default function KlineCard({
   market = 'a_shares',
   onSymbolChange,
   onMarketChange,
+  defaultPeriod = '1D',
+  showInstrumentControls = true,
 }: Props) {
-  const [period, setPeriod] = useState<Period>('1D')
+  const [period, setPeriod] = useState<Period>(defaultPeriod)
   const [zoom, setZoom] = useState(2) // 0..4, 越大可见 K 线越少
   const [windowOffset, setWindowOffset] = useState(0)
   const [isDragging, setIsDragging] = useState(false)
@@ -128,8 +133,8 @@ export default function KlineCard({
 
   const isReal = !!data?.ok && data.candles.length > 0 && data.source !== 'empty'
   const blockedByQuality = data?.quality?.status === 'invalid' && !data.quality.usable
-  // 如实分类数据来源：腾讯/akshare 才算实时；local_parquet 等离线源标为离线，避免伪装成实时
-  const isLive = data?.source === 'tencent' || data?.source === 'akshare'
+  // 如实分类数据来源：腾讯、AkShare、OKX 公共接口算实时；本地快照标为离线。
+  const isLive = data?.source === 'tencent' || data?.source === 'akshare' || data?.source === 'okx'
   const source: 'live' | 'offline' | 'empty' | 'invalid' = blockedByQuality
     ? 'invalid'
     : isLive
@@ -149,6 +154,12 @@ export default function KlineCard({
   useEffect(() => {
     if (!wrapRef.current) return
     const el = wrapRef.current
+    const updateSize = () => setSize({ w: Math.max(320, Math.floor(el.clientWidth || 780)) })
+    if (typeof ResizeObserver === 'undefined') {
+      updateSize()
+      window.addEventListener('resize', updateSize)
+      return () => window.removeEventListener('resize', updateSize)
+    }
     const ro = new ResizeObserver((entries) => {
       for (const entry of entries) {
         const cr = entry.contentRect
@@ -156,7 +167,7 @@ export default function KlineCard({
       }
     })
     ro.observe(el)
-    setSize({ w: Math.max(320, Math.floor(el.clientWidth)) })
+    updateSize()
     return () => ro.disconnect()
   }, [])
 
@@ -383,26 +394,28 @@ export default function KlineCard({
           {loading && <span className="src-pill loading">加载中…</span>}
         </div>
         <div className="kline-controls">
-          <input
-            className="kline-symbol-input"
-            value={inputSym}
-            onChange={(e) => setInputSym(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') onSymbolChange?.(inputSym.trim())
-            }}
-            placeholder="输入代码，回车切换"
-            aria-label="股票代码"
-          />
-          <select
-            className="kline-market-select"
-            value={market}
-            onChange={(e) => onMarketChange?.(e.target.value as 'a_shares' | 'crypto' | 'us_stocks')}
-            aria-label="市场"
-          >
-            <option value="a_shares">A股</option>
-            <option value="crypto">加密</option>
-            <option value="us_stocks">美股</option>
-          </select>
+          {showInstrumentControls && <>
+            <input
+              className="kline-symbol-input"
+              value={inputSym}
+              onChange={(e) => setInputSym(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') onSymbolChange?.(inputSym.trim())
+              }}
+              placeholder="输入代码，回车切换"
+              aria-label="股票代码"
+            />
+            <select
+              className="kline-market-select"
+              value={market}
+              onChange={(e) => onMarketChange?.(e.target.value as 'a_shares' | 'crypto' | 'us_stocks')}
+              aria-label="市场"
+            >
+              <option value="a_shares">A股</option>
+              <option value="crypto">OKX 合约</option>
+              <option value="us_stocks">美股</option>
+            </select>
+          </>}
           <div className="zoom-btns" title="滚轮也可缩放">
             <button className="zoom-btn" onClick={() => setZoom((z) => Math.max(0, z - 1))} aria-label="缩小" title="缩小">
               −

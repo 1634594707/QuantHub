@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+from datetime import UTC, datetime
 
 import pandas as pd
 import requests
@@ -93,9 +94,11 @@ def latest_close(symbol: str, market: str, interval: str = "1h") -> float | None
         return None
 
 
-def tencent_quote_detail(symbol: str, market: str) -> tuple[str | None, float | None, float | None]:
+def tencent_quote_detail(
+    symbol: str, market: str
+) -> tuple[str | None, float | None, float | None, str | None]:
     if _market_fetch_disabled():
-        return (None, None, None)
+        return (None, None, None, "行情获取已由 QUANTHUB_DISABLE_MARKET_FETCH 禁用")
     try:
         code = _to_tencent_code(symbol, market)
         response = requests.get(
@@ -106,31 +109,33 @@ def tencent_quote_detail(symbol: str, market: str) -> tuple[str | None, float | 
         response.raise_for_status()
         match = re.search(r'="([^"]+)"', response.content.decode("gbk", errors="replace"))
         if not match:
-            return (None, None, None)
+            return (None, None, None, "腾讯报价响应缺少有效载荷")
         parts = match.group(1).split("~")
         if len(parts) < 5:
-            return (None, None, None)
+            return (None, None, None, "腾讯报价响应字段不完整")
         return (
             parts[1].strip() or None,
             float(parts[3]) if parts[3] else None,
             float(parts[4]) if parts[4] else None,
+            None,
         )
-    except Exception:  # noqa: BLE001 - quote fallback must tolerate provider-specific errors
+    except Exception as exc:  # noqa: BLE001 - quote fallback must tolerate provider-specific errors
         logging.getLogger(__name__).exception("腾讯报价失败 %s/%s", market, symbol)
-        return (None, None, None)
+        return (None, None, None, f"腾讯报价失败: {exc}")
 
 
 def resolve_security_name(symbol: str, market: str, supplied: str = "") -> str:
     if supplied.strip():
         return supplied.strip()
     if market in {"a_shares", "us_stocks"}:
-        name, _, _ = tencent_quote_detail(symbol, market)
+        name, *_ = tencent_quote_detail(symbol, market)
         return name or ""
     return ""
 
 
 def quote_item(symbol: str, market: str, name: str = "") -> dict:
     requested_name = name.strip()
+    observed_at = datetime.now(UTC).isoformat()
     if _market_fetch_disabled():
         return {
             "sym": symbol,
@@ -139,9 +144,17 @@ def quote_item(symbol: str, market: str, name: str = "") -> dict:
             "price": None,
             "chgPct": None,
             "available": False,
+            "source": "disabled",
+            "observed_at": observed_at,
+            "freshness": "unavailable",
+            "status": "unavailable",
+            "error": "行情获取已由 QUANTHUB_DISABLE_MARKET_FETCH 禁用",
         }
+    provider_error: str | None = None
     if market in {"a_shares", "us_stocks"}:
-        resolved, current, previous = tencent_quote_detail(symbol, market)
+        detail = tencent_quote_detail(symbol, market)
+        resolved, current, previous = detail[:3]
+        provider_error = detail[3] if len(detail) > 3 else None
         if current is not None:
             change = ((current - previous) / previous * 100) if previous else 0.0
             return {
@@ -151,11 +164,20 @@ def quote_item(symbol: str, market: str, name: str = "") -> dict:
                 "price": round(current, 2),
                 "chgPct": round(change, 2),
                 "available": True,
+                "source": "tencent",
+                "observed_at": observed_at,
+                "freshness": "live",
+                "status": "available",
+                "error": None,
             }
     try:
-        frame = get_data_source(market).get_kline(symbol, "1d", limit=10)
-    except Exception:  # noqa: BLE001 - quote fallback must tolerate provider-specific errors
+        data_source = get_data_source(market)
+        frame = data_source.get_kline(symbol, "1d", limit=10)
+        fallback_source = type(data_source).__name__
+    except Exception as exc:  # noqa: BLE001 - quote fallback must tolerate provider-specific errors
         frame = None
+        fallback_source = "core.data_feed"
+        provider_error = provider_error or f"行情源失败: {exc}"
     if frame is None or frame.empty or "close" not in frame or pd.isna(frame["close"].iloc[-1]):
         return {
             "sym": symbol,
@@ -164,13 +186,18 @@ def quote_item(symbol: str, market: str, name: str = "") -> dict:
             "price": None,
             "chgPct": None,
             "available": False,
+            "source": fallback_source,
+            "observed_at": observed_at,
+            "freshness": "unavailable",
+            "status": "unavailable",
+            "error": provider_error or "行情源未返回有效收盘价",
         }
     closes = frame["close"].dropna().tolist()
     price = float(closes[-1])
     if len(closes) >= 2:
         previous = float(closes[-2])
     else:
-        _, _, previous = tencent_quote_detail(symbol, market)
+        previous = tencent_quote_detail(symbol, market)[2]
     change = ((price - previous) / previous * 100) if previous else 0.0
     return {
         "sym": symbol,
@@ -179,6 +206,11 @@ def quote_item(symbol: str, market: str, name: str = "") -> dict:
         "price": round(price, 2),
         "chgPct": round(change, 2),
         "available": True,
+        "source": fallback_source,
+        "observed_at": observed_at,
+        "freshness": "daily_close",
+        "status": "available",
+        "error": None,
     }
 
 

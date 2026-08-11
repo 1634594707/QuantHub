@@ -39,6 +39,26 @@ class DemoAdapter:
         self.observed_at = datetime.now(UTC)
         self.realized_pnl = 0.0
         self.peak_equity = 1000000.0
+        self.include_orders_in_snapshot = True
+
+    def preflight(self, symbols: list[str]) -> dict:
+        return {
+            "environment": "demo",
+            "observed_at": datetime.now(UTC).isoformat(),
+            "account": {
+                "account_level": "2",
+                "position_mode": "net_mode",
+                "permissions": ["read_only", "trade"],
+            },
+            "ip_whitelist": {"field_exposed": False, "status": "manual_confirmation_required"},
+            "clock": {
+                "server_time_available": True,
+                "absolute_drift_ms": 100,
+                "within_tolerance": True,
+                "tolerance_ms": 5000,
+            },
+            "instruments": [{"symbol": symbol, "active": True} for symbol in symbols],
+        }
 
     def instrument_rules(self, symbol: str) -> InstrumentRules:
         return InstrumentRules(0.01, 0.01, 0.1, "USDT", 5)
@@ -62,7 +82,9 @@ class DemoAdapter:
             raise RuntimeError("token=must-not-leak rejected")
         return external
 
-    def fetch_order_by_client_id(self, client_order_id: str) -> ExternalOrder | None:
+    def fetch_order_by_client_id(
+        self, client_order_id: str, symbol: str | None = None
+    ) -> ExternalOrder | None:
         return self.orders.get(client_order_id)
 
     def cancel_order(self, external_order_id: str) -> ExternalOrder:
@@ -81,7 +103,7 @@ class DemoAdapter:
 
     def account_snapshot(self, account_id: str) -> AccountSnapshot:
         return AccountSnapshot(
-            orders=tuple(self.orders.values()),
+            orders=tuple(self.orders.values()) if self.include_orders_in_snapshot else (),
             fills=self.fills,
             balances=self.balances,
             positions=self.positions,
@@ -297,6 +319,11 @@ class RunnerProductTests(unittest.TestCase):
         account = self.engine.account("demo-account")
         self.assertEqual(account["account_id"], "demo-account")
         self.assertEqual(account["environment"], "demo")
+        dashboard = self.engine.dashboard()
+        summary = dashboard["account_summary"]["accounts"][0]
+        self.assertEqual(summary["account_id"], "demo-account")
+        self.assertEqual(summary["equity"], 1000000.0)
+        self.assertIn("unrealized_pnl", summary)
 
         self.engine.set_risk_mode("global", "cancel_only", "reconciliation drill", "operator-a")
         with self.assertRaisesRegex(ValueError, "zero unresolved"):
@@ -319,6 +346,42 @@ class RunnerProductTests(unittest.TestCase):
             "okx-momentum-1h", "1.0.0", {"order_id": order["order_id"], "replay": replay}
         )
         self.assertTrue(runtime["run_id"].startswith("runner-result-"))
+
+    def test_reconciliation_recovers_owned_final_order_missing_from_account_snapshot(self) -> None:
+        order = self.engine.submit(self.request("reconcile-final-order"))
+        cancelled = self.engine.cancel(order["order_id"])
+        self.assertEqual(cancelled["status"], "CANCELLED")
+        self.adapter.include_orders_in_snapshot = False
+
+        reconciliation = self.engine.reconcile("demo-account")
+
+        self.assertTrue(reconciliation["passed"])
+        self.assertEqual(reconciliation["difference_ids"], [])
+
+    def test_reconciliation_ignores_unowned_external_history(self) -> None:
+        self.adapter.orders["manual-history"] = ExternalOrder(
+            external_order_id="okx-manual-history",
+            client_order_id="",
+            status="closed",
+            filled_quantity=1.0,
+            average_price=60000.0,
+        )
+        self.adapter.fills = (
+            ExternalFill(
+                external_fill_id="manual-fill",
+                external_order_id="okx-manual-history",
+                quantity=1.0,
+                price=60000.0,
+                fee=1.0,
+                fee_currency="USDT",
+                filled_at=datetime.now(UTC),
+            ),
+        )
+
+        reconciliation = self.engine.reconcile("account-without-runner-orders")
+
+        self.assertTrue(reconciliation["passed"])
+        self.assertEqual(reconciliation["difference_ids"], [])
 
     def test_external_account_state_is_traceable_and_refresh_is_idempotent(self) -> None:
         order = self.engine.submit(self.request("traceable-refresh"))
@@ -438,6 +501,9 @@ class RunnerProductTests(unittest.TestCase):
             self.assertFalse(health["formula_editing"])
             self.assertFalse(health["ai_parameter_updates"])
             self.assertEqual(client.get("/api/strategies/okx-momentum-1h/1.0.0").status_code, 200)
+            preflight = client.get("/api/preflight?symbols=BTC-USDT-SWAP").json()
+            self.assertEqual(preflight["environment"], "demo")
+            self.assertEqual(preflight["instruments"][0]["symbol"], "BTC-USDT-SWAP")
 
 
 if __name__ == "__main__":

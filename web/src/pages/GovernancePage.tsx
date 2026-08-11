@@ -9,6 +9,7 @@ import { ConfirmActionButton } from '../components/ui/ConfirmActionButton/Confir
 import { SegmentedControl } from '../components/ui/SegmentedControl/SegmentedControl'
 import { Table, type Column } from '../components/ui/Table/Table'
 import { WorkspaceHeader } from '../components/WorkspaceHeader/WorkspaceHeader'
+import { scrollElementWithinMainContent } from '../lib/scroll'
 import common from './OperationsPages.module.css'
 import s from './GovernancePage.module.css'
 
@@ -168,7 +169,7 @@ export default function GovernancePage() {
     if (!user) return
     setSelectedUserId(user.id)
     setSelectedRoles(user.roles)
-    document.getElementById('edit-member')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    requestAnimationFrame(() => scrollElementWithinMainContent(document.getElementById('edit-member')))
   }
 
   const tokenColumns: Column<ApiTokenRecord>[] = [
@@ -256,7 +257,7 @@ export default function GovernancePage() {
         </div>
         <Button size="sm" variant="primary" onClick={() => {
           setView('members')
-          document.getElementById('add-member')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          requestAnimationFrame(() => scrollElementWithinMainContent(document.getElementById('add-member')))
         }}>添加成员</Button>
       </section>
 

@@ -9,7 +9,10 @@ from .config import RunnerSettings, load_settings
 from .database import initialize
 from .engine import RunnerEngine
 from .okx_adapter import create_okx_adapter_from_env
+from .reconcile_scheduler import get_scheduler
+from .runner_errors import map_exception
 from .schemas import OrderRequest, PackageImport, RiskModeRequest
+from .ws_manager import get_ws_manager
 
 
 def create_app(
@@ -56,6 +59,17 @@ def create_app(
     def dashboard() -> dict:
         return engine.dashboard()
 
+    @product.get("/api/preflight")
+    def preflight(symbols: str = "BTC-USDT-SWAP") -> dict:
+        requested = [symbol.strip() for symbol in symbols.split(",") if symbol.strip()]
+        if not requested:
+            raise HTTPException(status_code=422, detail="at least one symbol is required")
+        return _call(engine.preflight, requested)
+
+    @product.get("/api/funding/{symbol}")
+    def funding_rate(symbol: str) -> dict:
+        return _call(engine.funding_rate, symbol)
+
     @product.get("/api/strategies/{strategy_id}/{version}")
     def strategy(strategy_id: str, version: str) -> dict:
         return _call(engine.strategy, strategy_id, version)
@@ -97,6 +111,40 @@ def create_app(
             str(payload.get("resolution", "")),
         )
 
+    # -- M4-05: four-category scheduled reconciliation ----------------------
+    @product.post("/api/reconciliation/schedule/start")
+    def start_schedule(account_id: str, interval_seconds: float = 30.0) -> dict:
+        scheduler = get_scheduler()
+        scheduler.configure(lambda: engine.reconcile(account_id), account_id, interval_seconds)
+        return scheduler.start()
+
+    @product.post("/api/reconciliation/schedule/stop")
+    def stop_schedule() -> dict:
+        return get_scheduler().stop()
+
+    @product.get("/api/reconciliation/schedule/status")
+    def schedule_status() -> dict:
+        return get_scheduler().status()
+
+    @product.get("/api/reconciliation/runs")
+    def reconciliation_runs(limit: int = 50) -> list:
+        return get_scheduler().list_runs(limit=limit)
+
+    # -- M4-04: private WebSocket push + REST compensation -----------------
+    @product.post("/api/ws/start")
+    def ws_start(environment: str = "demo", heartbeat_interval: float = 15.0) -> dict:
+        return get_ws_manager().start(
+            environment=environment, heartbeat_interval=heartbeat_interval
+        )
+
+    @product.post("/api/ws/stop")
+    def ws_stop() -> dict:
+        return get_ws_manager().stop()
+
+    @product.get("/api/ws/status")
+    def ws_status() -> dict:
+        return get_ws_manager().status()
+
     @product.post("/api/risk/mode")
     def risk_mode(request: RiskModeRequest) -> dict:
         return _call(
@@ -128,9 +176,16 @@ def _call(function, *args):
     try:
         return function(*args)
     except LookupError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        err = map_exception(exc)
+        raise HTTPException(status_code=404, detail=err.to_dict()) from exc
     except (ValueError, RuntimeError) as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        err = map_exception(exc)
+        # Non-recoverable validation/risk errors map to 422; transient faults to 400.
+        status = 422 if not err.recoverable else 400
+        raise HTTPException(status_code=status, detail=err.to_dict()) from exc
+    except Exception as exc:  # noqa: BLE001 - last-resort guard, always desensitized
+        err = map_exception(exc)
+        raise HTTPException(status_code=400, detail=err.to_dict()) from exc
 
 
 app = create_app()

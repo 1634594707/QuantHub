@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { api } from '../api/client'
 import { useApi } from '../api/useApi'
-import type { SignalResp } from '../api/types'
+import type { QuoteResp, SignalResp } from '../api/types'
 import { WorkspaceHeader } from '../components/WorkspaceHeader/WorkspaceHeader'
 
 const DIR_FROM_SIGNAL: Record<string, 'up' | 'down' | 'flat'> = {
@@ -15,290 +15,244 @@ const DIR_LABEL: Record<'up' | 'down' | 'flat', string> = {
   flat: '观望',
 }
 
-function clamp(v: number, lo: number, hi: number) {
-  return Math.max(lo, Math.min(hi, v))
+type PoolItem = { sym: string; name: string; market: string }
+
+function instrumentKey(market: string, symbol: string) {
+  return `${market.trim().toLowerCase()}:${symbol.trim().toUpperCase()}`
 }
 
-// 半弧仪表盘：pct ∈ [0,1]；无后端信号时 pct=null，渲染「暂无数据」灰弧。
-function RadarDonut({ pct, color }: { pct: number | null; color: string }) {
-  const r = 52
-  const cx = 64
-  const cy = 62
-  const len = Math.PI * r // 半圆弧长
-  const has = pct != null
-  const dash = has ? len * clamp(pct, 0, 1) : 0
+function formatTime(value: string | number | null | undefined) {
+  if (value == null) return '时间未知'
+  const date = new Date(typeof value === 'number' ? value * 1000 : value)
+  if (Number.isNaN(date.getTime())) return '时间未知'
+  return date.toLocaleString('zh-CN', { hour12: false })
+}
+
+function clamp(value: number) {
+  return Math.max(0, Math.min(1, value))
+}
+
+function RadarDonut({ pct, color }: { pct: number; color: string }) {
+  const radius = 52
+  const centerX = 64
+  const centerY = 62
+  const length = Math.PI * radius
+  const dash = length * clamp(pct)
   return (
-    <svg width="128" height="74" viewBox="0 0 128 74" role="img" aria-label={has ? `把握度 ${Math.round(pct * 100)}` : '暂无数据'}>
-      <path d={`M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`} fill="none" stroke="var(--border-strong)" strokeWidth="12" strokeLinecap="round" />
-      {has ? (
-        <>
-          <path d={`M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`} fill="none" stroke={color} strokeWidth="12" strokeLinecap="round" strokeDasharray={`${dash} ${len}`} />
-          <text x={cx} y={cy - 6} textAnchor="middle" fontSize="20" fontWeight="800" fontFamily="var(--font-mono)" fill={color}>
-            {Math.round(pct * 100)}
-          </text>
-          <text x={cx} y={cy + 11} textAnchor="middle" fontSize="9" fill="var(--text-3)">
-            把握度
-          </text>
-        </>
-      ) : (
-        <text x={cx} y={cy - 2} textAnchor="middle" fontSize="13" fontWeight="700" fill="var(--text-3)">
-          暂无数据
-        </text>
-      )}
+    <svg width="128" height="74" viewBox="0 0 128 74" role="img" aria-label={`把握度 ${Math.round(pct * 100)}%`}>
+      <path d={`M ${centerX - radius} ${centerY} A ${radius} ${radius} 0 0 1 ${centerX + radius} ${centerY}`} fill="none" stroke="var(--border-strong)" strokeWidth="12" strokeLinecap="round" />
+      <path d={`M ${centerX - radius} ${centerY} A ${radius} ${radius} 0 0 1 ${centerX + radius} ${centerY}`} fill="none" stroke={color} strokeWidth="12" strokeLinecap="round" strokeDasharray={`${dash} ${length}`} />
+      <text x={centerX} y={centerY - 6} textAnchor="middle" fontSize="20" fontWeight="800" fontFamily="var(--font-mono)" fill={color}>
+        {Math.round(pct * 100)}%
+      </text>
+      <text x={centerX} y={centerY + 11} textAnchor="middle" fontSize="9" fill="var(--text-3)">
+        把握度
+      </text>
     </svg>
   )
 }
 
+async function loadQuotes(pool: PoolItem[]): Promise<QuoteResp[]> {
+  return Promise.all(pool.map(async (item) => {
+    try {
+      return await api.quote(item.sym, item.market)
+    } catch (error) {
+      return {
+        sym: item.sym,
+        name: item.name,
+        market: item.market,
+        price: null,
+        chgPct: null,
+        available: false,
+        source: 'api-gateway',
+        observed_at: new Date().toISOString(),
+        freshness: 'unavailable',
+        status: 'unavailable',
+        error: error instanceof Error ? error.message : String(error),
+      }
+    }
+  }))
+}
+
 export default function RadarPage() {
-  // —— 信号来源筛选状态 ——
-  // null = "全部"（隐式全选，对应服务端下发的 source 集合）
-  // Set<string> = 显式选择（可为空 → 所有卡信号区显示「暂无数据」，符合铁律）
-  const [selectedSourcesRaw, setSelectedSourcesRaw] = useState<Set<string> | null>(null)
-
-  // 拉取后端真实信号台账：故意不带 source/market 参数，让前端拿全量再分桶，
-  // 避免每点一个 chip 都触发后端往返。limit=200 覆盖当前 92 条全量。
-  const signals = useApi(
-    () => api.signals(200, undefined, undefined, undefined),
-    [],
-  )
-
-  // 标的池：自选（/market/watchlist） + 综合评估收藏（/research/runs?favorite=true）
-  // 两者合并去重 — 这是用户在导航"研究"区主动关心的标的集合。
-  // 不再硬编码默认池，避免出现"暂无数据"的空卡。
+  const [selectedSource, setSelectedSource] = useState('all')
+  const signals = useApi(() => api.radarSignals(), [])
   const watchlist = useApi(() => api.watchlist(), [])
   const favorites = useApi(() => api.researchRuns(undefined, undefined, 100, true), [])
 
-  // 真实数据里的来源分布（按 count 倒序）。空数据 → 空数组 → 不渲染筛选行。
-  const sourceDistribution = useMemo(() => {
-    const m = new Map<string, number>()
-    for (const s of signals.data?.signals ?? []) {
-      m.set(s.source, (m.get(s.source) ?? 0) + 1)
-    }
-    return Array.from(m.entries()).sort((a, b) => b[1] - a[1])
-  }, [signals.data])
-
-  // 生效选择：raw===null 时等于 sourceDistribution 全集
-  const effectiveSelection = useMemo(() => {
-    if (selectedSourcesRaw === null) return new Set(sourceDistribution.map(([k]) => k))
-    return selectedSourcesRaw
-  }, [selectedSourcesRaw, sourceDistribution])
-
-  // 标的池构造。自选优先（含 name），favorite 研究运行补全（用 symbol 兜底 name）。
-  // key 用 `${market}:${sym}`，避免同名不同市场（如 002842 同时存在 a_shares/hk）的去重错位。
   const pool = useMemo(() => {
-    const m = new Map<string, { sym: string; name: string; market: string }>()
+    const items = new Map<string, PoolItem>()
     const add = (sym: string, name: string | undefined, market: string) => {
       if (!sym) return
-      const normSym = sym.toUpperCase()
-      const normMarket = market || 'a_shares'
-      const key = `${normMarket}:${normSym}`
-      if (m.has(key)) return
-      m.set(key, { sym: normSym, name: name && name.trim() ? name : normSym, market: normMarket })
+      const normalizedSymbol = sym.toUpperCase()
+      const normalizedMarket = market || 'a_shares'
+      const key = instrumentKey(normalizedMarket, normalizedSymbol)
+      if (!items.has(key)) {
+        items.set(key, {
+          sym: normalizedSymbol,
+          name: name?.trim() || normalizedSymbol,
+          market: normalizedMarket,
+        })
+      }
     }
-    for (const w of watchlist.data?.items ?? []) add(w.sym, w.name, w.market ?? 'a_shares')
-    for (const r of favorites.data?.runs ?? []) add(r.symbol, undefined, r.market)
-    return Array.from(m.values())
+    for (const item of watchlist.data?.items ?? []) add(item.sym, item.name, item.market ?? 'a_shares')
+    for (const run of favorites.data?.runs ?? []) add(run.symbol, undefined, run.market)
+    return Array.from(items.values())
   }, [watchlist.data, favorites.data])
 
-  // pool 来源计数（用于 WorkspaceHeader metrics，让用户看到池子组成）
-  const poolStats = useMemo(() => {
-    const items = watchlist.data?.items ?? []
-    const runs = favorites.data?.runs ?? []
-    return { watchCount: items.length, favoriteCount: runs.length, total: pool.length }
-  }, [watchlist.data, favorites.data, pool.length])
+  const poolKey = pool.map((item) => instrumentKey(item.market, item.sym)).join(',')
+  const quotes = useApi(() => loadQuotes(pool), [poolKey], { resetKey: poolKey })
 
-  // poolKey 稳定字符串：pool 变化时驱动 useApi 重取报价
-  const poolKey = pool.map((p) => `${p.sym}:${p.market}`).join(',')
-
-  // 报价：依赖 poolKey，pool 变化时重取；useApi 失败保留旧 data，UI 不闪烁
-  const quotes = useApi(
-    () => Promise.all(pool.map((p) => api.quote(p.sym, p.market))),
-    [poolKey],
-  )
-
-  // 过滤后的 sigMap（symbol → 最新命中信号；过滤后 last-wins 语义同原实现）
-  const sigMap = useMemo(() => {
-    const m: Record<string, SignalResp> = {}
-    for (const s of signals.data?.signals ?? []) {
-      if (!effectiveSelection.has(s.source)) continue
-      m[s.symbol] = s
+  const sourceDistribution = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const signal of signals.data?.signals ?? []) {
+      counts.set(signal.source, (counts.get(signal.source) ?? 0) + 1)
     }
-    return m
-  }, [signals.data, effectiveSelection])
+    return Array.from(counts.entries()).sort((left, right) => right[1] - left[1])
+  }, [signals.data])
 
-  const best = useMemo(() => {
-    const arr = (quotes.data ?? []).filter((q) => q.available && typeof q.chgPct === 'number')
-    if (arr.length === 0) return null
-    return arr.reduce((a, b) => ((b.chgPct ?? 0) > (a.chgPct ?? 0) ? b : a))
-  }, [quotes.data])
+  const signalMap = useMemo(() => {
+    const byInstrument = new Map<string, SignalResp>()
+    for (const signal of signals.data?.signals ?? []) {
+      if (selectedSource !== 'all' && signal.source !== selectedSource) continue
+      const key = instrumentKey(signal.market, signal.symbol)
+      if (!byInstrument.has(key)) byInstrument.set(key, signal)
+    }
+    return byInstrument
+  }, [selectedSource, signals.data])
 
-  const cards = (quotes.data ?? []).map((q) => {
-    const chg = q.chgPct ?? 0
-    const sig = sigMap[q.sym]
-    const hasSignal = Boolean(sig)
-    // 方向：仅取后端信号方向；无信号时统一为 flat（仅用于配色，文本显示「暂无数据」）。
-    const dir: 'up' | 'down' | 'flat' = hasSignal
-      ? (DIR_FROM_SIGNAL[sig!.direction] ?? 'flat')
-      : 'flat'
-    const color = hasSignal
-      ? (dir === 'up' ? 'var(--up)' : dir === 'down' ? 'var(--down)' : 'var(--text-3)')
-      : 'var(--text-3)'
-    // 把握度：仅取后端信号 confidence；无信号则为 null（展示「暂无数据」，绝不本地伪造）。
-    const pct = hasSignal ? clamp(sig!.confidence, 0.04, 0.99) : null
-    return { q, chg, dir, color, pct, sig, hasSignal }
+  const cards = pool.map((item, index) => {
+    const quote = quotes.data?.[index]
+    const signal = signals.error ? undefined : signalMap.get(instrumentKey(item.market, item.sym))
+    const expired = signal?.radar_state === 'expired'
+    const currentSignal = signal && !expired ? signal : undefined
+    const direction = currentSignal ? (DIR_FROM_SIGNAL[currentSignal.direction] ?? 'flat') : 'flat'
+    const color = direction === 'up' ? 'var(--up)' : direction === 'down' ? 'var(--down)' : 'var(--text-3)'
+    return { item, quote, signal, expired, currentSignal, direction, color }
   })
 
-  const sigCount = cards.filter((c) => c.hasSignal).length
-  const totalSignals = signals.data?.signals?.length ?? 0
-  const filterActive = selectedSourcesRaw !== null && effectiveSelection.size > 0
-  const filterLabel = !filterActive
-    ? '全部'
-    : effectiveSelection.size === 0
-      ? '已清空'
-      : `${effectiveSelection.size}/${sourceDistribution.length}`
+  const availableQuotes = cards.filter((card) => card.quote?.available).length
+  const currentSignals = cards.filter((card) => card.currentSignal).length
+  const expiredSignals = cards.filter((card) => card.expired).length
+  const loading = (watchlist.loading || favorites.loading || quotes.loading) && pool.length === 0
+  const quoteSources = Array.from(new Set(cards.map((card) => card.quote?.source).filter(Boolean))).join(' · ')
 
   return (
     <div className="rm-page" data-board="radar">
       <WorkspaceHeader
-        context="研究 · 行情雷达"
+        context="研究 · 信号雷达"
         title="标的信号雷达"
-        description="一屏监控你的自选 + 综合评估收藏标的的实时涨跌与后端信号。报价为真实数据（tencent 源）；后端信号缺失时该字段不出现在卡片中，不伪造占位。信号来源 chip 按真实数据动态生成。"
+        description="核验自选与研究收藏标的的报价、最新有效信号及缺失原因。"
         metrics={[
-          { label: '标的池', value: pool.length },
-          { label: '其中自选', value: poolStats.watchCount },
-          { label: '其中收藏', value: poolStats.favoriteCount },
-          { label: '可用报价', value: cards.filter((c) => c.q.available).length },
-          { label: '后端信号', value: sigCount },
-          { label: '信源筛选', value: filterLabel },
-          { label: '最佳表现', value: best ? `${best.sym} ${best.chgPct?.toFixed(2)}%` : '—' },
+          { label: '监控标的', value: pool.length },
+          { label: '可用报价', value: availableQuotes },
+          { label: '当前信号', value: currentSignals },
+          { label: '过期信号', value: expiredSignals },
         ]}
       />
 
-      <div className="rm-toolbar">
-        <span className="rm-source-tag live">报价源：tencent · 信号源：后端 /signals</span>
-        <span className="rm-note">把握度/方向仅取后端真实信号；无信号的字段自动隐藏，不伪造占位。</span>
+      <div className="rm-toolbar" aria-label="雷达数据来源">
+        <span className="rm-source-tag live">报价源：{quoteSources || '等待响应'}</span>
+        <span className="rm-source-tag">信号快照：{formatTime(signals.data?.generated_at)}</span>
+        {signals.reconnecting ? <span className="rm-source-tag rm-source-pending">信号服务重连中</span> : null}
       </div>
 
-      {/* —— 信号来源筛选 —— 仅在真实数据存在时渲染（无数据不渲染伪造选项） */}
       {sourceDistribution.length > 0 ? (
-        <div className="rm-source-filter" role="group" aria-label="信号来源筛选">
-          <span className="rm-source-filter-label">信号来源</span>
-          <button
-            type="button"
-            className={`rm-source-chip ${!filterActive ? 'active' : ''}`}
-            onClick={() => setSelectedSourcesRaw(null)}
-            aria-pressed={!filterActive}
-            title="重置为全选"
-          >
-            全部 · {totalSignals}
-          </button>
-          {sourceDistribution.map(([src, count]) => {
-            const active = effectiveSelection.has(src)
-            return (
-              <button
-                key={src}
-                type="button"
-                className={`rm-source-chip ${active ? 'active' : ''}`}
-                onClick={() => {
-                  // 基于 effectiveSelection 增量切换，保留用户已点选状态
-                  const next = new Set(effectiveSelection)
-                  if (active) next.delete(src)
-                  else next.add(src)
-                  setSelectedSourcesRaw(next)
-                }}
-                aria-pressed={active}
-                title={active ? `点击取消 ${src}` : `点击启用 ${src}`}
-              >
-                {src} · {count}
-              </button>
-            )
-          })}
+        <label className="rm-source-select">
+          <span>信号来源</span>
+          <select value={selectedSource} onChange={(event) => setSelectedSource(event.target.value)}>
+            <option value="all">全部来源 · {signals.data?.count ?? 0}</option>
+            {sourceDistribution.map(([source, count]) => (
+              <option key={source} value={source}>{source} · {count}</option>
+            ))}
+          </select>
+        </label>
+      ) : null}
+
+      {signals.error ? (
+        <div className="rm-state-banner error" role="alert">
+          <div><strong>信号服务失败</strong><span>{signals.error}</span></div>
+          <button type="button" onClick={signals.refetch}>重试信号</button>
         </div>
       ) : null}
 
-      {quotes.loading && cards.length === 0 && pool.length === 0 ? (
-        <div className="radar-grid">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={`skel-${i}`} className="radar-skeleton" />
-          ))}
+      {loading ? (
+        <div className="radar-grid" aria-label="雷达加载中">
+          {Array.from({ length: 6 }).map((_, index) => <div key={index} className="radar-skeleton" />)}
         </div>
       ) : pool.length === 0 ? (
         <div className="rm-empty">
-          <div className="rm-empty-title">雷达池尚无内容</div>
-          <div className="rm-empty-desc">
-            你可以在「策略中心 → 关注列表」加入想监控的标的，或在「综合评估」对某次研究运行点击收藏（favorite）。
-            一旦加入，这里会自动开始跟踪它的实时报价与后端信号 —— 当前没有任何真实数据可展示。
-          </div>
+          <div className="rm-empty-title">雷达池尚无标的</div>
+          <div className="rm-empty-desc">在总览加入自选，或收藏一次标的研究运行后，雷达会开始核验对应报价与信号。</div>
         </div>
       ) : (
         <div className="radar-grid">
-          {cards.map(({ q, chg, dir, color, pct, sig, hasSignal }) => (
-            <article key={q.sym} className={`radar-card ${hasSignal ? 'has-signal' : 'no-signal'}`}>
-              <div className="radar-card-head">
-                <div>
-                  <div className="radar-sym">{q.sym}</div>
-                  <div className="radar-name">{q.name || '—'}</div>
+          {cards.map(({ item, quote, signal, expired, currentSignal, direction, color }) => {
+            const cardState = !quote?.available
+              ? 'quote-error'
+              : signals.error
+                ? 'signal-error'
+                : expired
+                  ? 'expired-signal'
+                  : currentSignal
+                    ? 'has-signal'
+                    : 'quote-only'
+            return (
+              <article key={instrumentKey(item.market, item.sym)} className={`radar-card ${cardState}`}>
+                <div className="radar-card-head">
+                  <div>
+                    <div className="radar-sym">{item.sym}</div>
+                    <div className="radar-name">{quote?.name || item.name} · {item.market}</div>
+                  </div>
+                  <div className={`radar-chg ${quote?.available ? (Number(quote.chgPct) > 0 ? 'up' : Number(quote.chgPct) < 0 ? 'down' : 'flat') : 'flat'}`}>
+                    {quote?.available && typeof quote.chgPct === 'number' ? `${quote.chgPct > 0 ? '+' : ''}${quote.chgPct.toFixed(2)}%` : '报价不可用'}
+                  </div>
                 </div>
-                <div className={`radar-chg ${dir}`}>
-                  {q.available ? `${chg > 0 ? '+' : ''}${chg.toFixed(2)}%` : '不可用'}
-                </div>
-              </div>
 
-              <div className="radar-donut-wrap">
-                <RadarDonut pct={pct} color={color} />
-              </div>
+                {!quote?.available ? (
+                  <div className="radar-state-detail error">
+                    <strong>报价不可用</strong>
+                    <span>{quote?.source || '行情网关'} · {quote?.error || '未返回失败原因'}</span>
+                    <button type="button" onClick={quotes.refetch}>重试报价</button>
+                  </div>
+                ) : currentSignal ? (
+                  <>
+                    <div className="radar-donut-wrap"><RadarDonut pct={currentSignal.confidence} color={color} /></div>
+                    <dl className="radar-meta">
+                      <dt>方向</dt><dd className={direction}>{DIR_LABEL[direction]}</dd>
+                      <dt>把握度</dt><dd>{Math.round(currentSignal.confidence * 100)}%</dd>
+                      <dt>来源</dt><dd>{currentSignal.source}</dd>
+                      <dt>信号时间</dt><dd>{formatTime(currentSignal.ts)}</dd>
+                    </dl>
+                  </>
+                ) : expired && signal ? (
+                  <div className="radar-state-detail stale">
+                    <strong>信号已过期</strong>
+                    <span>最后信号：{formatTime(signal.ts)}</span>
+                    <span>失效时间：{formatTime(signal.expires_at)}</span>
+                    <span>来源：{signal.source} · ID {signal.id || '未知'}</span>
+                  </div>
+                ) : signals.error ? (
+                  <div className="radar-state-detail error">
+                    <strong>信号服务失败</strong>
+                    <span>报价仍可用；当前不展示缓存信号。</span>
+                  </div>
+                ) : (
+                  <div className="radar-state-detail quote-only">
+                    <strong>仅实时报价</strong>
+                    <span>当前没有符合生命周期要求的信号。</span>
+                  </div>
+                )}
 
-              {/* dl 按需渲染：没数据的字段整行不出现，不用「暂无数据」占位 */}
-
-              {hasSignal ? (
-                <dl className="radar-meta">
-                  <dt>方向</dt>
-                  <dd>{DIR_LABEL[dir]}</dd>
-                  <dt>把握度</dt>
-                  <dd>{Math.round((sig!.confidence ?? 0) * 100)}</dd>
-                  {sig!.status ? (
-                    <>
-                      <dt>状态</dt>
-                      <dd>{sig!.status}</dd>
-                    </>
-                  ) : null}
-                  {sig!.tags && sig!.tags.length > 0 ? (
-                    <>
-                      <dt>标签</dt>
-                      <dd>{sig!.tags.join(' · ')}</dd>
-                    </>
-                  ) : null}
-                </dl>
-              ) : (
-                <div className="radar-empty-row">
-                  该标的后端尚无信号 — 仅展示实时报价
-                </div>
-              )}
-
-              {hasSignal ? (
                 <div className="radar-note">
-                  <span>{sig!.source}</span>
-                  <span style={{ opacity: 0.5 }}> · ID </span>
-                  <code>{sig!.id}</code>
+                  报价：{quote?.source || '未知来源'} · {formatTime(quote?.observed_at)}
+                  {currentSignal ? <> · 信号 ID <code>{currentSignal.id || '未知'}</code></> : null}
                 </div>
-              ) : (
-                <div className="radar-note muted">仅实时报价 · 信号待生成</div>
-              )}
-            </article>
-          ))}
+              </article>
+            )
+          })}
         </div>
       )}
-
-      {quotes.error ? (
-        <div className="rm-note" style={{ color: 'var(--down-ink)' }}>
-          报价拉取失败：{quotes.error}。请确认后端网关已启动且 tencent 源可用。
-        </div>
-      ) : null}
-      {signals.error ? (
-        <div className="rm-note" style={{ color: 'var(--down-ink)' }}>
-          后端信号拉取失败：{signals.error}。
-        </div>
-      ) : null}
     </div>
   )
 }

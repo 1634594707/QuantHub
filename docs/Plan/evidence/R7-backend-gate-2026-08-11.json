@@ -1,0 +1,18 @@
+{
+  "task": "Q0-02",
+  "generated_at": "2026-08-11T20:07:23+0800",
+  "discovery_root": "tests",
+  "split_subpackage_tests": 25,
+  "dropped_oversized_env_vars": [],
+  "isolated_store_path": "D:\\Administrator\\Desktop\\finance\\logs\\test-store\\pid-27296\\store.db",
+  "production_store_path": "D:\\Administrator\\Desktop\\finance\\apps\\api\\store.db",
+  "production_sha256_before": "2fa90f39739b5b5e559b8ef4b903126845947dfa8baf718dbb2623c231d8e704",
+  "production_sha256_after": "2fa90f39739b5b5e559b8ef4b903126845947dfa8baf718dbb2623c231d8e704",
+  "production_untouched": true,
+  "tests_run": 276,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "duration_seconds": 28.473,
+  "passed": true
+}

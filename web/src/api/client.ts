@@ -15,14 +15,19 @@ import type {
   ContractEnvelope,
   RiskMode,
   TradingHealth,
+  TradingDashboard,
+  TradingOrderDetail,
   TradingOrderIntent,
+  TradingPreflight,
   OkxDemoCredentialStatus,
   OkxDemoConnectionTest,
+  OkxSwapCatalogResponse,
   AnalysisTaskKind,
   AnalysisTaskStatus,
   AlertEvent,
   AlertRule,
   AlertRuleType,
+  AlphaDslCatalog,
   AutomationAuditLog,
   AutomationJob,
   AutomationRun,
@@ -37,6 +42,11 @@ import type {
   DataSourceStatusResp,
   DataSourceCheckResult,
   DataSourceOperation,
+  DemoCatalog,
+  DemoRunPayload,
+  DemoRunRecord,
+  DemoRunResult,
+  DemoRunSummary,
   CreatedApiToken,
   EnsembleResp,
   FactorResearchResp,
@@ -45,6 +55,9 @@ import type {
   FactorAiSearchUsage,
   FactorConfirmationSetOpening,
   FactorDefinitionRecord,
+  FactorFactoryArchiveResponse,
+  FactorFactoryRunResponse,
+  FactorFactoryStartPayload,
   FactorLifecycleRecord,
   FactorExperimentRecord,
   FactorFailureCode,
@@ -110,6 +123,7 @@ import type {
   RunResp,
   SignalLifecycleStatus,
   SignalResp,
+  RadarSignalsResp,
   SignalsResp,
   SimulationAccount,
   SimulationOrder,
@@ -478,6 +492,8 @@ export const api = {
     return getJSON<SignalsResp>(`/signals?${p.toString()}`)
   },
 
+  radarSignals: () => getJSON<RadarSignalsResp>('/signals/radar'),
+
   updateSignalStatus: (
     id: string,
     payload: { status: 'accepted' | 'rejected'; note?: string },
@@ -558,6 +574,21 @@ export const api = {
     ),
 
   simulationAccount: () => getJSON<SimulationAccount>('/simulation/account'),
+
+  // ---- 模拟实验室（因子 / 策略回测沙盒）----
+  demoPresets: () => getJSON<DemoCatalog>('/simulation/demo/presets'),
+  demoRun: (payload: DemoRunPayload) =>
+    getJSON<DemoRunResult>('/simulation/demo/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }),
+  demoRuns: (limit = 20) =>
+    getJSON<{ ok: boolean; runs: DemoRunSummary[] }>(`/simulation/demo/runs?limit=${limit}`),
+  demoRunDetail: (runId: string) =>
+    getJSON<{ ok: boolean; run: DemoRunRecord }>(
+      `/simulation/demo/runs/${encodeURIComponent(runId)}`,
+    ),
 
   kline: (symbol: string, market = 'a_shares', interval = '1h', limit = 240) =>
     getJSON<KlineResp>(
@@ -750,6 +781,37 @@ export const api = {
   }) => getJSON<{ ok: boolean; definition: FactorDefinitionRecord }>('/factor-research/definitions', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
   }),
+  startFactorFactory: (payload: FactorFactoryStartPayload) =>
+    getJSON<FactorFactoryRunResponse>('/factor-factory/runs', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+    }),
+  alphaDslCatalog: () => getJSON<AlphaDslCatalog & { ok: true }>('/factor-factory/alpha-dsl'),
+  factorFactoryRuns: (
+    limit = 50,
+    filters?: { market?: 'crypto' | 'a_shares'; symbol?: string; interval?: '1h' | '4h' | '1d' },
+  ) => {
+    const params = new URLSearchParams({ limit: String(limit) })
+    if (filters?.market) params.set('market', filters.market)
+    if (filters?.symbol) params.set('symbol', filters.symbol)
+    if (filters?.interval) params.set('interval', filters.interval)
+    return getJSON<{ ok: boolean; count: number; runs: FactorFactoryRunResponse['run'][]; live_trading_enabled: false }>(
+      `/factor-factory/runs?${params.toString()}`,
+    )
+  },
+  factorFactoryArchive: (lifecycleState?: string, limit = 100, eligibleOnly = true) => {
+    const params = new URLSearchParams({
+      limit: String(limit),
+      eligible_only: String(eligibleOnly),
+    })
+    if (lifecycleState) params.set('lifecycle_state', lifecycleState)
+    return getJSON<FactorFactoryArchiveResponse>(`/factor-factory/archive?${params.toString()}`)
+  },
+  factorFactoryRun: (runId: string) =>
+    getJSON<FactorFactoryRunResponse>(`/factor-factory/runs/${encodeURIComponent(runId)}`),
+  observeFactorFactory: (runId: string, forceRefresh = false) =>
+    getJSON<FactorFactoryRunResponse>(`/factor-factory/runs/${encodeURIComponent(runId)}/observe`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ force_refresh: forceRefresh }),
+    }),
   seedBuiltinFactorDefinitions: () => getJSON<{
     ok: boolean
     count: number
@@ -1362,6 +1424,10 @@ export const api = {
     if (market) params.set('market', market)
     return getJSON<{ count: number; instruments: Instrument[] }>(`/instruments?${params.toString()}`)
   },
+  okxSwapCatalog: (q = '', limit = 100, refresh = false) => {
+    const params = new URLSearchParams({ q, limit: String(limit), refresh: String(refresh) })
+    return getJSON<OkxSwapCatalogResponse>(`/instruments/okx-swaps?${params.toString()}`)
+  },
   resolveInstrument: (code: string, market = 'a_shares', name = '') => {
     const params = new URLSearchParams({ market, name })
     return getJSON<{ ok: boolean; instrument: Instrument }>(
@@ -1854,7 +1920,14 @@ export const api = {
   tradingHealth: () => getJSON<ContractEnvelope<TradingHealth>>('/trading/health'),
 
   tradingDashboard: () =>
-    getJSON<ContractEnvelope<Record<string, unknown>>>('/trading/dashboard'),
+    getJSON<ContractEnvelope<TradingDashboard>>('/trading/dashboard'),
+
+  tradingPreflight: (symbols?: string[]) => {
+    const params = new URLSearchParams()
+    if (symbols?.length) params.set('symbols', symbols.join(','))
+    const query = params.toString()
+    return getJSON<ContractEnvelope<TradingPreflight>>(`/trading/preflight${query ? `?${query}` : ''}`)
+  },
 
   tradingAccount: (accountId: string) =>
     getJSON<ContractEnvelope<Record<string, unknown>>>(
@@ -1862,19 +1935,19 @@ export const api = {
     ),
 
   tradingOrder: (orderId: string) =>
-    getJSON<ContractEnvelope<Record<string, unknown>>>(
+    getJSON<ContractEnvelope<TradingOrderDetail>>(
       '/trading/orders/' + encodeURIComponent(orderId),
     ),
 
   tradingSubmitOrder: (intent: TradingOrderIntent) =>
-    getJSON<ContractEnvelope<Record<string, unknown>>>('/trading/orders', {
+    getJSON<ContractEnvelope<TradingOrderDetail>>('/trading/orders', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(intent),
     }),
 
   tradingCancelOrder: (orderId: string) =>
-    getJSON<ContractEnvelope<Record<string, unknown>>>(
+    getJSON<ContractEnvelope<TradingOrderDetail>>(
       '/trading/orders/' + encodeURIComponent(orderId) + '/cancel',
       { method: 'POST' },
     ),

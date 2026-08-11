@@ -1,0 +1,40 @@
+{
+  "generated_at": "2026-08-11T14:58:10.219Z",
+  "base_url": "http://127.0.0.1:5173",
+  "api_base": "http://127.0.0.1:8001",
+  "passed": true,
+  "cases": [
+    {
+      "viewport": {
+        "name": "desktop-1440x900",
+        "width": 1440,
+        "height": 900
+      },
+      "inspection": {
+        "safeMessageVisible": true,
+        "leaksTransportDetails": false,
+        "retryAvailable": true,
+        "startDisabled": true,
+        "klineDisabled": true,
+        "horizontalOverflow": 0
+      },
+      "consoleErrors": []
+    },
+    {
+      "viewport": {
+        "name": "mobile-390x844",
+        "width": 390,
+        "height": 844
+      },
+      "inspection": {
+        "safeMessageVisible": true,
+        "leaksTransportDetails": false,
+        "retryAvailable": true,
+        "startDisabled": true,
+        "klineDisabled": true,
+        "horizontalOverflow": 0
+      },
+      "consoleErrors": []
+    }
+  ]
+}

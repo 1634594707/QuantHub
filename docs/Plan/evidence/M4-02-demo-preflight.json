@@ -1,0 +1,65 @@
+{
+  "task_id": "M4-02",
+  "status": "review",
+  "captured_at": "2026-08-10T15:19:26+08:00",
+  "git_head": "da6b11de394f60bdaf7b2a37fa989b331a45dfe5",
+  "branch": "codex/m4-demo-validation",
+  "api_build_id": "6eef77228c5a",
+  "environment": "demo",
+  "live_trading": false,
+  "credential": {
+    "source": "local_vault",
+    "fingerprint": "56a313994652",
+    "plaintext_returned_to_browser": false,
+    "vault_acl": [
+      "WIN-08UDUO3C8LT\\Administrator:(F)",
+      "NT AUTHORITY\\SYSTEM:(F)"
+    ],
+    "inherited_acl_removed": true,
+    "exact_secret_scan": {
+      "files_scanned": 774,
+      "hits": 0
+    }
+  },
+  "account": {
+    "account_level": "2",
+    "position_mode": "net_mode",
+    "permissions": [
+      "read_only",
+      "trade"
+    ]
+  },
+  "ip_whitelist": {
+    "status": "not_configured",
+    "accepted_by_owner_for_demo_only": true,
+    "accepted_for_live": false
+  },
+  "clock": {
+    "absolute_drift_ms": 608,
+    "tolerance_ms": 5000,
+    "within_tolerance": true
+  },
+  "instrument": {
+    "symbol": "BTC-USDT-SWAP",
+    "exchange_symbol": "BTC/USDT:USDT",
+    "product_type": "swap",
+    "active": true,
+    "settle_currency": "USDT",
+    "minimum_quantity": 0.01,
+    "quantity_step": 0.01,
+    "price_tick": 0.1,
+    "contract_size": 0.01,
+    "minimum_notional": 6.52294,
+    "minimum_notional_estimated": true,
+    "maximum_leverage": 100.0
+  },
+  "verification": {
+    "endpoint": "GET http://127.0.0.1:8001/trading/preflight",
+    "targeted_tests": "43 passed",
+    "result": "OKX Demo authentication, account configuration, clock, and instrument rules were read from the real exchange without exposing credentials, UID, or balances."
+  },
+  "remaining_before_verified": [
+    "Confirm the API key belongs to a dedicated Demo sub-account and has no withdrawal permission.",
+    "IP whitelist remains intentionally absent for local Demo testing and is not accepted for Live."
+  ]
+}

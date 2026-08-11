@@ -3,15 +3,20 @@ import { IconMenu, IconSearch, IconSun, IconMoon, IconBell } from './icons'
 import { IconButton } from './ui/IconButton/IconButton'
 import type { HealthResp } from '../api/types'
 import { CONNECTION_LABELS, type ConnectionState } from '../api/connection'
+import type { InterfaceMode } from '../hooks/useInterfaceMode'
+import { useState } from 'react'
+import { Link } from 'react-router-dom'
 
 interface Props {
   onMenu: () => void
   health: HealthResp | null
   connectionState: ConnectionState
-  signalCount: number
+  signalCount: number | null
   onOpenCmdk: () => void
   workspaceLabel: string
   pageLabel: string
+  interfaceMode: InterfaceMode
+  onInterfaceModeChange: (mode: InterfaceMode) => void
 }
 
 export default function Topbar({
@@ -22,8 +27,11 @@ export default function Topbar({
   onOpenCmdk,
   workspaceLabel,
   pageLabel,
+  interfaceMode,
+  onInterfaceModeChange,
 }: Props) {
   const { theme, toggle } = useTheme()
+  const [userMenuOpen, setUserMenuOpen] = useState(false)
   const connection = CONNECTION_LABELS[connectionState]
   return (
     <header className="topbar">
@@ -49,7 +57,7 @@ export default function Topbar({
       <label className="search">
         <IconSearch />
         <input
-          placeholder="搜索标的、策略、信号…"
+          placeholder="搜索…"
           aria-label="全局搜索"
           onClick={onOpenCmdk}
           readOnly
@@ -58,26 +66,19 @@ export default function Topbar({
 
       <div className="topbar-spacer" />
 
-      {/* 信号计数 */}
-      <div className="topbar-pill signal-pill" title="待审核信号">
+      {signalCount !== null ? <Link className="topbar-pill signal-pill" title="打开待审核信号" to="/signals?status=new" aria-label={`${signalCount} 条待审核信号`}>
         <IconBell />
         <span className="mono">{signalCount}</span>
-      </div>
+      </Link> : null}
 
-      {/* 连接状态 */}
-      <div
+      <Link
         className={`topbar-pill connection-pill ${connectionState}`}
-        title={connection.detail}
+        title={`${connection.detail}；打开${health?.live_trading ? '交易工作台' : '系统设置'}`}
+        to={health?.live_trading ? '/trading' : '/config'}
       >
         <span className="dot" />
-        {connection.short}
-      </div>
-
-      <div className="market-status" title={health ? `v${health.version}` : ''}>
-        <span className="dot" />
-        <span>{health?.live_trading ? '实盘' : '研究'}</span>
-        {health && <span className="time">· {health.strategies} 策略</span>}
-      </div>
+        <span>{connection.short} · {health?.live_trading ? '实盘' : '研究'}</span>
+      </Link>
 
       <IconButton
         label={theme === 'dark' ? '切换到亮色' : '切换到暗色'}
@@ -89,8 +90,33 @@ export default function Topbar({
         {theme === 'dark' ? <IconSun /> : <IconMoon />}
       </IconButton>
 
-      <div className="avatar" title="aplicity">
-        a
+      <div className="topbar-user-menu">
+        <button
+          type="button"
+          className="avatar"
+          title="界面与个人偏好"
+          aria-label="打开界面与个人偏好"
+          aria-expanded={userMenuOpen}
+          onClick={() => setUserMenuOpen((open) => !open)}
+        >
+          a
+        </button>
+        {userMenuOpen ? (
+          <div className="topbar-user-popover" role="menu" aria-label="界面范围">
+            <button
+              type="button"
+              role="menuitemradio"
+              aria-checked={interfaceMode === 'beginner'}
+              onClick={() => { onInterfaceModeChange('beginner'); setUserMenuOpen(false) }}
+            >精简界面</button>
+            <button
+              type="button"
+              role="menuitemradio"
+              aria-checked={interfaceMode === 'advanced'}
+              onClick={() => { onInterfaceModeChange('advanced'); setUserMenuOpen(false) }}
+            >完整界面</button>
+          </div>
+        ) : null}
       </div>
     </header>
   )

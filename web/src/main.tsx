@@ -2,6 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { createBrowserRouter, RouterProvider } from 'react-router-dom'
 import { ThemeProvider } from './theme/ThemeContext'
+import { InterfaceModeProvider } from './hooks/useInterfaceMode'
 import App from './App'
 import NotFoundPage from './pages/NotFoundPage'
 import './styles/tokens.css'
@@ -37,10 +38,11 @@ const router = createBrowserRouter([
       { path: 'tasks', lazy: async () => ({ Component: (await import('./pages/AnalysisTasksPage')).default }) },
       { path: 'alerts', lazy: async () => ({ Component: (await import('./pages/AlertsPage')).default }) },
       { path: 'simulation', lazy: async () => ({ Component: (await import('./pages/SimulationOrdersPage')).default }) },
+      // 模拟实验室：因子 / 策略回测沙盒，支持真实 OKX 行情与确定性合成数据
+      { path: 'demo-lab', lazy: async () => ({ Component: (await import('./pages/DemoLabPage')).default }) },
       { path: 'ledger', lazy: async () => ({ Component: (await import('./pages/LedgerPage')).default }) },
       { path: 'instruments', lazy: async () => ({ Component: (await import('./pages/InstrumentCenterPage')).default }) },
-      // 因子研究（/factor-research）按路线图 3.B「暂停与 OKX 交易主流程无直接关系的因子实验」
-      // 从一级导航移除，路由保留但不再对外暴露入口，等待用户对「删除 or 恢复」做最终裁决。
+      // 因子工厂：候选挖掘、研究门禁、模拟验证和因子档案的统一入口。
       { path: 'factor-research', lazy: async () => ({ Component: (await import('./pages/FactorResearchPage')).default }) },
       { path: 'automation', lazy: async () => ({ Component: (await import('./pages/AutomationPage')).default }) },
       { path: 'incidents', lazy: async () => ({ Component: (await import('./pages/IncidentsPage')).default }) },
@@ -68,7 +70,9 @@ const router = createBrowserRouter([
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ThemeProvider>
-      <RouterProvider router={router} />
+      <InterfaceModeProvider>
+        <RouterProvider router={router} />
+      </InterfaceModeProvider>
     </ThemeProvider>
   </React.StrictMode>,
 )

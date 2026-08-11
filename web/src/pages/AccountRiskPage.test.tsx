@@ -4,7 +4,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../api/client'
 import AccountRiskPage from './AccountRiskPage'
 
-afterEach(() => cleanup())
+afterEach(() => {
+  cleanup()
+  vi.restoreAllMocks()
+})
 
 function mockApi() {
   vi.spyOn(api, 'tradingHealth').mockResolvedValue({
@@ -13,6 +16,16 @@ function mockApi() {
   vi.spyOn(api, 'tradingSetRiskMode').mockResolvedValue({
     data: { ok: true, mode: 'halted', scope: 'global' },
   } as never)
+  vi.spyOn(api, 'tradingDashboard').mockResolvedValue({
+    status: 'ok', source: { kind: 'runner', name: 'okx_runner', environment: 'demo' },
+    observed_at: '2026-08-10T00:00:00Z', freshness: { age_seconds: 0, ttl_seconds: 15, expired: false }, error_code: null,
+    data: {
+      strategies: [], orders: [], fills: [], balances: [], positions: [], reconciliation_diffs: [],
+      risk_states: [{ scope: 'global', mode: 'normal', reason: 'test', updated_at: '2026-08-10T00:00:00Z' }],
+      account_status: { environment: 'demo', connected: true, permissions: 'trade', latest_snapshot_at: null, stale: false, last_reconciliation_at: null, server_time: '2026-08-10T00:00:00Z' },
+    },
+  } as never)
+  vi.spyOn(api, 'tradingResolveDiff').mockResolvedValue({ data: { status: 'resolved' } } as never)
 }
 
 /** Field 用非关联 label 包裹 input，按标签文本定位其输入框。 */
@@ -69,5 +82,28 @@ describe('AccountRiskPage halt flow (M2-08)', () => {
         reason: '盘中异常，先行停机',
       }),
     )
+  })
+
+  it('closes a reviewed reconciliation difference through confirmation', async () => {
+    vi.mocked(api.tradingDashboard).mockResolvedValue({
+      status: 'ok', source: { kind: 'runner', name: 'okx_runner', environment: 'demo' },
+      observed_at: '2026-08-10T00:00:00Z', freshness: { age_seconds: 0, ttl_seconds: 15, expired: false }, error_code: null,
+      data: {
+        strategies: [], orders: [], fills: [], balances: [], positions: [], risk_states: [],
+        reconciliation_diffs: [{ diff_id: 'diff-demo-1', account_id: 'demo-account', kind: 'order', key: '', status: 'open', owner: null, resolution: null, created_at: '2026-08-10T00:00:00Z', resolved_at: null }],
+        account_status: { environment: 'demo', connected: true, permissions: 'trade', latest_snapshot_at: null, stale: false, last_reconciliation_at: null, server_time: '2026-08-10T00:00:00Z' },
+      },
+    } as never)
+    renderPage()
+
+    fireEvent.change(inputForLabel(/处理结论/), { target: { value: '确认是本人在 OKX Demo 创建的手工订单' } })
+    const resolveButton = await screen.findByRole('button', { name: '关闭差异' })
+    fireEvent.click(resolveButton)
+    fireEvent.click(screen.getByRole('button', { name: '确认关闭' }))
+
+    await waitFor(() => expect(api.tradingResolveDiff).toHaveBeenCalledWith('diff-demo-1', {
+      owner: 'local-operator',
+      resolution: '确认是本人在 OKX Demo 创建的手工订单',
+    }))
   })
 })

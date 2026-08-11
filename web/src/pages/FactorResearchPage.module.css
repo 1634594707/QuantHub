@@ -18,6 +18,40 @@
   padding: 0 var(--sp-4);
 }
 
+.viewNavigation {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.assetSelect {
+  display: flex;
+  min-height: 32px;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--bg-elevated);
+}
+
+.assetSelect > span {
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+  white-space: nowrap;
+}
+
+.assetSelect select {
+  min-width: 110px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text-1);
+  font: inherit;
+  font-size: var(--fs-caption);
+}
+
 .savedState,
 .unsavedState {
   display: flex;
@@ -1332,6 +1366,7 @@
   .page { gap: var(--sp-4); }
   .viewBar,
   .historyHead { align-items: stretch; flex-direction: column; }
+  .viewNavigation { justify-content: space-between; }
   .savedState,
   .unsavedState { padding-bottom: var(--sp-2); }
   .historyFilters { grid-template-columns: repeat(2, minmax(0, 1fr)); padding-inline: var(--sp-3); }
@@ -1384,7 +1419,11 @@
 
 @media (max-width: 520px) {
   .viewBar { padding-inline: 0; }
-  .viewBar > div:first-child { width: 100%; }
+  .viewNavigation { display: grid; width: 100%; }
+  .viewNavigation > div,
+  .assetSelect { width: 100%; }
+  .assetSelect { min-height: 44px; justify-content: space-between; }
+  .assetSelect select { min-width: 0; flex: 1; }
   .historyHead { padding-inline: var(--sp-3); }
   .historyTools button { width: 100%; }
   .historyFilters { grid-template-columns: 1fr; }

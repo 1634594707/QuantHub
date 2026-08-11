@@ -78,3 +78,9 @@
   color: var(--text-2);
   user-select: none;
 }
+
+@media (max-width: 767px) {
+  .wrapper {
+    min-height: 44px;
+  }
+}

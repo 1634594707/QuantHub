@@ -57,6 +57,7 @@ class MarketEvaluationTests(unittest.TestCase):
 
     def test_okx_symbol_normalization_accepts_ui_pair_formats(self) -> None:
         self.assertEqual(to_ccxt_symbol("BTC-USDT"), "BTC/USDT:USDT")
+        self.assertEqual(to_ccxt_symbol("BTC-USDT-SWAP"), "BTC/USDT:USDT")
         self.assertEqual(to_ccxt_symbol("eth"), "ETH/USDT:USDT")
         self.assertEqual(to_ccxt_symbol("SOL/USDT"), "SOL/USDT:USDT")
 

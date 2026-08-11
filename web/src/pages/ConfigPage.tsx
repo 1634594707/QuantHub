@@ -13,6 +13,8 @@ import { useInterfaceMode } from '../hooks/useInterfaceMode'
 import { SegmentedControl } from '../components/ui/SegmentedControl/SegmentedControl'
 import { LLMProviderSettings } from '../components/settings/LLMProviderSettings'
 import { OkxDemoCredentials } from '../components/settings/OkxDemoCredentials'
+import { navigationItemForId, WORKSPACES } from '../navigation/workspaces'
+import { useNavigationPreferences } from '../navigation/navigationPreferences'
 import s from './ConfigPage.module.css'
 
 const API_BASE_KEY = 'quanthub:api-base'
@@ -50,6 +52,12 @@ export default function ConfigPage() {
   const [notificationMessage, setNotificationMessage] = useState('')
   const [notificationError, setNotificationError] = useState('')
   const [interfaceMode, setInterfaceMode] = useInterfaceMode()
+  const {
+    hiddenWorkspaceIds,
+    pinnedRouteIds,
+    togglePinnedRoute,
+    toggleWorkspaceHidden,
+  } = useNavigationPreferences()
   // M2-07：API 访问凭据的唯一设置入口（原治理页已下线）。
   // 安全约束：凭据只写不回显，界面仅展示「是否已配置 + 末 4 位」。
   const [credentialInput, setCredentialInput] = useState('')
@@ -218,14 +226,63 @@ export default function ConfigPage() {
   return (
     <div className={s.page}>
       <WorkspaceHeader
-        context="运营 / 系统设置"
-        title="本地运行参数"
-        description="网关地址、数据源与运行偏好"
+        context="设置"
+        title="系统设置"
+        description="界面、连接与本地运行维护"
         metrics={[{
           label: '网关',
           value: health.data ? `v${health.data.version} · ${health.data.build_id}` : '版本：—',
         }]}
       />
+      <nav className={s.sectionNav} aria-label="设置分区">
+        <a href="#preferences">界面与个人偏好</a>
+        <a href="#connections">连接与凭据</a>
+        <a href="#maintenance">运行与维护</a>
+      </nav>
+
+      <section id="preferences" className={s.settingsSection} aria-labelledby="preferences-title">
+        <header className={s.sectionHeading}>
+          <div><h2 id="preferences-title">界面与个人偏好</h2><p>控制界面范围、工作区可见性与高频入口。</p></div>
+        </header>
+        <div className="card">
+          <div className="card-head">
+            <div className="card-title">界面范围<span className="sub">选择当前工作流需要的能力范围</span></div>
+          </div>
+          <div className={s.interfaceModeBody}>
+            <SegmentedControl
+              value={interfaceMode ?? 'beginner'}
+              onChange={(value) => setInterfaceMode(value as 'beginner' | 'advanced')}
+              options={[
+                { value: 'beginner', label: '精简界面' },
+                { value: 'advanced', label: '完整界面' },
+              ]}
+            />
+            <span>{interfaceMode === 'beginner' ? '显示总览、自选、标的研究、模拟交易、账户账本与系统设置。' : '显示总览、市场研究、策略、交易、账户风控、设置六大工作区。'}</span>
+          </div>
+          <div className={s.workspacePreferences}>
+            <div className={s.preferenceTitle}><strong>工作区显示</strong><span>总览与设置始终保留，确保偏好可以恢复。</span></div>
+            <div className={s.workspaceToggles}>
+              {WORKSPACES.filter((workspace) => ['market', 'strategy', 'trading', 'risk'].includes(workspace.key)).map((workspace) => {
+                const visible = !hiddenWorkspaceIds.includes(workspace.key)
+                return <div key={workspace.key}><span>{workspace.label}</span><Toggle size="sm" checked={visible} onChange={() => toggleWorkspaceHidden(workspace.key)} label={visible ? '显示' : '隐藏'} /></div>
+              })}
+            </div>
+          </div>
+          <div className={s.pinnedPreferences}>
+            <div className={s.preferenceTitle}><strong>已钉选入口</strong><span>侧栏星标入口会在这里集中显示。</span></div>
+            {pinnedRouteIds.length > 0 ? <div className={s.pinnedList}>{pinnedRouteIds.map((routeId) => {
+              const item = navigationItemForId(routeId)
+              const label = item?.label ?? (routeId.startsWith('strategy:') ? routeId.slice('strategy:'.length) : routeId)
+              return <button type="button" key={routeId} onClick={() => togglePinnedRoute(routeId)} title={`取消钉选 ${label}`}>{label}<span>移除</span></button>
+            })}</div> : <p className="muted">尚未钉选入口，可在侧栏使用星标添加。</p>}
+          </div>
+        </div>
+      </section>
+
+      <section id="connections" className={s.settingsSection} aria-labelledby="connections-title">
+        <header className={s.sectionHeading}>
+          <div><h2 id="connections-title">连接与凭据</h2><p>查看网关状态并管理只写凭据、交易通道与通知连接。</p></div>
+        </header>
       <div className="card">
         <div className="card-head">
           <div className="card-title">
@@ -365,25 +422,6 @@ export default function ConfigPage() {
       <div className="card">
         <div className="card-head">
           <div className="card-title">
-            界面模式
-            <span className="sub">控制导航中显示的功能范围</span>
-          </div>
-        </div>
-        <div className={s.interfaceModeBody}>
-          <SegmentedControl
-            value={interfaceMode}
-            onChange={(value) => setInterfaceMode(value as 'beginner' | 'advanced')}
-            options={[
-              { value: 'beginner', label: '新手模式' },
-              { value: 'advanced', label: '高级模式' },
-            ]}
-          />
-          <span>{interfaceMode === 'beginner' ? '显示总览、自选、标的研究、模拟交易、账户账本与系统设置。' : '显示总览、市场研究、策略、交易、账户风控、设置六大工作区。'}</span>
-        </div>
-      </div>
-      <div className="card">
-        <div className="card-head">
-          <div className="card-title">
             通知渠道
             <span className="sub">提醒事件的外部发送配置</span>
           </div>
@@ -454,6 +492,12 @@ export default function ConfigPage() {
           </div>
         </AsyncStateBoundary>
       </div>
+      </section>
+
+      <section id="maintenance" className={s.settingsSection} aria-labelledby="maintenance-title">
+        <header className={s.sectionHeading}>
+          <div><h2 id="maintenance-title">运行与维护</h2><p>备份、数据源、模型接入和本地运行参数。</p></div>
+        </header>
       <div className="card">
         <div className="card-head">
           <div className="card-title">
@@ -742,6 +786,8 @@ export default function ConfigPage() {
           </div>
         </div>
       </div>
+
+      </section>
 
     </div>
   )

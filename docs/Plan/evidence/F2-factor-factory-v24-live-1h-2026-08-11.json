@@ -1,0 +1,103 @@
+{
+  "captured_at": "2026-08-11T05:23:04Z",
+  "research_version": "2.4.0",
+  "mode": "formal_preregistered_live_research",
+  "synthetic_data_used": false,
+  "database_mutated": true,
+  "run": {
+    "id": "6701a5ce2c7d44f2a01e903d66a1ad6e",
+    "research_plan_id": "ff_6701a5ce2c7d44f2a01e",
+    "status": "no_qualified_factor",
+    "interval": "1h",
+    "symbol": "BTC-USDT-SWAP",
+    "bars": 2880,
+    "candidate_budget": 30,
+    "requested_end": "2026-08-11T05:00:00+00:00",
+    "selected_first": "2026-04-13T05:00:00+00:00",
+    "selected_last": "2026-08-11T04:00:00+00:00",
+    "data_fingerprint": "7b54bb55e0c79272339075a7d561bef29d25eebe0d915f88e32e0ad9c67e25cd",
+    "cache_hit": false
+  },
+  "candidate_funnel": {
+    "generated": 30,
+    "preflight_accepted": 29,
+    "preflight_rejected": 1,
+    "gate_rejected": 29,
+    "preliminary_passed": 0
+  },
+  "leading_candidate": {
+    "factor_key": "ff_6701a5ce_builtin_rsi_reversal_20",
+    "rank": 1,
+    "status": "gate_rejected",
+    "discovery_return": -0.015494,
+    "rolling_validation": {
+      "total_return": 0.013413,
+      "sharpe": 4.084117,
+      "max_drawdown": -0.008478,
+      "raw_p_value": 0.1998804024375957,
+      "rank_ic": 0.0672995348576,
+      "window_stability": {
+        "windows": 3,
+        "period_returns": [
+          0.0003060856999996808,
+          0.00983788206498093,
+          0.0032328250916846546
+        ],
+        "positive_windows": 3,
+        "positive_window_ratio": 1.0,
+        "return_dispersion": 0.003986751992269731,
+        "passed": true
+      }
+    },
+    "double_cost_stress": {
+      "total_return": 0.010366,
+      "sharpe": 3.182931,
+      "max_drawdown": -0.008803,
+      "window_stability": {
+        "windows": 3,
+        "period_returns": [
+          -0.0006123607999990455,
+          0.00855692662643448,
+          0.002407839477671203
+        ],
+        "positive_windows": 2,
+        "positive_window_ratio": 0.6666666666666666,
+        "return_dispersion": 0.003815301275258134,
+        "passed": true
+      }
+    },
+    "failed_checks": [
+      "direction_consistency"
+    ]
+  },
+  "most_common_failures": {
+    "cost_stress_sharpe": 21,
+    "validation_p_value": 21,
+    "cost_stress_window_majority": 21,
+    "validation_rank_ic_direction": 20,
+    "cost_stress_return": 19,
+    "validation_sharpe": 17,
+    "validation_window_majority": 15,
+    "validation_return": 14
+  },
+  "locked_confirmation": {
+    "opened": false,
+    "labels_accessed": false
+  },
+  "paper": {
+    "observation_count": 0,
+    "simulation_order_count": 0,
+    "okx_demo_order_count": 0,
+    "live_trading_enabled": false
+  },
+  "gate_integrity": {
+    "thresholds_lowered": false,
+    "failure_evidence_overwritten": false,
+    "confirmation_opened_without_preliminary_pass": false
+  },
+  "verdict": {
+    "qualified_factor_found": false,
+    "reason": "All 29 preflight-accepted candidates failed at least one preregistered rolling-validation or cost-stress check.",
+    "next_action": "Wait for a new real 1h market-data fingerprint; do not rerun the unchanged 4h boundary or weaken gates."
+  }
+}

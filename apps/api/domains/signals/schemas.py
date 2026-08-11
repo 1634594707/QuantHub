@@ -12,7 +12,7 @@ class PublishSignalRequest(BaseModel):
     market: str = "a_shares"
     direction: Literal["buy", "sell", "hold"] = "hold"
     score: float = Field(default=0.5, ge=0, le=1)
-    confidence: float = Field(default=0.5, ge=0, le=1)
+    confidence: float = Field(ge=0, le=1)
     source: str = "api"
     timeframe: str = "realtime"
     tags: list[str] = Field(default_factory=list)

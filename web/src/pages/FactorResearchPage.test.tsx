@@ -79,6 +79,22 @@ afterEach(() => {
 })
 
 describe('FactorResearchPage', () => {
+  it('restores the last asset view on a bare factor-research route', async () => {
+    window.history.replaceState({}, '', '/factor-research')
+    const history = vi.spyOn(api, 'factorResearchRuns').mockResolvedValue({
+      ok: true, runs: [], total: 0, next_cursor: null,
+    } as never)
+    const first = render(<FactorResearchPage />)
+
+    fireEvent.change(screen.getByLabelText('研究资产'), { target: { value: 'history' } })
+    await waitFor(() => expect(history).toHaveBeenCalledTimes(1))
+    expect(localStorage.getItem('quanthub.factor-research.last-view.v1')).toBe('history')
+
+    first.unmount()
+    render(<FactorResearchPage />)
+    expect(await screen.findByRole('region', { name: '因子研究历史记录' })).not.toBeNull()
+  })
+
   it('runs research and renders the risk signal and factor result', async () => {
     const request = vi.spyOn(api, 'factorResearch').mockResolvedValue(response as never)
     render(<FactorResearchPage />)
@@ -212,7 +228,7 @@ describe('FactorResearchPage', () => {
     } as never)
     render(<FactorResearchPage />)
 
-    fireEvent.click(screen.getByRole('tab', { name: '横截面' }))
+    fireEvent.change(screen.getByLabelText('研究资产'), { target: { value: 'cross_section' } })
     expect(await screen.findByText('历史股票池')).toBeTruthy()
     await waitFor(() => expect(api.factorUniverseMembers).toHaveBeenCalledWith('universe-1'))
     fireEvent.submit(screen.getByRole('button', { name: '运行横截面研究' }).closest('form') as HTMLFormElement)
@@ -442,8 +458,8 @@ describe('FactorResearchPage', () => {
     vi.spyOn(api, 'factorResearchRun').mockResolvedValue({ ok: true, run, result: savedResult, ai_review: savedAi } as never)
     render(<FactorResearchPage />)
 
-    fireEvent.click(screen.getByRole('tab', { name: '历史记录' }))
-    expect(await screen.findByText('因子研究历史')).toBeTruthy()
+    fireEvent.change(screen.getByLabelText('研究资产'), { target: { value: 'history' } })
+    expect(await screen.findByRole('region', { name: '因子研究历史记录' })).toBeTruthy()
     fireEvent.click(await screen.findByRole('button', { name: /AAPL.*打开结果/ }))
 
     expect(await screen.findByText('历史 AI 复核结果。')).toBeTruthy()
@@ -457,7 +473,7 @@ describe('FactorResearchPage', () => {
     } as never)
     render(<FactorResearchPage />)
 
-    fireEvent.click(screen.getByRole('tab', { name: '历史记录' }))
+    fireEvent.change(screen.getByLabelText('研究资产'), { target: { value: 'history' } })
     await waitFor(() => expect(request).toHaveBeenCalledTimes(1))
     fireEvent.change(screen.getByLabelText('标的'), { target: { value: 'aapl' } })
     fireEvent.change(screen.getByLabelText('市场'), { target: { value: 'us_stocks' } })
@@ -505,7 +521,7 @@ describe('FactorResearchPage', () => {
     }) as never)
     render(<FactorResearchPage />)
 
-    fireEvent.click(screen.getByRole('tab', { name: '历史记录' }))
+    fireEvent.change(screen.getByLabelText('研究资产'), { target: { value: 'history' } })
     fireEvent.click(await screen.findByRole('button', { name: '收藏 AAPL' }))
     await waitFor(() => expect(update).toHaveBeenCalledWith('factor-history-meta', { favorite: true }))
 
@@ -531,7 +547,7 @@ describe('FactorResearchPage', () => {
     }) as never)
     render(<FactorResearchPage />)
 
-    fireEvent.click(screen.getByRole('tab', { name: '历史记录' }))
+    fireEvent.change(screen.getByLabelText('研究资产'), { target: { value: 'history' } })
     await screen.findByRole('checkbox', { name: '选择 AAPL 研究记录' })
     fireEvent.change(screen.getByLabelText('标签'), { target: { value: '待复验' } })
     fireEvent.click(screen.getByRole('button', { name: '应用筛选' }))

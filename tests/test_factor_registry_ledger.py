@@ -239,6 +239,38 @@ class FactorRegistryLedgerTests(unittest.TestCase):
                     completed_rebalance_cycles=0,
                     execution_record_count=20,
                     simulation_run_id="paper-run-incomplete",
+                    observation_started_at="2026-08-01T00:00:00+00:00",
+                    observation_ended_at="2026-08-08T00:00:00+00:00",
+                    observation_days_completed=7,
+                    observation_period_completed=True,
+                ),
+            ),
+        )
+        short_simulation = service.transition_factor_lifecycle(
+            "dsl_momentum",
+            "1.0.0",
+            FactorLifecycleTransitionRequest(
+                state="trading_validated",
+                target_market="a_shares",
+                actor_type="system",
+                actor="trading-gate",
+                rule="target_market_trading_gate",
+                evidence=self.lifecycle_evidence(
+                    definition,
+                    cost_passed=True,
+                    capacity_passed=True,
+                    execution_passed=True,
+                    incremental_value_passed=True,
+                    simulation_validation_passed=True,
+                    after_cost_performance_passed=True,
+                    fill_rate_passed=True,
+                    completed_rebalance_cycles=1,
+                    execution_record_count=20,
+                    simulation_run_id="paper-run-short",
+                    observation_started_at="2026-08-01T00:00:00+00:00",
+                    observation_ended_at="2026-08-07T23:59:59+00:00",
+                    observation_days_completed=6.99998,
+                    observation_period_completed=True,
                 ),
             ),
         )
@@ -263,6 +295,10 @@ class FactorRegistryLedgerTests(unittest.TestCase):
                     completed_rebalance_cycles=1,
                     execution_record_count=20,
                     simulation_run_id="paper-run-001",
+                    observation_started_at="2026-08-01T00:00:00+00:00",
+                    observation_ended_at="2026-08-08T00:00:00+00:00",
+                    observation_days_completed=7,
+                    observation_period_completed=True,
                 ),
             ),
         )
@@ -323,6 +359,8 @@ class FactorRegistryLedgerTests(unittest.TestCase):
         self.assertTrue(research_passed["ok"])
         self.assertFalse(incomplete_simulation["ok"])
         self.assertIn("完整模拟再平衡周期", incomplete_simulation["error"])
+        self.assertFalse(short_simulation["ok"])
+        self.assertIn("至少 7 个真实自然日", short_simulation["error"])
         self.assertTrue(trading_validated["ok"])
         self.assertTrue(degraded["ok"])
         self.assertFalse(premature_retirement["ok"])

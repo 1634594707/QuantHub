@@ -86,3 +86,11 @@
   border-color: var(--accent-strong);
   color: #fff;
 }
+
+@media (max-width: 767px) {
+  .sm,
+  .md {
+    width: 44px;
+    height: 44px;
+  }
+}

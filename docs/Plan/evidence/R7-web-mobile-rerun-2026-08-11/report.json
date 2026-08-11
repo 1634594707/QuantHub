@@ -1,0 +1,307 @@
+{
+  "task": "R7 browser acceptance",
+  "generated_at": "2026-08-11T12:32:07.784Z",
+  "base_url": "http://127.0.0.1:5173",
+  "browser": "Chromium",
+  "case_count": 7,
+  "passed_count": 7,
+  "failed_count": 0,
+  "passed": true,
+  "routes": [
+    "/",
+    "/radar",
+    "/factor-research",
+    "/demo-lab",
+    "/strategy-lab",
+    "/governance",
+    "/config"
+  ],
+  "viewports": [
+    {
+      "name": "mobile",
+      "width": 390,
+      "height": 844
+    }
+  ],
+  "themes": [
+    "dark"
+  ],
+  "cases": [
+    {
+      "route": "/",
+      "theme": "dark",
+      "viewport": {
+        "name": "mobile",
+        "width": 390,
+        "height": 844
+      },
+      "screenshot": "docs/Plan/evidence/R7-web-mobile-rerun-2026-08-11/dark-mobile-overview.png",
+      "inspection": {
+        "title": "QuantHub · 量化平台",
+        "h1": "总览",
+        "theme": "dark",
+        "root_width": 390,
+        "root_scroll_width": 390,
+        "body_width": 390,
+        "body_scroll_width": 390,
+        "horizontal_overflow": 0,
+        "touch_violations": [],
+        "text_clips": [],
+        "active_workspace": null,
+        "mode_notice": null
+      },
+      "pixels": {
+        "luminance_mean": 33.11,
+        "luminance_stddev": 31.92,
+        "quantized_colors": 75
+      },
+      "console_errors": [],
+      "ignored_console_errors": [
+        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+      ],
+      "page_errors": [],
+      "failed_requests": [],
+      "bad_responses": [],
+      "expected_degraded_responses": [
+        {
+          "status": 500,
+          "url": "http://127.0.0.1:5173/api/market/breadth"
+        },
+        {
+          "status": 500,
+          "url": "http://127.0.0.1:5173/api/market/breadth"
+        }
+      ],
+      "issues": []
+    },
+    {
+      "route": "/radar",
+      "theme": "dark",
+      "viewport": {
+        "name": "mobile",
+        "width": 390,
+        "height": 844
+      },
+      "screenshot": "docs/Plan/evidence/R7-web-mobile-rerun-2026-08-11/dark-mobile-radar.png",
+      "inspection": {
+        "title": "QuantHub · 量化平台",
+        "h1": "标的信号雷达",
+        "theme": "dark",
+        "root_width": 390,
+        "root_scroll_width": 390,
+        "body_width": 390,
+        "body_scroll_width": 390,
+        "horizontal_overflow": 0,
+        "touch_violations": [],
+        "text_clips": [],
+        "active_workspace": null,
+        "mode_notice": null
+      },
+      "pixels": {
+        "luminance_mean": 24.97,
+        "luminance_stddev": 19.48,
+        "quantized_colors": 77
+      },
+      "console_errors": [],
+      "ignored_console_errors": [],
+      "page_errors": [],
+      "failed_requests": [],
+      "bad_responses": [],
+      "expected_degraded_responses": [],
+      "issues": []
+    },
+    {
+      "route": "/factor-research",
+      "theme": "dark",
+      "viewport": {
+        "name": "mobile",
+        "width": 390,
+        "height": 844
+      },
+      "screenshot": "docs/Plan/evidence/R7-web-mobile-rerun-2026-08-11/dark-mobile-factor-research.png",
+      "inspection": {
+        "title": "QuantHub · 量化平台",
+        "h1": "因子挖掘与模拟验证",
+        "theme": "dark",
+        "root_width": 390,
+        "root_scroll_width": 390,
+        "body_width": 390,
+        "body_scroll_width": 390,
+        "horizontal_overflow": 0,
+        "touch_violations": [],
+        "text_clips": [],
+        "active_workspace": null,
+        "mode_notice": null
+      },
+      "pixels": {
+        "luminance_mean": 33.49,
+        "luminance_stddev": 26.09,
+        "quantized_colors": 78
+      },
+      "console_errors": [],
+      "ignored_console_errors": [],
+      "page_errors": [],
+      "failed_requests": [],
+      "bad_responses": [],
+      "expected_degraded_responses": [],
+      "issues": []
+    },
+    {
+      "route": "/demo-lab",
+      "theme": "dark",
+      "viewport": {
+        "name": "mobile",
+        "width": 390,
+        "height": 844
+      },
+      "screenshot": "docs/Plan/evidence/R7-web-mobile-rerun-2026-08-11/dark-mobile-demo-lab.png",
+      "inspection": {
+        "title": "QuantHub · 量化平台",
+        "h1": "模拟实验历史",
+        "theme": "dark",
+        "root_width": 390,
+        "root_scroll_width": 390,
+        "body_width": 390,
+        "body_scroll_width": 390,
+        "horizontal_overflow": 0,
+        "touch_violations": [],
+        "text_clips": [],
+        "active_workspace": null,
+        "mode_notice": null
+      },
+      "pixels": {
+        "luminance_mean": 29.5,
+        "luminance_stddev": 23.15,
+        "quantized_colors": 75
+      },
+      "console_errors": [],
+      "ignored_console_errors": [],
+      "page_errors": [],
+      "failed_requests": [],
+      "bad_responses": [],
+      "expected_degraded_responses": [],
+      "issues": []
+    },
+    {
+      "route": "/strategy-lab",
+      "theme": "dark",
+      "viewport": {
+        "name": "mobile",
+        "width": 390,
+        "height": 844
+      },
+      "screenshot": "docs/Plan/evidence/R7-web-mobile-rerun-2026-08-11/dark-mobile-strategy-lab.png",
+      "inspection": {
+        "title": "QuantHub · 量化平台",
+        "h1": "可复现策略实验",
+        "theme": "dark",
+        "root_width": 390,
+        "root_scroll_width": 390,
+        "body_width": 390,
+        "body_scroll_width": 390,
+        "horizontal_overflow": 0,
+        "touch_violations": [],
+        "text_clips": [],
+        "active_workspace": null,
+        "mode_notice": null
+      },
+      "pixels": {
+        "luminance_mean": 21.91,
+        "luminance_stddev": 18.79,
+        "quantized_colors": 56
+      },
+      "console_errors": [],
+      "ignored_console_errors": [],
+      "page_errors": [],
+      "failed_requests": [],
+      "bad_responses": [],
+      "expected_degraded_responses": [],
+      "issues": []
+    },
+    {
+      "route": "/governance",
+      "theme": "dark",
+      "viewport": {
+        "name": "mobile",
+        "width": 390,
+        "height": 844
+      },
+      "screenshot": "docs/Plan/evidence/R7-web-mobile-rerun-2026-08-11/dark-mobile-governance.png",
+      "inspection": {
+        "title": "QuantHub · 量化平台",
+        "h1": "成员权限",
+        "theme": "dark",
+        "root_width": 390,
+        "root_scroll_width": 390,
+        "body_width": 390,
+        "body_scroll_width": 390,
+        "horizontal_overflow": 0,
+        "touch_violations": [],
+        "text_clips": [],
+        "active_workspace": null,
+        "mode_notice": null
+      },
+      "pixels": {
+        "luminance_mean": 29.4,
+        "luminance_stddev": 31.65,
+        "quantized_colors": 79
+      },
+      "console_errors": [],
+      "ignored_console_errors": [],
+      "page_errors": [],
+      "failed_requests": [],
+      "bad_responses": [],
+      "expected_degraded_responses": [],
+      "issues": []
+    },
+    {
+      "route": "/config",
+      "theme": "dark",
+      "viewport": {
+        "name": "mobile",
+        "width": 390,
+        "height": 844
+      },
+      "screenshot": "docs/Plan/evidence/R7-web-mobile-rerun-2026-08-11/dark-mobile-config.png",
+      "inspection": {
+        "title": "QuantHub · 量化平台",
+        "h1": "系统设置",
+        "theme": "dark",
+        "root_width": 390,
+        "root_scroll_width": 390,
+        "body_width": 390,
+        "body_scroll_width": 390,
+        "horizontal_overflow": 0,
+        "touch_violations": [],
+        "text_clips": [],
+        "active_workspace": null,
+        "mode_notice": null
+      },
+      "pixels": {
+        "luminance_mean": 30.48,
+        "luminance_stddev": 24.61,
+        "quantized_colors": 87
+      },
+      "console_errors": [],
+      "ignored_console_errors": [
+        "Failed to load resource: the server responded with a status of 503 (Service Unavailable)",
+        "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+      ],
+      "page_errors": [],
+      "failed_requests": [],
+      "bad_responses": [],
+      "expected_degraded_responses": [
+        {
+          "status": 503,
+          "url": "http://127.0.0.1:5173/api/config/okx-demo"
+        },
+        {
+          "status": 503,
+          "url": "http://127.0.0.1:5173/api/config/okx-demo"
+        }
+      ],
+      "issues": []
+    }
+  ]
+}

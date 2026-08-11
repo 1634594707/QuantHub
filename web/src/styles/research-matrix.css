@@ -30,6 +30,47 @@
   line-height: 1.6;
 }
 
+.rm-source-select {
+  display: grid;
+  grid-template-columns: auto minmax(180px, 280px);
+  align-items: center;
+  gap: var(--sp-3);
+  width: fit-content;
+  color: var(--text-3);
+  font-size: 12px;
+}
+.rm-source-select select {
+  min-height: 36px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 0 var(--sp-3);
+  background: var(--bg-elevated);
+  color: var(--text-1);
+}
+.rm-state-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--down);
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--bg-subtle);
+}
+.rm-state-banner > div { display: grid; gap: 3px; }
+.rm-state-banner strong { color: var(--down-ink); font-size: 13px; }
+.rm-state-banner span { color: var(--text-2); font-size: 12px; }
+.rm-state-banner button,
+.radar-state-detail button {
+  min-height: 36px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  padding: 0 var(--sp-3);
+  background: var(--bg-elevated);
+  color: var(--text-1);
+  cursor: pointer;
+}
+
 /* ---------- 信号来源筛选（chip 组） ---------- */
 .rm-source-filter {
   display: flex;
@@ -97,6 +138,13 @@
 .radar-card.has-signal {
   border-left-color: var(--accent-strong);
 }
+.radar-card.quote-only,
+.radar-card.signal-error,
+.radar-card.quote-error {
+  border-left-color: var(--border-strong);
+  background: var(--bg-subtle);
+}
+.radar-card.expired-signal { border-left-color: var(--warn); }
 .radar-card-head {
   display: flex;
   align-items: baseline;
@@ -131,6 +179,21 @@
   text-align: center;
   letter-spacing: 0.02em;
 }
+.radar-state-detail {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  min-height: 100px;
+  border-top: 1px solid var(--divider);
+  padding-top: var(--sp-3);
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.radar-state-detail strong { color: var(--text-1); font-size: 14px; }
+.radar-state-detail.error strong { color: var(--down-ink); }
+.radar-state-detail.stale strong { color: var(--warn-ink); }
+.radar-state-detail button { width: fit-content; margin-top: var(--sp-2); }
 .radar-note.muted {
   color: var(--text-3);
   font-style: italic;
@@ -304,4 +367,14 @@
 @media (max-width: 680px) {
   .flb-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .flb-status { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 767px) {
+  .rm-page { padding: var(--sp-3); }
+  .radar-grid { grid-template-columns: 1fr; }
+  .rm-source-select { grid-template-columns: 1fr; width: 100%; gap: var(--sp-2); }
+  .rm-source-select select { min-height: 44px; width: 100%; }
+  .rm-state-banner { align-items: stretch; flex-direction: column; }
+  .rm-state-banner button,
+  .radar-state-detail button { min-height: 44px; }
 }

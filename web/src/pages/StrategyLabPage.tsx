@@ -12,6 +12,7 @@ import { Select } from '../components/ui/Select/Select'
 import { Table, type Column } from '../components/ui/Table/Table'
 import { WorkspaceHeader } from '../components/WorkspaceHeader/WorkspaceHeader'
 import { defaultParams, StructuredParamsEditor } from '../components/StrategyShared'
+import { scrollElementWithinMainContent } from '../lib/scroll'
 import s from './OperationsPages.module.css'
 
 const MARKETS = [
@@ -123,7 +124,7 @@ export default function StrategyLabPage() {
 
   useEffect(() => {
     if (requestedAction !== 'create_experiment' || !currentDefinition) return
-    requestAnimationFrame(() => experimentFormRef.current?.scrollIntoView({ block: 'center' }))
+    requestAnimationFrame(() => scrollElementWithinMainContent(experimentFormRef.current))
   }, [currentDefinition, requestedAction])
 
   useEffect(() => {

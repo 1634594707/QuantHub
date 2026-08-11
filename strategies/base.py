@@ -44,6 +44,8 @@ class StrategyBase(abc.ABC):
     def __init__(self, config: dict | None = None) -> None:
         self.config = config or {}
         self._bus = get_bus()
+        self.last_report: dict[str, Any] | None = None
+        self.last_signal_rejection: dict[str, Any] | None = None
 
     @abc.abstractmethod
     def produce(self, **kwargs: Any) -> list[Signal]:

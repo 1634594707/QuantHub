@@ -3,11 +3,14 @@ import packageMetadata from '../../package.json'
 import type { StrategyInfo } from '../api/types'
 import {
   isWorkspaceItemActive,
+  navigationItemForId,
   workspacesForMode,
   workspaceForPath,
 } from '../navigation/workspaces'
 import type { InterfaceMode } from '../hooks/useInterfaceMode'
+import { strategyRouteId, useNavigationPreferences } from '../navigation/navigationPreferences'
 import { IconChevron } from './icons'
+import { Star } from 'lucide-react'
 
 interface Props {
   collapsed: boolean
@@ -16,7 +19,6 @@ interface Props {
   onNavigate: () => void
   strategyCount?: number
   strategyList?: StrategyInfo[]
-  clock: Date
   interfaceMode: InterfaceMode
 }
 
@@ -27,13 +29,28 @@ export default function Sidebar({
   onNavigate,
   strategyCount,
   strategyList = [],
-  clock,
   interfaceMode,
 }: Props) {
   const location = useLocation()
   const activeWorkspace = workspaceForPath(location.pathname)
-  const clockText = clock.toLocaleTimeString('zh-CN', { hour12: false })
-  const visibleWorkspaces = workspacesForMode(interfaceMode)
+  const {
+    hiddenWorkspaceIds,
+    pinnedRouteIds,
+    recentRouteIds,
+    togglePinnedRoute,
+  } = useNavigationPreferences()
+  const modeWorkspaces = workspacesForMode(interfaceMode)
+  const visibleWorkspaces = modeWorkspaces.filter((workspace) => !hiddenWorkspaceIds.includes(workspace.key))
+  const activeWorkspaceItems = modeWorkspaces.find((workspace) => workspace.key === activeWorkspace.key)?.items ?? []
+  const pinnedItems = pinnedRouteIds
+    .map(navigationItemForId)
+    .filter((item): item is NonNullable<typeof item> => Boolean(
+      item && modeWorkspaces.some((workspace) => workspace.items.some((candidate) => candidate.key === item.key)),
+    ))
+  const visibleStrategies = strategyList.filter((strategy) => {
+    const routeId = strategyRouteId(strategy.name)
+    return pinnedRouteIds.includes(routeId) || recentRouteIds.includes(routeId)
+  })
 
   return (
     <aside
@@ -101,49 +118,83 @@ export default function Sidebar({
         </header>
 
         <nav className="context-nav" aria-label={`${activeWorkspace.label}二级导航`}>
-          {(visibleWorkspaces.find((workspace) => workspace.key === activeWorkspace.key)?.items ?? []).map((item) => {
+          {pinnedItems.length > 0 ? (
+            <div className="context-pinned">
+              <span className="context-strategies-label">钉选入口</span>
+              {pinnedItems.map((item) => {
+                const Icon = item.icon
+                return (
+                  <NavLink key={item.key} to={item.to} className="context-pinned-item" onClick={onNavigate}>
+                    <Icon size={15} />
+                    <span>{item.label}</span>
+                  </NavLink>
+                )
+              })}
+            </div>
+          ) : null}
+
+          {activeWorkspaceItems.map((item) => {
             const Icon = item.icon
             const active = isWorkspaceItemActive(item, location.pathname)
             return (
-              <NavLink
-                key={item.key}
-                to={item.to}
-                end={item.end}
-                className={`context-nav-item ${active ? 'active' : ''}`}
-                onClick={onNavigate}
-                aria-current={active ? 'page' : undefined}
-              >
-                <Icon size={17} />
-                <span>{item.label}</span>
-                {item.key === 'strategy' && strategyCount ? (
-                  <span className="context-nav-badge">{strategyCount}</span>
-                ) : null}
-              </NavLink>
+              <div className="context-nav-row" key={item.key}>
+                <NavLink
+                  to={item.to}
+                  end={item.end}
+                  className={`context-nav-item ${active ? 'active' : ''}`}
+                  onClick={onNavigate}
+                  aria-current={active ? 'page' : undefined}
+                >
+                  <Icon size={17} />
+                  <span>{item.label}</span>
+                  {item.key === 'strategy' && strategyCount ? (
+                    <span className="context-nav-badge">{strategyCount}</span>
+                  ) : null}
+                </NavLink>
+                <button
+                  type="button"
+                  className={`context-pin ${pinnedRouteIds.includes(item.key) ? 'active' : ''}`}
+                  onClick={() => togglePinnedRoute(item.key)}
+                  aria-label={`${pinnedRouteIds.includes(item.key) ? '取消钉选' : '钉选'}${item.label}`}
+                  title={`${pinnedRouteIds.includes(item.key) ? '取消钉选' : '钉选'}${item.label}`}
+                >
+                  <Star size={14} fill={pinnedRouteIds.includes(item.key) ? 'currentColor' : 'none'} />
+                </button>
+              </div>
             )
           })}
 
-          {activeWorkspace.key === 'strategy' && strategyList.length > 0 ? (
+          {activeWorkspace.key === 'strategy' && visibleStrategies.length > 0 ? (
             <div className="context-strategies">
-              <span className="context-strategies-label">已注册策略</span>
-              {strategyList.map((strategy) => (
-                <NavLink
-                  key={strategy.name}
-                  to={`/strategies/${strategy.name}`}
-                  className={({ isActive }) => `context-strategy ${isActive ? 'active' : ''}`}
-                  onClick={onNavigate}
-                  title={strategy.description ? `${strategy.name} - ${strategy.description}` : strategy.name}
-                >
-                  <span className="context-strategy-dot" aria-hidden="true" />
-                  <span>{strategy.name}</span>
-                </NavLink>
+              <span className="context-strategies-label">收藏与最近使用</span>
+              {visibleStrategies.map((strategy) => (
+                <div className="context-strategy-row" key={strategy.name}>
+                  <NavLink
+                    to={`/strategies/${strategy.name}`}
+                    className={({ isActive }) => `context-strategy ${isActive ? 'active' : ''}`}
+                    onClick={onNavigate}
+                    title={strategy.description ? `${strategy.name} - ${strategy.description}` : strategy.name}
+                  >
+                    <span className="context-strategy-dot" aria-hidden="true" />
+                    <span>{strategy.name}</span>
+                  </NavLink>
+                  <button
+                    type="button"
+                    className={`context-pin ${pinnedRouteIds.includes(strategyRouteId(strategy.name)) ? 'active' : ''}`}
+                    onClick={() => togglePinnedRoute(strategyRouteId(strategy.name))}
+                    aria-label={`${pinnedRouteIds.includes(strategyRouteId(strategy.name)) ? '取消收藏' : '收藏'}策略 ${strategy.name}`}
+                    title={`${pinnedRouteIds.includes(strategyRouteId(strategy.name)) ? '取消收藏' : '收藏'}策略`}
+                  >
+                    <Star size={14} fill={pinnedRouteIds.includes(strategyRouteId(strategy.name)) ? 'currentColor' : 'none'} />
+                  </button>
+                </div>
               ))}
             </div>
           ) : null}
         </nav>
 
-        <footer className="context-nav-foot" title={`v${packageMetadata.version} · 本地终端 · ${clockText}`}>
-          <span>v{packageMetadata.version} · 本地终端</span>
-          <span className="mono-num">{clockText}</span>
+        <footer className="context-nav-foot" title={`v${packageMetadata.version}`}>
+          <span>v{packageMetadata.version}</span>
         </footer>
       </div>
     </aside>
