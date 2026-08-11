@@ -1,0 +1,67 @@
+{
+  "generated_at": "2026-08-11T07:21:51.096Z",
+  "base_url": "http://127.0.0.1:5173",
+  "api_base": "http://127.0.0.1:8001",
+  "route": "/factor-research",
+  "passed": true,
+  "results": [
+    {
+      "viewport": {
+        "id": "mobile-390x844",
+        "width": 390,
+        "height": 844
+      },
+      "inspection": {
+        "present": true,
+        "documentOverflow": 0,
+        "panelOverflow": 0,
+        "clippedText": [],
+        "overflowingElements": [],
+        "hasBrainEngine": true,
+        "hasSafeDslPolicy": true,
+        "hasFixedBacktestPolicy": true,
+        "hasSevenDayPolicy": true,
+        "observationDays": "7",
+        "observationMinimum": "7",
+        "aiEnabled": true
+      },
+      "manualInspection": {
+        "hasManualExpression": true,
+        "hasJsonUpload": true,
+        "hasAkshare": true,
+        "stockSymbol": "600519",
+        "fileInputs": 1
+      },
+      "consoleErrors": []
+    },
+    {
+      "viewport": {
+        "id": "desktop-1440x900",
+        "width": 1440,
+        "height": 900
+      },
+      "inspection": {
+        "present": true,
+        "documentOverflow": 0,
+        "panelOverflow": 0,
+        "clippedText": [],
+        "overflowingElements": [],
+        "hasBrainEngine": true,
+        "hasSafeDslPolicy": true,
+        "hasFixedBacktestPolicy": true,
+        "hasSevenDayPolicy": true,
+        "observationDays": "7",
+        "observationMinimum": "7",
+        "aiEnabled": true
+      },
+      "manualInspection": {
+        "hasManualExpression": true,
+        "hasJsonUpload": true,
+        "hasAkshare": true,
+        "stockSymbol": "600519",
+        "fileInputs": 1
+      },
+      "consoleErrors": []
+    }
+  ]
+}

@@ -6,6 +6,10 @@
   overflow: hidden;
 }
 
+:global([data-theme='dark']) .panel {
+  box-shadow: none;
+}
+
 .head {
   display: flex;
   align-items: center;
@@ -65,4 +69,11 @@
 
 .body {
   padding: var(--sp-4);
+}
+
+@media (max-width: 767px) {
+  .caret {
+    width: 44px;
+    height: 44px;
+  }
 }

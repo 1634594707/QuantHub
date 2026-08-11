@@ -27,7 +27,7 @@ const routes = [
   { id: 'evaluate', path: '/evaluate', requiredText: '标的研究' },
   { id: 'strategies', path: '/strategies', requiredText: '策略' },
   { id: 'signals', path: '/signals', requiredText: '信号' },
-  { id: 'trading', path: '/trading', requiredText: '交易工作台' },
+  { id: 'trading', path: '/trading', requiredText: 'Demo 交易台' },
   { id: 'account-risk', path: '/account-risk', requiredText: '账户与风控' },
   { id: 'config', path: '/config', requiredText: '系统设置' },
 ]
@@ -152,28 +152,54 @@ async function runShadowSafetyChecks(browser) {
   await page.goto(`${baseUrl}/trading`)
   await settle(page)
   const tradingText = await page.locator('body').innerText()
-  const submitDisabled = await page.getByRole('button', { name: '提交订单' }).isDisabled()
-  const cancelDisabled = await page.getByRole('button', { name: '撤单' }).isDisabled()
-  checks.push({
-    check: 'shadow-trading-blocked',
-    environmentVisible: tradingText.includes('影子（只读，不下单）'),
-    submitDisabled,
-    cancelDisabled,
-    passed: tradingText.includes('影子（只读，不下单）') && submitDisabled && cancelDisabled,
-  })
+  const submitDisabled = await page.getByRole('button', { name: /提交 Demo 订单|再次验证幂等/ }).isDisabled()
+  const isShadow = tradingText.includes('影子（只读）')
+  if (isShadow) {
+    checks.push({
+      check: 'shadow-trading-blocked',
+      environmentVisible: true,
+      submitDisabled,
+      passed: submitDisabled,
+    })
+  } else {
+    const riskLocked = tradingText.includes('cancel_only') && tradingText.includes('新订单已锁定')
+    const recoveryVisible = await page.getByRole('button', { name: '恢复未决订单' }).isVisible()
+    const reconciliationVisible = await page.getByRole('button', { name: '立即对账' }).isVisible()
+    checks.push({
+      check: 'demo-risk-lock-and-operations',
+      environmentVisible: tradingText.includes('OKX 模拟盘'),
+      riskLocked,
+      submitDisabled,
+      recoveryVisible,
+      reconciliationVisible,
+      passed: tradingText.includes('OKX 模拟盘') && riskLocked && submitDisabled && recoveryVisible && reconciliationVisible,
+    })
+  }
 
   await page.goto(`${baseUrl}/account-risk`)
   await settle(page)
   const riskText = await page.locator('body').innerText()
   const reconcileDisabled = await page.getByRole('button', { name: '发起对账' }).isDisabled()
   const riskModeDisabled = await page.getByRole('button', { name: '应用风险模式' }).isDisabled()
-  checks.push({
-    check: 'shadow-risk-mutations-blocked',
-    environmentVisible: riskText.includes('影子（只读，不下单）'),
-    reconcileDisabled,
-    riskModeDisabled,
-    passed: riskText.includes('影子（只读，不下单）') && reconcileDisabled && riskModeDisabled,
-  })
+  if (isShadow) {
+    checks.push({
+      check: 'shadow-risk-mutations-blocked',
+      environmentVisible: riskText.includes('影子（只读）'),
+      reconcileDisabled,
+      riskModeDisabled,
+      passed: riskText.includes('影子（只读）') && reconcileDisabled && riskModeDisabled,
+    })
+  } else {
+    const resolveButtons = page.getByRole('button', { name: '关闭差异' })
+    const firstResolveDisabled = await resolveButtons.first().isDisabled()
+    checks.push({
+      check: 'demo-diff-resolution-requires-conclusion',
+      environmentVisible: riskText.includes('OKX 模拟盘'),
+      openDiffsVisible: (await resolveButtons.count()) > 0,
+      firstResolveDisabled,
+      passed: riskText.includes('OKX 模拟盘') && (await resolveButtons.count()) > 0 && firstResolveDisabled,
+    })
+  }
 
   await page.close()
   return checks

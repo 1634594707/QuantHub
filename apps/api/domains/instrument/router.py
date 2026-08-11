@@ -10,6 +10,15 @@ from .schemas import InstrumentRegister
 router = APIRouter(prefix="/instruments", tags=["instrument"])
 
 
+@router.get("/okx-swaps")
+def okx_swaps(
+    q: str = Query(default="", description="OKX instId、基础币代码或已登记别名"),
+    limit: int = Query(default=100, ge=1, le=500),
+    refresh: bool = Query(default=False),
+) -> dict:
+    return service.okx_swap_catalog(q, limit=limit, refresh=refresh)
+
+
 @router.get("")
 @router.get("/search")
 def search(

@@ -77,6 +77,7 @@ export const WORKSPACES: WorkspaceDefinition[] = [
         matchPrefixes: ['/evaluate', '/research', '/news', '/pa', '/ensemble'],
         searchKeywords: '股票 标的 研究 评估 新闻 K线 行情 价格行为 模型共识 AI',
       },
+      { key: 'factor-factory', label: '因子工厂', to: '/factor-research', icon: IconBeaker, searchKeywords: '因子 挖掘 候选 DSL 回测 样本外 模拟交易 证据 生命周期' },
       { key: 'radar', label: '信号雷达', to: '/radar', icon: IconCrosshair, searchKeywords: '雷达 标的 信号 多标的 自选 收藏' },
       { key: 'tasks', label: '研究任务', to: '/tasks', icon: IconActivity, searchKeywords: '研究 分析 任务 队列' },
       { key: 'instruments', label: '标的与数据', to: '/instruments', icon: IconSearch, searchKeywords: '股票 市场 标的 主数据 数据源' },
@@ -90,6 +91,7 @@ export const WORKSPACES: WorkspaceDefinition[] = [
     icon: IconLayers,
     items: [
       { key: 'strategy', label: '策略运行', to: '/strategies', icon: IconLayers, matchPrefixes: ['/strategies'], searchKeywords: '已安装 策略 运行 版本 参数 最近信号' },
+      { key: 'strategy-lab', label: '策略实验', to: '/strategy-lab', icon: IconBeaker, searchKeywords: '策略 定义 版本 实验 回测 对比 可复现' },
       { key: 'portfolio', label: '策略组合', to: '/portfolio', icon: IconLayers, searchKeywords: '策略 分配 组合 权重' },
     ],
   },
@@ -125,6 +127,7 @@ export const WORKSPACES: WorkspaceDefinition[] = [
     icon: IconCog,
     items: [
       { key: 'config', label: '系统设置', to: '/config', icon: IconCog, searchKeywords: '数据源 模型 OKX 交易开关 账户映射 通知 备份' },
+      { key: 'governance', label: '治理与审计', to: '/governance', icon: IconLayers, searchKeywords: '成员 角色 权限 令牌 访问 审计' },
       { key: 'automation', label: '作业调度', to: '/automation', icon: IconActivity, searchKeywords: '自动化 调度 作业 运行' },
       { key: 'incidents', label: '运行故障', to: '/incidents', icon: IconBell, searchKeywords: '故障 状态 异常 恢复' },
     ],
@@ -160,6 +163,32 @@ export function workspacesForMode(mode: InterfaceMode): WorkspaceDefinition[] {
     })
 }
 
+export function navigationItemForId(routeId: string): (WorkspaceNavItem & { workspaceKey: WorkspaceKey; workspaceLabel: string }) | null {
+  for (const workspace of WORKSPACES) {
+    const item = workspace.items.find((candidate) => candidate.key === routeId)
+    if (item) return { ...item, workspaceKey: workspace.key, workspaceLabel: workspace.label }
+  }
+  return null
+}
+
+export function routeIdForPath(pathname: string): string | null {
+  const strategyMatch = pathname.match(/^\/strategies\/([^/]+)$/)
+  if (strategyMatch) return `strategy:${decodeURIComponent(strategyMatch[1])}`
+  for (const workspace of WORKSPACES) {
+    const item = workspace.items.find((candidate) => isWorkspaceItemActive(candidate, pathname))
+    if (item) return item.key
+  }
+  return null
+}
+
+export function isPathVisibleInMode(mode: InterfaceMode, pathname: string): boolean {
+  if (mode === 'advanced') return true
+  return workspacesForMode(mode).some((workspace) => workspace.items.some((item) => (
+    isWorkspaceItemActive(item, pathname)
+    || (item.to.includes('#') && pathname === item.to.split('#')[0])
+  )))
+}
+
 export const ROUTE_PRESENTATIONS: RoutePresentation[] = [
   { workspaceKey: 'overview', board: 'overview', label: '总览', exact: '/' },
   { workspaceKey: 'market', board: 'evaluation', label: '标的研究', prefix: '/evaluate' },
@@ -167,32 +196,41 @@ export const ROUTE_PRESENTATIONS: RoutePresentation[] = [
   { workspaceKey: 'market', board: 'evaluation-news', label: '标的研究 · 新闻证据', prefix: '/news' },
   { workspaceKey: 'market', board: 'evaluation-pa', label: '标的研究 · 价格结构', prefix: '/pa' },
   { workspaceKey: 'market', board: 'evaluation-consensus', label: '标的研究 · 模型共识', prefix: '/ensemble' },
+  { workspaceKey: 'market', board: 'factor-factory', label: '因子工厂', prefix: '/factor-research' },
   { workspaceKey: 'market', board: 'radar', label: '信号雷达', prefix: '/radar' },
   { workspaceKey: 'market', board: 'tasks', label: '研究任务', prefix: '/tasks' },
   { workspaceKey: 'market', board: 'instruments', label: '标的与数据', prefix: '/instruments' },
   { workspaceKey: 'strategy', board: 'workbench', label: '策略运行', prefix: '/strategies/' },
   { workspaceKey: 'strategy', board: 'library', label: '策略运行', prefix: '/strategies' },
+  { workspaceKey: 'strategy', board: 'strategy-lab', label: '策略实验', prefix: '/strategy-lab' },
   { workspaceKey: 'strategy', board: 'portfolio', label: '策略组合', prefix: '/portfolio' },
   { workspaceKey: 'trading', board: 'trading', label: '交易工作台', prefix: '/trading' },
   { workspaceKey: 'trading', board: 'signals', label: '信号审核', prefix: '/signals' },
   { workspaceKey: 'trading', board: 'simulation', label: '模拟交易', prefix: '/simulation' },
+  { workspaceKey: 'trading', board: 'demo-lab', label: '模拟实验室', prefix: '/demo-lab' },
   { workspaceKey: 'risk', board: 'account-risk', label: '账户与风控', prefix: '/account-risk' },
   { workspaceKey: 'risk', board: 'ledger', label: '账户账本', prefix: '/ledger' },
   { workspaceKey: 'risk', board: 'alerts', label: '价格提醒', prefix: '/alerts' },
   { workspaceKey: 'settings', board: 'config', label: '系统设置', prefix: '/config' },
+  { workspaceKey: 'settings', board: 'governance', label: '治理与审计', prefix: '/governance' },
   { workspaceKey: 'settings', board: 'automation', label: '作业调度', prefix: '/automation' },
   { workspaceKey: 'settings', board: 'incidents', label: '运行故障', prefix: '/incidents' },
+  { workspaceKey: 'settings', board: 'ui-showcase', label: '组件预览', prefix: '/__ui' },
 ]
 
 export function presentationForPath(pathname: string): RoutePresentation {
-  return ROUTE_PRESENTATIONS.find((route) => (
+  const presentation = ROUTE_PRESENTATIONS.find((route) => (
     route.exact ? pathname === route.exact : Boolean(route.prefix && pathname.startsWith(route.prefix))
-  )) ?? ROUTE_PRESENTATIONS[0]
+  ))
+  if (!presentation) throw new Error(`未配置路由展示归属: ${pathname}`)
+  return presentation
 }
 
 export function workspaceForPath(pathname: string): WorkspaceDefinition {
   const presentation = presentationForPath(pathname)
-  return WORKSPACES.find((workspace) => workspace.key === presentation.workspaceKey) ?? WORKSPACES[0]
+  const workspace = WORKSPACES.find((item) => item.key === presentation.workspaceKey)
+  if (!workspace) throw new Error(`未配置工作区: ${presentation.workspaceKey}`)
+  return workspace
 }
 
 export function isWorkspaceItemActive(item: WorkspaceNavItem, pathname: string): boolean {

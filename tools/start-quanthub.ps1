@@ -3,8 +3,8 @@
 # One command starts three processes: Web (5173), unified API (8001)
 # and the headless OKX Runner (8103).
 # The Runner starts in the 'shadow' environment (read-only, never places orders).
-# Switching to demo requires QH_RUNNER_ENVIRONMENT=demo; live additionally requires
-# QH_RUNNER_LIVE_APPROVED=1. This script never sets those for you.
+# Pass -Demo to use the local OKX Demo vault. Live still requires
+# QH_RUNNER_ENVIRONMENT=live plus QH_RUNNER_LIVE_APPROVED=1 and is never set here.
 # Re-running is idempotent: a port already served by this project is left alone,
 # and the PID recorded for that service is preserved (adopted from the previous
 # run record, or discovered from the listening port) so stop-quanthub.ps1 can
@@ -16,10 +16,20 @@
 param(
     [switch]$SkipSync,
     # Start only Web + API and leave the Runner down (research / read-only use).
-    [switch]$SkipRunner
+    [switch]$SkipRunner,
+    # Explicitly start the gateway and Runner in OKX Demo trading mode.
+    [switch]$Demo
 )
 
 $ErrorActionPreference = 'Stop'
+if ($Demo) {
+    $env:QH_RUNNER_ENVIRONMENT = 'demo'
+    $env:QH_OKX_CREDENTIAL_SOURCE = 'local_vault'
+    $env:QUANTHUB_FACTOR_AUTO_DISCOVERY = '1'
+    if (-not $env:QH_RUNNER_AUTH_TOKEN) {
+        $env:QH_RUNNER_AUTH_TOKEN = [guid]::NewGuid().ToString('N') + [guid]::NewGuid().ToString('N')
+    }
+}
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $WebRoot = Join-Path $ProjectRoot 'web'
 $LogRoot = Join-Path $ProjectRoot 'logs\launcher'

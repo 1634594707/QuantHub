@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hmac
+import os
 from datetime import datetime
 from hashlib import sha256
 from typing import Any, Literal
@@ -10,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from packages.research_protocol import content_hash
 
 CONTRACT_VERSION = "1.0.0"
+DEFAULT_DEVELOPMENT_SIGNING_KEY = b"development-factor-signing-key-32b"
 
 
 class PackageValidationError(ValueError):
@@ -18,6 +20,14 @@ class PackageValidationError(ValueError):
 
 class CompatibilityError(PackageValidationError):
     pass
+
+
+def signing_key_from_env() -> bytes:
+    raw_key = os.environ.get("QH_RUNNER_SIGNING_KEY", "")
+    signing_key = raw_key.encode("utf-8") if raw_key else DEFAULT_DEVELOPMENT_SIGNING_KEY
+    if len(signing_key) < 32:
+        raise PackageValidationError("strategy signing key must contain at least 32 bytes")
+    return signing_key
 
 
 class RiskLimits(BaseModel):

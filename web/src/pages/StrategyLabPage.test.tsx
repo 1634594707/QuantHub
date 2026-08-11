@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../api/client'
 import StrategyLabPage from './StrategyLabPage'
 
@@ -57,10 +57,6 @@ function renderPage(path: string) {
     </MemoryRouter>,
   )
 }
-
-beforeEach(() => {
-  HTMLElement.prototype.scrollIntoView = vi.fn()
-})
 
 afterEach(() => {
   cleanup()

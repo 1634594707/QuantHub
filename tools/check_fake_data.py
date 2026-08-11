@@ -146,6 +146,8 @@ RULES: tuple[Rule, ...] = (
 #      其输入是**真实样本**，输出是统计量而非伪造的行情/收益；或
 #   3) 数值是表单输入框的默认值 / 业务常量（如 A 股一手 = 100 股），
 #      不是被当作行情或持仓展示给用户的数据。
+#   4) 合成数据是用户显式选择、确定性可复现并在响应中明确标注“无真实市场数据”的
+#      压力测试源；它不得作为真实数据失败后的兜底，也不得写入生产信号账本。
 ALLOWLIST: dict[str, str | dict] = {
     "web/src/pages/TradingWorkspacePage.tsx:RANDOM_SERIES": "crypto.randomUUID 不可用时生成幂等键 intent_id，非展示数据。",
     "web/src/lib/uid.ts:RANDOM_SERIES": "生成前端本地唯一 key，非展示数据。",
@@ -153,6 +155,11 @@ ALLOWLIST: dict[str, str | dict] = {
     "输入为真实因子/收益样本，输出为统计量，不构造行情数据。",
     "core/factor_robustness.py:RANDOM_SERIES": "np.random.default_rng(seed) 用于置换检验（permutation test）打乱真实样本标签，"
     "用于显著性判定，不构造行情数据。",
+    "core/backtest/dataset.py:RANDOM_SERIES": {
+        "reason": "用户必须显式选择 synthetic 数据源；默认源为 okx_local。生成结果按 seed 确定性复现，"
+        "API provenance 明确标注‘确定性合成行情（无真实市场数据）’，真实数据失败不会回退到该源。",
+        "matches": ["np.random."],
+    },
     "web/src/pages/LedgerPage.tsx:HARDCODED_MARKET_VALUE": {
         "reason": "手工补录交易的表单默认数量（A 股一手 = 100 股），是 useState 输入框初值；"
         "同一表单的 price / fee 默认为 0，不存在写死行情。",

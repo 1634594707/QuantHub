@@ -20,6 +20,7 @@ from typing import Any
 from core.data_feed.factory import get_data_source
 from core.signals import Signal
 from strategies import StrategyBase, StrategyInfo, register_strategy
+from strategies.signal_contract import SIGNAL_MARKER, parse_report_signal
 
 logger = logging.getLogger(__name__)
 
@@ -174,6 +175,10 @@ _SYSTEM_PROMPT = """\
 
 仅基于调用方提供的结构化数据写作"数据摘要"；基本面部分须明确标注"需联网核实"。
 输出语言：中文。
+
+报告最后一行必须输出机器可读信号，不得省略或放进代码块：
+QUANTHUB_SIGNAL_JSON:{"direction":"buy|sell|hold","score":0到1,"confidence":0到1}
+其中 score 与 confidence 必须来自本次分析证据；无法计算时不要输出该行。
 """
 
 
@@ -229,22 +234,41 @@ class RealtimeAnalyzerUsStrategy(StrategyBase):
         else:
             report = self._snapshot_only_report(market_data)
 
-        meta = {
+        self.last_report = {
+            "kind": "llm_analysis" if has_llm else "market_snapshot",
             "report": report,
             "has_llm": has_llm,
             "market_data": market_data,
         }
+        if not has_llm:
+            self.last_signal_rejection = {
+                "code": "model_unavailable",
+                "message": "LLM 不可用；已保存行情快照，但未发布带数值把握度的信号。",
+                "details": {"source": "realtime_analyzer_us"},
+            }
+            return []
+
+        signal_values = parse_report_signal(report)
+        if signal_values is None:
+            self.last_signal_rejection = {
+                "code": "structured_signal_missing",
+                "message": f"分析报告缺少有效的 {SIGNAL_MARKER} 结构，未发布信号。",
+                "details": {"source": "realtime_analyzer_us"},
+            }
+            return []
+
+        meta = dict(self.last_report)
         # 与 A 股 realtime_analyzer 一致：单条聚合信号，symbol = codes[0]
         sym = codes[0] if codes else "US_STOCKS"
         sig = Signal(
             symbol=sym,
             market="us_stocks",
             timeframe="realtime",
-            direction="hold",
-            score=0.5,
-            confidence=0.6 if has_llm else 0.3,
+            direction=signal_values["direction"],
+            score=signal_values["score"],
+            confidence=signal_values["confidence"],
             source="realtime_analyzer_us",
-            tags=["analysis", "report", "us", "llm" if has_llm else "snapshot"],
+            tags=["analysis", "report", "us", "llm", "structured_signal"],
             meta=meta,
         )
         self.publish(sig)

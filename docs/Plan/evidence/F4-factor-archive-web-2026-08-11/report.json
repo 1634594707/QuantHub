@@ -1,0 +1,49 @@
+{
+  "generated_at": "2026-08-11T05:19:04.198Z",
+  "base_url": "http://127.0.0.1:5173",
+  "api_base": "http://127.0.0.1:8001",
+  "route": "/factor-research",
+  "passed": true,
+  "results": [
+    {
+      "viewport": {
+        "id": "mobile-390x844",
+        "width": 390,
+        "height": 844
+      },
+      "inspection": {
+        "present": true,
+        "documentOverflow": 0,
+        "archiveOverflow": 0,
+        "clippedText": [],
+        "overflowingElements": [],
+        "selectedRows": 1,
+        "liveTradingClosed": true,
+        "hasPreregistration": true,
+        "hasPostStudyEvidence": true,
+        "hasRemainingRisk": true
+      },
+      "consoleErrors": []
+    },
+    {
+      "viewport": {
+        "id": "desktop-1440x900",
+        "width": 1440,
+        "height": 900
+      },
+      "inspection": {
+        "present": true,
+        "documentOverflow": 0,
+        "archiveOverflow": 0,
+        "clippedText": [],
+        "overflowingElements": [],
+        "selectedRows": 1,
+        "liveTradingClosed": true,
+        "hasPreregistration": true,
+        "hasPostStudyEvidence": true,
+        "hasRemainingRisk": true
+      },
+      "consoleErrors": []
+    }
+  ]
+}

@@ -12,7 +12,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse
 
 from apps.api.contracts import error_envelope
@@ -48,6 +48,21 @@ def trading_health() -> dict:
 def trading_dashboard():
     try:
         return get_service().dashboard()
+    except errors.TradingError as exc:
+        return _error_response(exc)
+
+
+@router.get("/preflight")
+def trading_preflight(symbols: str | None = Query(default=None, max_length=700)):
+    requested = None
+    if symbols is not None:
+        requested = list(
+            dict.fromkeys(symbol.strip().upper() for symbol in symbols.split(",") if symbol.strip())
+        )
+        if not requested or len(requested) > 10 or any(len(symbol) > 64 for symbol in requested):
+            raise HTTPException(status_code=422, detail="symbols 必须包含 1 到 10 个有效合约代码")
+    try:
+        return get_service().preflight(requested)
     except errors.TradingError as exc:
         return _error_response(exc)
 

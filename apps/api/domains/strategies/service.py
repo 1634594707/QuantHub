@@ -128,6 +128,12 @@ def run(name: str, params: dict[str, Any]) -> dict:
         raw = call_produce(strategy, params)
         signals = repository.persist_signals([signal_to_dict(item) for item in raw])
         result = {"ok": True, "name": name, "count": len(signals), "signals": signals}
+        report = getattr(strategy, "last_report", None)
+        if isinstance(report, dict):
+            result["report"] = report
+        rejection = getattr(strategy, "last_signal_rejection", None)
+        if isinstance(rejection, dict):
+            result["signal_rejection"] = rejection
     except Exception as exc:  # noqa: BLE001 - normalize data adapter failures for the API
         logger.exception("策略 %s 运行失败", name)
         result = {"ok": False, "name": name, "error": str(exc), "signals": []}

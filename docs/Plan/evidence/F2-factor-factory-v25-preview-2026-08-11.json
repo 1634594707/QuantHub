@@ -1,0 +1,208 @@
+{
+  "captured_at": "2026-08-11T05:34:18Z",
+  "research_version": "2.5.0",
+  "mode": "discovery_and_rolling_validation_preview",
+  "source_formal_run_id": "6701a5ce2c7d44f2a01e903d66a1ad6e",
+  "data": {
+    "source": "okx_live_cached_snapshot",
+    "symbol": "BTC-USDT-SWAP",
+    "interval": "1h",
+    "bars": 2880,
+    "data_fingerprint": "7b54bb55e0c79272339075a7d561bef29d25eebe0d915f88e32e0ad9c67e25cd",
+    "discovery_end": "2026-06-11T23:00:00+00:00",
+    "rolling_validation_end": "2026-07-17T23:00:00+00:00",
+    "locked_confirmation_rows_read_for_metrics": 0
+  },
+  "integrity": {
+    "confirmation_labels_accessed": false,
+    "database_mutated": false,
+    "formal_confirmation_opened": false,
+    "simulation_or_demo_order_created": false,
+    "thresholds_lowered": false,
+    "candidate_budget_changed": false
+  },
+  "candidate_change": {
+    "scope": "1h_only",
+    "generated_candidates": 30,
+    "replaced_variants": [
+      "volatility_adjusted_momentum_10",
+      "volatility_adjusted_momentum_40",
+      "volume_confirmed_breakout_10",
+      "volume_confirmed_breakout_40",
+      "donchian_breakout_10",
+      "donchian_breakout_40"
+    ],
+    "added_variants": [
+      "efficiency_ratio_trend_12",
+      "efficiency_ratio_trend_24",
+      "volatility_gated_reversal_12",
+      "volatility_gated_reversal_24",
+      "close_location_volume_pressure_12",
+      "close_location_volume_pressure_24"
+    ],
+    "four_hour_universe_changed": false
+  },
+  "funnel": {
+    "preflight_accepted": 29,
+    "preflight_rejected": 1,
+    "preliminary_passed": 0
+  },
+  "leading_candidate": {
+    "family": "builtin_rsi_reversal",
+    "lookback": 20,
+    "source": "template",
+    "score": 5.3145005,
+    "discovery_return": -0.015494,
+    "validation_return": 0.013413,
+    "validation_sharpe": 4.084117,
+    "validation_drawdown": -0.008478,
+    "validation_p_value": 0.1998804024375957,
+    "validation_rank_ic": 0.0672995348576,
+    "validation_positive_windows": 3,
+    "double_cost_return": 0.010366,
+    "double_cost_sharpe": 3.182931,
+    "double_cost_drawdown": -0.008803,
+    "double_cost_positive_windows": 2,
+    "passed": false,
+    "failed_checks": [
+      "direction_consistency"
+    ]
+  },
+  "new_candidate_results": [
+    {
+      "family": "efficiency_ratio_trend",
+      "lookback": 24,
+      "rank": 11,
+      "discovery_return": -0.084054,
+      "validation_return": 0.00598,
+      "validation_sharpe": 0.5992,
+      "validation_p_value": 0.8508198294775757,
+      "validation_rank_ic": -0.024912216358279428,
+      "double_cost_return": -0.009033,
+      "double_cost_sharpe": -0.769692,
+      "passed": false
+    },
+    {
+      "family": "volatility_gated_reversal",
+      "lookback": 12,
+      "rank": 18,
+      "discovery_return": -0.037515,
+      "validation_return": -0.015556,
+      "validation_sharpe": -1.524646,
+      "validation_p_value": 0.632262759172745,
+      "validation_rank_ic": 0.019554143190731683,
+      "double_cost_return": -0.044052,
+      "double_cost_sharpe": -4.446418,
+      "passed": false
+    },
+    {
+      "family": "volatility_gated_reversal",
+      "lookback": 24,
+      "rank": 19,
+      "discovery_return": -0.042069,
+      "validation_return": -0.017325,
+      "validation_sharpe": -1.712057,
+      "validation_p_value": 0.5910136920166299,
+      "validation_rank_ic": 0.010242016091041369,
+      "double_cost_return": -0.042481,
+      "double_cost_sharpe": -4.415964,
+      "passed": false
+    },
+    {
+      "family": "close_location_volume_pressure",
+      "lookback": 12,
+      "rank": 22,
+      "discovery_return": -0.101157,
+      "validation_return": -0.026286,
+      "validation_sharpe": -2.59029,
+      "validation_p_value": 0.41620604355392105,
+      "validation_rank_ic": -0.04757539931120331,
+      "double_cost_return": -0.059593,
+      "double_cost_sharpe": -6.027645,
+      "passed": false
+    },
+    {
+      "family": "efficiency_ratio_trend",
+      "lookback": 12,
+      "rank": 24,
+      "discovery_return": -0.062274,
+      "validation_return": -0.044328,
+      "validation_sharpe": -3.865648,
+      "validation_p_value": 0.22500722852729382,
+      "validation_rank_ic": -0.0519105684499565,
+      "double_cost_return": -0.065037,
+      "double_cost_sharpe": -5.856534,
+      "passed": false
+    },
+    {
+      "family": "close_location_volume_pressure",
+      "lookback": 24,
+      "rank": 29,
+      "discovery_return": -0.105696,
+      "validation_return": -0.079924,
+      "validation_sharpe": -8.527953,
+      "validation_p_value": 0.007435327667896636,
+      "validation_rank_ic": -0.09572048305386259,
+      "double_cost_return": -0.103715,
+      "double_cost_sharpe": -11.197327,
+      "passed": false
+    }
+  ],
+  "most_common_failures": {
+    "validation_p_value": 22,
+    "cost_stress_window_majority": 21,
+    "cost_stress_sharpe": 21,
+    "validation_rank_ic_direction": 18,
+    "cost_stress_return": 18,
+    "validation_window_majority": 16,
+    "validation_sharpe": 16,
+    "validation_return": 14,
+    "direction_consistency": 7,
+    "minimum_trades": 4
+  },
+  "comparison_with_2_4": {
+    "same_data_fingerprint": true,
+    "same_thresholds": true,
+    "same_candidate_budget": true,
+    "same_leading_candidate": true,
+    "preliminary_passed_change": 0,
+    "conclusion": "The 1h candidate universe is more diverse, but none of the six replacements passed the preregistered rolling-validation and double-cost gates."
+  },
+  "verification": {
+    "factor_factory_tests": "31 passed",
+    "ruff": "passed"
+  },
+  "deployment": {
+    "build_id": "a7d11b102e1a",
+    "restart_required": false,
+    "api_status": "ok",
+    "web_status": "ok",
+    "runner_status": "ok",
+    "runner_environment": "demo",
+    "runner_live_approved": false,
+    "auto_discovery_startup_audit": {
+      "one_hour": "already_ran_today",
+      "four_hour": "already_ran_today"
+    },
+    "paper_observing_runs": 0,
+    "global_risk_mode": "normal",
+    "open_reconciliation_differences": 0,
+    "open_orders": 0,
+    "demo_preflight": {
+      "permissions": [
+        "read_only",
+        "trade"
+      ],
+      "clock_drift_ms": 2057,
+      "clock_within_tolerance": true,
+      "btc_swap_active": true
+    },
+    "account_snapshot_fresh": false,
+    "account_snapshot_note": "No factor is awaiting Demo activation. Refresh account and reconciliation evidence again if a future factor passes locked confirmation."
+  },
+  "verdict": {
+    "qualified_factor_found": false,
+    "safe_to_open_confirmation": false,
+    "next_action": "Deploy the versioned candidate universe without changing gates, then wait for a new real 1h market-data fingerprint before any formal study."
+  }
+}

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../../api/client'
-import { workspacesForMode } from '../../navigation/workspaces'
+import { navigationItemForId, routeIdForPath, workspacesForMode } from '../../navigation/workspaces'
+import { useNavigationPreferences } from '../../navigation/navigationPreferences'
 import type { InterfaceMode } from '../../hooks/useInterfaceMode'
 import type {
   GlobalSearchItem,
@@ -18,6 +19,7 @@ import styles from './CommandPalette.module.css'
 
 type CommandGroup =
   | 'actions'
+  | 'recent'
   | 'pages'
   | 'instruments'
   | 'definitions'
@@ -61,6 +63,7 @@ interface BusinessSearchState {
 
 const GROUP_LABELS: Record<CommandGroup, string> = {
   actions: '快捷操作',
+  recent: '最近使用',
   pages: '页面',
   instruments: '标的',
   definitions: '策略定义',
@@ -72,6 +75,7 @@ const GROUP_LABELS: Record<CommandGroup, string> = {
 
 const GROUP_ORDER: CommandGroup[] = [
   'actions',
+  'recent',
   'pages',
   'instruments',
   'definitions',
@@ -111,8 +115,8 @@ const QUICK_ACTIONS: CommandItem[] = [
   },
 ]
 
-function pageCommands(mode: InterfaceMode): CommandItem[] {
-  return workspacesForMode(mode).flatMap((workspace) => (
+function pageCommands(mode: InterfaceMode, hiddenWorkspaceIds: string[]): CommandItem[] {
+  return workspacesForMode(mode).filter((workspace) => !hiddenWorkspaceIds.includes(workspace.key)).flatMap((workspace) => (
     workspace.items.map((item) => ({
       id: `page:${item.key}`,
       group: 'pages' as const,
@@ -124,6 +128,35 @@ function pageCommands(mode: InterfaceMode): CommandItem[] {
       keywords: item.searchKeywords ?? `${workspace.label} ${item.label}`,
     }))
   ))
+}
+
+function recentCommands(routeIds: string[], mode: InterfaceMode, hiddenWorkspaceIds: string[]): CommandItem[] {
+  const visibleIds = new Set(pageCommands(mode, hiddenWorkspaceIds).map((item) => item.id.replace(/^page:/, '')))
+  return routeIds.flatMap((routeId): CommandItem[] => {
+    if (routeId.startsWith('strategy:') && mode === 'advanced' && !hiddenWorkspaceIds.includes('strategy')) {
+      const strategyName = routeId.slice('strategy:'.length)
+      return [{
+        id: `recent:${routeId}`,
+        group: 'recent',
+        marker: '近',
+        label: strategyName,
+        detail: '最近使用的策略',
+        path: `/strategies/${encodeURIComponent(strategyName)}`,
+        keywords: strategyName,
+      }]
+    }
+    const item = navigationItemForId(routeId)
+    if (!item || !visibleIds.has(routeId)) return []
+    return [{
+      id: `recent:${routeId}`,
+      group: 'recent',
+      marker: '近',
+      label: item.label,
+      detail: item.workspaceLabel,
+      path: item.to,
+      keywords: item.searchKeywords ?? item.label,
+    }]
+  })
 }
 
 function includesQuery(query: string, values: Array<string | null | undefined>): boolean {
@@ -249,14 +282,21 @@ export function CommandPalette({ open, onClose, interfaceMode }: CommandPaletteP
   const restoreFocusRef = useRef<HTMLElement | null>(null)
   const wasOpenRef = useRef(false)
   const navigate = useNavigate()
+  const { hiddenWorkspaceIds, recentRouteIds, recordRecentRoute } = useNavigationPreferences()
   const normalizedQuery = query.trim().toLocaleLowerCase()
 
   const staticItems = useMemo(
     () => [
-      ...QUICK_ACTIONS.filter((item) => interfaceMode === 'advanced' || item.id === 'action:new-research'),
-      ...pageCommands(interfaceMode),
+      ...(!normalizedQuery ? recentCommands(recentRouteIds, interfaceMode, hiddenWorkspaceIds) : []),
+      ...QUICK_ACTIONS.filter((item) => {
+        if (interfaceMode !== 'advanced' && item.id !== 'action:new-research') return false
+        if (hiddenWorkspaceIds.includes('strategy') && item.id === 'action:create-experiment') return false
+        if (hiddenWorkspaceIds.includes('trading') && item.id === 'action:review-signals') return false
+        return true
+      }),
+      ...pageCommands(interfaceMode, hiddenWorkspaceIds),
     ].filter((item) => staticMatches(item, normalizedQuery)),
-    [interfaceMode, normalizedQuery],
+    [hiddenWorkspaceIds, interfaceMode, normalizedQuery, recentRouteIds],
   )
   const businessItems = business.query === normalizedQuery
     ? business.items.filter((item) => interfaceMode === 'advanced' || ['instruments', 'research', 'orders'].includes(item.group))
@@ -310,7 +350,15 @@ export function CommandPalette({ open, onClose, interfaceMode }: CommandPaletteP
   }, [items.length])
 
   useEffect(() => {
-    itemRefs.current.get(activeIndex)?.scrollIntoView?.({ block: 'nearest' })
+    const item = itemRefs.current.get(activeIndex)
+    const list = item?.closest<HTMLElement>(`.${styles.list}`)
+    if (!item || !list) return
+    const itemTop = item.offsetTop
+    const itemBottom = itemTop + item.offsetHeight
+    if (itemTop < list.scrollTop) list.scrollTop = itemTop
+    else if (itemBottom > list.scrollTop + list.clientHeight) {
+      list.scrollTop = itemBottom - list.clientHeight
+    }
   }, [activeIndex])
 
   useEffect(() => {
@@ -352,6 +400,8 @@ export function CommandPalette({ open, onClose, interfaceMode }: CommandPaletteP
         event.preventDefault()
         const item = items[activeIndex]
         if (item) {
+          const routeId = routeIdForPath(item.path.split('?')[0].split('#')[0])
+          if (routeId) recordRecentRoute(routeId)
           navigate(item.path)
           onClose()
         }
@@ -359,7 +409,7 @@ export function CommandPalette({ open, onClose, interfaceMode }: CommandPaletteP
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [activeIndex, items, navigate, onClose, open])
+  }, [activeIndex, items, navigate, onClose, open, recordRecentRoute])
 
   useEffect(() => {
     if (open && !wasOpenRef.current) {
@@ -379,6 +429,8 @@ export function CommandPalette({ open, onClose, interfaceMode }: CommandPaletteP
   if (!open) return null
 
   const go = (path: string) => {
+    const routeId = routeIdForPath(path.split('?')[0].split('#')[0])
+    if (routeId) recordRecentRoute(routeId)
     navigate(path)
     onClose()
   }

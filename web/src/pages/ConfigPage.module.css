@@ -7,6 +7,125 @@
   max-width: 920px;
 }
 
+.sectionNav {
+  position: sticky;
+  top: 52px;
+  z-index: var(--z-sticky);
+  display: flex;
+  gap: var(--sp-1);
+  padding: var(--sp-2);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  backdrop-filter: blur(10px);
+}
+
+.sectionNav a {
+  min-height: 32px;
+  padding: 7px var(--sp-3);
+  border-radius: var(--r-sm);
+  color: var(--text-2);
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-semibold);
+  text-decoration: none;
+}
+
+.sectionNav a:hover,
+.sectionNav a:focus-visible {
+  background: var(--surface-hover);
+  color: var(--text-1);
+}
+
+.settingsSection {
+  display: flex;
+  scroll-margin-top: 104px;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.sectionHeading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--border);
+}
+
+.sectionHeading h2,
+.sectionHeading p {
+  margin: 0;
+}
+
+.sectionHeading h2 {
+  color: var(--text-1);
+  font-size: var(--fs-h2);
+}
+
+.sectionHeading p,
+.preferenceTitle span {
+  margin-top: 3px;
+  color: var(--text-3);
+  font-size: var(--fs-caption);
+}
+
+.workspacePreferences,
+.pinnedPreferences {
+  display: grid;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+  border-top: 1px solid var(--divider);
+}
+
+.preferenceTitle {
+  display: flex;
+  flex-direction: column;
+}
+
+.workspaceToggles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border: 1px solid var(--divider);
+}
+
+.workspaceToggles > div {
+  display: flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: 0 var(--sp-3);
+  border-right: 1px solid var(--divider);
+  border-bottom: 1px solid var(--divider);
+  color: var(--text-2);
+  font-size: var(--fs-small);
+}
+
+.workspaceToggles > div:nth-child(2n) {
+  border-right: 0;
+}
+
+.pinnedList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+.pinnedList button {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 0 var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--bg-subtle);
+  color: var(--text-1);
+  cursor: pointer;
+}
+
+.pinnedList button span {
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+}
+
 .form {
   padding: var(--sp-3);
   display: flex;
@@ -407,7 +526,29 @@
   font-family: var(--font-mono);
 }
 
-@media (max-width: 600px) {
+@media (max-width: 767px) {
+  .sectionNav {
+    top: 48px;
+    overflow-x: auto;
+  }
+  .sectionNav a {
+    min-height: 44px;
+    white-space: nowrap;
+  }
+  .pinnedList button,
+  .sourceCheckForm select,
+  .backupActions input,
+  .retentionBand input {
+    min-height: 44px;
+  }
+  .workspaceToggles {
+    grid-template-columns: 1fr;
+  }
+  .workspaceToggles > div,
+  .workspaceToggles > div:nth-child(2n) {
+    min-height: 48px;
+    border-right: 0;
+  }
   .sourceCheckForm { grid-template-columns: 1fr; }
   .linkGrid {
     grid-template-columns: 1fr;
@@ -477,7 +618,7 @@
   color: var(--accent-strong);
   font-size: 12px;
 }
-@media (max-width: 720px) {
+@media (max-width: 767px) {
   .credentialActions > * {
     flex: 1 1 auto;
   }

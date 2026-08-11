@@ -35,6 +35,11 @@ def list_signals(
     }
 
 
+@router.get("/radar")
+def radar_signals() -> dict:
+    return service.radar_snapshot()
+
+
 @router.post("/publish")
 def publish_signal(req: PublishSignalRequest) -> dict:
     try:

@@ -35,6 +35,19 @@ describe('MobileNavigation', () => {
     expect(within(navigation).getByRole('button', { name: '打开更多工作区' }).classList.contains('active')).toBe(true)
   })
 
+  it.each([
+    ['/demo-lab', '交易'],
+    ['/strategy-lab', '更多'],
+    ['/governance', '更多'],
+  ])('keeps the correct mobile workspace context for %s', (path, activeLabel) => {
+    const navigation = renderNavigation(path)
+    const control = activeLabel === '更多'
+      ? within(navigation).getByRole('button', { name: '打开更多工作区' })
+      : within(navigation).getByRole('link', { name: activeLabel })
+
+    expect(control.classList.contains('active')).toBe(true)
+  })
+
   it('opens the stored research context from the advanced navigation', () => {
     localStorage.setItem(RECENT_RESEARCH_PATH_KEY, '/research/600519?market=a_shares&view=history')
     const navigation = renderNavigation('/')

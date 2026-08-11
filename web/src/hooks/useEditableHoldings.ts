@@ -48,7 +48,7 @@ function toInput(h: PortfolioHolding): HoldingInput {
  *     tmp- 前缀行（code 非空）→ ``POST``；真实行 → ``PATCH``
  *   - 后端不可达时只保留 localStorage 中的用户缓存
  */
-export function useEditableHoldings() {
+export function useEditableHoldings(enabled = true) {
   const [list, setList] = useLocalStorage<HoldingInput[]>(KEY, [])
   const [seedCash, setSeedCash] = useLocalStorage<number>(CASH_KEY, 0)
   const [seeded, setSeeded] = useState(false)
@@ -67,7 +67,7 @@ export function useEditableHoldings() {
   const { resolveName, resolvingIds } = useSecurityNameResolver(applyResolvedName)
 
   useEffect(() => {
-    if (seeded) return
+    if (!enabled || seeded) return
     let active = true
     api
       .portfolio()
@@ -88,7 +88,7 @@ export function useEditableHoldings() {
     return () => {
       active = false
     }
-  }, [seeded, setList, setSeedCash])
+  }, [enabled, seeded, setList, setSeedCash])
 
   const add = useCallback(
     (market = 'a_shares') => {

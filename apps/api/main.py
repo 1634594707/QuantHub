@@ -46,6 +46,7 @@ from .domains.alerts import router as alerts_router
 from .domains.automation import router as automation_router
 from .domains.backups import router as backups_router
 from .domains.ensemble import router as ensemble_router
+from .domains.factor_factory import router as factor_factory_router
 from .domains.factor_research import router as factor_research_router
 from .domains.governance import auth as governance_auth
 from .domains.governance import repository as governance_repository
@@ -98,12 +99,15 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     _ensure_discovered()
     from .domains.alerts import service as alerts_service
     from .domains.automation import service as automation_service
+    from .domains.factor_factory import service as factor_factory_service
 
     automation_service.recover_pending_runs()
     alerts_service.start_monitor()
+    factor_factory_service.start_monitor()
     try:
         yield
     finally:
+        factor_factory_service.stop_monitor()
         alerts_service.stop_monitor()
 
 
@@ -177,6 +181,7 @@ app.include_router(portfolio_router)
 app.include_router(strategies_router)
 app.include_router(market_router)
 app.include_router(ensemble_router)
+app.include_router(factor_factory_router)
 app.include_router(factor_research_router)
 app.include_router(instrument_router)
 app.include_router(incidents_router)

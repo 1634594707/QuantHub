@@ -36,12 +36,21 @@ describe('六类一级导航（M2-01）', () => {
   it('已下线入口不得回到一级导航', () => {
     const primaryPaths = WORKSPACES.flatMap((workspace) => workspace.items.map((item) => item.to))
     // 路线图 3.C/3.F/阶段 2：独立策略实验室、成员权限、只读示例页均已删除。
-    for (const removed of ['/strategy-lab', '/governance', '/example', '/factor-research']) {
+    for (const removed of ['/demo-lab', '/example']) {
       expect(primaryPaths).not.toContain(removed)
     }
   })
 
-  it('交易域把实盘、信号审核与模拟盘收在同一工作区', () => {
+  it('市场研究提供唯一的因子工厂入口', () => {
+    const market = WORKSPACES.find((workspace) => workspace.key === 'market')
+
+    expect(market?.items.filter((item) => item.to === '/factor-research')).toHaveLength(1)
+    expect(market?.items.find((item) => item.to === '/factor-research')?.label).toBe('因子工厂')
+    expect(workspaceForPath('/factor-research').key).toBe('market')
+    expect(presentationForPath('/factor-research').label).toBe('因子工厂')
+  })
+
+  it('交易域只保留实盘、信号审核与模拟盘固定入口', () => {
     const trading = WORKSPACES.find((workspace) => workspace.key === 'trading')
 
     expect(trading?.items.map((item) => item.to)).toEqual(['/trading', '/signals', '/simulation'])
@@ -57,10 +66,34 @@ describe('六类一级导航（M2-01）', () => {
     expect(presentationForPath('/account-risk').label).toBe('账户与风控')
   })
 
-  it('设置只保留系统配置与运行面板，不含成员权限', () => {
+  it('治理与审计作为设置域受控入口存在', () => {
     const settings = WORKSPACES.find((workspace) => workspace.key === 'settings')
 
-    expect(settings?.items.map((item) => item.to)).toEqual(['/config', '/automation', '/incidents'])
+    expect(settings?.items.map((item) => item.to)).toEqual(['/config', '/governance', '/automation', '/incidents'])
+  })
+
+  it('直达实验与治理路由具有精确工作区归属', () => {
+    expect(workspaceForPath('/demo-lab').key).toBe('trading')
+    expect(presentationForPath('/demo-lab').label).toBe('模拟实验室')
+    expect(workspaceForPath('/strategy-lab').key).toBe('strategy')
+    expect(presentationForPath('/strategy-lab').label).toBe('策略实验')
+    expect(workspaceForPath('/governance').key).toBe('settings')
+    expect(presentationForPath('/governance').label).toBe('治理与审计')
+  })
+
+  it('全部生产路由都有精确展示配置，未知路由不得回退总览', () => {
+    const productionPaths = [
+      '/', '/evaluate', '/research/600519', '/ensemble', '/radar', '/signals',
+      '/trading', '/account-risk', '/tasks', '/alerts', '/simulation', '/demo-lab',
+      '/ledger', '/instruments', '/factor-research', '/automation', '/incidents',
+      '/governance', '/news', '/strategies', '/strategies/realtime_analyzer',
+      '/strategy-lab', '/pa', '/portfolio', '/config',
+    ]
+    for (const path of productionPaths) {
+      expect(() => presentationForPath(path)).not.toThrow()
+      expect(workspaceForPath(path).key).toBe(presentationForPath(path).workspaceKey)
+    }
+    expect(() => presentationForPath('/not-a-production-route')).toThrow(/未配置路由展示归属/)
   })
 
   it('新手模式只暴露最小闭环入口', () => {

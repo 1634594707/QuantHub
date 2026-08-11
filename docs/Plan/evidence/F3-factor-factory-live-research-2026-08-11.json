@@ -1,0 +1,98 @@
+{
+  "captured_at": "2026-08-11T04:13:09.0518924Z",
+  "api_build_id": "37bc433c3295",
+  "research_version": "2.1.0",
+  "target": {
+    "market": "OKX Demo",
+    "symbol": "BTC-USDT-SWAP",
+    "live_trading_enabled": false,
+    "maximum_demo_exposure": 0.1,
+    "maximum_demo_loss": 25.0
+  },
+  "runtime_safety": {
+    "runner_environment": "demo",
+    "permissions": "trade",
+    "risk_mode": "normal",
+    "account_snapshot_stale": false,
+    "reconciliation_passed": true,
+    "unresolved_reconciliation_differences": 0,
+    "live_approved": false
+  },
+  "runs": [
+    {
+      "run_id": "2d4901169a0e4620b988ba8438da3cad",
+      "interval": "1h",
+      "bars": 2880,
+      "requested_end": "2026-08-11T04:00:00+00:00",
+      "selected_first": "2026-04-13T04:00:00+00:00",
+      "selected_last": "2026-08-11T03:00:00+00:00",
+      "data_fingerprint": "76a4b46957b7cbd28ff497448ccef993458d03546eb8fdc94eba4c9a1198afaa",
+      "generated_candidates": 30,
+      "accepted_candidates": 29,
+      "rejected_candidates": 1,
+      "selected_factor": "ff_2d490116_short_term_reversal_40",
+      "selected_rank": 2,
+      "selected_experiment_id": "dca8a4aadccf4934baa538877cd91ee2",
+      "confirmation_opening_id": "16aef8dfcc984300b824492f0cc0d40e",
+      "rolling_validation": {
+        "return": 0.042291,
+        "sharpe": 3.056836,
+        "max_drawdown": -0.041795,
+        "rank_ic": 0.06062422163851652
+      },
+      "locked_confirmation": {
+        "return": -0.018141,
+        "sharpe": -2.838981,
+        "max_drawdown": -0.032534,
+        "rank_ic": -0.009465031007095339,
+        "p_value": 0.46546539083328714,
+        "trade_count": 132,
+        "incremental_return": -0.021413
+      },
+      "status": "no_research_passed_factor",
+      "idempotent_replay_verified": true,
+      "factor_factory_observations": 0,
+      "factor_factory_demo_orders": 0
+    },
+    {
+      "run_id": "0ef0e01f918b416c961fe838bdde7349",
+      "interval": "4h",
+      "bars": 720,
+      "requested_end": "2026-08-11T04:00:00+00:00",
+      "selected_first": "2026-04-13T04:00:00+00:00",
+      "selected_last": "2026-08-11T00:00:00+00:00",
+      "data_fingerprint": "600d83aa199bfd94728a926d101938fcb9f1c0cd30d1ececc2015ee4c42726e9",
+      "generated_candidates": 30,
+      "accepted_candidates": 29,
+      "rejected_candidates": 1,
+      "selected_factor": "ff_0ef0e01f_short_term_reversal_10",
+      "selected_rank": 1,
+      "selected_experiment_id": "d45ec716921144b09764dec2ca3c3977",
+      "confirmation_opening_id": "ff09311bb8694265a9f34608ddf055c9",
+      "rolling_validation": {
+        "return": 0.057748,
+        "sharpe": 4.491445,
+        "max_drawdown": -0.015755,
+        "rank_ic": 0.12007413847231273
+      },
+      "locked_confirmation": {
+        "return": -0.010491,
+        "sharpe": -2.142263,
+        "max_drawdown": -0.023218,
+        "rank_ic": 0.07911341532031188,
+        "p_value": 0.5827802261266057,
+        "trade_count": 44,
+        "incremental_return": -0.012161
+      },
+      "status": "no_research_passed_factor",
+      "idempotent_replay_verified": true,
+      "factor_factory_observations": 0,
+      "factor_factory_demo_orders": 0
+    }
+  ],
+  "verdict": {
+    "research_passed_factor_found": false,
+    "demo_observation_started": false,
+    "reason": "Both leading candidates failed the locked confirmation return, Sharpe, incremental return, and p-value gates."
+  }
+}

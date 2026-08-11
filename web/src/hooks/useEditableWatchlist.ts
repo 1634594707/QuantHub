@@ -29,7 +29,7 @@ function toInput(i: WatchlistItem): WatchInput {
  *
  * 同步策略同 useEditableHoldings：编辑模式即时改 list，退出时 commit 全量同步。
  */
-export function useEditableWatchlist() {
+export function useEditableWatchlist(enabled = true) {
   const [list, setList] = useLocalStorage<WatchInput[]>(KEY, [])
   const [seeded, setSeeded] = useState(false)
   const [mutationError, setMutationError] = useState('')
@@ -47,7 +47,7 @@ export function useEditableWatchlist() {
   const { resolveName, resolvingIds } = useSecurityNameResolver(applyResolvedName)
 
   useEffect(() => {
-    if (seeded) return
+    if (!enabled || seeded) return
     let active = true
     api
       .watchlist()
@@ -65,7 +65,7 @@ export function useEditableWatchlist() {
     return () => {
       active = false
     }
-  }, [seeded, setList])
+  }, [enabled, seeded, setList])
 
   const add = useCallback(
     (market = 'a_shares') => {

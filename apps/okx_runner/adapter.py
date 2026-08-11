@@ -12,6 +12,10 @@ class InstrumentRules:
     price_tick: float
     fee_currency: str
     maximum_leverage: float
+    minimum_notional: float | None = None
+    contract_size: float | None = None
+    product_type: str | None = None
+    exchange_symbol: str | None = None
 
 
 @dataclass(frozen=True)
@@ -40,18 +44,24 @@ class AccountSnapshot:
     orders: tuple[ExternalOrder, ...]
     fills: tuple[ExternalFill, ...]
     balances: dict[str, dict[str, float]]
-    positions: dict[str, dict[str, float]]
+    positions: dict[str, dict[str, Any]]
     observed_at: datetime
     realized_pnl: float = 0.0
     peak_equity: float | None = None
+    unrealized_pnl: float = 0.0
+    equity: float | None = None
 
 
 class TradingAdapter(Protocol):
+    def preflight(self, symbols: list[str]) -> dict[str, Any]: ...
+
     def instrument_rules(self, symbol: str) -> InstrumentRules: ...
 
     def submit_order(self, request: dict[str, Any]) -> ExternalOrder: ...
 
-    def fetch_order_by_client_id(self, client_order_id: str) -> ExternalOrder | None: ...
+    def fetch_order_by_client_id(
+        self, client_order_id: str, symbol: str | None = None
+    ) -> ExternalOrder | None: ...
 
     def cancel_order(self, external_order_id: str) -> ExternalOrder: ...
 
@@ -59,9 +69,14 @@ class TradingAdapter(Protocol):
 
     def mark_price(self, symbol: str) -> float: ...
 
+    def funding_rate(self, symbol: str) -> dict[str, Any]: ...
+
 
 class DisabledAdapter:
     """Default adapter keeps external trading impossible until deployment injects one."""
+
+    def preflight(self, symbols: list[str]) -> dict[str, Any]:
+        raise RuntimeError("no OKX adapter configured")
 
     def instrument_rules(self, symbol: str) -> InstrumentRules:
         raise RuntimeError("no OKX adapter configured")
@@ -69,7 +84,9 @@ class DisabledAdapter:
     def submit_order(self, request: dict[str, Any]) -> ExternalOrder:
         raise RuntimeError("no OKX adapter configured")
 
-    def fetch_order_by_client_id(self, client_order_id: str) -> ExternalOrder | None:
+    def fetch_order_by_client_id(
+        self, client_order_id: str, symbol: str | None = None
+    ) -> ExternalOrder | None:
         return None
 
     def cancel_order(self, external_order_id: str) -> ExternalOrder:
@@ -79,4 +96,7 @@ class DisabledAdapter:
         raise RuntimeError("no OKX adapter configured")
 
     def mark_price(self, symbol: str) -> float:
+        raise RuntimeError("no OKX adapter configured")
+
+    def funding_rate(self, symbol: str) -> dict[str, Any]:
         raise RuntimeError("no OKX adapter configured")

@@ -215,12 +215,13 @@ export interface SignalResp {
   decision_note?: string | null
   order_id?: string | null
   deduplicated?: boolean
+  radar_state?: 'current' | 'expired'
 }
 
 export type SignalLifecycleStatus = 'new' | 'accepted' | 'rejected' | 'expired' | 'converted'
 
 export type SimulationOrderStatus = 'pending' | 'partially_filled' | 'filled' | 'cancelled'
-export type SimulationLedgerSyncStatus = 'pending' | 'synced' | 'failed'
+export type SimulationLedgerSyncStatus = 'pending' | 'synced' | 'failed' | 'isolated'
 
 export interface SimulationExecution {
   id: string
@@ -298,6 +299,203 @@ export interface SimulationAccount {
   reconciliation_issues: Array<{ order_id: string; field: string }>
 }
 
+// ---- 模拟实验室（因子 / 策略回测沙盒）----
+
+/** 数据源：真实 OKX 归档 / 真实 OKX 实时 / 确定性合成 */
+export type DemoSourceKey = 'okx_local' | 'okx_live' | 'synthetic'
+
+export interface DemoSourceOption {
+  key: DemoSourceKey
+  label: string
+  description: string
+  realtime: boolean
+  needs_network: boolean
+  intervals: string[]
+  symbols: Array<{ symbol: string; label: string }>
+  /** 仅本地归档通道有值：每个标的每个周期的行数与覆盖区间 */
+  symbol_coverage: Record<
+    string,
+    Record<string, { rows: number; first: string; last: string; file: string }>
+  >
+}
+
+export interface DemoFactorOption {
+  key: string
+  label: string
+  description: string
+  default_params: Record<string, number>
+}
+
+export interface DemoStrategyOption {
+  key: string
+  label: string
+  description: string
+  uses_factor: boolean
+}
+
+export interface DemoDatasetOption {
+  key: string
+  label: string
+  description: string
+  drift: number
+  vol: number
+  start_price: number
+  regime: string
+}
+
+export interface DemoCatalog {
+  ok: boolean
+  sources: DemoSourceOption[]
+  datasets: DemoDatasetOption[]
+  factors: DemoFactorOption[]
+  strategies: DemoStrategyOption[]
+  intervals: string[]
+  defaults: {
+    source: DemoSourceKey
+    symbol: string
+    dataset: string
+    seed: number
+    n_bars: number
+    interval: string
+    start: string | null
+    end: string | null
+    use_cache: boolean
+    initial_capital: number
+    commission: number
+    position_fraction: number
+    strategy: string
+    factor: string
+  }
+}
+
+export interface DemoRunPayload {
+  source: DemoSourceKey
+  symbol?: string | null
+  dataset?: string
+  seed?: number
+  n_bars: number
+  interval: string
+  start?: string | null
+  end?: string | null
+  use_cache?: boolean
+  initial_capital: number
+  commission: number
+  position_fraction: number
+  strategy: string
+  factor?: string | null
+  factor_params?: Record<string, unknown>
+  factor_ast?: Record<string, unknown> | null
+  factor_label?: string | null
+  factor_version?: string | null
+}
+
+export interface DemoDataProvenance {
+  source: DemoSourceKey
+  channel: string
+  fingerprint: string
+  bars?: number
+  symbol?: string
+  interval?: string
+  offline?: boolean
+  reproducible?: string
+  cache_hit?: boolean
+  cache_written?: boolean
+  cache_file?: string
+  fetched_at?: string
+  ccxt_symbol?: string
+  file?: string
+  archive_rows?: number
+  archive_first?: string
+  archive_last?: string
+  selected_first?: string
+  selected_last?: string
+  dataset?: string
+  seed?: number
+  start?: string
+}
+
+export interface DemoRunMetrics {
+  annual_return?: number | null
+  annual_volatility?: number | null
+  sharpe?: number | null
+  sortino?: number | null
+  calmar?: number | null
+  max_drawdown?: number | null
+  win_rate?: number | null
+  trade_win_rate?: number | null
+  trade_count?: number | null
+  avg_win?: number | null
+  avg_loss?: number | null
+  profit_factor?: number | null
+  [key: string]: number | null | undefined
+}
+
+export interface DemoRunSummaryBlock {
+  final_equity: number
+  total_return: number
+  max_drawdown: number
+  engine: string
+  n_trades: number
+  metrics: DemoRunMetrics
+}
+
+export interface DemoEquityPoint {
+  datetime: string
+  equity: number
+}
+
+export interface DemoTrade {
+  datetime: string
+  side: 'buy' | 'sell'
+  price: number
+  qty: number
+  realized_pnl: number
+}
+
+export interface DemoRunLogEntry {
+  step: string
+  message: string
+  at: string
+}
+
+export interface DemoRunResult {
+  ok: boolean
+  run_id: string
+  config: Record<string, unknown>
+  data_provenance: DemoDataProvenance
+  summary: DemoRunSummaryBlock
+  equity_curve: DemoEquityPoint[]
+  trades: DemoTrade[]
+  run_log: DemoRunLogEntry[]
+  persisted: boolean
+}
+
+export interface DemoRunSummary {
+  run_id: string
+  created_at: string | null
+  source: DemoSourceKey
+  symbol: string | null
+  interval: string | null
+  strategy: string | null
+  factor: string | null
+  total_return: number | null
+  max_drawdown: number | null
+  sharpe: number | null
+  n_trades: number | null
+  fingerprint: string | null
+}
+
+export interface DemoRunRecord {
+  run_id: string
+  created_at: string
+  config: Record<string, unknown>
+  data_provenance: DemoDataProvenance
+  summary: DemoRunSummaryBlock
+  equity_curve: DemoEquityPoint[]
+  trades: DemoTrade[]
+  run_log: DemoRunLogEntry[]
+}
+
 export interface SimulationOrderPreviewCheck {
   key: string
   label: string
@@ -335,6 +533,15 @@ export interface SignalsResp {
   signals: SignalResp[]
 }
 
+export interface RadarSignalsResp {
+  count: number
+  current_count: number
+  expired_count: number
+  scanned: number
+  generated_at: number
+  signals: SignalResp[]
+}
+
 export interface ResearchRunsResp {
   ok: boolean
   count: number
@@ -357,7 +564,7 @@ export interface PublishSignalReq {
   market?: string
   direction?: string // buy | sell | hold
   score?: number
-  confidence?: number
+  confidence: number
   source?: string
   timeframe?: string
   tags?: string[]
@@ -370,6 +577,12 @@ export interface RunResp {
   count: number
   signals: SignalResp[]
   error?: string
+  report?: Record<string, unknown>
+  signal_rejection?: {
+    code: string
+    message: string
+    details?: Record<string, unknown>
+  }
 }
 
 // ---- G2 预设 / 运行历史（后端持久化）----
@@ -781,6 +994,265 @@ export interface FactorLifecycleRecord {
   definition_hash: string
   current_by_market: Record<string, FactorLifecycleEvent>
   events: FactorLifecycleEvent[]
+}
+
+export type FactorFactoryRunStatus =
+  | 'discovering'
+  | 'no_qualified_factor'
+  | 'no_research_passed_factor'
+  | 'paper_observing'
+  | 'paper_rejected'
+  | 'trading_validated'
+  | 'degraded'
+  | 'failed'
+
+export interface FactorFactoryRunRecord {
+  id: string
+  research_plan_id: string
+  status: FactorFactoryRunStatus
+  config: Record<string, unknown>
+  result: Record<string, unknown>
+  selected_factor_key: string | null
+  selected_factor_version: string | null
+  selected_experiment_id: string | null
+  error: string | null
+  started_at: number
+  updated_at: number
+  observation_started_at: number | null
+  observation_ends_at: number | null
+}
+
+export interface FactorFactoryCandidateRecord {
+  id: string
+  run_id: string
+  factor_key: string
+  factor_version: string
+  source: 'human' | 'ai' | 'template' | 'random_dsl' | 'symbolic_regression' | 'parameter_search'
+  experiment_id: string | null
+  status: string
+  rank: number | null
+  metrics: Record<string, unknown>
+  gate: Record<string, unknown>
+  created_at: number
+  updated_at: number
+}
+
+export interface FactorFactoryObservationRecord {
+  id: string
+  run_id: string
+  observed_at: number
+  market_time: string
+  price: number
+  signal: number
+  position_weight: number
+  gross_return: number
+  cost: number
+  net_return: number
+  equity: number
+  drawdown: number
+  fill_rate: number
+  payload: Record<string, unknown>
+}
+
+export interface FactorFactoryRunResponse {
+  ok: boolean
+  idempotent_replay?: boolean
+  run: FactorFactoryRunRecord
+  candidates: FactorFactoryCandidateRecord[]
+  observations: FactorFactoryObservationRecord[]
+  simulation_orders: SimulationOrder[]
+  observation_summary: {
+    count: number
+    latest_equity: number | null
+    after_cost_return: number | null
+    max_drawdown: number
+  }
+  live_trading_enabled: false
+}
+
+export interface FactorFactoryArchiveRunEvidence {
+  run_id: string
+  research_plan_id: string
+  status: FactorFactoryRunStatus
+  started_at: number
+  updated_at: number
+  observation_started_at: number | null
+  observation_ends_at: number | null
+  scope: {
+    source: string | null
+    symbol: string | null
+    interval: string | null
+    paper_target: string | null
+  }
+  candidate: FactorFactoryCandidateRecord
+  data_provenance: Record<string, unknown>
+  data_split: Record<string, unknown>
+  confirmation_gate: Record<string, unknown>
+  research_metrics: Record<string, unknown>
+  simulation_validation: Record<string, unknown>
+  paper_evidence: Record<string, unknown>
+  observation_summary: {
+    count: number
+    first_id: string | null
+    latest_id: string | null
+    observed_from: string | null
+    observed_to: string | null
+    latest_equity: number | null
+    after_cost_return: number | null
+    maximum_drawdown: number
+    minimum_fill_rate: number | null
+  }
+  simulation_orders: Array<{
+    id: string
+    status: string
+    side: string
+    quantity: number
+    filled_quantity: number
+    created_at: number
+    updated_at: number
+    execution_ids: string[]
+  }>
+}
+
+export interface FactorFactoryArchiveRecord {
+  archive_id: string
+  definition: FactorDefinitionRecord
+  verified: boolean
+  eligible_for_archive: boolean
+  archive_gate: {
+    eligible: boolean
+    required_observation_days: number
+    observed_seconds: number
+    observed_days: number
+    qualifying_run_id: string | null
+    checks: Record<string, boolean>
+    violations: string[]
+  }
+  lifecycle: {
+    current_state: FactorLifecycleState
+    current_event: FactorLifecycleEvent | null
+    events: FactorLifecycleEvent[]
+  }
+  scope: {
+    market: FactorDefinitionRecord['market']
+    symbol: string | null
+    interval: string | null
+    horizon: number
+    data_source: string | null
+  }
+  preregistration: {
+    definition_hypothesis: string
+    invalidation_condition: string | null
+    experiments: Array<{
+      experiment_id: string
+      research_plan_id: string
+      attempt_number: number
+      hypothesis: string
+      source: FactorExperimentRecord['source']
+      data_window: { start: string | null; end: string | null }
+      parameter_grid: Record<string, unknown>
+      parameter_combinations: number
+      estimated_compute_units: number
+      proposal: FactorExperimentRecord['proposal']
+      pre_registration: FactorPreRegistration
+      provenance: Record<string, unknown>
+      created_at: number
+    }>
+  }
+  post_study_evidence: {
+    decision: {
+      state: FactorLifecycleState
+      rule: string
+      evidence: Record<string, unknown>
+      created_at: number
+    }
+    experiments: Array<{
+      experiment_id: string
+      research_plan_id: string
+      attempt_number: number
+      status: FactorExperimentRecord['status']
+      events: FactorExperimentEvent[]
+      result_provenance: Record<string, unknown>
+    }>
+    runs: FactorFactoryArchiveRunEvidence[]
+    latest_run: FactorFactoryArchiveRunEvidence | null
+  }
+  remaining_risks: string[]
+  evidence_chain: {
+    definition_id: string
+    definition_hash: string
+    formula_hash: string
+    lifecycle_event_ids: string[]
+    experiment_ids: string[]
+    experiment_event_ids: string[]
+    run_ids: string[]
+    data_snapshot_hashes: string[]
+    simulation_order_ids: string[]
+  }
+  live_trading_enabled: false
+}
+
+export interface FactorFactoryArchiveResponse {
+  ok: boolean
+  count: number
+  total: number
+  research_record_count: number
+  ineligible_count: number
+  verified_count: number
+  eligible_only: boolean
+  archives: FactorFactoryArchiveRecord[]
+  live_trading_enabled: false
+}
+
+export interface FactorFactoryStartPayload {
+  market?: 'crypto' | 'a_shares'
+  source: 'okx_local' | 'okx_live' | 'akshare_live' | 'synthetic'
+  symbol: string
+  dataset?: string
+  seed?: number
+  interval: '1h' | '4h' | '1d'
+  n_bars: number
+  candidate_budget: number
+  candidate_mode?: 'brain' | 'library' | 'manual'
+  alpha_brief?: string
+  use_ai?: boolean
+  ai_candidate_count?: number
+  maximum_ai_tokens?: number
+  manual_candidates?: Array<{
+    candidate_id?: string
+    label?: string
+    family?: string
+    expression?: string
+    formula_ast?: Record<string, unknown>
+    hypothesis?: string
+    invalidation?: string
+    falsification_tests?: string[]
+  }>
+  horizon: number
+  commission_bps: number
+  initial_capital: number
+  observation_days: number
+  paper_target?: 'simulation_orders' | 'okx_demo'
+  maximum_demo_exposure?: number
+  maximum_demo_loss?: number
+  thresholds?: Record<string, number>
+}
+
+export interface AlphaDslCatalog {
+  version: string
+  fields: Array<{ name: string; label: string; unit: string }>
+  operators: Array<{ name: string; signature: string; description: string; example: string }>
+  parameters: Array<{ name: string; description: string }>
+  limits: {
+    periods_min: number
+    periods_max: number
+    window_min: number
+    window_max: number
+    max_depth: number
+    max_operators: number
+    winsor_lower_min: number
+    winsor_upper_max: number
+  }
 }
 
 export interface FactorPreRegistration {
@@ -1378,6 +1850,11 @@ export interface QuoteResp {
   price: number | null
   chgPct: number | null
   available: boolean
+  source: string
+  observed_at: string
+  freshness: 'live' | 'daily_close' | 'unavailable'
+  status: 'available' | 'unavailable'
+  error: string | null
 }
 
 // ---------- 算法协同预测（/predict/ensemble） ----------
@@ -1479,6 +1956,31 @@ export interface Instrument {
   name: string
   currency: string
   asset_class: string
+}
+
+export interface OkxSwapInstrument extends Instrument {
+  base: string
+  quote: string
+  settle: string
+  contract_size: number
+  price_precision: number | null
+  amount_precision: number | null
+  minimum_amount: number | null
+  linear: boolean
+  verified: true
+}
+
+export interface OkxSwapCatalogResponse {
+  ok: boolean
+  source: 'okx_public' | 'unavailable'
+  query: string
+  count: number
+  total: number
+  cache_age_seconds: number | null
+  cache_ttl_seconds: number
+  fetched_at: number | null
+  error: string | null
+  instruments: OkxSwapInstrument[]
 }
 
 // ---------- 组合账本 ----------
@@ -2340,4 +2842,174 @@ export interface TradingOrderIntent {
   quantity: number
   price?: number | null
   leverage?: number
+}
+
+export interface TradingInstrumentRule {
+  symbol: string
+  exchange_symbol: string
+  product_type: string
+  active: boolean
+  settle_currency: string
+  minimum_quantity: number
+  quantity_step: number
+  price_tick: number
+  contract_size: number | null
+  minimum_notional: number | null
+  minimum_notional_estimated: boolean
+  maximum_leverage: number
+  reference_price: number | null
+}
+
+export interface TradingPreflight {
+  environment: TradingEnvironment
+  observed_at: string
+  account: {
+    account_level: string | null
+    position_mode: string | null
+    permissions: string[]
+  }
+  ip_whitelist: {
+    field_exposed: boolean
+    status: string
+  }
+  clock: {
+    server_time_available: boolean
+    absolute_drift_ms: number | null
+    within_tolerance: boolean
+    tolerance_ms: number
+  }
+  instruments: TradingInstrumentRule[]
+}
+
+export interface TradingStrategyRecord {
+  strategy_id: string
+  version: string
+  content_hash: string
+  imported_at: string
+  package: {
+    product_type?: string
+    signal_frequency?: string
+    rebalance_frequency?: string
+    approved_by?: string
+    risk_limits?: {
+      max_leverage?: number
+      max_symbol_exposure?: number
+      max_total_exposure?: number
+    }
+  }
+}
+
+export interface TradingOrderRecord {
+  order_id: string
+  client_order_id: string
+  strategy_id: string
+  strategy_version: string
+  account_id: string
+  environment: TradingEnvironment
+  symbol: string
+  side: 'buy' | 'sell'
+  order_type: 'limit' | 'market'
+  quantity: number
+  price: number | null
+  leverage: number
+  external_order_id: string | null
+  status: string
+  filled_quantity: number
+  average_price: number | null
+  created_at: string
+  updated_at: string
+  idempotent_replay?: boolean
+}
+
+export interface TradingRiskState {
+  scope: string
+  mode: RiskMode
+  reason: string
+  updated_at: string
+}
+
+export interface TradingBalanceRecord {
+  id?: number
+  account_id: string
+  environment: TradingEnvironment
+  currency: string
+  total: number
+  available: number
+  observed_at: string
+}
+
+export interface TradingPositionRecord {
+  id?: number
+  account_id: string
+  environment: TradingEnvironment
+  symbol: string
+  quantity: number
+  mark_price: number
+  entry_price?: number | null
+  unrealized_pnl?: number
+  leverage?: number | null
+  position_side?: string | null
+  observed_at: string
+}
+
+export interface TradingAccountSummary {
+  account_id: string
+  environment: TradingEnvironment
+  equity_currency?: string
+  equity: number
+  initial_equity: number
+  equity_change: number
+  realized_pnl: number
+  unrealized_pnl: number
+  total_pnl: number
+  peak_equity: number
+  max_drawdown: number
+  observed_at: string
+}
+
+export interface TradingReconciliationDiffRecord {
+  diff_id: string
+  account_id: string
+  kind: string
+  key: string
+  status: 'open' | 'resolved'
+  owner: string | null
+  resolution: string | null
+  created_at: string
+  resolved_at: string | null
+}
+
+export interface TradingDashboard {
+  strategies: TradingStrategyRecord[]
+  orders: TradingOrderRecord[]
+  fills: Array<Record<string, unknown>>
+  balances: TradingBalanceRecord[]
+  positions: TradingPositionRecord[]
+  account_summary: { accounts: TradingAccountSummary[] }
+  reconciliation_diffs: TradingReconciliationDiffRecord[]
+  risk_states: TradingRiskState[]
+  account_status: {
+    environment: TradingEnvironment
+    connected: boolean
+    permissions: string
+    latest_snapshot_at: string | null
+    stale: boolean
+    last_reconciliation_at: string | null
+    server_time: string
+  }
+}
+
+export interface TradingOrderDetail extends TradingOrderRecord {
+  events: Array<{
+    sequence: number
+    from_status: string | null
+    to_status: string
+    created_at: string
+  }>
+  fills: Array<Record<string, unknown>>
+  risk_decisions: Array<{
+    outcome: string
+    reason: string | null
+    created_at: string
+  }>
 }

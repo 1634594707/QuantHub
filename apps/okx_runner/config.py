@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+from packages.strategy_package import signing_key_from_env
+
 Environment = Literal["shadow", "demo", "live"]
 
 
@@ -27,8 +29,7 @@ def load_settings() -> RunnerSettings:
         raise RuntimeError("QH_RUNNER_ENVIRONMENT must be shadow, demo or live")
     if environment == "live" and os.environ.get("QH_RUNNER_LIVE_APPROVED") != "1":
         raise RuntimeError("live Runner requires an explicit independent safety approval")
-    raw_key = os.environ.get("QH_RUNNER_SIGNING_KEY", "")
-    signing_key = raw_key.encode("utf-8") if raw_key else b"development-factor-signing-key-32b"
+    signing_key = signing_key_from_env()
     path = (
         Path(
             os.environ.get(

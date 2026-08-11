@@ -4,7 +4,6 @@
   overflow: hidden;
   position: relative;
   transition: border-color var(--t-fast) var(--ease-out),
-    transform var(--t-norm) var(--ease-out),
     box-shadow var(--t-norm) var(--ease-out);
 }
 
@@ -17,6 +16,10 @@
 .card {
   background: var(--bg-elevated);
   box-shadow: var(--shadow-card);
+}
+
+:global([data-theme='dark']) .card:not(.pop) {
+  box-shadow: none;
 }
 
 .pop {
@@ -48,7 +51,6 @@
 
 .hoverable:hover {
   border-color: var(--border-strong);
-  transform: translateY(-2px);
   box-shadow: var(--shadow-pop);
 }
 

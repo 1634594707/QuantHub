@@ -1,7 +1,4 @@
-"""OKX 数据源（加密，基于 ccxt）。
-
-依赖 ccxt，按需安装: pip install ccxt
-"""
+"""OKX public swap candle data source."""
 
 from __future__ import annotations
 
@@ -10,6 +7,7 @@ from collections.abc import Iterable
 from datetime import datetime
 
 import pandas as pd
+import requests
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from core.config import get_config
@@ -23,11 +21,13 @@ _INTERVAL_MAP = {
     Interval.M5: "5m",
     Interval.M15: "15m",
     Interval.M30: "30m",
-    Interval.H1: "1h",
-    Interval.H4: "4h",
-    Interval.DAILY: "1d",
-    Interval.WEEKLY: "1w",
+    Interval.H1: "1H",
+    Interval.H4: "4H",
+    Interval.DAILY: "1D",
+    Interval.WEEKLY: "1W",
 }
+
+_CANDLES_URL = "https://www.okx.com/api/v5/market/candles"
 
 
 def to_ccxt_symbol(symbol: str) -> str:
@@ -37,14 +37,33 @@ def to_ccxt_symbol(symbol: str) -> str:
         base_quote, _, settlement = normalized.partition(":")
         quote = base_quote.split("/", 1)[1]
         return f"{base_quote}:{settlement or quote}"
-    if "-" in normalized:
-        base, quote = normalized.split("-", 1)
+    parts = normalized.split("-")
+    if len(parts) == 3 and parts[2] == "SWAP":
+        base, quote = parts[:2]
+        return f"{base}/{quote}:{quote}"
+    if len(parts) == 2:
+        base, quote = parts
         return f"{base}/{quote}:{quote}"
     return f"{normalized}/USDT:USDT"
 
 
+def to_okx_inst_id(symbol: str) -> str:
+    """Normalize common spot/CCXT inputs to an OKX USDT swap instrument id."""
+    normalized = symbol.strip().upper().replace(" ", "")
+    if ":" in normalized:
+        normalized = normalized.split(":", 1)[0]
+    normalized = normalized.replace("/", "-")
+    if normalized.endswith("-USDT-SWAP"):
+        return normalized
+    if normalized.endswith("-USDT"):
+        return f"{normalized}-SWAP"
+    if normalized.endswith("USDT"):
+        return f"{normalized[:-4]}-USDT-SWAP"
+    return f"{normalized}-USDT-SWAP"
+
+
 class OkxSource(DataSource):
-    """OKX 加密数据源（ccxt 实现）。"""
+    """OKX public USDT swap data source."""
 
     name = "okx"
     market = "crypto"
@@ -52,20 +71,9 @@ class OkxSource(DataSource):
     def __init__(
         self, api_key: str | None = None, secret: str | None = None, passphrase: str | None = None
     ) -> None:
-        try:
-            import ccxt
-        except ImportError as e:
-            raise ImportError("ccxt 未安装，请运行: pip install ccxt") from e
-        self._ccxt = ccxt
-        self._exchange = ccxt.okx(
-            {
-                "apiKey": api_key or "",
-                "secret": secret or "",
-                "password": passphrase or "",
-                "enableRateLimit": True,
-                "options": {"defaultType": "swap"},
-            }
-        )
+        del api_key, secret, passphrase
+        self._session = requests.Session()
+        self._session.trust_env = True
         retry_cfg = get_config().get("data_feed", {}).get("retry", {})
         self._max_attempts = retry_cfg.get("max_attempts", 4)
         self._backoff_base = retry_cfg.get("backoff_base", 1.5)
@@ -75,7 +83,9 @@ class OkxSource(DataSource):
         return retry(
             stop=stop_after_attempt(self._max_attempts),
             wait=wait_exponential(multiplier=self._backoff_base, max=self._backoff_cap),
-            retry=retry_if_exception_type((ConnectionError, TimeoutError, OSError)),
+            retry=retry_if_exception_type(
+                (ConnectionError, TimeoutError, OSError, requests.RequestException)
+            ),
             reraise=True,
         )
 
@@ -94,33 +104,59 @@ class OkxSource(DataSource):
         if interval not in _INTERVAL_MAP:
             raise ValueError(f"okx 不支持周期: {interval}")
         tf = _INTERVAL_MAP[interval]
-        # ccxt symbol 格式: BTC/USDT:USDT (永续)
-        symbol = to_ccxt_symbol(symbol)
+        inst_id = to_okx_inst_id(symbol)
 
         @self._retryer()
         def _fetch():
-            since = None
-            if start:
-                since = int(start.timestamp() * 1000)
-            return self._exchange.fetch_ohlcv(
-                symbol,
-                timeframe=tf,
-                since=since,
-                limit=limit,
-            )
+            exchange = getattr(self, "_exchange", None)
+            if exchange is not None:
+                since = int(start.timestamp() * 1000) if start else None
+                return exchange.fetch_ohlcv(
+                    to_ccxt_symbol(symbol), timeframe=tf.lower(), since=since, limit=limit
+                )
+
+            rows_by_timestamp: dict[int, list] = {}
+            after = int(end.timestamp() * 1000) if end else None
+            since = int(start.timestamp() * 1000) if start else None
+            while len(rows_by_timestamp) < limit:
+                params: dict[str, str | int] = {
+                    "instId": inst_id,
+                    "bar": tf,
+                    "limit": min(limit - len(rows_by_timestamp), 300),
+                }
+                if after is not None:
+                    params["after"] = after
+                response = self._session.get(_CANDLES_URL, params=params, timeout=(5, 15))
+                response.raise_for_status()
+                payload = response.json()
+                if payload.get("code") != "0":
+                    raise RuntimeError(payload.get("msg") or "OKX candle request failed")
+                page = payload.get("data") or []
+                if not page:
+                    break
+                oldest = min(int(row[0]) for row in page)
+                for row in page:
+                    timestamp = int(row[0])
+                    if since is None or timestamp >= since:
+                        rows_by_timestamp[timestamp] = row[:6]
+                if (since is not None and oldest <= since) or oldest == after:
+                    break
+                after = oldest
+            return [rows_by_timestamp[key] for key in sorted(rows_by_timestamp)][-limit:]
 
         try:
             raw = _fetch()
         except Exception:
-            logger.exception("okx get_kline 失败: %s", symbol)
+            logger.exception("okx get_kline failed: %s", inst_id)
             return pd.DataFrame()
 
         if not raw:
             return pd.DataFrame()
         df = pd.DataFrame(raw, columns=["ts_ms", "open", "high", "low", "close", "volume"])
+        df["ts_ms"] = pd.to_numeric(df["ts_ms"], errors="coerce")
         df["datetime"] = pd.to_datetime(df["ts_ms"], unit="ms", utc=True).dt.tz_convert(None)
         df = df.drop(columns=["ts_ms"])
-        df["symbol"] = symbol
+        df["symbol"] = inst_id
         df["market"] = self.market
         df["interval"] = interval.value
         df["amount"] = None

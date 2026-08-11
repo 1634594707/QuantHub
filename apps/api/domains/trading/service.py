@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import logging
 from typing import Any
+from urllib.parse import urlencode
 
 from apps.api.contracts import Source, envelope
 
@@ -72,7 +73,14 @@ class TradingService:
             "first_phase_scope": {
                 "product": FIRST_PHASE_PRODUCT,
                 "allowed_order_types": list(FIRST_PHASE_ALLOWED_ORDER_TYPES),
-                "allowed_symbols": list(FIRST_PHASE_ALLOWED_SYMBOLS),
+                "allowed_symbols": (
+                    [] if self.settings.environment == "demo" else list(FIRST_PHASE_ALLOWED_SYMBOLS)
+                ),
+                "symbol_policy": (
+                    "runner_preflight"
+                    if self.settings.environment == "demo"
+                    else "static_allowlist"
+                ),
                 "enforced": self.settings.enforce_first_phase_scope,
             },
         }
@@ -135,12 +143,61 @@ class TradingService:
                 errors.TRADING_REJECTED,
                 detail="限价单必须提供 price",
             )
-        if request.symbol not in FIRST_PHASE_ALLOWED_SYMBOLS:
+        if self.settings.environment == "demo":
+            self._validate_demo_instrument(request.symbol)
+        elif request.symbol not in FIRST_PHASE_ALLOWED_SYMBOLS:
             raise errors.TradingError(
                 errors.TRADING_INSTRUMENT_NOT_ALLOWED,
                 detail=f"symbol={request.symbol}",
                 hint=f"首期仅允许 {', '.join(FIRST_PHASE_ALLOWED_SYMBOLS)}",
             )
+
+    def _preflight_data(self, symbols: list[str]) -> dict[str, Any]:
+        requested = list(
+            dict.fromkeys(symbol.strip().upper() for symbol in symbols if symbol.strip())
+        )
+        if not requested or len(requested) > 10 or any(len(symbol) > 64 for symbol in requested):
+            raise errors.TradingError(
+                errors.TRADING_REJECTED,
+                detail="预检需要 1 到 10 个有效合约代码",
+            )
+        query = urlencode({"symbols": ",".join(requested)})
+        data = self.client.call("GET", f"/api/preflight?{query}")
+        if not isinstance(data, dict):
+            raise errors.TradingError(
+                errors.TRADING_RUNNER_BAD_RESPONSE,
+                detail="Runner 预检响应不是对象",
+            )
+        return data
+
+    def _validate_demo_instrument(self, symbol: str) -> dict[str, Any]:
+        data = self._preflight_data([symbol])
+        instrument = next(
+            (
+                item
+                for item in data.get("instruments", [])
+                if isinstance(item, dict) and item.get("symbol") == symbol
+            ),
+            None,
+        )
+        checks = {
+            "resolved": instrument is not None,
+            "active": bool(instrument and instrument.get("active")),
+            "supported_product": bool(
+                instrument and instrument.get("product_type") in {"swap", "future"}
+            ),
+            "usdt_settled": bool(
+                instrument and str(instrument.get("settle_currency") or "").upper() == "USDT"
+            ),
+        }
+        if not all(checks.values()):
+            failed = ",".join(name for name, passed in checks.items() if not passed)
+            raise errors.TradingError(
+                errors.TRADING_INSTRUMENT_NOT_ALLOWED,
+                detail=f"symbol={symbol}; failed_checks={failed}",
+                hint="Demo 仅允许 Runner 可解析、已启用、USDT 结算的永续或交割合约",
+            )
+        return instrument
 
     def _require_trading(self) -> None:
         if not self.settings.configured:
@@ -163,6 +220,27 @@ class TradingService:
     def dashboard(self) -> dict:
         return self._wrap(self.client.call("GET", "/api/dashboard"), ttl=ORDER_TTL_SECONDS)
 
+    def preflight(self, symbols: list[str] | None = None) -> dict:
+        if self.settings.environment == "shadow":
+            raise errors.TradingError(
+                errors.TRADING_ENVIRONMENT_FORBIDDEN,
+                detail="shadow 环境为只读，OKX 预检仅在 demo 环境执行",
+                hint="将 QH_RUNNER_ENVIRONMENT 切换为 demo 并重启 Runner 后再执行预检",
+            )
+        data = self._preflight_data(symbols or list(FIRST_PHASE_ALLOWED_SYMBOLS))
+        observed = data.get("observed_at") if isinstance(data, dict) else None
+        return self._wrap(data, ttl=HEALTH_TTL_SECONDS, observed_at=observed)
+
+    def funding_rate(self, symbol: str) -> dict:
+        if self.settings.environment != "demo":
+            raise errors.TradingError(
+                errors.TRADING_ENVIRONMENT_FORBIDDEN,
+                detail="资金费率证据只在 OKX Demo Runner 中采集",
+            )
+        data = self.client.call("GET", f"/api/funding/{symbol}")
+        observed = data.get("observed_at") if isinstance(data, dict) else None
+        return self._wrap(data, ttl=HEALTH_TTL_SECONDS, observed_at=observed)
+
     def account(self, account_id: str) -> dict:
         data = self.client.call("GET", f"/api/accounts/{account_id}")
         observed = data.get("latest_snapshot_at") if isinstance(data, dict) else None
@@ -173,6 +251,10 @@ class TradingService:
         observed = data.get("updated_at") if isinstance(data, dict) else None
         return self._wrap(data, ttl=ORDER_TTL_SECONDS, observed_at=observed)
 
+    def strategy(self, strategy_id: str, version: str) -> dict:
+        data = self.client.call("GET", f"/api/strategies/{strategy_id}/{version}")
+        return self._wrap(data, ttl=ORDER_TTL_SECONDS)
+
     def reconciliation_diff(self, diff_id: str) -> dict:
         return self._wrap(self.client.call("GET", f"/api/reconciliation/diffs/{diff_id}"))
 
@@ -182,6 +264,18 @@ class TradingService:
         self._require_trading()
         self._enforce_scope(request)
         data = self.client.call("POST", "/api/orders", request.to_runner_payload())
+        return self._wrap(data, ttl=ORDER_TTL_SECONDS)
+
+    def import_demo_strategy(self, package: dict[str, Any]) -> dict:
+        if not self.settings.configured:
+            raise errors.TradingError(errors.TRADING_NOT_CONFIGURED)
+        if self.settings.environment != "demo":
+            raise errors.TradingError(
+                errors.TRADING_ENVIRONMENT_FORBIDDEN,
+                detail="自动因子策略包只允许导入 OKX Demo Runner",
+                hint="以 QH_RUNNER_ENVIRONMENT=demo 启动 Runner 和网关",
+            )
+        data = self.client.call("POST", "/api/strategies/import", {"package": package})
         return self._wrap(data, ttl=ORDER_TTL_SECONDS)
 
     def cancel_order(self, order_id: str) -> dict:

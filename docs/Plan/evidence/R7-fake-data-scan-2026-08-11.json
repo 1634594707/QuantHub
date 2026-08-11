@@ -1,0 +1,127 @@
+{
+  "task": "M3-01",
+  "files_scanned": 414,
+  "roots": [
+    "web/src",
+    "apps/api",
+    "apps/okx_runner",
+    "core",
+    "packages",
+    "strategies",
+    "configs"
+  ],
+  "rules": [
+    {
+      "code": "FAKE_IDENTIFIER",
+      "pattern": "\\b(?:mock|fake|dummy|stub)(?:ed|ing)?[A-Z_]\\w*|\\b(?:MOCK|FAKE|DUMMY)_\\w+",
+      "description": "生产代码出现 mock/fake/dummy/stub 命名的标识符",
+      "numeric_threshold": null
+    },
+    {
+      "code": "DEMO_DATA",
+      "pattern": "\\bdemoData\\b|\\bsampleData\\b|\\bSAMPLE_DATA\\b|\\bseedDemo\\w*|\\bdemo_seed\\w*",
+      "description": "生产代码出现演示 / 样例数据构造",
+      "numeric_threshold": null
+    },
+    {
+      "code": "FAKE_FALLBACK",
+      "pattern": "降级到\\s*mock|回退到\\s*mock|fallback\\s+to\\s+mock|mock\\s*兜底|假数据兜底",
+      "description": "存在「失败后降级到 mock」的逻辑或文案",
+      "numeric_threshold": null
+    },
+    {
+      "code": "RANDOM_SERIES",
+      "pattern": "Math\\.random\\s*\\(\\s*\\)|\\brandom\\.uniform\\s*\\(|\\bnp\\.random\\.",
+      "description": "生产代码使用随机数生成展示数据（随机收益 / 随机行情）",
+      "numeric_threshold": null
+    },
+    {
+      "code": "HARDCODED_MARKET_VALUE",
+      "pattern": "(?<![\\w.])(?:price|close|open|high|low|last|bid|ask|markPrice|mark_price|nav|equity|balance|marketValue|market_value|avgCost|avg_cost|unrealizedPnl|unrealized_pnl|pnl|holding|holdings|position_size|positionSize|quantity|qty)\\s*[:=]\\s*-?\\d+(?:\\.\\d+)?",
+      "description": "生产代码把行情 / 持仓 / 资产数值写死为字面量",
+      "numeric_threshold": 100.0
+    },
+    {
+      "code": "HARDCODED_SERIES",
+      "pattern": "(?<![\\w.])(?:candles?|klines?|ohlc|series|prices|values|returns|equityCurve|equity_curve|navCurve|nav_curve)\\s*[:=]\\s*\\[\\s*-?\\d+(?:\\.\\d+)?\\s*,(?:\\s*-?\\d+(?:\\.\\d+)?\\s*,){2,}",
+      "description": "生产代码内联写死行情 / 净值序列（≥4 个数值的字面量数组）",
+      "numeric_threshold": null
+    }
+  ],
+  "allowlisted": [
+    {
+      "code": "RANDOM_SERIES",
+      "description": "生产代码使用随机数生成展示数据（随机收益 / 随机行情）",
+      "path": "web/src/lib/uid.ts",
+      "line": 2,
+      "match": "Math.random()",
+      "text": "export const uid = () => Math.random().toString(36).slice(2, 10)",
+      "reason": "生成前端本地唯一 key，非展示数据。"
+    },
+    {
+      "code": "HARDCODED_MARKET_VALUE",
+      "description": "生产代码把行情 / 持仓 / 资产数值写死为字面量",
+      "path": "web/src/pages/LedgerPage.tsx",
+      "line": 74,
+      "match": "quantity: 100",
+      "text": "code: '', market: 'a_shares', direction: 'buy' as 'buy' | 'sell', quantity: 100,",
+      "reason": "手工补录交易的表单默认数量（A 股一手 = 100 股），是 useState 输入框初值；同一表单的 price / fee 默认为 0，不存在写死行情。"
+    },
+    {
+      "code": "HARDCODED_MARKET_VALUE",
+      "description": "生产代码把行情 / 持仓 / 资产数值写死为字面量",
+      "path": "web/src/pages/SimulationOrdersPage.tsx",
+      "line": 92,
+      "match": "quantity: 100",
+      "text": "quantity: 100,",
+      "reason": "模拟下单表单的默认数量（A 股一手 = 100 股），useState 初值，非行情/持仓展示值。"
+    },
+    {
+      "code": "RANDOM_SERIES",
+      "description": "生产代码使用随机数生成展示数据（随机收益 / 随机行情）",
+      "path": "web/src/pages/TradingWorkspacePage.tsx",
+      "line": 59,
+      "match": "Math.random()",
+      "text": ": `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`",
+      "reason": "crypto.randomUUID 不可用时生成幂等键 intent_id，非展示数据。"
+    },
+    {
+      "code": "RANDOM_SERIES",
+      "description": "生产代码使用随机数生成展示数据（随机收益 / 随机行情）",
+      "path": "core/backtest/dataset.py",
+      "line": 129,
+      "match": "np.random.",
+      "text": "rng = np.random.default_rng(seed)",
+      "reason": "用户必须显式选择 synthetic 数据源；默认源为 okx_local。生成结果按 seed 确定性复现，API provenance 明确标注‘确定性合成行情（无真实市场数据）’，真实数据失败不会回退到该源。"
+    },
+    {
+      "code": "RANDOM_SERIES",
+      "description": "生产代码使用随机数生成展示数据（随机收益 / 随机行情）",
+      "path": "core/factor_research.py",
+      "line": 566,
+      "match": "np.random.",
+      "text": "rng = np.random.default_rng(seed)",
+      "reason": "np.random.default_rng(seed) 用于 IC 的 bootstrap 置信区间估计，输入为真实因子/收益样本，输出为统计量，不构造行情数据。"
+    },
+    {
+      "code": "RANDOM_SERIES",
+      "description": "生产代码使用随机数生成展示数据（随机收益 / 随机行情）",
+      "path": "core/factor_robustness.py",
+      "line": 219,
+      "match": "np.random.",
+      "text": "rng = np.random.default_rng(seed)",
+      "reason": "np.random.default_rng(seed) 用于置换检验（permutation test）打乱真实样本标签，用于显著性判定，不构造行情数据。"
+    },
+    {
+      "code": "RANDOM_SERIES",
+      "description": "生产代码使用随机数生成展示数据（随机收益 / 随机行情）",
+      "path": "core/factor_robustness.py",
+      "line": 281,
+      "match": "np.random.",
+      "text": "rng = np.random.default_rng(seed)",
+      "reason": "np.random.default_rng(seed) 用于置换检验（permutation test）打乱真实样本标签，用于显著性判定，不构造行情数据。"
+    }
+  ],
+  "findings": [],
+  "passed": true
+}

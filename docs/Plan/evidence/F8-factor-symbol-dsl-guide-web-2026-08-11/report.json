@@ -1,0 +1,91 @@
+{
+  "generated_at": "2026-08-11T08:50:49.929Z",
+  "base_url": "http://127.0.0.1:5175",
+  "api_base": "/api",
+  "route": "/factor-research",
+  "passed": true,
+  "results": [
+    {
+      "viewport": {
+        "id": "mobile-390x844",
+        "width": 390,
+        "height": 844
+      },
+      "inspection": {
+        "present": true,
+        "documentOverflow": 0,
+        "panelOverflow": 0,
+        "clippedText": [],
+        "overflowingElements": [],
+        "hasBrainEngine": true,
+        "hasSafeDslPolicy": true,
+        "hasFixedBacktestPolicy": true,
+        "hasSevenDayPolicy": true,
+        "observationDays": "7",
+        "observationMinimum": "7",
+        "aiEnabled": true
+      },
+      "customInstrumentInspection": {
+        "symbol": "AVGO-USDT-SWAP",
+        "paperTarget": "okx_demo",
+        "archiveRequiresSevenDays": true,
+        "archiveHasExploratoryFilter": false
+      },
+      "manualInspection": {
+        "hasManualExpression": true,
+        "hasAlphaTemplates": true,
+        "hasParameterProfiles": true,
+        "hasJsonUpload": true,
+        "hasDslReference": true,
+        "hasPeriodParameter": true,
+        "hasWinsorParameters": true,
+        "hasZscoreOperator": true,
+        "hasAkshare": true,
+        "stockSymbol": "600519",
+        "fileInputs": 1
+      },
+      "consoleErrors": []
+    },
+    {
+      "viewport": {
+        "id": "desktop-1440x900",
+        "width": 1440,
+        "height": 900
+      },
+      "inspection": {
+        "present": true,
+        "documentOverflow": 0,
+        "panelOverflow": 0,
+        "clippedText": [],
+        "overflowingElements": [],
+        "hasBrainEngine": true,
+        "hasSafeDslPolicy": true,
+        "hasFixedBacktestPolicy": true,
+        "hasSevenDayPolicy": true,
+        "observationDays": "7",
+        "observationMinimum": "7",
+        "aiEnabled": true
+      },
+      "customInstrumentInspection": {
+        "symbol": "AVGO-USDT-SWAP",
+        "paperTarget": "okx_demo",
+        "archiveRequiresSevenDays": true,
+        "archiveHasExploratoryFilter": false
+      },
+      "manualInspection": {
+        "hasManualExpression": true,
+        "hasAlphaTemplates": true,
+        "hasParameterProfiles": true,
+        "hasJsonUpload": true,
+        "hasDslReference": true,
+        "hasPeriodParameter": true,
+        "hasWinsorParameters": true,
+        "hasZscoreOperator": true,
+        "hasAkshare": true,
+        "stockSymbol": "600519",
+        "fileInputs": 1
+      },
+      "consoleErrors": []
+    }
+  ]
+}

@@ -1,0 +1,98 @@
+{
+  "task_id": "M4-03",
+  "status": "review",
+  "captured_at": "2026-08-10T15:20:00+08:00",
+  "environment": "demo",
+  "live_approved": false,
+  "strategy": {
+    "strategy_id": "okx-demo-minimal",
+    "version": "1.0.2",
+    "signed": true,
+    "immutable": true,
+    "maximum_leverage": 2.0,
+    "maximum_symbol_exposure": 0.25,
+    "maximum_total_exposure": 0.5
+  },
+  "order": {
+    "order_id": "order-1e7452eb1b224acdadca58f7283bbdfe",
+    "client_order_id": "qhcde48c0b4a436de24ff7823b16560c",
+    "external_order_id": "3819770792083410944",
+    "symbol": "BTC-USDT-SWAP",
+    "side": "buy",
+    "order_type": "limit",
+    "quantity": 0.01,
+    "price": 60000.0,
+    "filled_quantity": 0.0,
+    "final_status": "CANCELLED",
+    "risk_decision": "approved",
+    "idempotent_retry": {
+      "same_order_id": true,
+      "same_client_order_id": true,
+      "same_external_order_id": true,
+      "idempotent_replay": true,
+      "duplicate_external_order_created": false
+    },
+    "status_events": [
+      "PENDING_SUBMIT",
+      "UNKNOWN",
+      "SUBMITTED",
+      "UNKNOWN",
+      "CANCELLED"
+    ]
+  },
+  "real_provider_fixes_proven_by_the_order": [
+    "Map internal BTC-USDT-SWAP to CCXT BTC/USDT:USDT.",
+    "Use tdMode=cross for the perpetual order.",
+    "Fall back from unsupported fetchOrders to open and closed order queries.",
+    "Map CCXT open to Runner SUBMITTED.",
+    "Read OKX info.state when the unified response omits status.",
+    "Use the native OKX instId plus clOrdId lookup for canceled SWAP recovery.",
+    "Reconciliation re-queries Runner-owned final orders missing from the account snapshot."
+  ],
+  "reconciliation": {
+    "runner_owned_order_matches_okx": true,
+    "runner_owned_fills": 0,
+    "unresolved_external_activity": [
+      {
+        "kind": "order",
+        "key": "",
+        "diff_id": "diff-735267b139f044c680f508dabbffd259"
+      },
+      {
+        "kind": "fill",
+        "key": "1395689952",
+        "diff_id": "diff-a94b3508d8ce4a51943e5268d1c9e3bf"
+      },
+      {
+        "kind": "fill",
+        "key": "1395689953",
+        "diff_id": "diff-92b9082ddbd3475aa5272a007365423b"
+      },
+      {
+        "kind": "balance",
+        "key": "USDT",
+        "diff_id": "diff-1c561051a5794e50b1737fd33ed4a5bf"
+      }
+    ],
+    "interpretation": "The remaining differences belong to one external Demo spot sell and its two fills, not to the Runner-created SWAP order. They require owner confirmation and remain open."
+  },
+  "safety_state": {
+    "scope": "global",
+    "mode": "cancel_only",
+    "reason": "Unresolved external Demo spot order and fills detected during M4 reconciliation"
+  },
+  "verification": {
+    "targeted_tests": "43 passed",
+    "real_demo_create": true,
+    "real_demo_idempotent_retry": true,
+    "real_demo_cancel": true,
+    "real_demo_restart_recovery": true,
+    "real_demo_reconciliation": true
+  },
+  "remaining_before_verified": [
+    "Owner must classify or close the four remaining external Demo activity differences.",
+    "Partial fill, full fill, rejection, timeout, and rate-limit paths remain automated-test evidence rather than a complete real Demo matrix.",
+    "M4-04 private WebSocket and disconnect recovery are not implemented.",
+    "M4-08 requires a clean seven-day Demo observation window."
+  ]
+}

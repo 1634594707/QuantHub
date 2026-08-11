@@ -1,6 +1,7 @@
 import { useState } from 'react'
+import { RefreshCw, Search } from 'lucide-react'
 import { api } from '../api/client'
-import type { ContractEnvelope, RiskMode, TradingHealth } from '../api/types'
+import type { ContractEnvelope, RiskMode, TradingDashboard, TradingHealth } from '../api/types'
 import { useApi } from '../api/useApi'
 import { ContractStatusBar } from '../components/contract/ContractStatusBar'
 import { WorkspaceHeader } from '../components/WorkspaceHeader/WorkspaceHeader'
@@ -36,10 +37,13 @@ const ENVIRONMENT_LABELS: Record<string, string> = {
 
 export default function AccountRiskPage() {
   const health = useApi(() => api.tradingHealth(), [], { retry: false, pollInterval: 20000 })
+  const dashboard = useApi(() => api.tradingDashboard(), [], { retry: false, pollInterval: 15000 })
   const healthData: TradingHealth | null = health.data?.data ?? null
   const environment = healthData?.environment ?? null
   const configured = Boolean(healthData?.configured)
   const reachable = Boolean(healthData?.reachable)
+  const dashboardData: TradingDashboard | null = dashboard.data?.data ?? null
+  const openDiffs = dashboardData?.reconciliation_diffs.filter((item) => item.status === 'open') ?? []
 
   const [accountId, setAccountId] = useState('')
   const [account, setAccount] = useState<ContractEnvelope<Record<string, unknown>> | null>(null)
@@ -58,6 +62,10 @@ export default function AccountRiskPage() {
 
   const [recovery, setRecovery] = useState<ContractEnvelope<Record<string, unknown>> | null>(null)
   const [recoveryError, setRecoveryError] = useState('')
+  const [diffOwner, setDiffOwner] = useState('local-operator')
+  const [diffResolution, setDiffResolution] = useState('')
+  const [diffDetail, setDiffDetail] = useState<ContractEnvelope<Record<string, unknown>> | null>(null)
+  const [diffError, setDiffError] = useState('')
 
   const channelBlocked = !configured
     ? '未配置 Runner 地址（QH_RUNNER_BASE_URL），账户与风控数据不可读。'
@@ -122,6 +130,30 @@ export default function AccountRiskPage() {
     } catch (reasonValue) {
       setRecovery(null)
       setRecoveryError(reasonValue instanceof Error ? reasonValue.message : String(reasonValue))
+      throw reasonValue
+    }
+  }
+
+  async function loadDiff(diffId: string) {
+    setDiffError('')
+    try {
+      setDiffDetail(await api.tradingReconciliationDiff(diffId))
+    } catch (reasonValue) {
+      setDiffError(reasonValue instanceof Error ? reasonValue.message : String(reasonValue))
+    }
+  }
+
+  async function resolveDiff(diffId: string) {
+    setDiffError('')
+    try {
+      await api.tradingResolveDiff(diffId, {
+        owner: diffOwner.trim(),
+        resolution: diffResolution.trim(),
+      })
+      setDiffDetail(null)
+      dashboard.refetch()
+    } catch (reasonValue) {
+      setDiffError(reasonValue instanceof Error ? reasonValue.message : String(reasonValue))
       throw reasonValue
     }
   }
@@ -192,6 +224,47 @@ export default function AccountRiskPage() {
             {reconciliation.data ? <pre className={s.json}>{JSON.stringify(reconciliation.data, null, 2)}</pre> : null}
           </div>
         ) : null}
+      </Panel>
+
+      <Panel
+        title={`对账差异（${openDiffs.length}）`}
+        subtitle="只关闭已人工确认来源与影响的差异；关闭动作保留操作者、结论和时间。"
+        actions={<Button variant="ghost" size="sm" icon={<RefreshCw size={15} />} onClick={dashboard.refetch} loading={dashboard.loading}>刷新</Button>}
+      >
+        <div className={s.formGrid}>
+          <Field label="处理人" required>
+            <Input value={diffOwner} onChange={(event) => setDiffOwner(event.target.value)} />
+          </Field>
+          <Field label="处理结论" required hint="例如：确认是本人在 OKX Demo 手工创建的现货订单">
+            <Input value={diffResolution} onChange={(event) => setDiffResolution(event.target.value)} />
+          </Field>
+        </div>
+        {openDiffs.length ? (
+          <div className={s.diffList}>
+            {openDiffs.map((diff) => (
+              <div key={diff.diff_id} className={s.diffRow}>
+                <div>
+                  <Badge variant="warn" dot>{diff.kind}</Badge>
+                  <strong>{diff.key || '无 client_order_id 的外部订单'}</strong>
+                  <small>{diff.account_id} · {new Date(diff.created_at).toLocaleString('zh-CN', { hour12: false })}</small>
+                </div>
+                <div className={s.diffActions}>
+                  <Button variant="ghost" size="sm" icon={<Search size={15} />} onClick={() => loadDiff(diff.diff_id)}>详情</Button>
+                  <ConfirmActionButton
+                    label="关闭差异"
+                    title="确认关闭对账差异"
+                    description={`差异：${diff.kind} / ${diff.key || '无 client_order_id'}\n处理人：${diffOwner}\n结论：${diffResolution || '(未填)'}`}
+                    confirmLabel="确认关闭"
+                    disabled={diffOwner.trim().length < 2 || diffResolution.trim().length < 3}
+                    onConfirm={() => resolveDiff(diff.diff_id)}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : <EmptyState variant="no-data" title="没有开放差异" desc="可在确认风险状态后恢复 normal，并继续 Demo 策略测试。" />}
+        {diffError ? <p className={s.formError} role="alert">{diffError}</p> : null}
+        {diffDetail?.data ? <pre className={s.json}>{JSON.stringify(diffDetail.data, null, 2)}</pre> : null}
       </Panel>
 
       <Panel

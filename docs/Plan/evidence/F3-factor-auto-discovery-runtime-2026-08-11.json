@@ -1,0 +1,46 @@
+{
+  "captured_at": "2026-08-11T04:48:14.4984886Z",
+  "api_build_id": "fae7460dee1d",
+  "scheduler": {
+    "enabled": true,
+    "environment": "demo",
+    "due_hour_local": 10,
+    "candidate_budget": 30,
+    "intervals": {
+      "1h": 2880,
+      "4h": 720
+    },
+    "startup_audit": [
+      {
+        "interval": "1h",
+        "status": "skipped",
+        "reason": "already_ran_today",
+        "requested_end": "2026-08-11T04:00:00+00:00"
+      },
+      {
+        "interval": "4h",
+        "status": "skipped",
+        "reason": "already_ran_today",
+        "requested_end": "2026-08-11T04:00:00+00:00"
+      }
+    ],
+    "latest_run_id_before": "0ef0e01f918b416c961fe838bdde7349",
+    "latest_run_id_after": "0ef0e01f918b416c961fe838bdde7349",
+    "duplicate_confirmation_opened": false,
+    "paper_observing_count": 0
+  },
+  "runtime_safety": {
+    "live_trading_enabled": false,
+    "runner_environment": "demo",
+    "risk_mode": "normal",
+    "account_snapshot_stale": false,
+    "reconciliation_passed": true,
+    "reconciliation_difference_count": 0,
+    "unresolved_reconciliation_differences": 0
+  },
+  "transient_recovery": {
+    "observed_error": "OKX OnMaintenance / NETWORK_UNREACHABLE",
+    "order_submitted_during_error": false,
+    "retry_reconciliation_passed": true
+  }
+}

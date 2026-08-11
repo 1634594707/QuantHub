@@ -570,7 +570,7 @@ export default function SignalsPage() {
         {showPublish && (
           <section className={s.publishPanel} aria-label="发布手动信号">
             <div className={s.sectionHeading}>
-              <div><h2>发布手动信号</h2><span>写入统一信号总线并进入审核队列</span></div>
+              <div><h2>发布信号</h2><span>写入信号总线并进入审核队列</span></div>
             </div>
             <div className={s.publishGrid}>
               <label>标的代码<Input placeholder="如 600519" value={publishForm.symbol} onChange={(event) => setPublishForm((form) => ({ ...form, symbol: event.target.value }))} /></label>
@@ -605,7 +605,7 @@ export default function SignalsPage() {
         <div className={s.workbench}>
           <aside className={s.queuePanel} aria-label="信号审核队列">
             <div className={s.panelHeading}>
-              <div><h2>审核队列</h2><span>{filtered.length} 条记录</span></div>
+              <div><h2>信号队列</h2><span>{filtered.length} 条记录</span></div>
               <Button variant="link" size="sm" onClick={clearFilters} disabled={!hasFilters}>清空</Button>
             </div>
             <div className={s.filters}>

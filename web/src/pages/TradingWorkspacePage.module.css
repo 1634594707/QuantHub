@@ -6,7 +6,7 @@
   min-width: 0;
 }
 
-/* M2-08：交易工作区页内互链，移动端换行不溢出，触控目标不小于 32px 高。 */
+/* M2-08：交易工作区页内互链，移动端换行不溢出。 */
 .crossLinks {
   display: flex;
   flex-wrap: wrap;
@@ -20,11 +20,49 @@
   min-height: 32px;
   padding: 0 var(--sp-3);
   border: 1px solid var(--border);
-  border-radius: var(--r-pill, 999px);
+  border-radius: 6px;
   background: var(--surface-2, transparent);
   color: var(--ink-2, inherit);
   font-size: 12px;
   text-decoration: none;
+}
+
+.statusStack {
+  display: grid;
+  gap: var(--sp-2);
+}
+
+.operationStrip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-1, var(--bg-subtle));
+  overflow: hidden;
+}
+
+.operationStrip > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: var(--sp-3) var(--sp-4);
+  border-right: 1px solid var(--border);
+}
+
+.operationStrip > div:last-child {
+  border-right: 0;
+}
+
+.operationStrip span,
+.operationStrip small {
+  color: var(--text-3, var(--text-2));
+  font-size: 11px;
+}
+
+.operationStrip strong {
+  color: var(--text-1);
+  font-size: 14px;
+  overflow-wrap: anywhere;
 }
 
 .crossLinks a:hover,
@@ -46,6 +84,77 @@
   font-size: 13px;
 }
 
+.diffAlert {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border-left: 3px solid var(--down);
+  background: var(--down-weak);
+  color: var(--down-ink);
+  font-size: 13px;
+}
+
+.diffAlert span {
+  flex: 1;
+}
+
+.diffAlert a {
+  color: inherit;
+  font-weight: 700;
+}
+
+.accountMetrics {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.accountMetrics > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: var(--sp-3);
+  border-right: 1px solid var(--border);
+}
+
+.accountMetrics > div:last-child {
+  border-right: 0;
+}
+
+.accountMetrics span,
+.accountTables h3 {
+  color: var(--text-3, var(--text-2));
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.accountMetrics strong {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.pnlPositive {
+  color: var(--up-ink);
+}
+
+.pnlNegative {
+  color: var(--down-ink);
+}
+
+.accountTables {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-4);
+  margin-top: var(--sp-4);
+}
+
+.accountTables h3 {
+  margin: 0 0 var(--sp-2);
+}
+
 .formGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -53,10 +162,97 @@
   min-width: 0;
 }
 
+.orderFormGroups {
+  display: grid;
+  gap: 0;
+}
+
+.orderFormGroup,
+.orderReview {
+  padding: var(--sp-4) 0;
+  border-bottom: 1px solid var(--divider);
+}
+
+.orderFormGroup:first-child {
+  padding-top: 0;
+}
+
+.orderFormGroup > header,
+.orderReview > header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-3);
+}
+
+.orderFormGroup h3,
+.orderFormGroup p,
+.orderReview h3,
+.orderReview > header p {
+  margin: 0;
+}
+
+.orderFormGroup h3,
+.orderReview h3 {
+  color: var(--text-1);
+  font-size: var(--fs-small);
+}
+
+.orderFormGroup p,
+.orderReview > header p {
+  color: var(--text-3);
+  font-size: var(--fs-caption);
+}
+
+.traceDetails {
+  border-bottom: 1px solid var(--divider);
+}
+
+.traceDetails summary {
+  width: fit-content;
+  min-height: 36px;
+  padding: var(--sp-2) 0;
+  color: var(--text-2);
+  cursor: pointer;
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-semibold);
+  line-height: 20px;
+}
+
+.traceDetails > div {
+  max-width: 520px;
+  padding: 0 0 var(--sp-4);
+}
+
+.orderReview {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
 .notional {
   margin: var(--sp-3) 0 0;
   font-size: 13px;
   color: var(--text-2);
+}
+
+.priceField {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--sp-2);
+  align-items: center;
+}
+
+.strategyLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-top: var(--sp-3);
+  padding: var(--sp-2) 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-2);
+  font-size: 12px;
 }
 
 .formError {
@@ -79,6 +275,42 @@
   gap: var(--sp-2);
   margin-top: var(--sp-3);
   min-width: 0;
+}
+
+.orderReceipt,
+.lookupResult {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: var(--sp-4);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.orderReceipt > div,
+.lookupResult > div {
+  display: grid;
+  gap: var(--sp-1);
+  min-width: 0;
+  padding: var(--sp-3);
+  border-right: 1px solid var(--border);
+}
+
+.orderReceipt > div:last-child,
+.lookupResult > div:last-child {
+  border-right: 0;
+}
+
+.orderReceipt span,
+.lookupResult span {
+  color: var(--text-3, var(--text-2));
+  font-size: 11px;
+}
+
+.orderReceipt strong,
+.lookupResult strong {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  overflow-wrap: anywhere;
 }
 
 .json {
@@ -110,8 +342,204 @@
   min-width: 0;
 }
 
-@media (max-width: 720px) {
+.executionActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-3);
+}
+
+.successMessage {
+  margin: 0 0 var(--sp-3);
+  color: var(--up-ink);
+  font-size: 13px;
+}
+
+.diffList {
+  display: grid;
+  margin-top: var(--sp-4);
+  border-top: 1px solid var(--border);
+}
+
+.diffRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-3) 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.diffRow > div:first-child {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 4px var(--sp-2);
+  min-width: 0;
+}
+
+.diffRow strong {
+  min-width: 0;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.diffRow small {
+  grid-column: 1 / -1;
+  color: var(--text-3, var(--text-2));
+  font-size: 11px;
+}
+
+.diffActions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: var(--sp-2);
+}
+
+.tableWrap {
+  width: 100%;
+  overflow-x: auto;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.ordersTable {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.ordersTable th,
+.ordersTable td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.ordersTable th {
+  color: var(--text-3, var(--text-2));
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.ordersTable tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.ordersTable td strong,
+.ordersTable td small {
+  display: block;
+}
+
+.ordersTable td small {
+  margin-top: 2px;
+  color: var(--text-3, var(--text-2));
+}
+
+.rowActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sp-1);
+}
+
+.footerActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-4);
+  padding: var(--sp-2) 0 var(--sp-4);
+  border-top: 1px solid var(--border);
+}
+
+.footerActions a {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  color: var(--text-2);
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.footerActions a:hover,
+.footerActions a:focus-visible {
+  color: var(--text-1);
+}
+
+@media (max-width: 767px) {
+  .crossLinks a,
+  .footerActions a {
+    min-height: 44px;
+  }
   .formGrid {
     grid-template-columns: 1fr;
+  }
+
+  .orderFormGroup > header,
+  .orderReview > header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .traceDetails summary {
+    min-height: 44px;
+    line-height: 28px;
+  }
+
+  .operationStrip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .accountMetrics,
+  .accountTables {
+    grid-template-columns: 1fr;
+  }
+
+  .accountMetrics > div {
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .accountMetrics > div:last-child {
+    border-bottom: 0;
+  }
+
+  .operationStrip > div:nth-child(2) {
+    border-right: 0;
+  }
+
+  .operationStrip > div:nth-child(-n + 2) {
+    border-bottom: 1px solid var(--border);
+  }
+
+  .orderReceipt,
+  .lookupResult {
+    grid-template-columns: 1fr;
+  }
+
+  .orderReceipt > div,
+  .lookupResult > div {
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .orderReceipt > div:last-child,
+  .lookupResult > div:last-child {
+    border-bottom: 0;
+  }
+
+  .priceField {
+    grid-template-columns: 1fr;
+  }
+
+  .diffRow {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .diffActions {
+    justify-content: flex-end;
   }
 }

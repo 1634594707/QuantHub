@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import time
+
 from apps.api.domains.instrument import service as instrument_service
 from core.signals import Signal, get_bus
 
@@ -14,6 +16,69 @@ class SignalNotFoundError(LookupError):
 
 class InvalidSignalTransitionError(ValueError):
     pass
+
+
+_RADAR_PAGE_SIZE = 2000
+_RADAR_STATUSES = frozenset({"new", "accepted", "expired"})
+
+
+def radar_snapshot() -> dict:
+    """Return one current signal, or the newest expired fallback, per instrument.
+
+    The list endpoint is intentionally paginated. Radar selection is a server-side
+    operation so a growing ledger cannot make the browser select an older record.
+    """
+    cursor: str | None = None
+    current: dict[tuple[str, str], dict] = {}
+    expired: dict[tuple[str, str], dict] = {}
+    scanned = 0
+    now = time.time()
+
+    while True:
+        page = repository.list_signals_page(
+            limit=_RADAR_PAGE_SIZE,
+            source=None,
+            market=None,
+            status=None,
+            cursor=cursor,
+        )
+        items = page["items"]
+        scanned += len(items)
+        for signal in items:
+            status = str(signal.get("status") or "new")
+            if status not in _RADAR_STATUSES:
+                continue
+            key = (
+                str(signal.get("market") or "").strip().lower(),
+                str(signal.get("symbol") or "").strip().upper(),
+            )
+            if not all(key):
+                continue
+            expires_at = signal.get("expires_at")
+            is_expired = status == "expired" or (
+                isinstance(expires_at, (int, float)) and expires_at <= now
+            )
+            target = expired if is_expired else current
+            if key not in target:
+                target[key] = {
+                    **signal,
+                    "radar_state": "expired" if is_expired else "current",
+                }
+        cursor = page.get("next_cursor")
+        if not cursor:
+            break
+
+    selected = list(current.values())
+    selected.extend(signal for key, signal in expired.items() if key not in current)
+    selected.sort(key=lambda signal: str(signal.get("ts") or ""), reverse=True)
+    return {
+        "count": len(selected),
+        "current_count": len(current),
+        "expired_count": sum(1 for signal in selected if signal["radar_state"] == "expired"),
+        "scanned": scanned,
+        "generated_at": now,
+        "signals": selected,
+    }
 
 
 def publish(req: PublishSignalRequest) -> dict:
