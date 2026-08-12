@@ -86,7 +86,7 @@ uv run python -m tools.backup_store backup --output backups/store-pre-upgrade.db
 uv run python -m tools.backup_store verify backups/store-pre-upgrade.db
 
 # 拉取新版本后
-uv sync                       # 更新网页 API 依赖
+uv sync --locked              # 按锁文件更新 Python 依赖
 uv run python -m compileall -q apps/api apps/dispatcher apps/scheduler core strategies
 Set-Location web
 npm.cmd ci
@@ -165,22 +165,21 @@ npm.cmd run build
 ## 7. 回滚
 
 如升级后异常：
-1. 停止 API、调度器和 dispatcher，避免恢复期间继续写 SQLite。
+1. 使用 `tools/stop-quanthub.ps1` 停止 Web、API 和 Runner，并停止调度器、dispatcher
+   等其他写入进程，避免恢复期间继续写 SQLite。
 2. 切回已验证的旧代码版本并同步对应依赖。
 3. 校验升级前备份：`uv run python -m tools.backup_store verify backups/store-pre-upgrade.db`。
 4. 恢复数据库：`uv run python -m tools.backup_store restore backups/store-pre-upgrade.db --yes`。
 5. 恢复命令会先自动备份当前数据库；保留输出中的 `safety_backup` 路径，便于反向恢复。
-6. 启动 API，检查 `/health`、`/market-data/status`，再运行完整测试。
+6. 使用 `tools/start-quanthub.ps1` 启动目标模式，检查 `/health`、
+   `/market-data/status` 和 Runner 状态，再运行完整测试。
 
 不要手工降低 `schema_version`。配置迁移和 SQLite 增量列迁移只保证向前兼容，数据库
 回滚必须使用与旧代码版本匹配的升级前备份。
 
-## 8. 后续 TODO
+## 8. 后续工作入口
 
-- [ ] A股数据源基本面数据接入（selector 的资金流/股票名称 TODO）
-- [x] PA_Agent 的结构、跨字段、概率、终局与交易几何质量闸门（QuantHub 独立适配）
-- [x] PA_Agent 的 K 线引用格式、窗口范围与可审计性检查
-- [ ] PA_Agent 的 K 线形态事实核验与跨轮决策连续性
-- [ ] AlphaGPT Transformer 因子搜索（当前回退启发式公式）
-- [ ] 看板 Web 勾选二次确认（当前 CLI）
-- [ ] 看板登录鉴权（当前无）
+升级文档不维护容易漂移的功能 TODO。当前研究状态见
+[AI 因子发现路线图](../AI_FACTOR_DISCOVERY_ROADMAP.md)，产品边界见
+[功能边界](FUNCTION_BOUNDARIES.md)，交易前置条件见
+[交易安全边界](TRADING_SAFETY.md)。路线图中的状态必须带日期和可核验证据。

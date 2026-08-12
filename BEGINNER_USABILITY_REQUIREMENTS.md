@@ -2,8 +2,7 @@
 
 > 文档日期：2026-07-30
 > 文档性质：产品需求基线，不重复维护开发完成状态
-> 进度真值源：`PRODUCT_UX_ROADMAP.md`
-> 专项执行路线图：`BEGINNER_USABILITY_ROADMAP.md`
+> 专项进度记录：`BEGINNER_USABILITY_ROADMAP.md`（历史实施记录）
 > 功能归属真值源：`docs/FUNCTION_BOUNDARIES.md`
 
 ## 1. 背景
@@ -304,7 +303,8 @@
 ## 11. 与现有文档的关系
 
 - 本文定义“小白易用性”和“研究结果闭环”的需求口径。
-- `PRODUCT_UX_ROADMAP.md` 负责记录实施优先级和完成状态。
+- `BEGINNER_USABILITY_ROADMAP.md` 保留专项实施优先级和完成状态；当前页面与功能归属
+  以 `docs/FUNCTION_BOUNDARIES.md` 和源码为准。
 - `BEGINNER_STOCK_EVALUATION_ROADMAP.md` 保留原有股票评估阶段规划，后续收口时并入产品路线图。
 - `docs/FUNCTION_BOUNDARIES.md` 决定功能归属；若本文与其冲突，以功能边界为准。
 - 具体接口、数据表和页面拆分应在开发前形成独立技术设计，不在本文中重复维护源码细节。

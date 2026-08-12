@@ -62,18 +62,28 @@ uv run alembic current
 
 ## 4. 启动与健康检查
 
-Windows 本地启动：
+Windows 本地推荐使用统一脚本。默认启动 Web、API 和 shadow 只读 Runner：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File tools/start-quanthub.ps1
+powershell -ExecutionPolicy Bypass -File tools/start-quanthub.ps1 -SkipSync
+
+# OKX 模拟盘联调
+powershell -ExecutionPolicy Bypass -File tools/start-quanthub.ps1 -SkipSync -Demo
+
+# 停止全部本地服务
+powershell -ExecutionPolicy Bypass -File tools/stop-quanthub.ps1
 ```
+
+首次启动或依赖变化时去掉 `-SkipSync`。切换 Runner 模式前先停止旧进程。完整说明见
+[项目快速开始](../README.md#2-windows-一键启动推荐) 与
+[OKX Runner 运维](okx_runner/OPERATIONS.md)。
 
 启动后至少确认：
 
 - `/health` 返回当前版本、构建标识和 `live_trading=false`。
 - `/config/status` 只返回配置状态和环境变量名称，不返回凭据。
 - `/market-data/status` 没有阻塞目标流程的数据源错误。
-- API、scheduler 和 dispatcher 使用同一代码版本与配置环境。
+- Web、API 和 Runner 使用同一代码版本与匹配的环境配置。
 
 ## 5. 备份与恢复
 
@@ -100,7 +110,9 @@ Web 备份接口位于 `/backups`：
 - `POST /backups/retention/preview`：预览候选文件。
 - `POST /backups/retention/apply`：确认列表完全一致后删除。
 
-API 只接受受控目录内的 `.db` 文件名，不接受路径穿越。恢复期间必须停止 API、scheduler 和 dispatcher，避免继续写入。
+API 只接受受控目录内的 `.db` 文件名，不接受路径穿越。恢复期间应先使用
+`tools/stop-quanthub.ps1` 停止 Web、API 和 Runner，并停止 scheduler、dispatcher
+等其他写入进程，避免继续写入。
 
 ## 6. 升级流程
 
@@ -116,7 +128,7 @@ API 只接受受控目录内的 `.db` 文件名，不接受路径穿越。恢复
 
 ## 7. 回滚流程
 
-1. 停止 API、scheduler 和 dispatcher。
+1. 使用 `tools/stop-quanthub.ps1` 停止 Web、API 和 Runner，并停止其他写入进程。
 2. 切回已验证的旧代码版本并同步对应依赖。
 3. 验证升级前备份。
 4. 执行：

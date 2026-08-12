@@ -285,7 +285,7 @@ def market_breadth() -> dict:
     up = flat = down = 0
     sectors: dict[str, list[float]] = {}
     for code, sector in CONFIG["breadth_basket"]:
-        _, current, previous = tencent_quote_detail(code, "a_shares")
+        _, current, previous, _ = tencent_quote_detail(code, "a_shares")
         if current is None or not previous:
             continue
         change = (current - previous) / previous * 100

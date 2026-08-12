@@ -98,13 +98,30 @@ git clone https://github.com/1634594707/QuantHub.git
 cd QuantHub
 ```
 
-### 2. Windows 一键启动
+### 2. Windows 一键启动（推荐）
 
-启动脚本会检查运行环境、同步依赖、检查端口与 API 健康状态，并将日志写入 `logs/launcher/`。
-一条命令同时启动三个进程：Web 工作台、统一 API、无 UI 的 OKX Runner。
+启动脚本会检查运行环境、同步依赖、检查端口与 API 健康状态，并将日志写入
+`logs/launcher/`。一条命令同时启动三个进程：Web 工作台、统一 API、无 UI 的
+OKX Runner。
+
+首次启动，或依赖发生变化时，运行：
 
 ```powershell
+# 安全默认值：Runner 使用 shadow 只读模式，不会下单
 powershell -ExecutionPolicy Bypass -File tools/start-quanthub.ps1
+```
+
+依赖已经安装完成时，日常开发可加 `-SkipSync` 加快启动：
+
+```powershell
+# 只读研究和交易状态查看
+powershell -ExecutionPolicy Bypass -File tools/start-quanthub.ps1 -SkipSync
+
+# OKX 模拟盘联调：启动 Web、API 和 Demo Runner
+powershell -ExecutionPolicy Bypass -File tools/start-quanthub.ps1 -SkipSync -Demo
+
+# 仅启动 Web 和 API，不启动 Runner
+powershell -ExecutionPolicy Bypass -File tools/start-quanthub.ps1 -SkipSync -SkipRunner
 ```
 
 启动完成后访问：
@@ -115,19 +132,15 @@ powershell -ExecutionPolicy Bypass -File tools/start-quanthub.ps1
 
 OKX Runner 监听 `127.0.0.1:8103`，**不对浏览器开放**，也没有独立界面；
 Web 只经统一 API 的 `/api/trading/*` 访问它。Runner 默认以 `shadow`（只读、不下单）
-环境启动，切换模拟盘需显式设置 `QH_RUNNER_ENVIRONMENT=demo`，实盘另需
-`QH_RUNNER_LIVE_APPROVED=1`，脚本不会代为开启。只做研究/只读时可加 `-SkipRunner`。
+环境启动；需要模拟交易、OKX 预检和账户同步时使用 `-Demo`。首次使用 Demo 前，
+在“系统设置 -> OKX 连接”中保存模拟盘专用 API Key、Secret Key 和 Passphrase。
+实盘另需 `QH_RUNNER_LIVE_APPROVED=1`，启动脚本不会代为开启。
 
-停止由脚本启动的服务：
+切换 `shadow`、`Demo` 或 `-SkipRunner` 模式前，先停止现有进程；否则启动器会复用
+端口上已经运行的旧进程，其环境不会随新命令改变：
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File tools/stop-quanthub.ps1
-```
-
-已完成依赖安装时，可使用 `-SkipSync` 加快启动：
-
-```powershell
-powershell -ExecutionPolicy Bypass -File tools/start-quanthub.ps1 -SkipSync
 ```
 
 ### 3. 手动启动
@@ -139,19 +152,28 @@ uv sync --locked
 npm --prefix web install
 ```
 
-启动 API：
+分别打开三个终端。终端 1 启动 API：
 
 ```bash
 uv run uvicorn apps.api.main:app --host 127.0.0.1 --port 8001
 ```
 
-另开一个终端启动前端：
+终端 2 启动前端：
 
 ```bash
 npm --prefix web run dev
 ```
 
-Vite 会将 `/api` 请求代理到 `http://127.0.0.1:8001`。
+终端 3 启动默认的只读 OKX Runner：
+
+```bash
+uv run uvicorn apps.okx_runner.main:app --host 127.0.0.1 --port 8103
+```
+
+Vite 会将 `/api` 请求代理到 `http://127.0.0.1:8001`，统一 API 再访问
+`http://127.0.0.1:8103` 上的 Runner。只启动前两个进程时，研究页面仍可使用，
+但交易工作台会显示 `TRADING_RUNNER_UNAVAILABLE`。Demo 模式需要 API 与 Runner
+共享认证配置，推荐直接使用上一节的 `start-quanthub.ps1 -Demo`，避免手动配置不一致。
 
 ### 4. Docker 镜像
 

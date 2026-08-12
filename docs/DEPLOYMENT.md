@@ -12,6 +12,22 @@ QuantHub 支持 `local`、`lan` 和 `postgresql` 三种部署模式。配置项�
 - SQLite 文件路径由 `QUANTHUB_STORE_PATH` 指定，未设置时使用 `apps/api/store.db`。
 - 可通过 `QUANTHUB_AUTH_REQUIRED=1` 强制启用 Bearer token。
 
+推荐启动命令：
+
+```powershell
+# 默认 shadow 只读 Runner
+powershell -ExecutionPolicy Bypass -File tools/start-quanthub.ps1 -SkipSync
+
+# OKX 模拟盘
+powershell -ExecutionPolicy Bypass -File tools/start-quanthub.ps1 -SkipSync -Demo
+
+# 停止全部本地服务
+powershell -ExecutionPolicy Bypass -File tools/stop-quanthub.ps1
+```
+
+首次启动或依赖变化时去掉 `-SkipSync`。Runner 默认监听 `127.0.0.1:8103`，浏览器
+只访问 Web `5173`，并经统一 API `8001` 转发交易请求。
+
 ## 局域网模式
 
 配置模板：`configs/deployment.lan.env.example`。

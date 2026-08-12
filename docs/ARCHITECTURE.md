@@ -1,6 +1,6 @@
 # QuantHub 架构文档
 
-> 版本 0.3.0 | schema_version 1 | 分层单体仓库
+> 当前架构基线：v0.4.x | schema_version 1 | 本地优先的分层单体仓库
 
 ## 1. 分层架构
 
@@ -8,7 +8,8 @@
 ┌─────────────────────────────────────────────────────────┐
 │  应用层 apps/                                            │
 │  ├─ api         (FastAPI 网页网关与领域接口)              │
-│  ├─ dispatcher  (信号中枢 → 风控 → 路由，默认 dry-run)    │
+│  ├─ okx_runner  (独立交易执行、恢复、对账与风险模式)       │
+│  ├─ dispatcher  (遗留信号聚合与 dry-run 路由)             │
 │  └─ scheduler   (网页自动化任务调度)                     │
 ├─────────────────────────────────────────────────────────┤
 │  策略层 strategies/ (插件式，@register_strategy 挂载)     │
@@ -33,7 +34,8 @@
 
 1. **单一底座**：数据/信号/告警/LLM/回测只实现一次，消除原项目的重复实现。
 2. **插件式策略**：每个策略实现 `StrategyBase`，通过 `@register_strategy` 注册，互不污染。
-3. **实盘安全优先**：三层开关（全局 `live_trading` + 模块 `live` + 密钥环境变量）+ 风控 + CLI 二次确认。
+3. **实盘安全优先**：浏览器只访问统一 API；交易请求由 API 代理到独立 OKX Runner，
+   `shadow` 默认只读，Demo 需要显式启动，live 还需要独立审批。
 4. **渐进迁移**：原项目逻辑保持算法不变，仅替换数据/LLM/告警的接入层。
 
 ## 3. 组件交互
@@ -51,12 +53,7 @@ scheduler (cron) ──► strategy.produce()
                         ├─ core.llm.get_llm() (可选)
                         ├─ 本地模型 (FinBERT2, 懒加载)
                         │
-                        └─► Signal ──► SignalBus ──► dispatcher
-                                                    ├─ 加权聚合
-                                                    ├─ RiskChecker
-                                                    └─ OrderRouter
-                                                         ├─ dry-run: 输出 JSON
-                                                         └─ live: CLI 确认 → OKX/Solana
+                        └─► Signal ──► SignalBus ──► 审核 / 模拟执行 / 研究账本
 ```
 
 ### 3.2 Signal 数据类
@@ -119,12 +116,14 @@ class MyStrategy(StrategyBase):
         ...
 ```
 
-### 4.2 实盘策略额外要求
+### 4.2 策略执行边界
 
 - `live_capable=True`
 - 实现 `live_tick()`：实盘 tick 回调
-- `is_live()` 继承基类：需全局 `live_trading=true` + 模块 `live=true`
-- 下单经 `dispatcher` → `RiskChecker` → `OrderRouter` → CLI 确认
+- `is_live()` 与旧 dispatcher 路径只表示策略自身具备执行能力，不构成当前产品的
+  live 授权。
+- Web 产品的 OKX 执行只允许经过 `Web -> API /trading/* -> OKX Runner`，浏览器不能
+  直接访问 Runner，也不能读取 Runner 令牌或 OKX 凭据。
 
 ## 5. 数据层抽象
 
@@ -157,31 +156,28 @@ simulation_orders
 - 账本持仓支持多头和空头，反向成交先平仓，超出部分建立反向持仓。
 - 当前同步只连接本地模拟执行与本地账本，不会调用真实券商或交易所。
 
-### 三层开关
+### OKX Runner 执行边界
 
-1. `configs/base.yaml: live_trading: false`（全局）
-2. `configs/crypto.yaml: modules.okx_grid.live: false`（模块）
-3. 环境变量 `OKX_API_KEY` 等存在
-
-三者全部满足才激活实盘。
-
-### 下单流程
-
-```
-Signal → dispatcher 加权聚合 → RiskChecker (仓位/敞口/流动性/蜜罐)
-      → OrderRouter.route()
-           ├─ dry_run=true  → 打印拟下单 JSON
-           └─ dry_run=false → cli_confirm() → OKX/Solana 执行
+```text
+Web 工作台
+  -> 统一 API /trading/*
+  -> 服务端范围校验与 Runner 认证
+  -> OKX Runner (8103)
+  -> 幂等订单状态机 / 风险模式 / 恢复 / 对账
+  -> OKX Demo
 ```
 
-### CLI 二次确认
-
-下单前终端提示输入 `CONFIRM`（60秒超时自动取消），避免误触发。
+- `shadow`：只读，不允许下单。
+- `demo`：显式使用 `start-quanthub.ps1 -Demo`，凭据来自本地凭据仓库或部署密钥。
+- `live`：除 live 环境外还必须设置 `QH_RUNNER_LIVE_APPROVED=1`，当前仓库不提供
+  自动授权流程。
+- Runner 仅监听本机地址；非本机或非 shadow 模式要求 `QH_RUNNER_AUTH_TOKEN`。
+- 首期订单范围由统一 API 和 Runner 双重校验；未知订单先查询外部状态，禁止盲目重发。
 
 ## 7. 依赖管理
 
 - **uv workspace**：成员列表以根目录 `pyproject.toml` 的 `[tool.uv.workspace].members` 为准，共享单一虚拟环境
-- 可选依赖组：`a_shares` / `crypto` / `ai` / `backtest` / `dashboard` / `heavy-torch` / `heavy-solana`
+- 可选依赖组：`a_shares` / `crypto` / `ai` / `backtest` / `heavy-torch` / `heavy-solana`
 - 重依赖（torch/solana）懒加载，未安装时策略降级而非崩溃
 
 ## 8. 已注册策略清单
@@ -196,6 +192,7 @@ Signal → dispatcher 加权聚合 → RiskChecker (仓位/敞口/流动性/蜜�
 | perks_monitor | a_shares | 否 | 羊毛监控 |
 | news_analyzer | a_shares | 否 | 新闻结构化分析 |
 | realtime_analyzer | a_shares | 否 | 实时行情分析 |
+| realtime_analyzer_us | us_stocks | 否 | 美股实时行情分析 |
 | okx_grid | crypto | 是(默认关) | OKX Grid Master |
 | alphagpt | crypto | 是(默认关) | AlphaGPT |
 | pa_agent | ai_analysis | 否 | PA_Agent |

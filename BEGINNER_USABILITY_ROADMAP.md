@@ -1,8 +1,9 @@
 # QuantHub 新手易用性与研究结果闭环路线图
 
 > 建立日期：2026-07-30
+> **归档说明：** 本文记录专项实施过程，不作为当前页面、启动或运维说明。
 > 需求基线：`BEGINNER_USABILITY_REQUIREMENTS.md`
-> 总体路线图：`PRODUCT_UX_ROADMAP.md`
+> 功能归属真值源：`docs/FUNCTION_BOUNDARIES.md`
 > 状态规则：`[x]` 表示源码、测试、真实数据和目标视口均已验收。
 
 ## 目标

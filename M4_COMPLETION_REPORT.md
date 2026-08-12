@@ -2,6 +2,10 @@
 
 > 日期：2026-08-10 ｜ 项目：QuantHub OKX Runner + 模拟实验室（前端 DemoLab）
 > 范围：完成 M4 全部工作包，并补齐可交互模拟演示能力。所有结论均可核验、可追溯到真实证据。
+>
+> **归档说明（2026-08-12）：** 本文保留 M4 当时的实现与证据，不是当前启动或路由
+> 手册。当前启动使用根目录 README 的 `tools/start-quanthub.ps1`；模拟回测能力现归入
+> 策略实验相关页面，旧 `/demo-lab`、`8000` 端口和单独 `npm run dev` 说明不得照抄。
 
 ---
 
@@ -47,25 +51,19 @@
 
 ---
 
-## 3. 模拟 Demo 的启动与使用方式
+## 3. 当时的模拟 Demo 使用方式（已归档）
 
-### 前端模拟实验室（推荐）
-```bash
-cd web
-npm run dev        # 打开 http://localhost:5173 → 左侧「交易 / 模拟实验室」
+当前服务统一使用：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools/start-quanthub.ps1 -SkipSync -Demo
 ```
+
+以下数据源、因子和回测说明仅用于理解当时的 M4 验证范围；当前页面入口与 API 契约
+以源码和根 README 为准。
 - **数据源三选一**：`okx_local`（本地归档真实 OKX K 线，19 币种 × 4 周期）、`okx_live`（OKX 公共行情实时拉取 + 快照缓存）、`synthetic`（确定性合成，可设 seed）。
 - 选择因子（momentum / mean_reversion / rsi / ma_cross）与策略（buy_hold / ma_cross / factor_follow），配置初始资金、手续费、仓位上限、起止区间 → 「运行回测」。
 - 输出：净值+回撤双轨图、KPI（收益/回撤/夏普/胜率/盈亏比/年化）、数据指纹（sha256 `fingerprint`）与缓存文件（可复现）、运行日志、成交明细、历史运行回看。
-
-### 后端 API（模拟回测）
-```bash
-curl -X POST http://127.0.0.1:8000/api/simulation/demo/run \
-  -H 'content-type: application/json' \
-  -d '{"source":"okx_local","symbol":"BTCUSDT","interval":"1d","n_bars":200,"strategy":"ma_cross","factor":"rsi"}'
-# 历史： GET /api/simulation/demo/runs?limit=20
-# 回看： GET /api/simulation/demo/runs/{run_id}
-```
 
 ### M4-04/05 运维端点（Runner 服务，端口 8103）
 ```
