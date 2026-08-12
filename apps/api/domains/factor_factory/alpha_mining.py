@@ -18,7 +18,7 @@ from core.factor_dsl import (
 )
 from core.llm import LLMClient, get_llm
 
-ALPHA_MINING_VERSION = "brain-alpha-v1.3"
+ALPHA_MINING_VERSION = "brain-alpha-v1.4"
 AI_PROMPT_VERSION = "brain-alpha-refinement-json-v3"
 AI_RAW_OUTPUT_LIMIT = 50_000
 
@@ -360,6 +360,55 @@ def _extract_json(text: str) -> dict[str, Any] | None:
     return value if isinstance(value, dict) else None
 
 
+def _extract_complete_candidate_rows(text: str) -> list[dict[str, Any]]:
+    """Recover only fully closed objects from a truncated top-level candidates array."""
+
+    match = re.search(r'"candidates"\s*:\s*\[', text)
+    if match is None:
+        return []
+    rows: list[dict[str, Any]] = []
+    array_depth = 1
+    object_depth = 0
+    object_start: int | None = None
+    in_string = False
+    escaped = False
+    for index in range(match.end(), len(text)):
+        char = text[index]
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            continue
+        if char == '"':
+            in_string = True
+            continue
+        if char == "[":
+            array_depth += 1
+        elif char == "]":
+            array_depth -= 1
+            if array_depth == 0:
+                break
+        elif char == "{":
+            if array_depth == 1 and object_depth == 0:
+                object_start = index
+            object_depth += 1
+        elif char == "}" and object_depth > 0:
+            object_depth -= 1
+            if array_depth == 1 and object_depth == 0 and object_start is not None:
+                try:
+                    row = json.loads(text[object_start : index + 1])
+                except json.JSONDecodeError:
+                    object_start = None
+                    continue
+                if isinstance(row, dict):
+                    rows.append(row)
+                object_start = None
+    return rows
+
+
 def _safe_candidate_id(value: Any, fallback: str) -> str:
     normalized = re.sub(r"[^a-z0-9_]+", "_", str(value or fallback).strip().lower())
     normalized = re.sub(r"_+", "_", normalized).strip("_")
@@ -694,7 +743,9 @@ def generate_ai_proposals(
             "requested_provider": provider,
         }
     payload = _extract_json(response.content)
-    rows = payload.get("candidates", []) if payload else []
+    recovered_rows = [] if payload else _extract_complete_candidate_rows(response.content)
+    recovered_partial = bool(recovered_rows)
+    rows = payload.get("candidates", []) if payload else recovered_rows
     proposals: list[AlphaProposal] = []
     rejected: list[dict[str, str]] = []
     hashes: set[str] = set()
@@ -763,20 +814,30 @@ def generate_ai_proposals(
             )
         except (FactorDslError, KeyError, TypeError, ValueError) as exc:
             rejected.append({"index": str(index), "reason": str(exc)})
+    response_incomplete = recovered_partial or response.finish_reason == "length"
+    status = (
+        "generated_partial"
+        if proposals and response_incomplete
+        else "generated"
+        if proposals
+        else "invalid_output"
+    )
     return proposals, {
-        "status": "generated" if proposals else "invalid_output",
+        "status": status,
         "candidate_count": len(proposals),
         "requested_candidates": count,
         "requested_provider": provider,
         "provider": getattr(llm, "_provider", "unknown"),
         "model": response.model,
+        "finish_reason": response.finish_reason,
         "effective_timeout_seconds": getattr(llm, "_timeout", None),
         "effective_max_retries": getattr(llm, "_max_retries", None),
         "token_usage": token_usage,
         "input_fingerprint": input_fingerprint,
         "output_fingerprint": hashlib.sha256(response.content.encode("utf-8")).hexdigest(),
         "output_raw": response.content[:AI_RAW_OUTPUT_LIMIT],
-        "output_truncated": len(response.content) > AI_RAW_OUTPUT_LIMIT,
+        "output_truncated": len(response.content) > AI_RAW_OUTPUT_LIMIT or response_incomplete,
+        "recovered_complete_candidates": len(rows) if recovered_partial else 0,
         "rejected": rejected,
         "seed_candidate_ids": sorted(seed_ids),
         "generation_stage": "ai_refinement" if seed_ids else "ai_proposal",

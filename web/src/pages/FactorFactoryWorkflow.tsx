@@ -338,9 +338,10 @@ function newExperimentNonce() {
   return `run-${Date.now()}-${Math.random().toString(16).slice(2)}`
 }
 
-function aiGenerationMessage(status: string | null, error: string | null, provider: string | null) {
+export function aiGenerationMessage(status: string | null, error: string | null, provider: string | null, acceptedCount: number) {
   if (!status || status === 'disabled' || status === 'generated') return null
   const source = provider === 'deepseek' ? 'DeepSeek' : provider === 'openai' ? 'OpenAI' : provider === 'custom' ? '兼容 API' : 'AI'
+  if (status === 'generated_partial') return `${source} 输出在末尾截断；已保留 ${acceptedCount} 个完整且通过校验的 AI 候选，其余由规则候选补齐。`
   if (status === 'invalid_output') return `${source} 已响应，但候选格式或 DSL 校验未通过；本轮已回退规则候选。`
   if (status === 'token_budget_insufficient' || status === 'token_budget_exceeded') return `${source} token 预算不足；本轮已回退规则候选。`
   if (/timeout/i.test(error ?? '')) return `${source} 响应超时；本轮未收到完整结果，已回退规则候选。`
@@ -1103,7 +1104,8 @@ export function FactorFactoryWorkflow() {
   const autoAiStatus = nestedString(autoCandidateGeneration, 'ai', 'status')
   const autoAiError = nestedString(autoCandidateGeneration, 'ai', 'error')
   const autoRunAiProvider = nestedString(autoCandidateGeneration, 'ai', 'requested_provider')
-  const autoAiGenerationMessage = aiGenerationMessage(autoAiStatus, autoAiError, autoRunAiProvider)
+  const autoAcceptedAiCandidates = nestedNumber(autoCandidateGeneration, 'ai', 'candidate_count') ?? 0
+  const autoAiGenerationMessage = aiGenerationMessage(autoAiStatus, autoAiError, autoRunAiProvider, autoAcceptedAiCandidates)
   const demoRiskNormal = nestedBoolean(autoRun?.run.result, 'paper', 'okx_demo', 'latest_evidence', 'risk_mode_normal')
   const demoReconciliationClear = nestedBoolean(autoRun?.run.result, 'paper', 'okx_demo', 'latest_evidence', 'reconciliation_clear')
   const autoRunPaperTarget = nestedString(autoRun?.run.config, 'paper_target')

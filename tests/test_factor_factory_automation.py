@@ -14,6 +14,7 @@ from unittest.mock import Mock, patch
 
 from apps.api import database, store
 from apps.api.domains.factor_factory.alpha_mining import (
+    generate_ai_proposals,
     generate_alpha_batch,
     parse_alpha_expression,
 )
@@ -43,8 +44,9 @@ from core.llm import LLMResponse
 class FakeAlphaLlm:
     _provider = "test-provider"
 
-    def __init__(self, content: str) -> None:
+    def __init__(self, content: str, *, finish_reason: str | None = None) -> None:
         self.content = content
+        self.finish_reason = finish_reason
         self.calls = 0
         self.last_kwargs: dict = {}
 
@@ -73,6 +75,7 @@ class FakeAlphaLlm:
             content=content,
             model="test-alpha-model",
             usage={"prompt_tokens": 100, "completion_tokens": 100, "total_tokens": 200},
+            finish_reason=self.finish_reason,
         )
 
 
@@ -401,6 +404,50 @@ class FactorFactoryAutomationTests(unittest.TestCase):
         self.assertNotIn("ai", audit["source_counts"])
         self.assertNotIn("request_timeout", client.last_kwargs)
         self.assertNotIn("transport_max_retries", client.last_kwargs)
+
+    def test_truncated_ai_output_keeps_complete_candidates(self) -> None:
+        first = {
+            "candidate_id": "complete_alpha_one",
+            "formula_ast": {
+                "op": "rolling_zscore",
+                "value": {"op": "field", "name": "close"},
+                "window": 20,
+            },
+        }
+        second = {
+            "candidate_id": "complete_alpha_two",
+            "formula_ast": {
+                "op": "neg",
+                "value": {
+                    "op": "rolling_zscore",
+                    "value": {"op": "field", "name": "volume"},
+                    "window": 24,
+                },
+            },
+        }
+        content = (
+            '{"candidates":['
+            + json.dumps(first)
+            + ","
+            + json.dumps(second)
+            + ',{"candidate_id":"incomplete","formula_ast":{"op":"rolling_mean"'
+        )
+        proposals, audit = generate_ai_proposals(
+            brief="Find robust alpha expressions.",
+            interval="4h",
+            count=3,
+            maximum_tokens=4_000,
+            client=FakeAlphaLlm(content, finish_reason="length"),
+        )
+
+        self.assertEqual(
+            [item.candidate_id for item in proposals], ["complete_alpha_one", "complete_alpha_two"]
+        )
+        self.assertEqual(audit["status"], "generated_partial")
+        self.assertEqual(audit["candidate_count"], 2)
+        self.assertEqual(audit["recovered_complete_candidates"], 2)
+        self.assertEqual(audit["finish_reason"], "length")
+        self.assertTrue(audit["output_truncated"])
 
     def test_ai_args_ast_is_normalized_before_safe_dsl_validation(self) -> None:
         content = json.dumps(

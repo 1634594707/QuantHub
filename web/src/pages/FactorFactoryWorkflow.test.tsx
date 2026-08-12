@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../api/client'
 import type { LLMConfigResp } from '../api/types'
-import { FactorFactoryWorkflow } from './FactorFactoryWorkflow'
+import { aiGenerationMessage, FactorFactoryWorkflow } from './FactorFactoryWorkflow'
 
 const LLM_CONFIG: LLMConfigResp = {
   ok: true,
@@ -67,6 +67,12 @@ beforeEach(() => {
 })
 
 describe('FactorFactoryWorkflow', () => {
+  it('describes recovered candidates from a truncated AI response', () => {
+    expect(aiGenerationMessage('generated_partial', null, 'deepseek', 5)).toBe(
+      'DeepSeek 输出在末尾截断；已保留 5 个完整且通过校验的 AI 候选，其余由规则候选补齐。',
+    )
+  })
+
   it('registers an auditable template and runs its DSL drawdown experiment', async () => {
     vi.spyOn(api, 'factorFactoryArchive').mockResolvedValue({ ok: true, count: 0, total: 0, research_record_count: 0, ineligible_count: 0, verified_count: 0, eligible_only: true, archives: [], live_trading_enabled: false })
     const definition = {
@@ -161,6 +167,7 @@ describe('FactorFactoryWorkflow', () => {
     expect(start.mock.calls[0][0].experiment_nonce).not.toBe(start.mock.calls[1][0].experiment_nonce)
     expect((await screen.findAllByText('没有候选通过滚动验证门禁')).length).toBeGreaterThanOrEqual(1)
   })
+
 
   it('clears candidates when the research target changes and reloads only that target', async () => {
     vi.spyOn(api, 'factorFactoryArchive').mockResolvedValue({ ok: true, count: 0, total: 0, research_record_count: 0, ineligible_count: 0, verified_count: 0, eligible_only: true, archives: [], live_trading_enabled: false })

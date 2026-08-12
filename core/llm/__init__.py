@@ -44,6 +44,7 @@ class LLMResponse:
     content: str
     model: str
     usage: dict[str, int] | None = None
+    finish_reason: str | None = None
     raw: Any = None
 
 
@@ -135,6 +136,7 @@ class LLMClient:
             content=choice.message.content or "",
             model=use_model,
             usage=usage,
+            finish_reason=getattr(choice, "finish_reason", None),
             raw=resp,
         )
 
