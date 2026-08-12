@@ -18,8 +18,8 @@ from core.factor_dsl import (
 )
 from core.llm import LLMClient, get_llm
 
-ALPHA_MINING_VERSION = "brain-alpha-v1.4"
-AI_PROMPT_VERSION = "brain-alpha-refinement-json-v3"
+ALPHA_MINING_VERSION = "brain-alpha-v1.5"
+AI_PROMPT_VERSION = "brain-alpha-refinement-json-v4"
 AI_RAW_OUTPUT_LIMIT = 50_000
 
 EXPRESSION_FIELDS = {"open", "high", "low", "close", "volume"}
@@ -284,12 +284,35 @@ def _transform_alpha(value: dict[str, Any], *, transform: int, lookback: int) ->
         }
     if transform == 2:
         return {"op": "rank", "value": value, "window": min(240, max(lookback * 2, 24))}
-    volume_rank = {
-        "op": "rank",
-        "value": _field("volume"),
-        "window": min(120, max(lookback, 12)),
+    if transform == 3:
+        volume_rank = {
+            "op": "rank",
+            "value": _field("volume"),
+            "window": min(120, max(lookback, 12)),
+        }
+        return {"op": "mul", "left": value, "right": volume_rank}
+    if transform == 4:
+        return {
+            "op": "rolling_winsorize",
+            "value": value,
+            "window": min(240, max(lookback * 2, 24)),
+            "lower": 0.05,
+            "upper": 0.95,
+        }
+    if transform == 5:
+        return {"op": "diff", "value": value, "periods": max(1, min(6, lookback // 6))}
+    volatility = {"op": "rolling_std", "value": _returns(1), "window": lookback}
+    volatility_baseline = {
+        "op": "rolling_mean",
+        "value": volatility,
+        "window": min(240, max(lookback * 2, 24)),
     }
-    return {"op": "mul", "left": value, "right": volume_rank}
+    return {
+        "op": "where",
+        "condition": {"op": "gt", "left": volatility, "right": volatility_baseline},
+        "then": value,
+        "else": {"op": "neg", "value": value},
+    }
 
 
 def generate_grammar_proposals(
@@ -306,7 +329,7 @@ def generate_grammar_proposals(
         attempts += 1
         lookback = rng.choice(lookbacks)
         kind = rng.randrange(7)
-        transform = rng.randrange(4)
+        transform = rng.randrange(7)
         family, primitive, hypothesis, invalidation = _brain_primitive(kind, lookback)
         ast = _transform_alpha(primitive, transform=transform, lookback=lookback)
         if rng.random() < 0.35:
@@ -573,6 +596,7 @@ def _ai_messages(
     count: int,
     market: str,
     seed_candidates: list[dict[str, Any]] | None = None,
+    prior_direction_radar: dict[str, Any] | None = None,
 ) -> list[dict[str, str]]:
     catalog = {
         "fields": ["open", "high", "low", "close", "volume"],
@@ -616,6 +640,7 @@ def _ai_messages(
         "interval": interval,
         "research_brief": brief,
         "screened_seed_candidates": seeds,
+        "prior_direction_radar": prior_direction_radar,
         "catalog": catalog,
         "ast_contract": {
             "field": {"op": "field", "name": "close"},
@@ -659,7 +684,17 @@ def _ai_messages(
         },
         "refinement_rules": [
             "Preserve the seed's economic hypothesis unless the output explicitly narrows it.",
-            "Prefer nearby lookbacks, normalization, winsorization, sign, or one compositional change.",
+            (
+                "Use prior_direction_radar when supplied: deepen GREEN families, diversify YELLOW "
+                "families, make a structural operator-family change for RED families, and avoid "
+                "DEAD families."
+            ),
+            (
+                "Do not generate only nearby-window variants; diversify time-series, arithmetic, "
+                "ranking, conditional, lag/difference, and robust-normalization operator families "
+                "where valid."
+            ),
+            "Prefer one meaningful structural change per candidate so the result remains falsifiable.",
             "Do not use confirmation or holdout evidence; only the supplied discovery metrics exist.",
         ],
         "confirmation_labels_exposed": False,
@@ -680,6 +715,7 @@ def generate_ai_proposals(
     provider: str | None = None,
     client: LLMClient | None = None,
     seed_candidates: list[dict[str, Any]] | None = None,
+    prior_direction_radar: dict[str, Any] | None = None,
 ) -> tuple[list[AlphaProposal], dict[str, Any]]:
     if count <= 0:
         return [], {
@@ -693,6 +729,7 @@ def generate_ai_proposals(
         count=count,
         market=market,
         seed_candidates=seed_candidates,
+        prior_direction_radar=prior_direction_radar,
     )
     input_text = json.dumps(messages, ensure_ascii=False, sort_keys=True)
     input_fingerprint = hashlib.sha256(input_text.encode("utf-8")).hexdigest()

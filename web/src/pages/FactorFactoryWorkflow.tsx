@@ -333,6 +333,24 @@ function nestedRecord(value: unknown, ...path: string[]) {
   return current && typeof current === 'object' ? current as Record<string, unknown> : null
 }
 
+function nestedRecords(value: unknown, ...path: string[]) {
+  let current: unknown = value
+  for (const key of path) {
+    if (!current || typeof current !== 'object') return []
+    current = (current as Record<string, unknown>)[key]
+  }
+  return Array.isArray(current)
+    ? current.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
+    : []
+}
+
+const DIRECTION_LIGHT_LABELS: Record<string, string> = {
+  GREEN: 'GREEN 继续深挖',
+  YELLOW: 'YELLOW 补充证据',
+  RED: 'RED 更换结构',
+  DEAD: 'DEAD 切换方向',
+}
+
 function newExperimentNonce() {
   if (typeof globalThis.crypto?.randomUUID === 'function') return globalThis.crypto.randomUUID()
   return `run-${Date.now()}-${Math.random().toString(16).slice(2)}`
@@ -1107,6 +1125,15 @@ export function FactorFactoryWorkflow() {
   const autoRunAiProvider = nestedString(autoCandidateGeneration, 'ai', 'requested_provider')
   const autoAcceptedAiCandidates = nestedNumber(autoCandidateGeneration, 'ai', 'candidate_count') ?? 0
   const autoAiGenerationMessage = aiGenerationMessage(autoAiStatus, autoAiError, autoRunAiProvider, autoAcceptedAiCandidates)
+  const autoDirectionRadar = nestedRecord(autoRun?.run.result, 'direction_radar')
+  const autoDirectionOverall = nestedRecord(autoDirectionRadar, 'overall')
+  const autoDirectionLight = nestedString(autoDirectionOverall, 'light')
+  const autoDirectionAction = nestedString(autoDirectionOverall, 'action')
+  const autoDirectionDsi = nestedNumber(autoDirectionOverall, 'dsi')
+  const autoDirectionSamples = nestedNumber(autoDirectionOverall, 'sample_count')
+  const autoDirectionCeiling = nestedNumber(autoDirectionOverall, 'maximum_sharpe')
+  const autoDirectionOperatorFamilies = nestedNumber(autoDirectionOverall, 'operator_family_count')
+  const autoDirectionFamilies = nestedRecords(autoDirectionRadar, 'families')
   const demoRiskNormal = nestedBoolean(autoRun?.run.result, 'paper', 'okx_demo', 'latest_evidence', 'risk_mode_normal')
   const demoReconciliationClear = nestedBoolean(autoRun?.run.result, 'paper', 'okx_demo', 'latest_evidence', 'reconciliation_clear')
   const autoRunPaperTarget = nestedString(autoRun?.run.config, 'paper_target')
@@ -1385,6 +1412,24 @@ export function FactorFactoryWorkflow() {
             <div><small>观察截止</small><strong>{autoEndsAt}</strong></div>
           </div>
           {autoAiGenerationMessage && <div className={s.aiGenerationWarning} role="status"><CircleAlert size={16} /><span>{autoAiGenerationMessage}</span><code title={autoAiError ?? ''}>{autoAiStatus}</code></div>}
+          {autoDirectionLight && <section className={s.directionRadar} aria-label="方向雷达">
+            <div className={s.directionRadarSummary}>
+              <span className={s[`direction${autoDirectionLight}`]}>{DIRECTION_LIGHT_LABELS[autoDirectionLight] ?? autoDirectionLight}</span>
+              <span><small>DSI</small><strong>{num(autoDirectionDsi, 3)}</strong></span>
+              <span><small>样本</small><strong>{autoDirectionSamples ?? '—'}</strong></span>
+              <span><small>最高 Sharpe</small><strong>{num(autoDirectionCeiling)}</strong></span>
+              <span><small>算子族</small><strong>{autoDirectionOperatorFamilies ?? '—'} / 6</strong></span>
+              <p>{autoDirectionAction}</p>
+            </div>
+            {autoDirectionFamilies.length > 0 && <div className={s.directionFamilyRail}>
+              {autoDirectionFamilies.slice(0, 12).map((family) => {
+                const light = nestedString(family, 'light') ?? 'YELLOW'
+                const name = nestedString(family, 'name') ?? '未分类'
+                const dsi = nestedNumber(family, 'dsi')
+                return <span key={name} className={s[`direction${light}`]} title={nestedString(family, 'action') ?? ''}><b>{factorFamilyLabel(name)}</b><small>{light} · {num(dsi, 2)}</small></span>
+              })}
+            </div>}
+          </section>}
           {autoRunPaperTarget === 'okx_demo' && <div className={s.demoStatusBar}>
             <span><small>Demo 状态</small><strong>{autoDemoStatus ?? (autoRun ? '等待研究通过' : '未启动')}</strong></span>
             <span><small>Runner 策略</small><strong title={autoDemoStrategy ?? ''}>{autoDemoStrategy ?? '—'}</strong></span>

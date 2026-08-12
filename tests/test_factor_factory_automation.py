@@ -14,6 +14,7 @@ from unittest.mock import Mock, patch
 
 from apps.api import database, store
 from apps.api.domains.factor_factory.alpha_mining import (
+    _ai_messages,
     generate_ai_proposals,
     generate_alpha_batch,
     parse_alpha_expression,
@@ -27,7 +28,9 @@ from apps.api.domains.factor_factory.service import (
     _auto_discovery_attempted_dates,
     _candidate_preflight,
     _candidate_specs,
+    _direction_bucket,
     _preliminary_gate,
+    _prior_direction_radar,
     _run_auto_discovery_cycle,
     _score,
     _window_stability,
@@ -383,6 +386,125 @@ class FactorFactoryAutomationTests(unittest.TestCase):
         for proposal in proposals:
             self.assertGreater(evaluate_factor_ast(proposal.ast, frame).notna().sum(), 240)
 
+    def test_direction_radar_protects_small_samples(self) -> None:
+        rows = [
+            {
+                "sharpe": -0.5,
+                "return": -0.02,
+                "passed": False,
+                "operator_families": ["time_series", "arithmetic", "ranking", "conditional"],
+            }
+            for _ in range(6)
+        ]
+
+        bucket = _direction_bucket(rows, name="small-sample")
+
+        self.assertEqual(bucket["light"], "YELLOW")
+        self.assertTrue(bucket["protections"]["small_sample"])
+
+    def test_direction_radar_marks_diverse_weak_direction_dead(self) -> None:
+        rows = [
+            {
+                "sharpe": 0.1 + index * 0.01,
+                "return": -0.01,
+                "passed": False,
+                "operator_families": [
+                    "time_series",
+                    "normalization",
+                    "arithmetic",
+                    "ranking",
+                    "conditional",
+                    "lag_change",
+                ],
+            }
+            for index in range(12)
+        ]
+
+        bucket = _direction_bucket(rows, name="weak-diverse")
+
+        self.assertEqual(bucket["light"], "DEAD")
+        self.assertGreaterEqual(bucket["operator_family_count"], 4)
+
+    def test_direction_radar_high_ceiling_prevents_dead_decision(self) -> None:
+        rows = [
+            {
+                "sharpe": 1.8 if index == 0 else -0.4,
+                "return": 0.02 if index == 0 else -0.01,
+                "passed": index == 0,
+                "operator_families": ["time_series", "normalization", "arithmetic", "ranking"],
+            }
+            for index in range(12)
+        ]
+
+        bucket = _direction_bucket(rows, name="high-ceiling")
+
+        self.assertIn(bucket["light"], {"GREEN", "YELLOW"})
+        self.assertTrue(bucket["protections"]["high_ceiling"])
+
+    def test_ai_prompt_receives_only_direction_radar_feedback(self) -> None:
+        radar = {
+            "run_id": "prior-run",
+            "overall": {"light": "RED", "action": "change structure"},
+            "families": [{"name": "trend", "light": "YELLOW"}],
+            "confirmation_labels_accessed": False,
+        }
+
+        messages = _ai_messages(
+            brief="Find robust alpha expressions.",
+            interval="4h",
+            count=2,
+            market="crypto",
+            prior_direction_radar=radar,
+        )
+        payload = json.loads(messages[-1]["content"])
+
+        self.assertEqual(payload["prior_direction_radar"], radar)
+        self.assertFalse(payload["confirmation_labels_exposed"])
+        self.assertNotIn("locked_confirmation", json.dumps(payload))
+
+    def test_prior_direction_radar_is_scoped_and_compressed(self) -> None:
+        request = self.request()
+        runs = [
+            {
+                "id": "prior-other-symbol",
+                "config": {"market": "crypto", "symbol": "ETH-USDT-SWAP", "interval": "4h"},
+                "result": {"direction_radar": {"overall": {"light": "DEAD"}, "families": []}},
+            },
+            {
+                "id": "prior-matching-run",
+                "config": {
+                    "market": request.market,
+                    "symbol": request.symbol,
+                    "interval": request.interval,
+                },
+                "result": {
+                    "direction_radar": {
+                        "overall": {"light": "YELLOW", "action": "continue", "dsi": 0.48},
+                        "families": [
+                            {
+                                "name": "brain_return_trend",
+                                "light": "GREEN",
+                                "action": "deepen",
+                                "sample_count": 12,
+                                "dsi": 0.67,
+                                "maximum_sharpe": 1.8,
+                                "operator_families": ["time_series", "lag_change"],
+                                "locked_confirmation": {"sharpe": 9.9},
+                            }
+                        ],
+                    }
+                },
+            },
+        ]
+
+        with patch.object(store, "list_factor_factory_runs", return_value=runs):
+            radar = _prior_direction_radar(request)
+
+        self.assertEqual(radar["run_id"], "prior-matching-run")
+        self.assertEqual(radar["families"][0]["light"], "GREEN")
+        self.assertNotIn("locked_confirmation", json.dumps(radar))
+        self.assertFalse(radar["confirmation_labels_accessed"])
+
     def test_invalid_ai_output_falls_back_to_grammar(self) -> None:
         client = FakeAlphaLlm("not-json")
         proposals, audit = generate_alpha_batch(
@@ -658,7 +780,7 @@ class FactorFactoryAutomationTests(unittest.TestCase):
         ai_experiment = next(item for item in experiments if item["source"] == "ai")
         detail = store.get_factor_experiment(ai_experiment["id"])
         self.assertEqual(detail["model"]["provider"], "test-provider")
-        self.assertEqual(detail["prompt"]["version"], "brain-alpha-refinement-json-v3")
+        self.assertEqual(detail["prompt"]["version"], "brain-alpha-refinement-json-v4")
         self.assertTrue(detail["prompt"]["seed_candidate_id"])
         self.assertEqual(detail["proposal"]["ai_trace"]["token_usage"]["total_tokens"], 200)
         self.assertTrue(detail["proposal"]["ai_trace"]["output_raw"])

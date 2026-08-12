@@ -126,6 +126,19 @@
 .autoKpis strong { overflow: hidden; color: var(--text-1); font-family: var(--font-mono); font-size: var(--fs-caption); text-overflow: ellipsis; white-space: nowrap; }
 .aiGenerationWarning { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--sp-2); padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--warn); color: var(--warn-ink); background: var(--warn-weak); font-size: var(--fs-caption); }
 .aiGenerationWarning code { color: inherit; font-family: var(--font-mono); font-size: var(--fs-micro); }
+.directionRadar { border-bottom: 1px solid var(--border); background: var(--bg-elevated); }
+.directionRadarSummary { display: grid; grid-template-columns: auto repeat(4, minmax(82px, .55fr)) minmax(220px, 1.8fr); align-items: stretch; }
+.directionRadarSummary > span, .directionRadarSummary > p { display: grid; min-width: 0; align-content: center; gap: 3px; margin: 0; padding: var(--sp-3) var(--sp-4); border-right: 1px solid var(--border); }
+.directionRadarSummary > p { border-right: 0; color: var(--text-2); font-size: var(--fs-caption); }
+.directionRadarSummary small { color: var(--text-3); font-size: var(--fs-micro); }
+.directionRadarSummary strong { font-family: var(--font-mono); font-size: var(--fs-caption); }
+.directionFamilyRail { display: flex; min-height: 42px; align-items: stretch; overflow-x: auto; border-top: 1px solid var(--border); }
+.directionFamilyRail > span { display: grid; min-width: 150px; align-content: center; gap: 2px; padding: var(--sp-2) var(--sp-3); border-right: 1px solid var(--border); }
+.directionFamilyRail b { overflow: hidden; font-size: var(--fs-micro); text-overflow: ellipsis; white-space: nowrap; }
+.directionFamilyRail small { font-family: var(--font-mono); font-size: var(--fs-micro); }
+.directionGREEN { color: var(--up-ink); background: var(--up-weak); }
+.directionYELLOW { color: var(--warn-ink); background: var(--warn-weak); }
+.directionRED, .directionDEAD { color: var(--down-ink); background: var(--down-weak); }
 .demoStatusBar { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border-bottom: 1px solid var(--border); background: var(--bg-subtle); }
 .demoStatusBar > span { display: grid; min-width: 0; gap: 4px; padding: var(--sp-3) var(--sp-4); border-right: 1px solid var(--border); }
 .demoStatusBar > span:last-child { border-right: 0; }
@@ -312,6 +325,8 @@
   .researchContextBar > span:nth-child(2) { border-right: 0; }
   .demoStatusBar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .researchEvidenceBar { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .directionRadarSummary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .directionRadarSummary > p { grid-column: 1 / -1; border-top: 1px solid var(--border); }
   .autoBody { grid-template-columns: 1fr; }
   .candidateTable { border-right: 0; border-bottom: 1px solid var(--border); overflow-x: auto; }
   .candidateToolbar { min-width: 680px; }
@@ -336,6 +351,8 @@
   .autoHeader { display: grid; }
   .autoHeaderActions { justify-content: space-between; }
   .alphaPolicy, .autoControls, .researchContextBar, .autoKpis, .demoStatusBar, .researchEvidenceBar { grid-template-columns: 1fr; }
+  .directionRadarSummary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .directionRadarSummary > p { grid-column: 1 / -1; }
   .researchContextBar > span { border-right: 0; }
   .alphaSummary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .alphaSummary > div:nth-child(2) { border-right: 0; }

@@ -132,6 +132,13 @@ describe('FactorFactoryWorkflow', () => {
             source_counts: { symbolic_regression: 16, random_dsl: 14 },
             ai: { status: 'unavailable', requested_provider: 'deepseek', error: 'APITimeoutError: Request timed out.' },
           },
+          direction_radar: {
+            overall: {
+              light: 'RED', action: '当前证据弱，先扩展算子族或字段组合，再评估是否放弃。',
+              sample_count: 30, dsi: 0.31, maximum_sharpe: 0.72, operator_family_count: 3,
+            },
+            families: [{ name: 'brain_return_trend', light: 'YELLOW', dsi: 0.48, action: '继续结构变体' }],
+          },
         },
         selected_factor_key: null, selected_factor_version: null, selected_experiment_id: null, error: null,
         started_at: 1, updated_at: 1, observation_started_at: null, observation_ends_at: null,
@@ -163,6 +170,9 @@ describe('FactorFactoryWorkflow', () => {
     })))
     expect((await screen.findAllByText('量价复合 Alpha')).length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText('DeepSeek 响应超时；本轮未收到完整结果，已回退规则候选。')).toBeTruthy()
+    expect(screen.getByText('RED 更换结构')).toBeTruthy()
+    expect(screen.getByText('当前证据弱，先扩展算子族或字段组合，再评估是否放弃。')).toBeTruthy()
+    expect(screen.getByText('YELLOW · 0.48')).toBeTruthy()
     expect(screen.getAllByText('BTC-USDT-SWAP').length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText('仅排名最高且门禁通过的 1 个')).toBeTruthy()
     expect(screen.getAllByText('量价流动性').length).toBeGreaterThanOrEqual(1)

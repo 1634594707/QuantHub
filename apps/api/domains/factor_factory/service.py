@@ -104,6 +104,16 @@ class CandidateSpec:
     ai_trace: dict[str, Any] = field(default_factory=dict)
 
 
+_OPERATOR_FAMILIES = {
+    "time_series": {"rolling_mean", "rolling_std", "rolling_min", "rolling_max", "rolling_sum"},
+    "normalization": {"rolling_zscore", "rolling_winsorize"},
+    "arithmetic": {"add", "sub", "mul", "div", "neg", "abs"},
+    "ranking": {"rank", "industry_neutralize"},
+    "conditional": {"gt", "lt", "where"},
+    "lag_change": {"lag", "diff", "pct_change"},
+}
+
+
 def _jsonable(value: Any) -> Any:
     if isinstance(value, dict):
         return {str(key): _jsonable(item) for key, item in value.items()}
@@ -117,6 +127,184 @@ def _jsonable(value: Any) -> Any:
     if isinstance(value, (pd.Timestamp, datetime, date)):
         return value.isoformat()
     return value
+
+
+def _ast_operator_families(node: Any) -> set[str]:
+    if not isinstance(node, dict):
+        return set()
+    op = str(node.get("op") or "")
+    families = {family for family, operators in _OPERATOR_FAMILIES.items() if op in operators}
+    for value in node.values():
+        if isinstance(value, dict):
+            families.update(_ast_operator_families(value))
+        elif isinstance(value, list):
+            for item in value:
+                families.update(_ast_operator_families(item))
+    return families
+
+
+def _normal_survival(value: float) -> float:
+    return 0.5 * math.erfc(value / math.sqrt(2.0))
+
+
+def _wilson_lower_bound(successes: int, total: int, *, z: float = 1.96) -> float:
+    if total <= 0:
+        return 0.0
+    proportion = successes / total
+    denominator = 1 + z * z / total
+    center = proportion + z * z / (2 * total)
+    margin = z * math.sqrt(proportion * (1 - proportion) / total + z * z / (4 * total * total))
+    return max(0.0, (center - margin) / denominator)
+
+
+def _bimodality_coefficient(values: list[float]) -> float | None:
+    count = len(values)
+    if count < 4:
+        return None
+    array = np.asarray(values, dtype=float)
+    deviation = array - float(array.mean())
+    variance = float(np.mean(deviation**2))
+    if variance <= 1e-12:
+        return 0.0
+    skewness = float(np.mean(deviation**3) / variance**1.5)
+    kurtosis = float(np.mean(deviation**4) / variance**2) - 3.0
+    denominator = kurtosis + 3 * (count - 1) ** 2 / ((count - 2) * (count - 3))
+    if abs(denominator) <= 1e-12:
+        return None
+    return (skewness * skewness + 1) / denominator
+
+
+def _mean_signal_probability(values: list[float], *, noise_floor: float) -> tuple[float, str]:
+    count = len(values)
+    if count == 0:
+        return 0.0, "none"
+    array = np.asarray(values, dtype=float)
+    if count < 8:
+        rng = np.random.default_rng(20260812 + count)
+        samples = rng.choice(array, size=(2_000, count), replace=True).mean(axis=1)
+        return float(np.mean(samples > noise_floor)), "bootstrap"
+    standard_deviation = float(array.std(ddof=1))
+    if standard_deviation <= 1e-12:
+        return (1.0 if float(array.mean()) > noise_floor else 0.0), "normal"
+    statistic = (float(array.mean()) - noise_floor) / (standard_deviation / math.sqrt(count))
+    return 1.0 - _normal_survival(statistic), "normal"
+
+
+def _direction_bucket(
+    rows: list[dict[str, Any]],
+    *,
+    name: str,
+    noise_floor: float = 1.0,
+) -> dict[str, Any]:
+    sharpes = [float(row["sharpe"]) for row in rows if row.get("sharpe") is not None]
+    returns = [float(row["return"]) for row in rows if row.get("return") is not None]
+    pass_count = sum(1 for row in rows if row.get("passed"))
+    operator_families = sorted(
+        {family for row in rows for family in row.get("operator_families", [])}
+    )
+    count = len(sharpes)
+    mean_sharpe = float(np.mean(sharpes)) if sharpes else 0.0
+    maximum_sharpe = max(sharpes, default=0.0)
+    standard_deviation = float(np.std(sharpes, ddof=1)) if count > 1 else 0.0
+    signal_probability, significance_method = _mean_signal_probability(
+        sharpes,
+        noise_floor=noise_floor,
+    )
+    pass_rate = pass_count / len(rows) if rows else 0.0
+    pass_rate_lower = _wilson_lower_bound(pass_count, len(rows))
+    coefficient_variation = standard_deviation / max(abs(mean_sharpe), 0.25)
+    consistency = 1 / (1 + coefficient_variation)
+    ceiling_score = min(1.0, max(0.0, maximum_sharpe / 2.0))
+    dsi = (
+        0.30 * signal_probability
+        + 0.25 * ceiling_score
+        + 0.25 * pass_rate_lower
+        + 0.20 * consistency
+    )
+    bimodality = _bimodality_coefficient(sharpes)
+    bimodal_protection = bool(bimodality is not None and bimodality > 0.556)
+    ceiling_protection = maximum_sharpe >= 1.5
+    diversity_count = len(operator_families)
+    sample_protection = len(rows) < 10
+    if len(rows) < 5:
+        light = "YELLOW"
+        action = "样本不足，继续补充同方向结构变体。"
+    elif dsi >= 0.62 or (signal_probability >= 0.90 and maximum_sharpe >= 1.0):
+        light = "GREEN"
+        action = "加大预算，围绕高分子群细化参数并做成本压力测试。"
+    elif dsi >= 0.42 or ceiling_protection or bimodal_protection:
+        light = "YELLOW"
+        action = "保留高分子群，补充 1-2 轮结构变体后再判断。"
+    elif sample_protection:
+        light = "YELLOW"
+        action = "样本仍不足 10 个，不做否定判断；继续补充结构变体。"
+    elif diversity_count < 4:
+        light = "RED"
+        action = "当前证据弱，先扩展算子族或字段组合，再评估是否放弃。"
+    elif mean_sharpe < noise_floor and maximum_sharpe < 0.75 and pass_rate == 0:
+        light = "DEAD"
+        action = "多类算子均无信号，记录反模式并切换经济假设。"
+    else:
+        light = "RED"
+        action = "做一次结构性改变，避免继续只调相邻窗口。"
+    return _jsonable(
+        {
+            "name": name,
+            "light": light,
+            "action": action,
+            "sample_count": len(rows),
+            "mean_sharpe": mean_sharpe,
+            "maximum_sharpe": maximum_sharpe,
+            "mean_return": float(np.mean(returns)) if returns else 0.0,
+            "signal_probability": signal_probability,
+            "significance_method": significance_method,
+            "pass_count": pass_count,
+            "pass_rate": pass_rate,
+            "pass_rate_wilson_lower": pass_rate_lower,
+            "consistency": consistency,
+            "bimodality_coefficient": bimodality,
+            "operator_families": operator_families,
+            "operator_family_count": diversity_count,
+            "dsi": dsi,
+            "protections": {
+                "small_sample": sample_protection,
+                "high_ceiling": ceiling_protection,
+                "bimodal": bimodal_protection,
+                "insufficient_operator_diversity": diversity_count < 4,
+            },
+        }
+    )
+
+
+def _direction_radar(candidate_rows: list[dict[str, Any]]) -> dict[str, Any]:
+    rows: list[dict[str, Any]] = []
+    for item in candidate_rows:
+        summary = item["metrics"]["rolling_validation"]["summary"]
+        rows.append(
+            {
+                "family": item["spec"].family,
+                "sharpe": (summary.get("metrics") or {}).get("sharpe"),
+                "return": summary.get("total_return"),
+                "passed": bool(item["gate"].get("passed")),
+                "operator_families": sorted(_ast_operator_families(item["spec"].ast)),
+            }
+        )
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        grouped.setdefault(str(row["family"]), []).append(row)
+    family_buckets = [
+        _direction_bucket(family_rows, name=family)
+        for family, family_rows in sorted(grouped.items())
+    ]
+    light_order = {"GREEN": 0, "YELLOW": 1, "RED": 2, "DEAD": 3}
+    family_buckets.sort(key=lambda item: (light_order[item["light"]], -item["dsi"], item["name"]))
+    return {
+        "version": "direction-radar-v1",
+        "noise_floor_sharpe": 1.0,
+        "overall": _direction_bucket(rows, name="all_candidates"),
+        "families": family_buckets,
+        "confirmation_labels_accessed": False,
+    }
 
 
 def _records(frame: pd.DataFrame) -> list[dict[str, Any]]:
@@ -676,6 +864,99 @@ def _discovery_screen_score(summary: dict[str, Any]) -> float:
     return sharpe + total_return / drawdown + rank_ic * 2.0 + positive_window_ratio * 0.25
 
 
+def _prior_direction_radar(req: FactorFactoryStartRequest) -> dict[str, Any] | None:
+    for run in store.list_factor_factory_runs(limit=200):
+        config = run.get("config") or {}
+        result = run.get("result") or {}
+        radar = result.get("direction_radar")
+        if not isinstance(radar, dict):
+            continue
+        if (
+            config.get("market") == req.market
+            and str(config.get("symbol") or "").upper() == req.symbol.upper()
+            and config.get("interval") == req.interval
+        ):
+            families = []
+            for item in radar.get("families") or []:
+                if not isinstance(item, dict):
+                    continue
+                families.append(
+                    {
+                        key: item.get(key)
+                        for key in (
+                            "name",
+                            "light",
+                            "action",
+                            "sample_count",
+                            "dsi",
+                            "mean_sharpe",
+                            "maximum_sharpe",
+                            "operator_families",
+                        )
+                    }
+                )
+            return {
+                "run_id": run["id"],
+                "overall": {
+                    key: (radar.get("overall") or {}).get(key)
+                    for key in ("light", "action", "sample_count", "dsi", "maximum_sharpe")
+                },
+                "families": families[:20],
+                "confirmation_labels_accessed": False,
+            }
+    return None
+
+
+def _select_diverse_ranked(
+    ranked: list[tuple[float, CandidateSpec, AlphaProposal, dict[str, Any]]],
+    count: int,
+    *,
+    prior_family_lights: dict[str, str] | None = None,
+) -> list[tuple[float, CandidateSpec, AlphaProposal, dict[str, Any]]]:
+    if count <= 0:
+        return []
+    remaining = list(ranked)
+    selected: list[tuple[float, CandidateSpec, AlphaProposal, dict[str, Any]]] = []
+    family_counts: Counter[str] = Counter()
+    operator_families: set[str] = set()
+    prior_lights = prior_family_lights or {}
+    family_limit = max(2, math.ceil(count / 4))
+    maximum_score = max((item[0] for item in ranked), default=0.0)
+    minimum_score = min((item[0] for item in ranked), default=0.0)
+    score_span = max(maximum_score - minimum_score, 1e-9)
+    while remaining and len(selected) < count:
+        eligible = [item for item in remaining if family_counts[item[2].family] < family_limit]
+        pool = eligible or remaining
+
+        def utility(item: tuple[float, CandidateSpec, AlphaProposal, dict[str, Any]]) -> float:
+            score, _spec, proposal, _summary = item
+            normalized_score = (score - minimum_score) / score_span
+            families = _ast_operator_families(proposal.ast)
+            family_bonus = 0.30 if family_counts[proposal.family] == 0 else 0.0
+            operator_bonus = min(0.24, 0.06 * len(families - operator_families))
+            concentration_penalty = 0.05 * family_counts[proposal.family]
+            history_adjustment = {
+                "GREEN": 0.16,
+                "YELLOW": 0.08,
+                "RED": -0.08,
+                "DEAD": -0.40,
+            }.get(prior_lights.get(proposal.family, ""), 0.0)
+            return (
+                normalized_score
+                + family_bonus
+                + operator_bonus
+                + history_adjustment
+                - concentration_penalty
+            )
+
+        chosen = max(pool, key=lambda item: (utility(item), item[0], item[1].key))
+        selected.append(chosen)
+        remaining.remove(chosen)
+        family_counts[chosen[2].family] += 1
+        operator_families.update(_ast_operator_families(chosen[2].ast))
+    return selected
+
+
 def _staged_brain_candidate_specs(
     run_id: str,
     req: FactorFactoryStartRequest,
@@ -683,6 +964,12 @@ def _staged_brain_candidate_specs(
     generation_fingerprint: str,
     discovery: pd.DataFrame,
 ) -> tuple[list[CandidateSpec], dict[str, Any]]:
+    prior_radar = _prior_direction_radar(req)
+    prior_family_lights = {
+        str(item.get("name")): str(item.get("light"))
+        for item in (prior_radar or {}).get("families", [])
+        if item.get("name")
+    }
     seed = int(hashlib.sha256(generation_fingerprint.encode("utf-8")).hexdigest()[:16], 16)
     pool_size = min(90, max(req.candidate_budget * 3, req.candidate_budget + 12))
     grammar_proposals = generate_grammar_proposals(
@@ -730,7 +1017,14 @@ def _staged_brain_candidate_specs(
                 summary,
             )
         )
-    ranked.sort(key=lambda item: (-item[0], item[1].key))
+    light_priority = {"GREEN": 0, "YELLOW": 1, "RED": 2, "DEAD": 3}
+    ranked.sort(
+        key=lambda item: (
+            light_priority.get(prior_family_lights.get(item[2].family, ""), 1),
+            -item[0],
+            item[1].key,
+        )
+    )
     if len(ranked) < req.candidate_budget:
         raise RuntimeError(
             f"discovery screen retained {len(ranked)} of {req.candidate_budget} required candidates"
@@ -738,6 +1032,11 @@ def _staged_brain_candidate_specs(
 
     ai_requested = min(req.candidate_budget, req.ai_candidate_count) if req.use_ai else 0
     seed_count = min(len(ranked), max(3, ai_requested)) if ai_requested else 0
+    diversified_seeds = _select_diverse_ranked(
+        ranked,
+        seed_count,
+        prior_family_lights=prior_family_lights,
+    )
     ai_seeds = [
         {
             "candidate_id": proposal.candidate_id,
@@ -754,7 +1053,7 @@ def _staged_brain_candidate_specs(
                 "window_stability": summary.get("window_stability"),
             },
         }
-        for score, _spec, proposal, summary in ranked[:seed_count]
+        for score, _spec, proposal, summary in diversified_seeds
     ]
     ai_proposals, ai_audit = generate_ai_proposals(
         brief=req.alpha_brief,
@@ -764,16 +1063,22 @@ def _staged_brain_candidate_specs(
         maximum_tokens=req.maximum_ai_tokens,
         provider=req.ai_provider,
         seed_candidates=ai_seeds,
+        prior_direction_radar=prior_radar,
     )
 
     retained_grammar_count = req.candidate_budget - len(ai_proposals)
+    diversified_grammar = _select_diverse_ranked(
+        ranked,
+        retained_grammar_count,
+        prior_family_lights=prior_family_lights,
+    )
     selected_proposals = [
-        *(item[2] for item in ranked[:retained_grammar_count]),
+        *(item[2] for item in diversified_grammar),
         *ai_proposals,
     ]
     formula_hashes: set[str] = set()
     unique: list[AlphaProposal] = []
-    for proposal in [*selected_proposals, *(item[2] for item in ranked[retained_grammar_count:])]:
+    for proposal in [*selected_proposals, *(item[2] for item in ranked)]:
         definition = FactorDefinition(
             key=proposal.candidate_id[:80],
             label=proposal.label,
@@ -811,9 +1116,14 @@ def _staged_brain_candidate_specs(
                 "ranked_candidates": len(ranked),
                 "seed_candidate_ids": [item["candidate_id"] for item in ai_seeds],
                 "selected_candidate_ids": sorted(selected_ids),
+                "selected_family_count": len({item.family for item in unique}),
+                "selected_operator_families": sorted(
+                    {family for item in unique for family in _ast_operator_families(item.ast)}
+                ),
                 "confirmation_labels_accessed": False,
             },
             "ai_refinement": ai_audit,
+            "prior_direction_radar": prior_radar,
         },
         "ai": ai_audit,
         "confirmation_labels_exposed": False,
@@ -2092,6 +2402,7 @@ def _run_research(
             gate=item["gate"],
         )
     eligible = [item for item in ranked if item["gate"]["passed"]]
+    direction_radar = _direction_radar(ranked)
     if not eligible:
         saved = store.update_factor_factory_run(
             run_id,
@@ -2102,6 +2413,7 @@ def _run_research(
                 "valid_candidate_count": len(candidate_rows),
                 "candidate_preflight": candidate_preflight,
                 "candidate_generation": candidate_generation,
+                "direction_radar": direction_radar,
                 "data_provenance": provenance,
                 "live_trading_enabled": False,
             },
@@ -2256,6 +2568,7 @@ def _run_research(
                 "confirmation_opening": opening["opening"],
                 "candidate_preflight": candidate_preflight,
                 "candidate_generation": candidate_generation,
+                "direction_radar": direction_radar,
                 "data_provenance": provenance,
                 "live_trading_enabled": False,
             },
@@ -2400,6 +2713,7 @@ def _run_research(
             "confirmation_opening": opening["opening"],
             "candidate_preflight": candidate_preflight,
             "candidate_generation": candidate_generation,
+            "direction_radar": direction_radar,
             "research_metrics": confirmation_metrics["summary"],
             "reference_factor_values": [
                 float(value)
