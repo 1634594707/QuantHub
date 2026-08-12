@@ -17,6 +17,29 @@ import yaml
 # 仓库根目录（core/config.py 的上两级）
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CONFIGS_DIR = REPO_ROOT / "configs"
+_LLM_PROVIDER_DEFAULTS = {
+    "deepseek": {
+        "api_key_env": "DEEPSEEK_API_KEY",
+        "base_url": "https://api.deepseek.com",
+        "model": "deepseek-v4-flash",
+        "timeout": 60,
+        "max_retries": 3,
+    },
+    "openai": {
+        "api_key_env": "OPENAI_API_KEY",
+        "base_url": "https://api.openai.com/v1",
+        "model": "gpt-4o-mini",
+        "timeout": 60,
+        "max_retries": 3,
+    },
+    "custom": {
+        "api_key_env": "QUANTHUB_CUSTOM_LLM_API_KEY",
+        "base_url": "http://localhost:1234/v1",
+        "model": "local-model",
+        "timeout": 60,
+        "max_retries": 3,
+    },
+}
 
 
 class SchemaVersionError(Exception):
@@ -75,32 +98,38 @@ def _apply_llm_env_overrides(cfg: dict) -> None:
     llm = cfg.setdefault("llm", {})
     provider = os.environ.get("QUANTHUB_LLM_PROVIDER", str(llm.get("provider", "deepseek")))
     llm["provider"] = provider
-    provider_config = llm.setdefault(provider, {})
-    provider_config.setdefault(
-        "api_key_env",
-        {
-            "deepseek": "DEEPSEEK_API_KEY",
-            "openai": "OPENAI_API_KEY",
-            "custom": "QUANTHUB_CUSTOM_LLM_API_KEY",
-        }.get(provider, "QUANTHUB_LLM_API_KEY"),
-    )
-    string_overrides = {
+    active_string_overrides = {
         "QUANTHUB_LLM_BASE_URL": "base_url",
         "QUANTHUB_LLM_MODEL": "model",
     }
-    integer_overrides = {
+    active_integer_overrides = {
         "QUANTHUB_LLM_TIMEOUT": "timeout",
         "QUANTHUB_LLM_MAX_RETRIES": "max_retries",
     }
-    for env_name, field in string_overrides.items():
+    provider_config = llm.setdefault(provider, {})
+    for env_name, field in active_string_overrides.items():
         if value := os.environ.get(env_name):
             provider_config[field] = value
-    for env_name, field in integer_overrides.items():
+    for env_name, field in active_integer_overrides.items():
         if value := os.environ.get(env_name):
             try:
                 provider_config[field] = int(value)
             except ValueError:
                 pass
+    for provider_id, defaults in _LLM_PROVIDER_DEFAULTS.items():
+        provider_config = llm.setdefault(provider_id, {})
+        for field, default in defaults.items():
+            provider_config.setdefault(field, default)
+        prefix = f"QUANTHUB_LLM_{provider_id.upper()}"
+        for suffix, field in (("BASE_URL", "base_url"), ("MODEL", "model")):
+            if value := os.environ.get(f"{prefix}_{suffix}"):
+                provider_config[field] = value
+        for suffix, field in (("TIMEOUT", "timeout"), ("MAX_RETRIES", "max_retries")):
+            if value := os.environ.get(f"{prefix}_{suffix}"):
+                try:
+                    provider_config[field] = int(value)
+                except ValueError:
+                    pass
 
 
 # maxsize=None：market 取值有限（None/a_shares/crypto），不会膨胀；

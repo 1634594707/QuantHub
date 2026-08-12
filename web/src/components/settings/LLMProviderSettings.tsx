@@ -122,8 +122,8 @@ export function LLMProviderSettings({ onChanged }: LLMProviderSettingsProps) {
         provider,
         base_url: preset.base_url,
         model: preset.model,
-        timeout: 60,
-        max_retries: 3,
+        timeout: preset.timeout ?? 60,
+        max_retries: preset.max_retries ?? 3,
       })
     }
     setApiKey('')

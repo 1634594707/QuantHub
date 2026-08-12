@@ -344,6 +344,7 @@ export function aiGenerationMessage(status: string | null, error: string | null,
   if (status === 'generated_partial') return `${source} 输出在末尾截断；已保留 ${acceptedCount} 个完整且通过校验的 AI 候选，其余由规则候选补齐。`
   if (status === 'invalid_output') return `${source} 已响应，但候选格式或 DSL 校验未通过；本轮已回退规则候选。`
   if (status === 'token_budget_insufficient' || status === 'token_budget_exceeded') return `${source} token 预算不足；本轮已回退规则候选。`
+  if (/api_key.*(?:未配置|not configured)/i.test(error ?? '')) return `${source} 未配置 API Key；本轮已回退规则候选。`
   if (/timeout/i.test(error ?? '')) return `${source} 响应超时；本轮未收到完整结果，已回退规则候选。`
   if (/connection|disconnected|protocol/i.test(error ?? '')) return `${source} 连接中断；本轮未收到完整结果，已回退规则候选。`
   return `${source} 本轮不可用；已回退规则候选。`

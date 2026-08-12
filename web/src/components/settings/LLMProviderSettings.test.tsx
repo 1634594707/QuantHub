@@ -47,6 +47,8 @@ const CONFIGURED_STATUS: LLMConfigResp = {
       model: 'local-model',
       key_env: 'QUANTHUB_CUSTOM_LLM_API_KEY',
       configured: false,
+      timeout: 120,
+      max_retries: 2,
     },
   ],
 }
@@ -94,6 +96,8 @@ describe('LLMProviderSettings', () => {
     await screen.findByText('DeepSeek 已配置')
     fireEvent.click(screen.getByRole('tab', { name: '兼容 API' }))
 
+    expect(screen.getByDisplayValue('120')).toBeTruthy()
+
     const keyInput = container.querySelector<HTMLInputElement>('input[type="password"]')
     fireEvent.change(keyInput!, { target: { value: 'test-key-value' } })
     fireEvent.change(screen.getByDisplayValue('http://localhost:1234/v1'), {
@@ -110,8 +114,8 @@ describe('LLMProviderSettings', () => {
         api_key: 'test-key-value',
         base_url: 'https://gateway.example.test/v1',
         model: 'research-model',
-        timeout: 60,
-        max_retries: 3,
+        timeout: 120,
+        max_retries: 2,
       })
     })
     expect(await screen.findByText('兼容 API 配置已保存并热重载')).toBeTruthy()

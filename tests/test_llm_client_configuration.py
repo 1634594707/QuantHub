@@ -80,6 +80,38 @@ class LLMClientConfigurationTests(unittest.TestCase):
 
         self.assertEqual(result.finish_reason, "length")
 
+    def test_custom_provider_uses_its_configuration_while_deepseek_is_active(self) -> None:
+        captured: dict = {}
+
+        class FakeOpenAI:
+            def __init__(self, **kwargs) -> None:
+                captured.update(kwargs)
+
+        config = {
+            "llm": {
+                "provider": "deepseek",
+                "deepseek": {"api_key": "must-not-leak"},
+                "custom": {
+                    "api_key": "must-not-leak",
+                    "api_key_env": "QUANTHUB_CUSTOM_LLM_API_KEY",
+                    "base_url": "https://custom.example/v1",
+                    "model": "custom-model",
+                    "timeout": 180,
+                    "max_retries": 4,
+                },
+            }
+        }
+        with (
+            patch("core.llm.get_config", return_value=config),
+            patch.dict(sys.modules, {"openai": SimpleNamespace(OpenAI=FakeOpenAI)}),
+        ):
+            client = LLMClient("custom")
+
+        self.assertEqual(client._model, "custom-model")
+        self.assertEqual(captured["base_url"], "https://custom.example/v1")
+        self.assertEqual(captured["timeout"], 180)
+        self.assertEqual(captured["max_retries"], 4)
+
 
 if __name__ == "__main__":
     unittest.main()

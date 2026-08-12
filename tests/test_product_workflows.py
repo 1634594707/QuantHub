@@ -699,6 +699,13 @@ class LLMSettingsTests(unittest.TestCase):
                     "max_retries": 3,
                 },
                 "openai": {"api_key_env": "OPENAI_API_KEY"},
+                "custom": {
+                    "api_key_env": "QUANTHUB_CUSTOM_LLM_API_KEY",
+                    "base_url": "https://custom.example/v1",
+                    "model": "custom-model",
+                    "timeout": 120,
+                    "max_retries": 2,
+                },
             }
         }
 
@@ -721,6 +728,10 @@ class LLMSettingsTests(unittest.TestCase):
         self.assertEqual(
             [item["id"] for item in status["providers"]], ["deepseek", "openai", "custom"]
         )
+        custom = next(item for item in status["providers"] if item["id"] == "custom")
+        self.assertEqual(custom["base_url"], "https://custom.example/v1")
+        self.assertEqual(custom["model"], "custom-model")
+        self.assertEqual(custom["timeout"], 120)
 
     def test_update_llm_settings_persists_runtime_overrides(self) -> None:
         secrets: dict[str, str] = {}
@@ -752,6 +763,7 @@ class LLMSettingsTests(unittest.TestCase):
         self.assertTrue(result["configured"])
         self.assertEqual(secrets["DEEPSEEK_API_KEY"], "fixture-new-secret")
         write_secret.assert_any_call("QUANTHUB_LLM_BASE_URL", "https://gateway.example/v1")
+        write_secret.assert_any_call("QUANTHUB_LLM_DEEPSEEK_BASE_URL", "https://gateway.example/v1")
         write_secret.assert_any_call("QUANTHUB_LLM_TIMEOUT", "90")
         get_config.cache_clear.assert_called_once()
         reset_clients.assert_called_once()
@@ -775,6 +787,30 @@ class LLMSettingsTests(unittest.TestCase):
         self.assertEqual(config["llm"]["custom"]["base_url"], "http://localhost:9000/v1")
         self.assertEqual(config["llm"]["custom"]["model"], "local-test-model")
         self.assertEqual(config["llm"]["custom"]["timeout"], 45)
+
+    def test_config_loader_resolves_all_provider_keys_and_saved_settings(self) -> None:
+        with patch.dict(
+            os.environ,
+            {
+                "QUANTHUB_LLM_PROVIDER": "deepseek",
+                "DEEPSEEK_API_KEY": "must-not-leak",
+                "QUANTHUB_CUSTOM_LLM_API_KEY": "must-not-leak",
+                "QUANTHUB_LLM_CUSTOM_BASE_URL": "https://custom.example/v1",
+                "QUANTHUB_LLM_CUSTOM_MODEL": "custom-model",
+                "QUANTHUB_LLM_CUSTOM_TIMEOUT": "180",
+                "QUANTHUB_LLM_CUSTOM_MAX_RETRIES": "4",
+            },
+            clear=False,
+        ):
+            core_config.get_config.cache_clear()
+            config = core_config.get_config()
+        core_config.get_config.cache_clear()
+
+        self.assertEqual(config["llm"]["provider"], "deepseek")
+        self.assertEqual(config["llm"]["custom"]["api_key"], "must-not-leak")
+        self.assertEqual(config["llm"]["custom"]["base_url"], "https://custom.example/v1")
+        self.assertEqual(config["llm"]["custom"]["model"], "custom-model")
+        self.assertEqual(config["llm"]["custom"]["timeout"], 180)
 
 
 if __name__ == "__main__":

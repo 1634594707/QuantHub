@@ -247,12 +247,17 @@ def credential_status() -> dict:
     providers = []
     for provider_id, provider_preset in _LLM_PROVIDER_PRESETS.items():
         provider_env = provider_key_env(config, provider_id)
+        saved_config = config.get("llm", {}).get(provider_id, {})
         providers.append(
             {
                 "id": provider_id,
                 **provider_preset,
                 "key_env": provider_env,
                 "configured": bool(repository.read_runtime_secret(provider_env)),
+                "base_url": str(saved_config.get("base_url") or provider_preset["base_url"]),
+                "model": str(saved_config.get("model") or provider_preset["model"]),
+                "timeout": int(saved_config.get("timeout", 60)),
+                "max_retries": int(saved_config.get("max_retries", 3)),
             }
         )
     base_url = str(provider_config.get("base_url") or preset["base_url"]).rstrip("/")
@@ -297,6 +302,10 @@ def update_llm_settings(payload: dict) -> dict:
         "QUANTHUB_LLM_MODEL": str(payload["model"]),
         "QUANTHUB_LLM_TIMEOUT": str(payload["timeout"]),
         "QUANTHUB_LLM_MAX_RETRIES": str(payload["max_retries"]),
+        f"QUANTHUB_LLM_{provider.upper()}_BASE_URL": str(payload["base_url"]),
+        f"QUANTHUB_LLM_{provider.upper()}_MODEL": str(payload["model"]),
+        f"QUANTHUB_LLM_{provider.upper()}_TIMEOUT": str(payload["timeout"]),
+        f"QUANTHUB_LLM_{provider.upper()}_MAX_RETRIES": str(payload["max_retries"]),
     }
     for env_key, value in overrides.items():
         repository.write_secret(env_key, value)

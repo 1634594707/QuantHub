@@ -1910,6 +1910,8 @@ export interface LLMProviderPreset {
   model: string
   key_env: string
   configured: boolean
+  timeout?: number
+  max_retries?: number
 }
 
 export interface LLMConfigResp {

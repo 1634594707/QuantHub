@@ -73,6 +73,12 @@ describe('FactorFactoryWorkflow', () => {
     )
   })
 
+  it('describes a missing provider key explicitly', () => {
+    expect(aiGenerationMessage('unavailable', 'RuntimeError: LLM provider custom 的 api_key 未配置', 'custom', 0)).toBe(
+      '兼容 API 未配置 API Key；本轮已回退规则候选。',
+    )
+  })
+
   it('registers an auditable template and runs its DSL drawdown experiment', async () => {
     vi.spyOn(api, 'factorFactoryArchive').mockResolvedValue({ ok: true, count: 0, total: 0, research_record_count: 0, ineligible_count: 0, verified_count: 0, eligible_only: true, archives: [], live_trading_enabled: false })
     const definition = {
