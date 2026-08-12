@@ -18,7 +18,7 @@ from core.factor_dsl import (
 )
 from core.llm import LLMClient, get_llm
 
-ALPHA_MINING_VERSION = "brain-alpha-v1.2"
+ALPHA_MINING_VERSION = "brain-alpha-v1.3"
 AI_PROMPT_VERSION = "brain-alpha-refinement-json-v3"
 AI_RAW_OUTPUT_LIMIT = 50_000
 
@@ -647,6 +647,8 @@ def generate_ai_proposals(
     )
     input_text = json.dumps(messages, ensure_ascii=False, sort_keys=True)
     input_fingerprint = hashlib.sha256(input_text.encode("utf-8")).hexdigest()
+    llm: LLMClient | None = None
+    prompt_tokens: int | None = None
     try:
         llm = client or get_llm(provider)
         prompt_tokens = llm.estimate_tokens(input_text)
@@ -665,16 +667,21 @@ def generate_ai_proposals(
             temperature=0.2,
             max_tokens=completion_budget,
             response_format={"type": "json_object"},
-            request_timeout=45,
-            transport_max_retries=0,
         )
     except Exception as exc:  # noqa: BLE001 - deterministic grammar remains available
         return [], {
             "status": "unavailable",
             "candidate_count": 0,
+            "requested_candidates": count,
             "input_fingerprint": input_fingerprint,
+            "estimated_prompt_tokens": prompt_tokens,
+            "maximum_tokens": maximum_tokens,
             "error": f"{type(exc).__name__}: {exc}",
             "requested_provider": provider,
+            "provider": getattr(llm, "_provider", None),
+            "model": getattr(llm, "_model", None),
+            "effective_timeout_seconds": getattr(llm, "_timeout", None),
+            "effective_max_retries": getattr(llm, "_max_retries", None),
         }
     token_usage = response.usage or {}
     if int(token_usage.get("total_tokens", 0)) > maximum_tokens:
@@ -763,6 +770,8 @@ def generate_ai_proposals(
         "requested_provider": provider,
         "provider": getattr(llm, "_provider", "unknown"),
         "model": response.model,
+        "effective_timeout_seconds": getattr(llm, "_timeout", None),
+        "effective_max_retries": getattr(llm, "_max_retries", None),
         "token_usage": token_usage,
         "input_fingerprint": input_fingerprint,
         "output_fingerprint": hashlib.sha256(response.content.encode("utf-8")).hexdigest(),

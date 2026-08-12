@@ -46,12 +46,14 @@ class FakeAlphaLlm:
     def __init__(self, content: str) -> None:
         self.content = content
         self.calls = 0
+        self.last_kwargs: dict = {}
 
     def estimate_tokens(self, _text: str) -> int:
         return 100
 
     def chat(self, *_args, **_kwargs) -> LLMResponse:
         self.calls += 1
+        self.last_kwargs = _kwargs
         content = self.content
         if _args:
             messages = _args[0]
@@ -397,6 +399,8 @@ class FactorFactoryAutomationTests(unittest.TestCase):
         self.assertEqual(audit["ai"]["output_raw"], "not-json")
         self.assertFalse(audit["ai"]["output_truncated"])
         self.assertNotIn("ai", audit["source_counts"])
+        self.assertNotIn("request_timeout", client.last_kwargs)
+        self.assertNotIn("transport_max_retries", client.last_kwargs)
 
     def test_ai_args_ast_is_normalized_before_safe_dsl_validation(self) -> None:
         content = json.dumps(

@@ -71,7 +71,12 @@ class LLMClient:
         except ImportError as e:
             raise ImportError("openai 未安装，请运行: pip install openai") from e
         self._OpenAI = OpenAI
-        self._client = OpenAI(api_key=self._api_key, base_url=self._base_url, timeout=self._timeout)
+        self._client = OpenAI(
+            api_key=self._api_key,
+            base_url=self._base_url,
+            timeout=self._timeout,
+            max_retries=self._max_retries,
+        )
 
     def _retryer(self):
         return retry(

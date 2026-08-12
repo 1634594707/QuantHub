@@ -124,6 +124,8 @@
 .autoKpis > div:last-child { border-right: 0; }
 .autoKpis small { color: var(--text-3); font-size: var(--fs-micro); }
 .autoKpis strong { overflow: hidden; color: var(--text-1); font-family: var(--font-mono); font-size: var(--fs-caption); text-overflow: ellipsis; white-space: nowrap; }
+.aiGenerationWarning { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--sp-2); padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--warn); color: var(--warn-ink); background: var(--warn-weak); font-size: var(--fs-caption); }
+.aiGenerationWarning code { color: inherit; font-family: var(--font-mono); font-size: var(--fs-micro); }
 .demoStatusBar { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border-bottom: 1px solid var(--border); background: var(--bg-subtle); }
 .demoStatusBar > span { display: grid; min-width: 0; gap: 4px; padding: var(--sp-3) var(--sp-4); border-right: 1px solid var(--border); }
 .demoStatusBar > span:last-child { border-right: 0; }

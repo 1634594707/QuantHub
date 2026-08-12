@@ -114,7 +114,13 @@ describe('FactorFactoryWorkflow', () => {
     const start = vi.spyOn(api, 'startFactorFactory').mockResolvedValue({
       ok: true,
       run: {
-        id: 'auto-run-1', research_plan_id: 'ff-plan', status: 'no_qualified_factor', config: {}, result: { message: '没有候选通过滚动验证门禁' },
+        id: 'auto-run-1', research_plan_id: 'ff-plan', status: 'no_qualified_factor', config: {}, result: {
+          message: '没有候选通过滚动验证门禁',
+          candidate_generation: {
+            source_counts: { symbolic_regression: 16, random_dsl: 14 },
+            ai: { status: 'unavailable', requested_provider: 'deepseek', error: 'APITimeoutError: Request timed out.' },
+          },
+        },
         selected_factor_key: null, selected_factor_version: null, selected_experiment_id: null, error: null,
         started_at: 1, updated_at: 1, observation_started_at: null, observation_ends_at: null,
       },
@@ -144,6 +150,7 @@ describe('FactorFactoryWorkflow', () => {
       maximum_demo_exposure: 0.1, maximum_demo_loss: 25,
     })))
     expect((await screen.findAllByText('量价复合 Alpha')).length).toBeGreaterThanOrEqual(1)
+    expect(screen.getByText('DeepSeek 响应超时；本轮未收到完整结果，已回退规则候选。')).toBeTruthy()
     expect(screen.getAllByText('BTC-USDT-SWAP').length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText('仅排名最高且门禁通过的 1 个')).toBeTruthy()
     expect(screen.getAllByText('量价流动性').length).toBeGreaterThanOrEqual(1)
