@@ -34,6 +34,10 @@ def _usage_dict(usage: Any) -> dict[str, int] | None:
     cached_tokens = getattr(prompt_details, "cached_tokens", None)
     if cached_tokens is not None:
         result["cached_prompt_tokens"] = int(cached_tokens)
+    completion_details = getattr(usage, "completion_tokens_details", None)
+    reasoning_tokens = getattr(completion_details, "reasoning_tokens", None)
+    if reasoning_tokens is not None:
+        result["reasoning_tokens"] = int(reasoning_tokens)
     return result
 
 

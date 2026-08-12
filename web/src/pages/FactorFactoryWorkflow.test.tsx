@@ -73,6 +73,12 @@ describe('FactorFactoryWorkflow', () => {
     )
   })
 
+  it('distinguishes reasoning budget exhaustion from invalid DSL output', () => {
+    expect(aiGenerationMessage('reasoning_budget_exhausted', null, 'deepseek', 0)).toBe(
+      'DeepSeek 的推理过程耗尽了输出预算，未返回候选 JSON；本轮已回退规则候选。',
+    )
+  })
+
   it('describes a missing provider key explicitly', () => {
     expect(aiGenerationMessage('unavailable', 'RuntimeError: LLM provider custom 的 api_key 未配置', 'custom', 0)).toBe(
       '兼容 API 未配置 API Key；本轮已回退规则候选。',

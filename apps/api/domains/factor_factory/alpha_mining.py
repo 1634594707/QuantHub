@@ -19,7 +19,7 @@ from core.factor_dsl import (
 from core.llm import LLMClient, get_llm
 
 ALPHA_MINING_VERSION = "brain-alpha-v1.5"
-AI_PROMPT_VERSION = "brain-alpha-refinement-json-v4"
+AI_PROMPT_VERSION = "brain-alpha-refinement-json-v5"
 AI_RAW_OUTPUT_LIMIT = 50_000
 
 EXPRESSION_FIELDS = {"open", "high", "low", "close", "volume"}
@@ -628,6 +628,8 @@ def _ai_messages(
     seeds = seed_candidates or []
     system = (
         "You refine screened WorldQuant-BRAIN-style alpha hypotheses as JSON AST data only. "
+        "Do not expose chain-of-thought or spend the response budget on analysis; return the JSON "
+        "object immediately. "
         "Never emit Python, code strings, future data access, negative lags, or unsupported fields. "
         "Each expression must be causal, economically interpretable, and different from the others. "
         "When screened seeds are supplied, every proposal must name one seed_candidate_id and make "
@@ -748,12 +750,35 @@ def generate_ai_proposals(
                 "maximum_tokens": maximum_tokens,
                 "requested_provider": provider,
             }
-        response = llm.chat(
-            messages,
-            temperature=0.2,
-            max_tokens=completion_budget,
-            response_format={"type": "json_object"},
-        )
+        chat_options: dict[str, Any] = {}
+        effective_provider = str(getattr(llm, "_provider", provider) or "").lower()
+        effective_model = str(getattr(llm, "_model", "") or "").lower()
+        if effective_provider == "deepseek":
+            chat_options["extra_body"] = {"thinking": {"type": "disabled"}}
+        elif effective_model.startswith(("gpt-5", "o1", "o3", "o4")):
+            chat_options["reasoning_effort"] = "minimal"
+        try:
+            response = llm.chat(
+                messages,
+                temperature=0.2,
+                max_tokens=completion_budget,
+                response_format={"type": "json_object"},
+                **chat_options,
+            )
+        except Exception as exc:  # noqa: BLE001 - compatible gateways vary in option support
+            option_rejected = chat_options and any(
+                marker in str(exc).lower()
+                for marker in ("unsupported", "unknown parameter", "extra_body", "reasoning_effort")
+            )
+            if not option_rejected:
+                raise
+            chat_options = {}
+            response = llm.chat(
+                messages,
+                temperature=0.2,
+                max_tokens=completion_budget,
+                response_format={"type": "json_object"},
+            )
     except Exception as exc:  # noqa: BLE001 - deterministic grammar remains available
         return [], {
             "status": "unavailable",
@@ -852,11 +877,14 @@ def generate_ai_proposals(
         except (FactorDslError, KeyError, TypeError, ValueError) as exc:
             rejected.append({"index": str(index), "reason": str(exc)})
     response_incomplete = recovered_partial or response.finish_reason == "length"
+    empty_output_truncated = not response.content.strip() and response.finish_reason == "length"
     status = (
         "generated_partial"
         if proposals and response_incomplete
         else "generated"
         if proposals
+        else "reasoning_budget_exhausted"
+        if empty_output_truncated
         else "invalid_output"
     )
     return proposals, {
@@ -867,6 +895,14 @@ def generate_ai_proposals(
         "provider": getattr(llm, "_provider", "unknown"),
         "model": response.model,
         "finish_reason": response.finish_reason,
+        "empty_output_truncated": empty_output_truncated,
+        "reasoning_control": (
+            "disabled"
+            if "extra_body" in chat_options
+            else "minimal"
+            if chat_options.get("reasoning_effort") == "minimal"
+            else "unsupported"
+        ),
         "effective_timeout_seconds": getattr(llm, "_timeout", None),
         "effective_max_retries": getattr(llm, "_max_retries", None),
         "token_usage": token_usage,

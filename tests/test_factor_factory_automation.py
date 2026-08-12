@@ -82,6 +82,15 @@ class FakeAlphaLlm:
         )
 
 
+class RejectReasoningOptionLlm(FakeAlphaLlm):
+    def chat(self, *_args, **_kwargs) -> LLMResponse:
+        if "extra_body" in _kwargs or "reasoning_effort" in _kwargs:
+            self.calls += 1
+            self.last_kwargs = _kwargs
+            raise ValueError("unknown parameter reasoning_effort")
+        return super().chat(*_args, **_kwargs)
+
+
 class FactorFactoryAutomationTests(unittest.TestCase):
     def setUp(self) -> None:
         self.original_db = store._DB
@@ -571,6 +580,57 @@ class FactorFactoryAutomationTests(unittest.TestCase):
         self.assertEqual(audit["finish_reason"], "length")
         self.assertTrue(audit["output_truncated"])
 
+    def test_empty_truncated_ai_output_reports_reasoning_budget_exhaustion(self) -> None:
+        client = FakeAlphaLlm("", finish_reason="length")
+        client._provider = "deepseek"
+        client._model = "deepseek-v4-flash"
+
+        proposals, audit = generate_ai_proposals(
+            brief="Find robust alpha expressions.",
+            interval="4h",
+            count=2,
+            maximum_tokens=4_000,
+            client=client,
+        )
+
+        self.assertEqual(proposals, [])
+        self.assertEqual(audit["status"], "reasoning_budget_exhausted")
+        self.assertTrue(audit["empty_output_truncated"])
+        self.assertEqual(client.last_kwargs["extra_body"], {"thinking": {"type": "disabled"}})
+
+    def test_reasoning_model_uses_minimal_effort_for_json_generation(self) -> None:
+        client = FakeAlphaLlm('{"candidates":[]}')
+        client._provider = "custom"
+        client._model = "gpt-5.6-sol"
+
+        generate_ai_proposals(
+            brief="Find robust alpha expressions.",
+            interval="4h",
+            count=2,
+            maximum_tokens=4_000,
+            client=client,
+        )
+
+        self.assertEqual(client.last_kwargs["reasoning_effort"], "minimal")
+
+    def test_reasoning_option_rejection_retries_with_plain_json_request(self) -> None:
+        client = RejectReasoningOptionLlm('{"candidates":[]}')
+        client._provider = "custom"
+        client._model = "gpt-5.6-sol"
+
+        proposals, audit = generate_ai_proposals(
+            brief="Find robust alpha expressions.",
+            interval="4h",
+            count=2,
+            maximum_tokens=4_000,
+            client=client,
+        )
+
+        self.assertEqual(proposals, [])
+        self.assertEqual(client.calls, 2)
+        self.assertNotIn("reasoning_effort", client.last_kwargs)
+        self.assertEqual(audit["reasoning_control"], "unsupported")
+
     def test_ai_args_ast_is_normalized_before_safe_dsl_validation(self) -> None:
         content = json.dumps(
             {
@@ -780,7 +840,7 @@ class FactorFactoryAutomationTests(unittest.TestCase):
         ai_experiment = next(item for item in experiments if item["source"] == "ai")
         detail = store.get_factor_experiment(ai_experiment["id"])
         self.assertEqual(detail["model"]["provider"], "test-provider")
-        self.assertEqual(detail["prompt"]["version"], "brain-alpha-refinement-json-v4")
+        self.assertEqual(detail["prompt"]["version"], "brain-alpha-refinement-json-v5")
         self.assertTrue(detail["prompt"]["seed_candidate_id"])
         self.assertEqual(detail["proposal"]["ai_trace"]["token_usage"]["total_tokens"], 200)
         self.assertTrue(detail["proposal"]["ai_trace"]["output_raw"])

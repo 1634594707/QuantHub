@@ -360,6 +360,7 @@ export function aiGenerationMessage(status: string | null, error: string | null,
   if (!status || status === 'disabled' || status === 'generated') return null
   const source = provider === 'deepseek' ? 'DeepSeek' : provider === 'openai' ? 'OpenAI' : provider === 'custom' ? '兼容 API' : 'AI'
   if (status === 'generated_partial') return `${source} 输出在末尾截断；已保留 ${acceptedCount} 个完整且通过校验的 AI 候选，其余由规则候选补齐。`
+  if (status === 'reasoning_budget_exhausted') return `${source} 的推理过程耗尽了输出预算，未返回候选 JSON；本轮已回退规则候选。`
   if (status === 'invalid_output') return `${source} 已响应，但候选格式或 DSL 校验未通过；本轮已回退规则候选。`
   if (status === 'token_budget_insufficient' || status === 'token_budget_exceeded') return `${source} token 预算不足；本轮已回退规则候选。`
   if (/api_key.*(?:未配置|not configured)/i.test(error ?? '')) return `${source} 未配置 API Key；本轮已回退规则候选。`

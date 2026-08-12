@@ -50,6 +50,7 @@ class LLMClientConfigurationTests(unittest.TestCase):
                 completion_tokens=20,
                 total_tokens=30,
                 prompt_tokens_details=None,
+                completion_tokens_details=SimpleNamespace(reasoning_tokens=12),
             ),
         )
 
@@ -79,6 +80,7 @@ class LLMClientConfigurationTests(unittest.TestCase):
             result = LLMClient("deepseek").chat([{"role": "user", "content": "test"}])
 
         self.assertEqual(result.finish_reason, "length")
+        self.assertEqual(result.usage["reasoning_tokens"], 12)
 
     def test_custom_provider_uses_its_configuration_while_deepseek_is_active(self) -> None:
         captured: dict = {}
