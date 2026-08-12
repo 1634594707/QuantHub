@@ -87,7 +87,7 @@ class RejectReasoningOptionLlm(FakeAlphaLlm):
         if "extra_body" in _kwargs or "reasoning_effort" in _kwargs:
             self.calls += 1
             self.last_kwargs = _kwargs
-            raise ValueError("unknown parameter reasoning_effort")
+            raise ValueError('level "medium" not supported, valid levels: high, xhigh')
         return super().chat(*_args, **_kwargs)
 
 
@@ -598,7 +598,7 @@ class FactorFactoryAutomationTests(unittest.TestCase):
         self.assertTrue(audit["empty_output_truncated"])
         self.assertEqual(client.last_kwargs["extra_body"], {"thinking": {"type": "disabled"}})
 
-    def test_reasoning_model_uses_minimal_effort_for_json_generation(self) -> None:
+    def test_reasoning_model_uses_medium_effort_for_json_generation(self) -> None:
         client = FakeAlphaLlm('{"candidates":[]}')
         client._provider = "custom"
         client._model = "gpt-5.6-sol"
@@ -611,7 +611,7 @@ class FactorFactoryAutomationTests(unittest.TestCase):
             client=client,
         )
 
-        self.assertEqual(client.last_kwargs["reasoning_effort"], "minimal")
+        self.assertEqual(client.last_kwargs["reasoning_effort"], "medium")
 
     def test_reasoning_option_rejection_retries_with_plain_json_request(self) -> None:
         client = RejectReasoningOptionLlm('{"candidates":[]}')
@@ -840,7 +840,7 @@ class FactorFactoryAutomationTests(unittest.TestCase):
         ai_experiment = next(item for item in experiments if item["source"] == "ai")
         detail = store.get_factor_experiment(ai_experiment["id"])
         self.assertEqual(detail["model"]["provider"], "test-provider")
-        self.assertEqual(detail["prompt"]["version"], "brain-alpha-refinement-json-v5")
+        self.assertEqual(detail["prompt"]["version"], "brain-alpha-refinement-json-v7")
         self.assertTrue(detail["prompt"]["seed_candidate_id"])
         self.assertEqual(detail["proposal"]["ai_trace"]["token_usage"]["total_tokens"], 200)
         self.assertTrue(detail["proposal"]["ai_trace"]["output_raw"])

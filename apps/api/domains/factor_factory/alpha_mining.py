@@ -19,7 +19,7 @@ from core.factor_dsl import (
 from core.llm import LLMClient, get_llm
 
 ALPHA_MINING_VERSION = "brain-alpha-v1.5"
-AI_PROMPT_VERSION = "brain-alpha-refinement-json-v5"
+AI_PROMPT_VERSION = "brain-alpha-refinement-json-v7"
 AI_RAW_OUTPUT_LIMIT = 50_000
 
 EXPRESSION_FIELDS = {"open", "high", "low", "close", "volume"}
@@ -756,7 +756,7 @@ def generate_ai_proposals(
         if effective_provider == "deepseek":
             chat_options["extra_body"] = {"thinking": {"type": "disabled"}}
         elif effective_model.startswith(("gpt-5", "o1", "o3", "o4")):
-            chat_options["reasoning_effort"] = "minimal"
+            chat_options["reasoning_effort"] = "medium"
         try:
             response = llm.chat(
                 messages,
@@ -768,7 +768,13 @@ def generate_ai_proposals(
         except Exception as exc:  # noqa: BLE001 - compatible gateways vary in option support
             option_rejected = chat_options and any(
                 marker in str(exc).lower()
-                for marker in ("unsupported", "unknown parameter", "extra_body", "reasoning_effort")
+                for marker in (
+                    "unsupported",
+                    "not supported",
+                    "unknown parameter",
+                    "extra_body",
+                    "reasoning_effort",
+                )
             )
             if not option_rejected:
                 raise
@@ -899,8 +905,8 @@ def generate_ai_proposals(
         "reasoning_control": (
             "disabled"
             if "extra_body" in chat_options
-            else "minimal"
-            if chat_options.get("reasoning_effort") == "minimal"
+            else "medium"
+            if chat_options.get("reasoning_effort") == "medium"
             else "unsupported"
         ),
         "effective_timeout_seconds": getattr(llm, "_timeout", None),
