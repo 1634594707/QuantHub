@@ -66,7 +66,8 @@ from .alpha_mining import (
     AI_PROMPT_VERSION,
     ALPHA_MINING_VERSION,
     AlphaProposal,
-    generate_alpha_batch,
+    generate_ai_proposals,
+    generate_grammar_proposals,
     parse_alpha_expression,
 )
 from .okx_demo import (
@@ -665,11 +666,167 @@ def _candidate_generation_fingerprint(
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
+def _discovery_screen_score(summary: dict[str, Any]) -> float:
+    sharpe = float((summary.get("metrics") or {}).get("sharpe") or 0.0)
+    total_return = float(summary.get("total_return") or 0.0)
+    drawdown = max(abs(float(summary.get("max_drawdown") or 0.0)), 0.01)
+    rank_ic = float(summary.get("rank_ic") or 0.0)
+    stability = summary.get("window_stability") or {}
+    positive_window_ratio = float(stability.get("positive_window_ratio") or 0.0)
+    return sharpe + total_return / drawdown + rank_ic * 2.0 + positive_window_ratio * 0.25
+
+
+def _staged_brain_candidate_specs(
+    run_id: str,
+    req: FactorFactoryStartRequest,
+    *,
+    generation_fingerprint: str,
+    discovery: pd.DataFrame,
+) -> tuple[list[CandidateSpec], dict[str, Any]]:
+    seed = int(hashlib.sha256(generation_fingerprint.encode("utf-8")).hexdigest()[:16], 16)
+    pool_size = min(90, max(req.candidate_budget * 3, req.candidate_budget + 12))
+    grammar_proposals = generate_grammar_proposals(
+        seed=seed,
+        count=pool_size,
+        interval=req.interval,
+        market=req.market,
+    )
+    grammar_specs = _brain_candidate_specs(run_id, grammar_proposals)
+    screened_specs, rejected, preflight = _candidate_preflight(
+        grammar_specs,
+        discovery,
+        budget=pool_size,
+    )
+    proposal_by_key = dict(
+        zip((item.key for item in grammar_specs), grammar_proposals, strict=True)
+    )
+    ranked: list[tuple[float, CandidateSpec, AlphaProposal, dict[str, Any]]] = []
+    discovery_rejected: dict[str, dict[str, Any]] = {}
+    minimum_observations = max(30, min(120, int(len(discovery) * 0.35)))
+    for spec in screened_specs:
+        signal = evaluate_factor_ast(spec.ast, discovery)
+        valid_observations = int(pd.Series(signal).notna().sum())
+        if valid_observations < minimum_observations:
+            discovery_rejected[spec.key] = {
+                "reason": "insufficient_signal_coverage",
+                "valid_observations": valid_observations,
+                "minimum_observations": minimum_observations,
+            }
+            continue
+        result = _backtest_partition(discovery, signal, req=req)
+        summary = result["summary"]
+        if int(summary.get("n_trades") or 0) < 2:
+            discovery_rejected[spec.key] = {
+                "reason": "insufficient_discovery_trades",
+                "n_trades": int(summary.get("n_trades") or 0),
+                "minimum_trades": 2,
+            }
+            continue
+        ranked.append(
+            (
+                _discovery_screen_score(summary),
+                spec,
+                proposal_by_key[spec.key],
+                summary,
+            )
+        )
+    ranked.sort(key=lambda item: (-item[0], item[1].key))
+    if len(ranked) < req.candidate_budget:
+        raise RuntimeError(
+            f"discovery screen retained {len(ranked)} of {req.candidate_budget} required candidates"
+        )
+
+    ai_requested = min(req.candidate_budget, req.ai_candidate_count) if req.use_ai else 0
+    seed_count = min(len(ranked), max(3, ai_requested)) if ai_requested else 0
+    ai_seeds = [
+        {
+            "candidate_id": proposal.candidate_id,
+            "family": proposal.family,
+            "formula_ast": proposal.ast,
+            "hypothesis": proposal.hypothesis,
+            "discovery_metrics": {
+                "screen_score": score,
+                "total_return": summary.get("total_return"),
+                "max_drawdown": summary.get("max_drawdown"),
+                "sharpe": (summary.get("metrics") or {}).get("sharpe"),
+                "rank_ic": summary.get("rank_ic"),
+                "n_trades": summary.get("n_trades"),
+                "window_stability": summary.get("window_stability"),
+            },
+        }
+        for score, _spec, proposal, summary in ranked[:seed_count]
+    ]
+    ai_proposals, ai_audit = generate_ai_proposals(
+        brief=req.alpha_brief,
+        interval=req.interval,
+        count=ai_requested,
+        market=req.market,
+        maximum_tokens=req.maximum_ai_tokens,
+        provider=req.ai_provider,
+        seed_candidates=ai_seeds,
+    )
+
+    retained_grammar_count = req.candidate_budget - len(ai_proposals)
+    selected_proposals = [
+        *(item[2] for item in ranked[:retained_grammar_count]),
+        *ai_proposals,
+    ]
+    formula_hashes: set[str] = set()
+    unique: list[AlphaProposal] = []
+    for proposal in [*selected_proposals, *(item[2] for item in ranked[retained_grammar_count:])]:
+        definition = FactorDefinition(
+            key=proposal.candidate_id[:80],
+            label=proposal.label,
+            market=req.market,
+            ast=proposal.ast,
+            family=proposal.family,
+        )
+        if definition.formula_hash in formula_hashes:
+            continue
+        formula_hashes.add(definition.formula_hash)
+        unique.append(proposal)
+        if len(unique) == req.candidate_budget:
+            break
+    if len(unique) < req.candidate_budget:
+        raise RuntimeError(f"staged alpha mining produced {len(unique)} unique candidates")
+
+    selected_specs = _brain_candidate_specs(run_id, unique)
+    selected_ids = {item.candidate_id for item in unique}
+    return selected_specs, {
+        "version": ALPHA_MINING_VERSION,
+        "mode": "grammar_screen_then_ai_refine",
+        "brief": req.alpha_brief,
+        "candidate_count": len(selected_specs),
+        "source_counts": dict(Counter(item.source for item in selected_specs)),
+        "stages": {
+            "grammar_generation": {
+                "candidate_count": len(grammar_specs),
+                "estimated_compute_units": len(grammar_specs) * len(discovery),
+            },
+            "discovery_preflight": {
+                **preflight,
+                "rejections": {**rejected, **discovery_rejected},
+            },
+            "discovery_backtest": {
+                "ranked_candidates": len(ranked),
+                "seed_candidate_ids": [item["candidate_id"] for item in ai_seeds],
+                "selected_candidate_ids": sorted(selected_ids),
+                "confirmation_labels_accessed": False,
+            },
+            "ai_refinement": ai_audit,
+        },
+        "ai": ai_audit,
+        "confirmation_labels_exposed": False,
+        "dynamic_code_execution": False,
+    }
+
+
 def _candidate_specs_for_request(
     run_id: str,
     req: FactorFactoryStartRequest,
     *,
     generation_fingerprint: str,
+    discovery: pd.DataFrame,
 ) -> tuple[list[CandidateSpec], dict[str, Any]]:
     if req.candidate_mode == "manual":
         specs = _manual_candidate_specs(run_id, req)
@@ -692,18 +849,12 @@ def _candidate_specs_for_request(
             "dynamic_code_execution": False,
         }
     else:
-        proposals, audit = generate_alpha_batch(
-            run_seed=generation_fingerprint,
-            budget=req.candidate_budget,
-            interval=req.interval,
-            brief=req.alpha_brief,
-            market=req.market,
-            use_ai=req.use_ai,
-            ai_candidate_count=req.ai_candidate_count,
-            maximum_ai_tokens=req.maximum_ai_tokens,
-            provider=req.ai_provider,
+        specs, audit = _staged_brain_candidate_specs(
+            run_id,
+            req,
+            generation_fingerprint=generation_fingerprint,
+            discovery=discovery,
         )
-        specs = _brain_candidate_specs(run_id, proposals)
     manifest = []
     for spec in specs:
         definition = FactorDefinition(
@@ -1644,6 +1795,7 @@ def _start_factor_factory_locked(req: FactorFactoryStartRequest) -> dict[str, An
         run_id,
         req,
         generation_fingerprint=generation_fingerprint,
+        discovery=partitions["discovery"],
     )
     candidate_universe_hash = _candidate_universe_hash(specs)
     research_fingerprint = _research_fingerprint(
@@ -1656,8 +1808,23 @@ def _start_factor_factory_locked(req: FactorFactoryStartRequest) -> dict[str, An
             id=plan_id,
             title=f"自动因子研究 {req.symbol} {req.interval}",
             target_market=req.market,
-            maximum_candidates=req.candidate_budget + 1,
-            maximum_compute_units=(req.candidate_budget + 1) * req.n_bars * 10,
+            maximum_candidates=(
+                req.candidate_budget
+                + (
+                    min(req.candidate_budget, req.ai_candidate_count)
+                    if req.candidate_mode == "brain" and req.use_ai
+                    else 0
+                )
+                + 1
+            ),
+            maximum_compute_units=(
+                (req.candidate_budget + 1) * req.n_bars * 10
+                + int(
+                    candidate_generation.get("stages", {})
+                    .get("grammar_generation", {})
+                    .get("estimated_compute_units", 0)
+                )
+            ),
             maximum_llm_tokens=(
                 req.maximum_ai_tokens if req.candidate_mode == "brain" and req.use_ai else 0
             ),

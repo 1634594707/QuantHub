@@ -52,8 +52,23 @@ class FakeAlphaLlm:
 
     def chat(self, *_args, **_kwargs) -> LLMResponse:
         self.calls += 1
+        content = self.content
+        if _args:
+            messages = _args[0]
+            if isinstance(messages, list) and messages:
+                prompt = json.loads(messages[-1]["content"])
+                seeds = prompt.get("screened_seed_candidates") or []
+                if seeds:
+                    payload = json.loads(content)
+                else:
+                    payload = {}
+                if isinstance(payload.get("candidates"), list):
+                    for candidate in payload["candidates"]:
+                        if isinstance(candidate, dict) and not candidate.get("seed_candidate_id"):
+                            candidate["seed_candidate_id"] = seeds[0]["candidate_id"]
+                    content = json.dumps(payload)
         return LLMResponse(
-            content=self.content,
+            content=content,
             model="test-alpha-model",
             usage={"prompt_tokens": 100, "completion_tokens": 100, "total_tokens": 200},
         )
@@ -573,6 +588,18 @@ class FactorFactoryAutomationTests(unittest.TestCase):
             first["run"]["config"]["candidate_generation"]["ai"]["requested_provider"],
             "custom",
         )
+        generation = first["run"]["config"]["candidate_generation"]
+        self.assertEqual(generation["mode"], "grammar_screen_then_ai_refine")
+        self.assertGreater(
+            generation["stages"]["grammar_generation"]["candidate_count"],
+            request.candidate_budget,
+        )
+        self.assertFalse(generation["stages"]["discovery_backtest"]["confirmation_labels_accessed"])
+        plan = store.get_factor_research_plan(first["run"]["research_plan_id"])
+        self.assertEqual(
+            plan["budget"]["maximum_candidates"],
+            request.candidate_budget + request.ai_candidate_count + 1,
+        )
         experiments = store.list_factor_experiments(
             research_plan_id=first["run"]["research_plan_id"],
             limit=100,
@@ -580,7 +607,8 @@ class FactorFactoryAutomationTests(unittest.TestCase):
         ai_experiment = next(item for item in experiments if item["source"] == "ai")
         detail = store.get_factor_experiment(ai_experiment["id"])
         self.assertEqual(detail["model"]["provider"], "test-provider")
-        self.assertEqual(detail["prompt"]["version"], "brain-alpha-json-v2")
+        self.assertEqual(detail["prompt"]["version"], "brain-alpha-refinement-json-v3")
+        self.assertTrue(detail["prompt"]["seed_candidate_id"])
         self.assertEqual(detail["proposal"]["ai_trace"]["token_usage"]["total_tokens"], 200)
         self.assertTrue(detail["proposal"]["ai_trace"]["output_raw"])
 

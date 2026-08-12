@@ -44,6 +44,7 @@ afterEach(() => {
 })
 
 beforeEach(() => {
+  localStorage.clear()
   vi.spyOn(api, 'llmConfig').mockResolvedValue(LLM_CONFIG)
   vi.spyOn(api, 'instruments').mockResolvedValue({ count: 0, instruments: [] })
   vi.spyOn(api, 'okxSwapCatalog').mockImplementation(async (query = '') => {
@@ -353,6 +354,31 @@ describe('FactorFactoryWorkflow', () => {
     await waitFor(() => expect(start).toHaveBeenCalledWith(expect.objectContaining({
       symbol: 'AVGO-USDT-SWAP', source: 'okx_live', paper_target: 'okx_demo',
     })))
+  })
+
+  it('favorites research instruments and restores them from local storage', async () => {
+    vi.spyOn(api, 'factorFactoryArchive').mockResolvedValue({ ok: true, count: 0, total: 0, research_record_count: 0, ineligible_count: 0, verified_count: 0, eligible_only: true, archives: [], live_trading_enabled: false })
+    vi.spyOn(api, 'factorFactoryRuns').mockResolvedValue({ ok: true, count: 0, runs: [], live_trading_enabled: false })
+
+    const first = render(<FactorFactoryWorkflow />)
+    const input = screen.getByPlaceholderText('代码或名称，如 AVGO / 博通')
+    fireEvent.change(input, { target: { value: '博通' } })
+    fireEvent.click(await screen.findByRole('option', { name: /博通.*AVGO-USDT-SWAP/ }))
+    fireEvent.click(screen.getByRole('button', { name: '收藏 AVGO-USDT-SWAP' }))
+
+    await waitFor(() => expect(JSON.parse(localStorage.getItem('quanthub.factor-factory.favorite-instruments.v1') || '[]')).toEqual([
+      expect.objectContaining({ market: 'crypto', code: 'AVGO-USDT-SWAP' }),
+    ]))
+    first.unmount()
+
+    render(<FactorFactoryWorkflow />)
+    const restoredInput = screen.getByPlaceholderText('代码或名称，如 AVGO / 博通')
+    fireEvent.focus(restoredInput)
+    expect(await screen.findByRole('group', { name: '收藏标的' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('option', { name: /博通.*AVGO-USDT-SWAP.*已收藏/ }))
+    expect((restoredInput as HTMLInputElement).value).toBe('AVGO-USDT-SWAP')
+    fireEvent.click(screen.getByRole('button', { name: '取消收藏 AVGO-USDT-SWAP' }))
+    await waitFor(() => expect(JSON.parse(localStorage.getItem('quanthub.factor-factory.favorite-instruments.v1') || '[]')).toEqual([]))
   })
 
   it('browses the verified OKX directory and opens the shared live kline', async () => {

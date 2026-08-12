@@ -31,6 +31,12 @@ async function inspectPanel(page) {
         const rect = element.getBoundingClientRect()
         if (rect.width < 1 || rect.height < 1 || style.visibility === 'hidden') return false
         if (style.textOverflow === 'ellipsis' || style.overflowWrap === 'anywhere') return false
+        let ancestor = element.parentElement
+        while (ancestor && ancestor !== panel) {
+          const ancestorStyle = getComputedStyle(ancestor)
+          if (ancestorStyle.overflowX === 'auto' || ancestorStyle.overflowX === 'scroll') return false
+          ancestor = ancestor.parentElement
+        }
         return element.scrollWidth > element.clientWidth + 2
       })
       .slice(0, 20)
@@ -66,6 +72,7 @@ async function inspectPanel(page) {
     const observationInput = [...panel.querySelectorAll('input[type="number"]')]
       .find((input) => input.getAttribute('min') === '7')
     const aiCheckbox = panel.querySelector('input[type="checkbox"]')
+    const favoriteButton = panel.querySelector('button[aria-label^="收藏 "]')
     const text = panel.textContent || ''
     return {
       present: true,
@@ -76,7 +83,9 @@ async function inspectPanel(page) {
       panelOverflow: panel.scrollWidth - panel.clientWidth,
       clippedText,
       overflowingElements,
-      hasBrainEngine: text.includes('BRAIN 式表达式挖掘'),
+      hasBrainEngine: text.includes('模板组合 -> 回测筛选 -> AI 精炼'),
+      hasWinnerRefinement: text.includes('优胜候选后精炼'),
+      hasFavoriteButton: favoriteButton instanceof HTMLButtonElement && !favoriteButton.disabled,
       hasSafeDslPolicy: text.includes('仅安全 DSL AST'),
       hasFixedBacktestPolicy: text.includes('统一回测与回撤门禁'),
       hasSevenDayPolicy: text.includes('OKX Demo 至少 7 天'),
@@ -96,6 +105,7 @@ try {
     const context = await browser.newContext({ viewport })
     await context.addInitScript((value) => {
       localStorage.setItem('quanthub:api-base', value)
+      localStorage.setItem('quanthub.interface-mode', 'advanced')
     }, apiBase)
     const page = await context.newPage()
     const consoleErrors = []
@@ -172,6 +182,18 @@ try {
     await panel.screenshot({ path: path.join(outputRoot, `${viewport.id}-manual-panel.png`) })
     const dslGuide = panel.getByRole('complementary', { name: 'Alpha 参数手册' })
     await dslGuide.scrollIntoViewIfNeeded()
+    await dslGuide.getByRole('button', { name: /add\(left, right\)/ }).scrollIntoViewIfNeeded()
+    const dslReadability = await dslGuide.evaluate((element) => {
+      const row = [...element.querySelectorAll('button')]
+        .find((button) => (button.textContent || '').includes('add(left, right)'))
+      const signature = row?.querySelector('code')
+      const description = row?.querySelector('span')
+      return {
+        rowHeight: row?.getBoundingClientRect().height || 0,
+        signatureFontSize: signature ? parseFloat(getComputedStyle(signature).fontSize) : 0,
+        descriptionFontSize: description ? parseFloat(getComputedStyle(description).fontSize) : 0,
+      }
+    })
     await dslGuide.screenshot({ path: path.join(outputRoot, `${viewport.id}-manual-dsl-guide.png`) })
     results.push({
       viewport,
@@ -179,6 +201,7 @@ try {
       customInstrumentInspection,
       marketDataInspection,
       manualInspection,
+      dslReadability,
       consoleErrors,
     })
     await context.close()
@@ -192,6 +215,7 @@ const passed = results.every(({
   customInstrumentInspection,
   marketDataInspection,
   manualInspection,
+  dslReadability,
   consoleErrors,
 }) => (
   inspection.present
@@ -200,6 +224,8 @@ const passed = results.every(({
   && inspection.clippedText.length === 0
   && inspection.overflowingElements.length === 0
   && inspection.hasBrainEngine
+  && inspection.hasWinnerRefinement
+  && inspection.hasFavoriteButton
   && inspection.hasSafeDslPolicy
   && inspection.hasFixedBacktestPolicy
   && inspection.hasSevenDayPolicy
@@ -225,6 +251,9 @@ const passed = results.every(({
   && manualInspection.hasAkshare
   && manualInspection.stockSymbol === '600519'
   && manualInspection.fileInputs === 1
+  && dslReadability.rowHeight >= 54
+  && dslReadability.signatureFontSize >= 12
+  && dslReadability.descriptionFontSize >= 12
   && consoleErrors.length === 0
 ))
 const report = {

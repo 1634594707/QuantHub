@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Archive, Beaker, BookOpenCheck, CandlestickChart, Check, ChevronRight, CircleAlert, Database, FileCheck2, FlaskConical, Link2, ListFilter, Play, RefreshCw, ScanSearch, Search, ShieldAlert, ShieldCheck, TimerReset, WalletCards, X } from 'lucide-react'
+import { Archive, Beaker, BookOpenCheck, CandlestickChart, Check, ChevronRight, CircleAlert, Database, FileCheck2, FlaskConical, Link2, ListFilter, Play, RefreshCw, ScanSearch, Search, ShieldAlert, ShieldCheck, Star, TimerReset, WalletCards, X } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { api } from '../api/client'
 import type { AlphaDslCatalog, DemoRunResult, FactorDefinitionRecord, FactorFactoryArchiveRecord, FactorFactoryRunResponse, FactorLifecycleRecord, FactorLifecycleState, Instrument, LLMConfigResp, LLMProviderId, OkxSwapCatalogResponse, OkxSwapInstrument, SimulationAccount, SimulationOrder } from '../api/types'
 import KlineCard from '../components/KlineCard'
 import { Badge, Button, Field, Input, Panel, SegmentedControl, Select, Textarea } from '../components/ui'
+import { useLocalStorage } from '../hooks/useLocalStorage'
 import s from './FactorFactoryWorkflow.module.css'
 
 type TemplateKey = 'volatility_adjusted_momentum' | 'liquidity_shock_reversal' | 'volume_confirmed_breakout'
@@ -22,6 +23,7 @@ type ManualAlphaDraft = {
 }
 
 type InstrumentSuggestion = Pick<Instrument, 'code' | 'market' | 'name' | 'exchange'> & { verified?: boolean }
+type FavoriteInstrument = InstrumentSuggestion
 type ManualAlphaPreset = 'momentum' | 'reversal' | 'volume_pressure' | 'breakout'
 type ManualAlphaProfile = 'fast' | 'balanced' | 'robust'
 
@@ -99,6 +101,8 @@ const COMMON_INSTRUMENTS: Record<'crypto' | 'a_shares', InstrumentSuggestion[]> 
     { code: '601318', market: 'a_shares', name: '中国平安', exchange: 'sse' },
   ],
 }
+
+const FAVORITE_INSTRUMENTS_KEY = 'quanthub.factor-factory.favorite-instruments.v1'
 
 const ALPHA_PRESET_OPTIONS = [
   { value: 'momentum', label: '趋势动量' },
@@ -487,6 +491,7 @@ export function FactorFactoryWorkflow() {
   const [instrumentOptions, setInstrumentOptions] = useState<InstrumentSuggestion[]>(COMMON_INSTRUMENTS.crypto)
   const [instrumentSearchOpen, setInstrumentSearchOpen] = useState(false)
   const [instrumentSearchBusy, setInstrumentSearchBusy] = useState(false)
+  const [favoriteInstruments, setFavoriteInstruments] = useLocalStorage<FavoriteInstrument[]>(FAVORITE_INSTRUMENTS_KEY, [])
   const [okxCatalogOpen, setOkxCatalogOpen] = useState(false)
   const [okxCatalogQuery, setOkxCatalogQuery] = useState('')
   const [okxCatalog, setOkxCatalog] = useState<OkxSwapCatalogResponse | null>(null)
@@ -629,6 +634,37 @@ export function FactorFactoryWorkflow() {
     if (!needle) return alphaDsl.operators
     return alphaDsl.operators.filter((item) => `${item.name} ${item.signature} ${item.description}`.toLowerCase().includes(needle))
   }, [alphaDsl, alphaDslQuery])
+  const marketFavorites = useMemo(
+    () => favoriteInstruments.filter((item) => item.market === autoMarket),
+    [autoMarket, favoriteInstruments],
+  )
+  const activeFavorite = marketFavorites.some((item) => item.code === autoSymbol)
+  const selectInstrument = useCallback((item: InstrumentSuggestion) => {
+    const market = item.market === 'a_shares' ? 'a_shares' : 'crypto'
+    if (market !== autoMarket) setAutoMarket(market)
+    setAutoSymbol(item.code)
+    setInstrumentQuery(item.code)
+    setAutoSource(market === 'crypto' ? 'okx_live' : 'akshare_live')
+    setAutoInterval(market === 'crypto' ? '4h' : '1d')
+    setAutoPaperTarget(market === 'crypto' ? 'okx_demo' : 'simulation_orders')
+    setInstrumentSearchOpen(false)
+  }, [autoMarket])
+  const toggleFavoriteInstrument = useCallback(() => {
+    if (!autoSymbol) return
+    setFavoriteInstruments((current) => {
+      const exists = current.some((item) => item.market === autoMarket && item.code === autoSymbol)
+      if (exists) return current.filter((item) => !(item.market === autoMarket && item.code === autoSymbol))
+      const matched = instrumentOptions.find((item) => item.code === autoSymbol)
+        ?? COMMON_INSTRUMENTS[autoMarket].find((item) => item.code === autoSymbol)
+      return [...current, {
+        code: autoSymbol,
+        market: autoMarket,
+        name: matched?.name || autoSymbol,
+        exchange: matched?.exchange || (autoMarket === 'crypto' ? 'okx' : ''),
+        verified: autoMarket === 'crypto' ? true : matched?.verified,
+      }]
+    })
+  }, [autoMarket, autoSymbol, instrumentOptions, setFavoriteInstruments])
   const backtestGate = useMemo(() => {
     if (!backtest) return null
     return [
@@ -1196,31 +1232,47 @@ export function FactorFactoryWorkflow() {
             }
           }} /></Field>
           <Field label="研究标的"><div className={s.instrumentPicker} onBlur={() => window.setTimeout(() => setInstrumentSearchOpen(false), 120)}>
-            <Input
-              value={instrumentQuery}
-              placeholder={autoMarket === 'crypto' ? '代码或名称，如 AVGO / 博通' : '代码或名称，如 600519 / 贵州茅台'}
-              prefix={<Search size={15} />}
-              invalid={!autoSymbol && instrumentQuery.trim().length > 0}
-              role="combobox"
-              aria-expanded={instrumentSearchOpen}
-              aria-controls="factor-instrument-options"
-              onFocus={() => setInstrumentSearchOpen(true)}
-              onChange={(event) => {
-                const next = event.target.value.slice(0, 64)
-                setInstrumentQuery(next)
-                setAutoSymbol(autoMarket === 'a_shares' ? normalizedDirectSymbol(next, autoMarket) : '')
-                setInstrumentSearchOpen(true)
-              }}
-            />
+            <div className={s.instrumentInputRow}>
+              <Input
+                value={instrumentQuery}
+                placeholder={autoMarket === 'crypto' ? '代码或名称，如 AVGO / 博通' : '代码或名称，如 600519 / 贵州茅台'}
+                prefix={<Search size={15} />}
+                invalid={!autoSymbol && instrumentQuery.trim().length > 0}
+                role="combobox"
+                aria-expanded={instrumentSearchOpen}
+                aria-controls="factor-instrument-options"
+                onFocus={() => setInstrumentSearchOpen(true)}
+                onChange={(event) => {
+                  const next = event.target.value.slice(0, 64)
+                  setInstrumentQuery(next)
+                  setAutoSymbol(autoMarket === 'a_shares' ? normalizedDirectSymbol(next, autoMarket) : '')
+                  setInstrumentSearchOpen(true)
+                }}
+              />
+              <button
+                type="button"
+                className={activeFavorite ? s.favoriteActive : s.favoriteButton}
+                disabled={!autoSymbol}
+                aria-label={activeFavorite ? `取消收藏 ${autoSymbol}` : `收藏 ${autoSymbol || '当前研究标的'}`}
+                title={activeFavorite ? '取消收藏' : '收藏当前标的'}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={toggleFavoriteInstrument}
+              ><Star size={17} fill={activeFavorite ? 'currentColor' : 'none'} /></button>
+            </div>
             {instrumentSearchOpen && <div id="factor-instrument-options" className={s.instrumentOptions} role="listbox">
+              {marketFavorites.length > 0 && <div className={s.favoriteGroup} role="group" aria-label="收藏标的">
+                <strong><Star size={13} fill="currentColor" />收藏标的</strong>
+                {marketFavorites.map((item) => <button type="button" role="option" aria-selected={item.code === autoSymbol} key={`favorite:${item.market}:${item.code}`} onMouseDown={(event) => event.preventDefault()} onClick={() => selectInstrument(item)}>
+                  <span><strong>{item.name || item.code}</strong><small>{item.code}</small></span>
+                  <span>已收藏{item.code === autoSymbol && <Check size={14} />}</span>
+                </button>)}
+              </div>}
               {instrumentOptions.map((item) => <button type="button" role="option" aria-selected={item.code === autoSymbol} key={`${item.market}:${item.code}`} onMouseDown={(event) => event.preventDefault()} onClick={() => {
                 if (autoMarket === 'crypto' && !item.verified) {
                   setError('请从 OKX 当前可交易合约目录中选择已验证标的。')
                   return
                 }
-                setAutoSymbol(item.code)
-                setInstrumentQuery(item.code)
-                setInstrumentSearchOpen(false)
+                selectInstrument(item)
               }}>
                 <span><strong>{item.name || item.code}</strong><small>{item.code}</small></span>
                 <span>{item.verified ? 'OKX 已验证' : item.exchange.toUpperCase() || 'LOCAL'}{item.code === autoSymbol && <Check size={14} />}</span>
@@ -1229,8 +1281,8 @@ export function FactorFactoryWorkflow() {
               {instrumentSearchBusy && <p>正在搜索…</p>}
             </div>}
           </div></Field>
-          <Field label="候选引擎"><Select value={autoCandidateMode} options={[{ value: 'brain', label: 'BRAIN 式表达式挖掘' }, { value: 'manual', label: '手工 / JSON 批次' }, { value: 'library', label: '固定候选库' }]} onChange={(event) => setAutoCandidateMode(event.target.value as typeof autoCandidateMode)} /></Field>
-          <Field label="AI 提案"><label className={s.aiToggle}><input type="checkbox" checked={autoUseAi} disabled={autoCandidateMode !== 'brain'} onChange={(event) => setAutoUseAi(event.target.checked)} /><span>{autoCandidateMode === 'manual' ? '手工批次模式' : autoCandidateMode === 'library' ? '候选库模式' : autoUseAi ? '已启用' : '仅规则生成'}</span></label></Field>
+          <Field label="候选引擎"><Select value={autoCandidateMode} options={[{ value: 'brain', label: '模板组合 -> 回测筛选 -> AI 精炼' }, { value: 'manual', label: '手工 / JSON 批次' }, { value: 'library', label: '固定候选库' }]} onChange={(event) => setAutoCandidateMode(event.target.value as typeof autoCandidateMode)} /></Field>
+          <Field label="AI 提案"><label className={s.aiToggle}><input type="checkbox" checked={autoUseAi} disabled={autoCandidateMode !== 'brain'} onChange={(event) => setAutoUseAi(event.target.checked)} /><span>{autoCandidateMode === 'manual' ? '手工批次模式' : autoCandidateMode === 'library' ? '候选库模式' : autoUseAi ? '优胜候选后精炼' : '仅规则筛选'}</span></label></Field>
           <Field label="AI 模型来源"><Select value={autoAiProvider} disabled={autoCandidateMode !== 'brain' || !autoUseAi || aiProviders.length === 0} options={aiProviders.length > 0 ? aiProviders.map((provider) => ({ value: provider.id, label: provider.label })) : [{ value: '', label: '跟随系统设置' }]} onChange={(event) => setAutoAiProvider(event.target.value as LLMProviderId)} /></Field>
           <Field label="AI 候选数"><Input type="number" min={0} max={autoBudget} disabled={autoCandidateMode !== 'brain' || !autoUseAi} value={Math.min(autoAiCount, autoBudget)} onChange={(event) => setAutoAiCount(Math.max(0, Number(event.target.value)))} /></Field>
           <Field label="模拟目标"><Select value={autoPaperTarget} options={autoMarket === 'crypto' ? [{ value: 'okx_demo', label: 'OKX Demo' }, { value: 'simulation_orders', label: '本地独立模拟' }] : [{ value: 'simulation_orders', label: '本地独立模拟' }]} onChange={(event) => {

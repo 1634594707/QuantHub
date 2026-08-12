@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-11T07:21:51.096Z",
+  "generated_at": "2026-08-12T03:18:46.572Z",
   "base_url": "http://127.0.0.1:5173",
   "api_base": "http://127.0.0.1:8001",
   "route": "/factor-research",
@@ -18,6 +18,8 @@
         "clippedText": [],
         "overflowingElements": [],
         "hasBrainEngine": true,
+        "hasWinnerRefinement": true,
+        "hasFavoriteButton": true,
         "hasSafeDslPolicy": true,
         "hasFixedBacktestPolicy": true,
         "hasSevenDayPolicy": true,
@@ -25,12 +27,35 @@
         "observationMinimum": "7",
         "aiEnabled": true
       },
+      "customInstrumentInspection": {
+        "symbol": "BTC-USDT-SWAP",
+        "paperTarget": "okx_demo",
+        "archiveRequiresSevenDays": true,
+        "archiveHasExploratoryFilter": false
+      },
+      "marketDataInspection": {
+        "hasVerifiedSymbol": true,
+        "hasLiveSource": true,
+        "hasEmptyOverlay": false,
+        "svgRects": 61
+      },
       "manualInspection": {
         "hasManualExpression": true,
+        "hasAlphaTemplates": true,
+        "hasParameterProfiles": true,
         "hasJsonUpload": true,
+        "hasDslReference": true,
+        "hasPeriodParameter": true,
+        "hasWinsorParameters": true,
+        "hasZscoreOperator": true,
         "hasAkshare": true,
         "stockSymbol": "600519",
         "fileInputs": 1
+      },
+      "dslReadability": {
+        "rowHeight": 60.1875,
+        "signatureFontSize": 12,
+        "descriptionFontSize": 12
       },
       "consoleErrors": []
     },
@@ -47,6 +72,8 @@
         "clippedText": [],
         "overflowingElements": [],
         "hasBrainEngine": true,
+        "hasWinnerRefinement": true,
+        "hasFavoriteButton": true,
         "hasSafeDslPolicy": true,
         "hasFixedBacktestPolicy": true,
         "hasSevenDayPolicy": true,
@@ -54,12 +81,35 @@
         "observationMinimum": "7",
         "aiEnabled": true
       },
+      "customInstrumentInspection": {
+        "symbol": "BTC-USDT-SWAP",
+        "paperTarget": "okx_demo",
+        "archiveRequiresSevenDays": true,
+        "archiveHasExploratoryFilter": false
+      },
+      "marketDataInspection": {
+        "hasVerifiedSymbol": true,
+        "hasLiveSource": true,
+        "hasEmptyOverlay": false,
+        "svgRects": 61
+      },
       "manualInspection": {
         "hasManualExpression": true,
+        "hasAlphaTemplates": true,
+        "hasParameterProfiles": true,
         "hasJsonUpload": true,
+        "hasDslReference": true,
+        "hasPeriodParameter": true,
+        "hasWinsorParameters": true,
+        "hasZscoreOperator": true,
         "hasAkshare": true,
         "stockSymbol": "600519",
         "fileInputs": 1
+      },
+      "dslReadability": {
+        "rowHeight": 60.1875,
+        "signatureFontSize": 12,
+        "descriptionFontSize": 12
       },
       "consoleErrors": []
     }

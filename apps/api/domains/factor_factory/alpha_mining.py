@@ -18,8 +18,8 @@ from core.factor_dsl import (
 )
 from core.llm import LLMClient, get_llm
 
-ALPHA_MINING_VERSION = "brain-alpha-v1.1"
-AI_PROMPT_VERSION = "brain-alpha-json-v2"
+ALPHA_MINING_VERSION = "brain-alpha-v1.2"
+AI_PROMPT_VERSION = "brain-alpha-refinement-json-v3"
 AI_RAW_OUTPUT_LIMIT = 50_000
 
 EXPRESSION_FIELDS = {"open", "high", "low", "close", "volume"}
@@ -517,7 +517,14 @@ def parse_alpha_expression(expression: str) -> dict[str, Any]:
     return result
 
 
-def _ai_messages(*, brief: str, interval: str, count: int, market: str) -> list[dict[str, str]]:
+def _ai_messages(
+    *,
+    brief: str,
+    interval: str,
+    count: int,
+    market: str,
+    seed_candidates: list[dict[str, Any]] | None = None,
+) -> list[dict[str, str]]:
     catalog = {
         "fields": ["open", "high", "low", "close", "volume"],
         "operators": [
@@ -545,17 +552,21 @@ def _ai_messages(*, brief: str, interval: str, count: int, market: str) -> list[
             "where",
         ],
     }
+    seeds = seed_candidates or []
     system = (
-        "You generate WorldQuant-BRAIN-style alpha hypotheses as JSON AST data only. "
+        "You refine screened WorldQuant-BRAIN-style alpha hypotheses as JSON AST data only. "
         "Never emit Python, code strings, future data access, negative lags, or unsupported fields. "
-        "Each expression must be causal, economically interpretable, and different from the others."
+        "Each expression must be causal, economically interpretable, and different from the others. "
+        "When screened seeds are supplied, every proposal must name one seed_candidate_id and make "
+        "a limited structural or parameter refinement of that seed rather than inventing an unrelated idea."
     )
     payload = {
-        "task": "propose_alpha_expressions",
+        "task": "refine_screened_alpha_expressions" if seeds else "propose_alpha_expressions",
         "count": count,
         "market": market,
         "interval": interval,
         "research_brief": brief,
+        "screened_seed_candidates": seeds,
         "catalog": catalog,
         "ast_contract": {
             "field": {"op": "field", "name": "close"},
@@ -586,6 +597,7 @@ def _ai_messages(*, brief: str, interval: str, count: int, market: str) -> list[
         "output_schema": {
             "candidates": [
                 {
+                    "seed_candidate_id": "required when screened seeds are supplied",
                     "candidate_id": "short_ascii_id",
                     "label": "short label",
                     "family": "hypothesis_family",
@@ -596,6 +608,11 @@ def _ai_messages(*, brief: str, interval: str, count: int, market: str) -> list[
                 }
             ]
         },
+        "refinement_rules": [
+            "Preserve the seed's economic hypothesis unless the output explicitly narrows it.",
+            "Prefer nearby lookbacks, normalization, winsorization, sign, or one compositional change.",
+            "Do not use confirmation or holdout evidence; only the supplied discovery metrics exist.",
+        ],
         "confirmation_labels_exposed": False,
     }
     return [
@@ -613,6 +630,7 @@ def generate_ai_proposals(
     maximum_tokens: int = 4_000,
     provider: str | None = None,
     client: LLMClient | None = None,
+    seed_candidates: list[dict[str, Any]] | None = None,
 ) -> tuple[list[AlphaProposal], dict[str, Any]]:
     if count <= 0:
         return [], {
@@ -620,7 +638,13 @@ def generate_ai_proposals(
             "candidate_count": 0,
             "requested_provider": provider,
         }
-    messages = _ai_messages(brief=brief, interval=interval, count=count, market=market)
+    messages = _ai_messages(
+        brief=brief,
+        interval=interval,
+        count=count,
+        market=market,
+        seed_candidates=seed_candidates,
+    )
     input_text = json.dumps(messages, ensure_ascii=False, sort_keys=True)
     input_fingerprint = hashlib.sha256(input_text.encode("utf-8")).hexdigest()
     try:
@@ -667,11 +691,19 @@ def generate_ai_proposals(
     proposals: list[AlphaProposal] = []
     rejected: list[dict[str, str]] = []
     hashes: set[str] = set()
+    seed_ids = {
+        str(item.get("candidate_id"))
+        for item in (seed_candidates or [])
+        if item.get("candidate_id")
+    }
     for index, row in enumerate(rows[:count]):
         if not isinstance(row, dict):
             rejected.append({"index": str(index), "reason": "candidate_not_object"})
             continue
         try:
+            seed_candidate_id = str(row.get("seed_candidate_id") or "")
+            if seed_ids and seed_candidate_id not in seed_ids:
+                raise FactorDslError("AI refinement must reference a screened seed_candidate_id")
             candidate_id = _safe_candidate_id(row.get("candidate_id"), f"ai_alpha_{index + 1}")
             ast = _normalize_ai_formula_ast(row["formula_ast"])
             definition = FactorDefinition(
@@ -711,10 +743,13 @@ def generate_ai_proposals(
                     prompt={
                         "version": AI_PROMPT_VERSION,
                         "input_fingerprint": input_fingerprint,
+                        "seed_candidate_id": seed_candidate_id or None,
                     },
                     ai_trace={
                         "token_usage": token_usage,
                         "output_raw": candidate_raw,
+                        "generation_stage": "ai_refinement" if seed_ids else "ai_proposal",
+                        "seed_candidate_id": seed_candidate_id or None,
                         "confirmation_labels_exposed": False,
                     },
                 )
@@ -734,6 +769,8 @@ def generate_ai_proposals(
         "output_raw": response.content[:AI_RAW_OUTPUT_LIMIT],
         "output_truncated": len(response.content) > AI_RAW_OUTPUT_LIMIT,
         "rejected": rejected,
+        "seed_candidate_ids": sorted(seed_ids),
+        "generation_stage": "ai_refinement" if seed_ids else "ai_proposal",
         "confirmation_labels_exposed": False,
     }
 

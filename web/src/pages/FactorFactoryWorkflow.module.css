@@ -53,11 +53,11 @@
 .alphaDslParameters code { color: var(--accent-strong); font-family: var(--font-mono); font-size: var(--fs-micro); }
 .alphaDslParameters small { color: var(--text-3); font-size: var(--fs-micro); line-height: 1.4; }
 .alphaDslOperators { min-height: 0; overflow-y: auto; border: 1px solid var(--border); background: var(--bg-elevated); }
-.alphaDslOperators button { display: grid; width: 100%; min-width: 0; gap: 3px; padding: 8px 10px; border: 0; border-bottom: 1px solid var(--border); color: var(--text-2); background: transparent; cursor: pointer; text-align: left; }
+.alphaDslOperators button { display: grid; width: 100%; min-width: 0; min-height: 54px; gap: 5px; padding: 10px 12px; border: 0; border-bottom: 1px solid var(--border); color: var(--text-2); background: transparent; cursor: pointer; text-align: left; }
 .alphaDslOperators button:last-of-type { border-bottom: 0; }
 .alphaDslOperators button:hover { background: var(--accent-weak); }
-.alphaDslOperators code { overflow-wrap: anywhere; color: var(--text-1); font-family: var(--font-mono); font-size: var(--fs-micro); }
-.alphaDslOperators span { color: var(--text-3); font-size: var(--fs-micro); line-height: 1.45; }
+.alphaDslOperators code { overflow-wrap: anywhere; color: var(--text-1); font-family: var(--font-mono); font-size: var(--fs-caption); font-weight: var(--fw-semibold); line-height: 1.35; }
+.alphaDslOperators span { color: var(--text-3); font-size: var(--fs-caption); line-height: 1.5; }
 .alphaDslOperators p { margin: 0; padding: var(--sp-3); color: var(--text-3); font-size: var(--fs-micro); }
 .autoControls { display: grid; grid-template-columns: repeat(5, minmax(120px, 1fr)); align-items: end; gap: var(--sp-3); padding: var(--sp-4) var(--sp-5); border-bottom: 1px solid var(--border); background: var(--bg-subtle); }
 .marketDataBar { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-4); min-height: 48px; padding: 7px var(--sp-5); border-bottom: 1px solid var(--border); background: var(--bg-elevated); }
@@ -95,6 +95,10 @@
 .okxKlinePanel { border-bottom: 1px solid var(--border); background: var(--bg-subtle); }
 .okxKlinePanel > :global(.card) { margin: 0; border: 0; background: var(--bg-elevated); box-shadow: none; }
 .instrumentPicker { position: relative; min-width: 0; }
+.instrumentInputRow { display: grid; grid-template-columns: minmax(0, 1fr) 36px; gap: 6px; }
+.favoriteButton, .favoriteActive { display: grid; width: 36px; height: 36px; padding: 0; place-items: center; border: 1px solid var(--border); color: var(--text-3); background: var(--bg-elevated); cursor: pointer; }
+.favoriteButton:hover:not(:disabled), .favoriteActive { border-color: var(--accent); color: var(--accent-strong); background: var(--accent-weak); }
+.favoriteButton:disabled, .favoriteActive:disabled { opacity: .45; cursor: not-allowed; }
 .instrumentOptions { position: absolute; z-index: 30; top: calc(100% + 5px); right: 0; left: 0; max-height: 260px; overflow-y: auto; border: 1px solid var(--border-strong); background: var(--bg-elevated); box-shadow: var(--shadow-pop); }
 .instrumentOptions button { display: grid; width: 100%; min-height: 48px; padding: 8px 10px; border: 0; border-bottom: 1px solid var(--border); color: var(--text-1); background: transparent; cursor: pointer; grid-template-columns: minmax(0, 1fr) auto; gap: var(--sp-2); text-align: left; }
 .instrumentOptions button:last-of-type { border-bottom: 0; }
@@ -104,6 +108,9 @@
 .instrumentOptions strong { overflow: hidden; font-size: var(--fs-caption); text-overflow: ellipsis; white-space: nowrap; }
 .instrumentOptions small { overflow: hidden; color: var(--text-3); font-family: var(--font-mono); font-size: var(--fs-micro); text-overflow: ellipsis; white-space: nowrap; }
 .instrumentOptions p { margin: 0; padding: 12px 10px; color: var(--text-3); font-size: var(--fs-caption); }
+.favoriteGroup { border-bottom: 1px solid var(--border-strong); background: var(--bg-subtle); }
+.favoriteGroup > strong { display: flex; align-items: center; gap: 6px; padding: 7px 10px; color: var(--accent-strong); font-size: var(--fs-micro); font-weight: var(--fw-semibold); }
+.favoriteGroup > button { background: var(--bg-elevated); }
 .aiToggle { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 10px; border: 1px solid var(--border); color: var(--text-2); background: var(--bg-elevated); font-size: var(--fs-caption); }
 .aiToggle input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); }
 .aiToggle:has(input:disabled) { color: var(--text-3); background: var(--bg-subtle); }
