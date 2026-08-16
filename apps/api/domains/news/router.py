@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 
 from . import service
 from .schemas import NewsAnalyzeRequest, NewsEventResearchRequest, NewsEventValidationRequest
@@ -17,7 +17,7 @@ def news_health() -> dict:
 
 
 @router.post("/analyze")
-def analyze_news(req: NewsAnalyzeRequest) -> dict:
+def analyze_news(req: NewsAnalyzeRequest, request: Request) -> dict:
     """抓取新闻并执行结构化分析。
 
     - 始终先走 SentimentAnalyzer 做本地兜底情绪分析
@@ -31,6 +31,7 @@ def analyze_news(req: NewsAnalyzeRequest) -> dict:
         limit=req.limit,
         use_api=req.use_api,
         research_run_id=req.research_run_id,
+        owner_id=str((getattr(request.state, "principal", None) or {}).get("id") or "local-user"),
     )
 
 

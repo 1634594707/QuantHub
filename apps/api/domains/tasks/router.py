@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import time
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 
 from apps.api import store
 
@@ -12,8 +12,20 @@ from .schemas import AnalysisKind, AnalysisTaskCreate, TaskStatus
 router = APIRouter(prefix="/analysis/tasks", tags=["analysis-tasks"])
 
 
+def _owner_id(request: Request) -> str:
+    principal = getattr(request.state, "principal", None) or {}
+    return str(principal.get("id") or "local-user")
+
+
+def _owned_task(task_id: str, request: Request) -> dict:
+    task = store.get_analysis_task(task_id)
+    if task is None or task.get("owner_id") != _owner_id(request):
+        raise HTTPException(status_code=404, detail=f"分析任务不存在: {task_id}")
+    return task
+
+
 @router.post("", status_code=202)
-def create_task(req: AnalysisTaskCreate) -> dict:
+def create_task(req: AnalysisTaskCreate, request: Request) -> dict:
     task, duplicate = service.submit_task(
         kind=req.kind,
         symbol=req.symbol,
@@ -21,12 +33,14 @@ def create_task(req: AnalysisTaskCreate) -> dict:
         timeframe=req.timeframe,
         payload=req.payload,
         timeout_seconds=req.timeout_seconds,
+        owner_id=_owner_id(request),
     )
     return {"ok": True, "duplicate": duplicate, "task": task}
 
 
 @router.get("")
 def list_tasks(
+    request: Request,
     status: TaskStatus | None = None,
     kind: AnalysisKind | None = None,
     limit: int = Query(default=50, ge=1, le=500),
@@ -38,6 +52,7 @@ def list_tasks(
             status=status,
             kind=kind,
             cursor=cursor,
+            owner_id=_owner_id(request),
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -53,6 +68,7 @@ def list_tasks(
 
 @router.get("/recent")
 def get_recent_task(
+    request: Request,
     kind: AnalysisKind,
     symbol: str = Query(..., min_length=1),
     market: str = Query(..., min_length=1),
@@ -65,33 +81,32 @@ def get_recent_task(
         market=market,
         timeframe=timeframe,
         since=time.time() - within_seconds,
+        owner_id=_owner_id(request),
     )
     return {"ok": True, "task": service.refresh_timeout(task) if task else None}
 
 
 @router.get("/{task_id}")
-def get_task(task_id: str) -> dict:
-    task = store.get_analysis_task(task_id)
-    if task is None:
-        raise HTTPException(status_code=404, detail=f"分析任务不存在: {task_id}")
+def get_task(task_id: str, request: Request) -> dict:
+    task = _owned_task(task_id, request)
     return {"ok": True, "task": service.refresh_timeout(task)}
 
 
 @router.post("/{task_id}/cancel")
-def cancel_task(task_id: str) -> dict:
-    task = store.get_analysis_task(task_id)
-    if task is None:
-        raise HTTPException(status_code=404, detail=f"分析任务不存在: {task_id}")
+def cancel_task(task_id: str, request: Request) -> dict:
+    task = _owned_task(task_id, request)
     return {"ok": True, "task": service.cancel_task(task)}
 
 
 @router.post("/{task_id}/retry", status_code=202)
-def retry_task(task_id: str) -> dict:
-    task = store.get_analysis_task(task_id)
-    if task is None:
-        raise HTTPException(status_code=404, detail=f"分析任务不存在: {task_id}")
-    if task["status"] not in {"failed", "cancelled", "timeout"}:
-        raise HTTPException(status_code=409, detail="只有失败、取消或超时任务可以重试")
+def retry_task(task_id: str, request: Request) -> dict:
+    task = _owned_task(task_id, request)
+    result = task.get("result")
+    is_partial = (
+        task["status"] == "succeeded" and isinstance(result, dict) and result.get("partial") is True
+    )
+    if task["status"] not in {"failed", "cancelled", "timeout"} and not is_partial:
+        raise HTTPException(status_code=409, detail="只有失败、部分成功、取消或超时任务可以重试")
     timeout_seconds = int(task["request"].get("timeout_seconds", 90))
     payload = {key: value for key, value in task["request"].items() if key != "timeout_seconds"}
     if task["kind"] == "evaluation" and task.get("result"):
@@ -115,5 +130,6 @@ def retry_task(task_id: str) -> dict:
         timeout_seconds=timeout_seconds,
         attempt=task["attempt"] + 1,
         parent_task_id=task["id"],
+        owner_id=_owner_id(request),
     )
     return {"ok": True, "task": retried}

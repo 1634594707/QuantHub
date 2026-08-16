@@ -60,6 +60,7 @@ from .domains.market_data import router as market_data_router
 from .domains.news import router as news_router
 from .domains.portfolio import router as portfolio_router
 from .domains.research import router as research_router
+from .domains.research_data import router as research_data_router
 from .domains.search import router as search_router
 from .domains.settings import router as settings_router
 from .domains.signals import router as signals_router
@@ -172,6 +173,7 @@ app.add_middleware(
 
 # Wire modular domain routers
 app.include_router(research_router)
+app.include_router(research_data_router)
 app.include_router(alerts_router)
 app.include_router(search_router)
 app.include_router(market_data_router)

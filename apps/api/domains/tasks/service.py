@@ -5,12 +5,27 @@ import json
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
+from datetime import UTC, datetime
+from decimal import Decimal
 from typing import Any
 
 from apps.api import store
 
 _executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="quanthub-analysis")
 _submit_lock = threading.Lock()
+
+
+def _event_time(value: Any) -> datetime:
+    if isinstance(value, (int, float)):
+        seconds = float(value) / 1000 if float(value) > 10_000_000_000 else float(value)
+        return datetime.fromtimestamp(seconds, UTC)
+    if isinstance(value, str):
+        try:
+            parsed = datetime.fromisoformat(value)
+            return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=UTC)
+        except ValueError:
+            pass
+    return datetime.now(UTC)
 
 
 def _fingerprint(kind: str, symbol: str, market: str, timeframe: str, request: dict) -> str:
@@ -39,11 +54,12 @@ def submit_task(
     timeout_seconds: int,
     attempt: int = 1,
     parent_task_id: str | None = None,
+    owner_id: str = "local-user",
 ) -> tuple[dict, bool]:
     request = {**payload, "timeout_seconds": timeout_seconds}
     fingerprint = _fingerprint(kind, symbol, market, timeframe, request)
     with _submit_lock:
-        active = store.find_active_analysis_task(fingerprint)
+        active = store.find_active_analysis_task(fingerprint, owner_id=owner_id)
         if active is not None:
             active = refresh_timeout(active)
             if active["status"] in {"queued", "running"}:
@@ -57,6 +73,7 @@ def submit_task(
             request=request,
             attempt=attempt,
             parent_task_id=parent_task_id,
+            owner_id=owner_id,
         )
     _executor.submit(_execute_task, task["id"])
     return task, False
@@ -74,6 +91,7 @@ def _run_analysis(task: dict) -> dict[str, Any]:
             timeframe=task["timeframe"],
             market=task["market"],
             research_run_id=request.get("research_run_id"),
+            owner_id=str(task.get("owner_id") or "local-user"),
         )
     if task["kind"] == "news":
         from apps.api.domains.news.service import analyze as analyze_news
@@ -85,6 +103,7 @@ def _run_analysis(task: dict) -> dict[str, Any]:
             limit=int(request.get("limit", 20)),
             use_api=bool(request.get("use_api", True)),
             research_run_id=request.get("research_run_id"),
+            owner_id=str(task.get("owner_id") or "local-user"),
         )
     if task["kind"] == "ensemble":
         from apps.api.domains.ensemble.schemas import EnsembleRequest
@@ -97,7 +116,7 @@ def _run_analysis(task: dict) -> dict[str, Any]:
             limit=int(request.get("limit", 200)),
             research_run_id=request.get("research_run_id"),
         )
-        return ensemble_predict(req)
+        return ensemble_predict(req, owner_id=str(task.get("owner_id") or "local-user"))
     return {"ok": False, "error": f"未知分析类型: {task['kind']}"}
 
 
@@ -121,7 +140,17 @@ def _run_evaluation(task: dict, request: dict[str, Any]) -> dict[str, Any]:
     modules = [
         module
         for module in request.get("modules", ["market", "news", "pa", "ensemble"])
-        if module in {"market", "news", "pa", "ensemble"}
+        if module
+        in {
+            "market",
+            "news",
+            "pa",
+            "ensemble",
+            "fundamentals",
+            "valuation",
+            "announcements",
+            "macro",
+        }
     ]
     modules = list(dict.fromkeys(modules)) or ["market", "news", "pa", "ensemble"]
     evaluation_profile = str(request.get("evaluation_profile", "balanced"))
@@ -142,6 +171,8 @@ def _run_evaluation(task: dict, request: dict[str, Any]) -> dict[str, Any]:
     instrument = instrument_service.resolve_strict(task["symbol"], task["market"])
     resume_run_id = request.get("research_run_id")
     run = store.get_research_run(str(resume_run_id)) if resume_run_id else None
+    if run is not None and run.get("owner_id") != task.get("owner_id"):
+        run = None
     if run is None:
         run = store.create_research_run(
             symbol=instrument.code,
@@ -154,8 +185,11 @@ def _run_evaluation(task: dict, request: dict[str, Any]) -> dict[str, Any]:
                 "evaluation_profile": evaluation_profile,
                 "market_methods": market_methods,
                 "strategy_lenses": strategy_lenses,
+                "research_mode": str(request.get("research_mode", "investor")),
+                "holding_status": str(request.get("holding_status", "not_held")),
             },
             instrument_id=instrument.instrument_id,
+            owner_id=str(task.get("owner_id") or "local-user"),
         )
     run_id = str(run["id"])
     store.update_research_run(run_id, {"status": "running", "error": None})
@@ -178,6 +212,8 @@ def _run_evaluation(task: dict, request: dict[str, Any]) -> dict[str, Any]:
     save_progress()
     errors: list[str] = []
     succeeded = 0
+    market_price: Decimal | None = None
+    market_price_at: datetime | None = None
 
     for module in modules:
         current_task = store.get_analysis_task(task["id"])
@@ -221,6 +257,8 @@ def _run_evaluation(task: dict, request: dict[str, Any]) -> dict[str, Any]:
                 if not market_result.get("ok") or not market_result.get("candles"):
                     raise RuntimeError(market_result.get("error") or "行情数据为空")
                 candles = market_result["candles"]
+                market_price = Decimal(str(candles[-1]["c"]))
+                market_price_at = _event_time(candles[-1]["t"])
                 add_evidence(
                     run_id,
                     kind="market_snapshot",
@@ -285,6 +323,7 @@ def _run_evaluation(task: dict, request: dict[str, Any]) -> dict[str, Any]:
                     limit=int(request.get("news_limit", 20)),
                     use_api=bool(request.get("use_api", True)),
                     research_run_id=run_id,
+                    owner_id=str(task.get("owner_id") or "local-user"),
                 )
                 if not news_result.get("ok"):
                     raise RuntimeError(news_result.get("error") or "新闻分析失败")
@@ -300,6 +339,7 @@ def _run_evaluation(task: dict, request: dict[str, Any]) -> dict[str, Any]:
                     timeframe=task["timeframe"],
                     market=instrument.market,
                     research_run_id=run_id,
+                    owner_id=str(task.get("owner_id") or "local-user"),
                 )
                 if not pa_result.get("ok"):
                     raise RuntimeError(pa_result.get("error") or "价格行为分析失败")
@@ -314,10 +354,83 @@ def _run_evaluation(task: dict, request: dict[str, Any]) -> dict[str, Any]:
                         timeframe=task["timeframe"],
                         limit=int(request.get("ensemble_limit", 200)),
                         research_run_id=run_id,
-                    )
+                    ),
+                    owner_id=str(task.get("owner_id") or "local-user"),
                 )
                 if not ensemble_result.get("ok"):
                     raise RuntimeError(ensemble_result.get("error") or "多模型判断失败")
+            elif module == "fundamentals":
+                from apps.api.domains.financials.service import evaluate_fundamentals
+
+                fundamental_result = evaluate_fundamentals(
+                    instrument_id=instrument.instrument_id,
+                    market=instrument.market,
+                )
+                add_evidence(
+                    run_id,
+                    kind="fundamental_snapshot",
+                    source=str(fundamental_result["provenance"]["source"]),
+                    title=f"{instrument.code} 点时基本面快照",
+                    payload=fundamental_result,
+                    uri=fundamental_result["provenance"].get("source_url"),
+                )
+                complete_module(run_id, "fundamentals", fundamental_result)
+            elif module == "valuation":
+                from apps.api.domains.financials.service import evaluate_valuation
+
+                if market_price is None or market_price_at is None:
+                    current_run = store.get_research_run(run_id) or {}
+                    market_summary = (current_run.get("summary") or {}).get("market") or {}
+                    latest_price = market_summary.get("latest_price")
+                    market_evidence = next(
+                        (
+                            item
+                            for item in reversed(current_run.get("evidence") or [])
+                            if item.get("kind") == "market_snapshot"
+                        ),
+                        None,
+                    )
+                    if latest_price is not None and market_evidence is not None:
+                        market_price = Decimal(str(latest_price))
+                        market_price_at = datetime.fromtimestamp(
+                            float(market_evidence["captured_at"]), UTC
+                        )
+                if market_price is None or market_price_at is None:
+                    raise RuntimeError("估值模块缺少可复核的价格时点")
+                valuation_result = evaluate_valuation(
+                    instrument_id=instrument.instrument_id,
+                    market=instrument.market,
+                    price=market_price,
+                    price_at=market_price_at,
+                )
+                add_evidence(
+                    run_id,
+                    kind="valuation_snapshot",
+                    source=str(valuation_result["provenance"]["source"]),
+                    title=f"{instrument.code} 点时估值快照",
+                    payload=valuation_result,
+                    uri=valuation_result["provenance"].get("source_url"),
+                )
+                complete_module(run_id, "valuation", valuation_result)
+            elif module == "announcements":
+                from apps.api.domains.research_data.service import evaluate_company_events
+
+                evaluate_company_events(
+                    instrument_id=instrument.instrument_id,
+                    symbol=instrument.code,
+                    market=instrument.market,
+                    run_id=run_id,
+                    limit=int(request.get("announcement_limit", 30)),
+                )
+            elif module == "macro":
+                from apps.api.domains.research_data.service import evaluate_macro_events
+
+                evaluate_macro_events(
+                    instrument_id=instrument.instrument_id,
+                    run_id=run_id,
+                    owner_id=str(task.get("owner_id") or "local-user"),
+                    market=instrument.market,
+                )
             steps[module] = {"status": "succeeded", "error": None}
             succeeded += 1
         except Exception as exc:  # noqa: BLE001 - 单模块失败不能中断其余评估模块

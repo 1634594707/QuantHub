@@ -97,6 +97,17 @@ export type ResearchStatus =
 export type AnalysisTaskKind = 'pa' | 'news' | 'ensemble' | 'evaluation'
 export type AnalysisTaskStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled' | 'timeout'
 
+export interface UserResearchPreference {
+  user_id: string
+  default_mode: 'quick' | 'investor' | 'professional' | 'quant'
+  default_market: 'a_shares' | 'us_stocks' | 'crypto'
+  holding_status: 'not_held' | 'held'
+  research_horizon: 'short' | 'swing' | 'medium' | 'long'
+  risk_preference: 'conservative' | 'balanced' | 'aggressive'
+  terminology_level: 'plain' | 'standard' | 'technical'
+  updated_at: string
+}
+
 export interface AnalysisTask {
   id: string
   kind: AnalysisTaskKind
@@ -1968,6 +1979,12 @@ export interface WatchlistItem {
   /** 数据源是否可用；false 时前端展示“数据源不可用”，不伪装成 0。 */
   available?: boolean
   market?: string
+  latest_research_run_id?: string | null
+  research_direction?: string | null
+  research_execution_eligible?: boolean
+  research_updated_at?: number | null
+  evidence_age_hours?: number | null
+  next_event?: Record<string, unknown> | null
 }
 
 export interface WatchlistResp {
@@ -2574,6 +2591,10 @@ export type AlertRuleType =
   | 'volatility_above'
   | 'signal_created'
   | 'evaluation_changed'
+  | 'earnings_released'
+  | 'valuation_band_crossed'
+  | 'major_company_event'
+  | 'macro_calendar'
   | 'risk_invalidated'
   | 'factor_status_changed'
   | 'factor_ic_decay'

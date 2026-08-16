@@ -62,6 +62,7 @@ def analyze(
     limit: int = 20,
     use_api: bool = True,
     research_run_id: str | None = None,
+    owner_id: str = "local-user",
 ) -> dict[str, Any]:
     """抓取新闻并执行结构化分析。
 
@@ -169,6 +170,7 @@ def analyze(
                     "timeframe": timeframe,
                 },
                 run_id=research_run_id,
+                owner_id=owner_id,
             )
         except ResearchContextMismatchError as exc:
             logger.warning("新闻研究上下文不一致，回退到新建 run: %s", exc)
@@ -184,6 +186,7 @@ def analyze(
                     "timeframe": timeframe,
                 },
                 run_id=None,
+                owner_id=owner_id,
             )
         first_title = batch.items[0].title if batch.items else symbol
         add_evidence(

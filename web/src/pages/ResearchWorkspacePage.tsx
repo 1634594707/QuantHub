@@ -45,6 +45,10 @@ const EVALUATION_STEP_LABELS: Record<string, string> = {
   news: '新闻 AI',
   pa: '价格结构 AI',
   ensemble: '模型共识',
+  fundamentals: '财报质量',
+  valuation: '估值位置',
+  announcements: '公司公告',
+  macro: '宏观传导',
   report: '生成报告',
 }
 
@@ -63,6 +67,27 @@ const MODULE_LABELS: Record<string, string> = {
   pa: '价格结构 AI',
   ensemble: '模型共识',
   market: '量化快照',
+  fundamentals: '财报质量',
+  valuation: '估值位置',
+  announcements: '公司公告',
+  macro: '宏观传导',
+}
+
+const RESEARCH_MODE_LABELS: Record<string, string> = {
+  quick: '简明',
+  investor: '投资研究',
+  professional: '专业验证',
+  quant: '量化实验',
+}
+
+const GUIDANCE_LABELS: Record<string, string> = {
+  continue_observing: '继续观察',
+  research_further: '值得深入研究',
+  wait_for_confirmation: '等待确认',
+  review_holding: '持有复核',
+  reduce_risk: '降低风险',
+  exit_watch: '退出观察',
+  insufficient_data: '数据不足',
 }
 
 const EVALUATION_PROFILE_LABELS: Record<string, string> = {
@@ -75,7 +100,7 @@ const WORKSPACE_EVALUATION_METHODS = [
   'trend', 'momentum', 'volatility', 'drawdown', 'mean_reversion',
 ]
 const WORKSPACE_STRATEGY_LENSES = ['trend_following', 'mean_reversion', 'risk_first']
-const EVALUATION_HORIZONS: Record<WorkspaceTimeframe, string> = {
+const EVALUATION_HORIZONS: Record<WorkspaceTimeframe, 'short' | 'swing' | 'medium'> = {
   '1h': 'short',
   '1d': 'swing',
   '1w': 'medium',
@@ -137,6 +162,20 @@ function buildReadableReport(run: ResearchRun) {
   const news = asRecord(summary?.news)
   const unifiedDecision = asRecord(summary?.research_decision)
   const evidenceFusion = asRecord(summary?.evidence_fusion)
+  const fundamentalSummary = asRecord(summary?.fundamentals)
+  const valuationSummary = asRecord(summary?.valuation)
+  const companyEventSummary = asRecord(summary?.announcements)
+  const macroSummary = asRecord(summary?.macro)
+  const actionGuidance = asRecord(summary?.action_guidance)
+  const companyEvents = Array.isArray(companyEventSummary?.events)
+    ? companyEventSummary.events.map(asRecord).filter((item): item is Record<string, unknown> => item !== null)
+    : []
+  const macroEvents = Array.isArray(macroSummary?.events)
+    ? macroSummary.events.map(asRecord).filter((item): item is Record<string, unknown> => item !== null)
+    : []
+  const macroTransmissions = Array.isArray(macroSummary?.transmissions)
+    ? macroSummary.transmissions.map(asRecord).filter((item): item is Record<string, unknown> => item !== null)
+    : []
   const decisionDirection = unifiedDecision?.direction === 'long'
     || unifiedDecision?.direction === 'short'
     || unifiedDecision?.direction === 'neutral'
@@ -192,11 +231,11 @@ function buildReadableReport(run: ResearchRun) {
       : []
   const sourceDetails = Array.from(new Set((run.evidence ?? []).map((item) => item.source).filter(Boolean)))
   const disagreements = decisionConflicts.map((item) => String(item.reason ?? item.kind ?? '模块意见冲突'))
-  const coverage = ['fundamental', 'valuation', 'factor', 'holding'].map((key) => {
+  const coverage = ['fundamental', 'valuation', 'company_events', 'macro', 'factor', 'holding'].map((key) => {
     const item = asRecord(evidenceFusion?.[key])
     return {
       key,
-      covered: item?.covered === true || (key === 'holding' && item?.available === true),
+      covered: item?.covered === true || item?.status === 'covered' || (key === 'holding' && (item?.available === true || item?.status === 'held')),
       missing: Array.isArray(item?.missing_fields) ? item.missing_fields.map(String) : [],
     }
   })
@@ -258,6 +297,14 @@ function buildReadableReport(run: ResearchRun) {
     quantitativeDimensions,
     quantitativeStrategies,
     quantitativeDisagreement: quantitative?.has_strategy_disagreement === true,
+    fundamental: fundamentalSummary,
+    valuation: valuationSummary,
+    companyEventSummary,
+    macroSummary,
+    companyEvents,
+    macroEvents,
+    macroTransmissions,
+    actionGuidance,
   }
 }
 
@@ -275,8 +322,26 @@ function createReadableReportHtml(run: ResearchRun, report: ReadableReport, inst
     parent.appendChild(node)
     return node
   }
+  const evidence = run.evidence ?? []
   appendText(documentCopy.body, 'h1', `${instrumentName ? `${instrumentName} ` : ''}${run.symbol} 评估报告`)
   appendText(documentCopy.body, 'small', `${run.market} · ${run.timeframe} · ${formatTime(run.updated_at)} · ${run.id}`)
+  const evidenceCutoffs = evidence.flatMap((item) => {
+    const provenance = asRecord(item.payload?.provenance)
+    return typeof provenance?.available_at === 'string'
+      ? [provenance.available_at]
+      : []
+  })
+  const dataCutoff = evidenceCutoffs.reduce<string | null>((latest, current) => (
+    latest === null || Date.parse(current) > Date.parse(latest) ? current : latest
+  ), null) ?? new Date(run.updated_at * 1000).toISOString()
+  const methodVersions = Array.from(new Set(evidence.flatMap((item) => {
+    const values = [item.source]
+    const payload = item.payload
+    for (const key of ['method_version', 'decision_version', 'version']) {
+      if (typeof payload?.[key] === 'string') values.push(payload[key] as string)
+    }
+    return values.filter(Boolean)
+  }))).sort()
   appendText(documentCopy.body, 'h2', `结论：${report.conclusion}`)
   appendText(documentCopy.body, 'p', report.headline)
   appendText(documentCopy.body, 'p', report.explanation)
@@ -286,6 +351,8 @@ function createReadableReportHtml(run: ResearchRun, report: ReadableReport, inst
     ['价格时间', typeof report.latestTime === 'string' ? report.latestTime : '数据不足'],
     ['行情来源', report.marketSource ?? '数据不足'],
     ['适用周期', TIMEFRAME_LABELS[run.timeframe as WorkspaceTimeframe] ?? run.timeframe],
+    ['数据截止', dataCutoff],
+    ['证据数量', `${evidence.length} 条`],
   ].forEach(([label, value]) => {
     const wrapper = documentCopy.createElement('div')
     appendText(wrapper, 'dt', label)
@@ -299,6 +366,15 @@ function createReadableReportHtml(run: ResearchRun, report: ReadableReport, inst
   ;(report.keyFactors.length ? report.keyFactors : ['当前运行没有可展示的主要依据']).forEach((item) => appendText(evidenceList, 'li', item))
   evidenceSection.appendChild(evidenceList)
   documentCopy.body.appendChild(evidenceSection)
+  const auditSection = documentCopy.createElement('section')
+  appendText(auditSection, 'h2', '证据来源与方法版本')
+  appendText(auditSection, 'p', methodVersions.length ? methodVersions.join(' · ') : '没有可用的方法版本记录')
+  const sourceList = documentCopy.createElement('ul')
+  evidence.forEach((item) => {
+    appendText(sourceList, 'li', `${item.kind} · ${item.title || '未命名证据'} · ${item.source}${item.uri ? ` · ${item.uri}` : ''}`)
+  })
+  auditSection.appendChild(sourceList)
+  documentCopy.body.appendChild(auditSection)
   const watchSection = documentCopy.createElement('section')
   appendText(watchSection, 'h2', '风险、失效条件与观察项')
   appendText(watchSection, 'p', `主要风险：${report.risk}`)
@@ -307,7 +383,7 @@ function createReadableReportHtml(run: ResearchRun, report: ReadableReport, inst
   ;(report.watchPoints.length ? report.watchPoints : ['等待下一次有效数据更新后重新评估']).forEach((item) => appendText(watchList, 'li', item))
   watchSection.appendChild(watchList)
   documentCopy.body.appendChild(watchSection)
-  appendText(documentCopy.body, 'footer', '辅助研究，不构成投资建议。')
+  appendText(documentCopy.body, 'footer', '研究参考，不构成投资建议或收益承诺；请结合报告所列原始来源独立判断。')
   return `<!doctype html>${documentCopy.documentElement.outerHTML}`
 }
 
@@ -400,6 +476,8 @@ export default function ResearchWorkspacePage() {
   const evaluationTaskId = searchParams.get('evaluation_task_id') || ''
   const rawView = searchParams.get('view') || 'overview'
   const view: View = VIEWS.some((item) => item.key === rawView) ? rawView as View : 'overview'
+  const rawResearchMode = searchParams.get('mode') || 'investor'
+  const researchMode = rawResearchMode in RESEARCH_MODE_LABELS ? rawResearchMode : 'investor'
 
   const [symbolInput, setSymbolInput] = useState(symbol)
   const [activeRunId, setActiveRunId] = useState<string | null>(requestedRunId || null)
@@ -413,6 +491,7 @@ export default function ResearchWorkspacePage() {
   const [reportActionMessage, setReportActionMessage] = useState('')
   const [evaluationStarting, setEvaluationStarting] = useState(false)
   const [evaluationStartError, setEvaluationStartError] = useState('')
+  const preference = useApi(() => api.researchPreference(), [], { retry: false })
   const history = useApi(
     () => api.researchRuns(symbol, undefined, 50, favoritesOnly || undefined),
     [symbol, favoritesOnly, historyKey],
@@ -495,6 +574,14 @@ export default function ResearchWorkspacePage() {
       resetKey: `${activeRunId}|${compareRunId}`,
     },
   )
+
+  useEffect(() => {
+    const preferredMode = preference.data?.preference.default_mode
+    if (searchParams.has('mode') || !preferredMode) return
+    const query = new URLSearchParams(searchParams)
+    query.set('mode', preferredMode)
+    setSearchParams(query, { replace: true })
+  }, [preference.data, searchParams, setSearchParams])
 
   async function exportResearch(runId: string) {
     const exported = await api.researchExport(runId)
@@ -605,7 +692,7 @@ export default function ResearchWorkspacePage() {
     setEvaluationStartError('')
     try {
       const modules = market === 'a_shares'
-        ? ['market', 'news', 'pa', 'ensemble']
+        ? ['market', 'news', 'pa', 'ensemble', 'fundamentals', 'valuation', 'announcements', 'macro']
         : ['market', 'pa', 'ensemble']
       const response = await api.createAnalysisTask({
         kind: 'evaluation',
@@ -615,10 +702,12 @@ export default function ResearchWorkspacePage() {
         payload: {
           modules,
           evaluation_horizon: EVALUATION_HORIZONS[timeframe],
-          evaluation_profile: 'balanced',
+          evaluation_profile: market === 'a_shares' ? 'comprehensive' : 'balanced',
           market_methods: WORKSPACE_EVALUATION_METHODS,
           strategy_lenses: WORKSPACE_STRATEGY_LENSES,
-          market_limit: 240,
+          market_limit: market === 'a_shares' ? 480 : 240,
+          research_mode: researchMode,
+          holding_status: preference.data?.preference.holding_status ?? 'not_held',
         },
         timeout_seconds: 360,
       })
@@ -629,7 +718,7 @@ export default function ResearchWorkspacePage() {
       query.delete('compare_run_id')
       setActiveRunId(null)
       setCompareRunId('')
-      setSearchParams(query, { replace: true })
+      navigate(`/research/${encodeURIComponent(symbol)}?${query.toString()}`, { replace: true })
     } catch (error) {
       setEvaluationStartError(error instanceof Error ? error.message : '综合评估任务创建失败')
     } finally {
@@ -687,6 +776,23 @@ export default function ResearchWorkspacePage() {
     const query = new URLSearchParams(searchParams)
     query.set('view', next)
     setSearchParams(query)
+  }
+
+  function setResearchMode(next: string) {
+    const query = new URLSearchParams(searchParams)
+    query.set('mode', next)
+    setSearchParams(query, { replace: true })
+    const saved = preference.data?.preference
+    if (next in RESEARCH_MODE_LABELS) {
+      void api.updateResearchPreference({
+        default_mode: next as 'quick' | 'investor' | 'professional' | 'quant',
+        default_market: saved?.default_market ?? market,
+        holding_status: saved?.holding_status ?? 'not_held',
+        research_horizon: saved?.research_horizon ?? EVALUATION_HORIZONS[timeframe],
+        risk_preference: saved?.risk_preference ?? 'balanced',
+        terminology_level: saved?.terminology_level ?? 'standard',
+      }).then((response) => preference.setData(response)).catch(() => undefined)
+    }
   }
 
   function setFavoriteFilter(nextValue: boolean) {
@@ -800,6 +906,18 @@ export default function ResearchWorkspacePage() {
               </button>
             ))}
           </div>
+          <label>
+            <span>查看方式</span>
+            <select
+              value={researchMode}
+              onChange={(event) => setResearchMode(event.target.value)}
+              aria-label="研究查看方式"
+            >
+              {Object.entries(RESEARCH_MODE_LABELS).map(([value, label]) => (
+                <option value={value} key={value}>{label}</option>
+              ))}
+            </select>
+          </label>
           <button className="research-go" type="submit">切换</button>
           <Button
             className="research-evaluate"
@@ -955,12 +1073,22 @@ export default function ResearchWorkspacePage() {
                       </div>
                     </header>
                     <p className="research-report-explanation">{readableReport.explanation}</p>
+                    {readableReport.actionGuidance && (
+                      <section className="research-action-guidance" aria-label="场景化建议参考">
+                        <div>
+                          <span>建议参考</span>
+                          <b>{GUIDANCE_LABELS[String(readableReport.actionGuidance.status)] ?? String(readableReport.actionGuidance.status)}</b>
+                        </div>
+                        <p>{Array.isArray(readableReport.actionGuidance.primary_reasons) ? readableReport.actionGuidance.primary_reasons.map(String).slice(0, 3).join('；') : '等待有效建议依据'}</p>
+                        <small>{String(readableReport.actionGuidance.disclaimer ?? '研究参考，不是收益承诺。')}</small>
+                      </section>
+                    )}
                     <div className="research-decision-modules" aria-label="统一研究决策模块意见">
                       {readableReport.moduleOpinions.map((opinion) => <div key={String(opinion.module)}><span>{MODULE_LABELS[String(opinion.module)] ?? String(opinion.module)}</span><b>{String(opinion.direction)}</b><small>{String(opinion.status)}{typeof opinion.reason === 'string' && opinion.reason ? ` · ${opinion.reason}` : ''}</small></div>)}
                       {!readableReport.moduleOpinions.length && <div><span>统一决策</span><b>insufficient</b><small>没有保存模块意见</small></div>}
                     </div>
                     <div className="research-evidence-coverage" aria-label="证据覆盖范围">
-                      {readableReport.coverage.map((item) => <span key={item.key} className={item.covered ? 'covered' : 'missing'}>{item.key === 'fundamental' ? '基本面' : item.key === 'valuation' ? '估值' : item.key === 'factor' ? '因子' : '持仓'} · {item.covered ? '已覆盖' : `缺失${item.missing.length ? `：${item.missing.join('/')}` : ''}`}</span>)}
+                      {readableReport.coverage.map((item) => <span key={item.key} className={item.covered ? 'covered' : 'missing'}>{item.key === 'fundamental' ? '基本面' : item.key === 'valuation' ? '估值' : item.key === 'company_events' ? '公司事件' : item.key === 'macro' ? '宏观传导' : item.key === 'factor' ? '因子' : '持仓'} · {item.covered ? '已覆盖' : `缺失${item.missing.length ? `：${item.missing.join('/')}` : ''}`}</span>)}
                     </div>
                     <dl className="research-report-metrics">
                       <div><dt>最新价格</dt><dd>{readableReport.latestPrice?.toLocaleString('zh-CN') ?? '数据不足'}</dd></div>
@@ -968,7 +1096,70 @@ export default function ResearchWorkspacePage() {
                       <div><dt>行情来源</dt><dd>{readableReport.marketSource ?? '数据不足'}</dd></div>
                       <div><dt>新闻覆盖</dt><dd>{readableReport.newsStatus}</dd></div>
                     </dl>
-                    {readableReport.quantitativeDimensions.length > 0 && (
+                    {(readableReport.fundamental || readableReport.valuation) && (
+                      <div className="research-financial-grid">
+                        <section>
+                          <span>财报质量</span>
+                          <b>{String(readableReport.fundamental?.financial_quality ?? '数据不足')}</b>
+                          <small>盈利趋势 {String(readableReport.fundamental?.earnings_trend ?? 'insufficient')} · 现金流 {String(readableReport.fundamental?.cash_flow_quality ?? 'insufficient')}</small>
+                        </section>
+                        <section>
+                          <span>估值位置</span>
+                          <b>{String(readableReport.valuation?.valuation_range ?? '数据不足')}</b>
+                          <small>自身历史分位 {typeof readableReport.valuation?.valuation_percentile === 'number' ? `${(readableReport.valuation.valuation_percentile * 100).toFixed(0)}%` : '不可用'} · 置信度 {typeof readableReport.valuation?.confidence === 'number' ? `${(readableReport.valuation.confidence * 100).toFixed(0)}%` : '不可用'}</small>
+                        </section>
+                      </div>
+                    )}
+                    {(readableReport.companyEvents.length > 0 || readableReport.macroEvents.length > 0 || readableReport.macroTransmissions.length > 0) && (
+                      <section className="research-event-timeline" aria-labelledby="research-event-timeline-title">
+                        <header>
+                          <div>
+                            <span>公司与宏观</span>
+                            <h3 id="research-event-timeline-title">事件时间线</h3>
+                          </div>
+                          <p>{String(readableReport.companyEventSummary?.reason ?? readableReport.macroSummary?.reason ?? '事件证据已归档')}</p>
+                        </header>
+                        <div className="research-event-list">
+                          {[
+                            ...readableReport.companyEvents.map((event) => ({
+                              kind: '公司事件',
+                              title: String(event.title ?? '未命名公司事件'),
+                              time: String(asRecord(event.provenance)?.published_at ?? ''),
+                              direction: String(event.direction ?? 'insufficient'),
+                              detail: `${String(event.category ?? 'other')} · ${String(event.verification_status ?? 'pending')}`,
+                            })),
+                            ...readableReport.macroEvents.map((event) => ({
+                              kind: '宏观事件',
+                              title: String(event.title ?? '未命名宏观事件'),
+                              time: String(asRecord(event.provenance)?.published_at ?? ''),
+                              direction: String(event.direction ?? 'insufficient'),
+                              detail: `${String(event.state ?? 'scheduled')} · 实际 ${String(event.actual_value ?? '待公布')} · 预期 ${String(event.expected_value ?? '无')}`,
+                            })),
+                            ...readableReport.macroTransmissions.map((item) => ({
+                              kind: '宏观传导',
+                              title: `${String(item.channel ?? 'unknown')} → ${symbol}`,
+                              time: '',
+                              direction: String(item.direction ?? 'insufficient'),
+                              detail: `${String(item.order ?? 'second_order')} · ${String(item.horizon ?? 'short')} · 强度 ${typeof item.strength === 'number' ? Math.round(item.strength * 100) : 0}%`,
+                            })),
+                          ]
+                            .sort((left, right) => right.time.localeCompare(left.time))
+                            .slice(0, researchMode === 'quick' ? 4 : 10)
+                            .map((item, index) => (
+                              <article key={`${item.kind}:${item.title}:${index}`}>
+                                <time>{item.time ? new Date(item.time).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }) : '传导'}</time>
+                                <i className={`direction-${item.direction}`} aria-hidden="true" />
+                                <div>
+                                  <span>{item.kind}</span>
+                                  <b>{item.title}</b>
+                                  <small>{item.detail}</small>
+                                </div>
+                              </article>
+                            ))}
+                        </div>
+                      </section>
+                    )}
+                    {researchMode !== 'quick' && readableReport.quantitativeDimensions.length > 0 && (
                       <section className="research-quantitative" aria-labelledby="research-quantitative-title">
                         <header>
                           <div>
@@ -1016,19 +1207,21 @@ export default function ResearchWorkspacePage() {
                         <h3>为什么这样判断</h3>
                         <ul>{(readableReport.keyFactors.length ? readableReport.keyFactors : ['当前运行没有可展示的主要依据']).map((item) => (
                           <li key={item}>
-                            <details>
-                              <summary>{item}</summary>
-                              <div className="research-report-source-list">
-                                {(detailedRun.evidence ?? []).map((evidence) => (
-                                  <div key={evidence.id}>
-                                    <b>{evidence.title || evidence.kind}</b>
-                                    <span>{evidence.source} · {formatTime(evidence.captured_at)}{typeof evidence.payload.model === 'string' ? ` · ${evidence.payload.model}` : ''}</span>
-                                    <pre>{JSON.stringify(evidence.payload, null, 2)}</pre>
-                                  </div>
-                                ))}
-                                {!detailedRun.evidence?.length && <span>当前运行没有可展开的原始依据</span>}
-                              </div>
-                            </details>
+                            {researchMode === 'professional' || researchMode === 'quant' ? (
+                              <details>
+                                <summary>{item}</summary>
+                                <div className="research-report-source-list">
+                                  {(detailedRun.evidence ?? []).map((evidence) => (
+                                    <div key={evidence.id}>
+                                      <b>{evidence.title || evidence.kind}</b>
+                                      <span>{evidence.source} · {formatTime(evidence.captured_at)}{typeof evidence.payload.model === 'string' ? ` · ${evidence.payload.model}` : ''}</span>
+                                      <pre>{JSON.stringify(evidence.payload, null, 2)}</pre>
+                                    </div>
+                                  ))}
+                                  {!detailedRun.evidence?.length && <span>当前运行没有可展开的原始依据</span>}
+                                </div>
+                              </details>
+                            ) : item}
                           </li>
                         ))}</ul>
                       </div>
@@ -1042,7 +1235,10 @@ export default function ResearchWorkspacePage() {
                     <p className="research-report-risk"><b>主要风险</b>{readableReport.risk}</p>
                     <div className="research-report-actions">
                       <button type="button" onClick={() => void addCurrentInstrumentToWatchlist()}>加入自选</button>
-                      <button type="button" onClick={() => navigate(`/alerts?action=create&symbol=${encodeURIComponent(symbol)}&market=${encodeURIComponent(market)}`)}>设置提醒</button>
+                      <button type="button" onClick={() => navigate(`/alerts?action=create&type=evaluation_changed&symbol=${encodeURIComponent(symbol)}&market=${encodeURIComponent(market)}&research_run_id=${encodeURIComponent(detailedRun.id)}`)}>监控结论变化</button>
+                      {readableReport.invalidation !== null && readableReport.decisionDirection !== 'insufficient' && (
+                        <button type="button" onClick={() => navigate(`/alerts?action=create&type=risk_invalidated&symbol=${encodeURIComponent(symbol)}&market=${encodeURIComponent(market)}&threshold=${encodeURIComponent(String(readableReport.invalidation))}&condition=${readableReport.decisionDirection === 'short' ? 'above' : 'below'}&research_run_id=${encodeURIComponent(detailedRun.id)}`)}>监控失效条件</button>
+                      )}
                       <button type="button" disabled={!readableReport.executionEligible || readableReport.targetGeometryValid === false} title={!readableReport.executionEligible ? '统一研究决策未通过执行门禁' : readableReport.targetGeometryValid === false ? '关键价位几何关系异常' : undefined} onClick={() => navigate(`/simulation?symbol=${encodeURIComponent(symbol)}&market=${encodeURIComponent(market)}`)}>进入模拟交易</button>
                       <button type="button" onClick={() => exportReadableHtml(detailedRun, readableReport)}>导出 HTML</button>
                       <button type="button" onClick={() => printReadableReport(detailedRun, readableReport)}>打印 / PDF</button>
@@ -1136,7 +1332,7 @@ export default function ResearchWorkspacePage() {
                     </div>
                   </div>
                 )}
-                <div className="research-evidence-ledger">
+                {(researchMode === 'professional' || researchMode === 'quant') && <div className="research-evidence-ledger">
                   <div className="research-section-head">
                     <div>
                       <span>专业详情</span>
@@ -1179,7 +1375,7 @@ export default function ResearchWorkspacePage() {
                   ) : (
                     <div className="research-empty">当前评估没有分析依据。</div>
                   )}
-                </div>
+                </div>}
               </>
             )}
           </div>

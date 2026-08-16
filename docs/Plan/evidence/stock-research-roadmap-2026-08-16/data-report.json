@@ -1,0 +1,202 @@
+{
+  "generated_at": "2026-08-16T14:42:33.692250+00:00",
+  "universe": "configs/research/a_share_acceptance_universe.json",
+  "store_mode": "temporary",
+  "passed": true,
+  "checks": 6,
+  "failures": [],
+  "results": [
+    {
+      "symbol": "600519",
+      "label": "消费",
+      "industry_template": "consumer",
+      "passed": true,
+      "financials": {
+        "provider": "akshare-eastmoney-financials",
+        "statement_count": 60,
+        "financial_quality": "strong",
+        "earnings_trend": "improving",
+        "available_at": "2026-08-15T23:59:59+08:00",
+        "source_url": "https://data.eastmoney.com/bbsj/"
+      },
+      "valuation_references": {
+        "source": "akshare-valuation-references",
+        "quality_status": "degraded",
+        "quality_reasons": [
+          "FALLBACK_BAIDU_VALUATION_HISTORY",
+          "FALLBACK_CNINFO_SHARE_PROFILE",
+          "INDUSTRY_CROSS_SECTION_UNAVAILABLE"
+        ],
+        "shares_outstanding": "1250081601.0000",
+        "shares_at": "2026-08-15T23:59:59+08:00",
+        "industry": "酒、饮料和精制茶制造业",
+        "historical_counts": {
+          "pe_ttm": 609,
+          "pb": 609,
+          "ps": 0,
+          "dividend_yield": 0
+        }
+      }
+    },
+    {
+      "symbol": "000333",
+      "label": "制造",
+      "industry_template": "manufacturing",
+      "passed": true,
+      "financials": {
+        "provider": "akshare-eastmoney-financials",
+        "statement_count": 60,
+        "financial_quality": "weak",
+        "earnings_trend": "deteriorating",
+        "available_at": "2026-04-30T23:59:59+08:00",
+        "source_url": "https://data.eastmoney.com/bbsj/"
+      },
+      "valuation_references": {
+        "source": "akshare-valuation-references",
+        "quality_status": "degraded",
+        "quality_reasons": [
+          "FALLBACK_BAIDU_VALUATION_HISTORY",
+          "FALLBACK_CNINFO_SHARE_PROFILE",
+          "INDUSTRY_CROSS_SECTION_UNAVAILABLE"
+        ],
+        "shares_outstanding": "7613438907.0000",
+        "shares_at": "2026-07-16T23:59:59+08:00",
+        "industry": "电气机械和器材制造业",
+        "historical_counts": {
+          "pe_ttm": 674,
+          "pb": 674,
+          "ps": 0,
+          "dividend_yield": 0
+        }
+      }
+    },
+    {
+      "symbol": "002415",
+      "label": "科技",
+      "industry_template": "technology",
+      "passed": true,
+      "financials": {
+        "provider": "akshare-eastmoney-financials",
+        "statement_count": 60,
+        "financial_quality": "strong",
+        "earnings_trend": "improving",
+        "available_at": "2026-07-25T23:59:59+08:00",
+        "source_url": "https://data.eastmoney.com/bbsj/"
+      },
+      "valuation_references": {
+        "source": "akshare-valuation-references",
+        "quality_status": "degraded",
+        "quality_reasons": [
+          "FALLBACK_BAIDU_VALUATION_HISTORY",
+          "FALLBACK_CNINFO_SHARE_PROFILE",
+          "INDUSTRY_CROSS_SECTION_UNAVAILABLE"
+        ],
+        "shares_outstanding": "9164871550.000",
+        "shares_at": "2026-07-25T23:59:59+08:00",
+        "industry": "计算机、通信和其他电子设备制造业",
+        "historical_counts": {
+          "pe_ttm": 659,
+          "pb": 659,
+          "ps": 0,
+          "dividend_yield": 0
+        }
+      }
+    },
+    {
+      "symbol": "601899",
+      "label": "周期",
+      "industry_template": "cyclical",
+      "passed": true,
+      "financials": {
+        "provider": "akshare-eastmoney-financials",
+        "statement_count": 60,
+        "financial_quality": "weak",
+        "earnings_trend": "deteriorating",
+        "available_at": "2026-04-22T23:59:59+08:00",
+        "source_url": "https://data.eastmoney.com/bbsj/"
+      },
+      "valuation_references": {
+        "source": "akshare-valuation-references",
+        "quality_status": "degraded",
+        "quality_reasons": [
+          "FALLBACK_BAIDU_VALUATION_HISTORY",
+          "FALLBACK_CNINFO_SHARE_PROFILE",
+          "INDUSTRY_CROSS_SECTION_UNAVAILABLE"
+        ],
+        "shares_outstanding": "26590714622.0000",
+        "shares_at": "2026-04-15T23:59:59+08:00",
+        "industry": "有色金属矿采选业",
+        "historical_counts": {
+          "pe_ttm": 669,
+          "pb": 669,
+          "ps": 0,
+          "dividend_yield": 0
+        }
+      }
+    },
+    {
+      "symbol": "600036",
+      "label": "金融",
+      "industry_template": "bank",
+      "passed": true,
+      "financials": {
+        "provider": "akshare-eastmoney-financials",
+        "statement_count": 60,
+        "financial_quality": "weak",
+        "earnings_trend": "deteriorating",
+        "available_at": "2026-04-29T23:59:59+08:00",
+        "source_url": "https://data.eastmoney.com/bbsj/"
+      },
+      "valuation_references": {
+        "source": "akshare-valuation-references",
+        "quality_status": "degraded",
+        "quality_reasons": [
+          "FALLBACK_BAIDU_VALUATION_HISTORY",
+          "FALLBACK_CNINFO_SHARE_PROFILE",
+          "INDUSTRY_CROSS_SECTION_UNAVAILABLE"
+        ],
+        "shares_outstanding": "25219845601.0000",
+        "shares_at": "2026-03-28T23:59:59+08:00",
+        "industry": "货币金融服务",
+        "historical_counts": {
+          "pe_ttm": 636,
+          "pb": 636,
+          "ps": 0,
+          "dividend_yield": 0
+        }
+      }
+    },
+    {
+      "symbol": "688256",
+      "label": "亏损样本",
+      "industry_template": "loss_making",
+      "passed": true,
+      "financials": {
+        "provider": "akshare-eastmoney-financials",
+        "statement_count": 60,
+        "financial_quality": "strong",
+        "earnings_trend": "improving",
+        "available_at": "2026-08-08T23:59:59+08:00",
+        "source_url": "https://data.eastmoney.com/bbsj/"
+      },
+      "valuation_references": {
+        "source": "akshare-valuation-references",
+        "quality_status": "degraded",
+        "quality_reasons": [
+          "FALLBACK_BAIDU_VALUATION_HISTORY",
+          "FALLBACK_CNINFO_SHARE_PROFILE",
+          "INDUSTRY_CROSS_SECTION_UNAVAILABLE"
+        ],
+        "shares_outstanding": "628292969.0000",
+        "shares_at": "2026-08-08T23:59:59+08:00",
+        "industry": "软件和信息技术服务业",
+        "historical_counts": {
+          "pe_ttm": 243,
+          "pb": 1110,
+          "ps": 0,
+          "dividend_yield": 0
+        }
+      }
+    }
+  ]
+}

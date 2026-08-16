@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 
 from . import repository, service
 from .schemas import (
@@ -105,6 +105,7 @@ def live_tick(name: str) -> dict:
 
 @router.post("/pa_agent/analyze")
 def pa_analyze(
+    request: Request,
     symbol: str = Query(..., min_length=1, description="标的代码"),
     timeframe: str = Query(default="1h"),
     market: str | None = Query(default=None),
@@ -115,4 +116,5 @@ def pa_analyze(
         timeframe=timeframe,
         market=market,
         research_run_id=research_run_id,
+        owner_id=str((getattr(request.state, "principal", None) or {}).get("id") or "local-user"),
     )

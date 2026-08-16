@@ -1,0 +1,299 @@
+{
+  "generated_at": "2026-08-16T13:31:25.759Z",
+  "base_url": "http://127.0.0.1:5173",
+  "viewports": [
+    {
+      "id": "mobile-390x844",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "id": "tablet-768x1024",
+      "width": 768,
+      "height": 1024
+    },
+    {
+      "id": "laptop-1280x720",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "id": "desktop-1440x900",
+      "width": 1440,
+      "height": 900
+    }
+  ],
+  "routes": [
+    {
+      "id": "evaluate",
+      "path": "/evaluate",
+      "requiredText": "开始评估"
+    },
+    {
+      "id": "research",
+      "path": "/research/600519?market=a_shares&tf=1d&view=overview&mode=investor",
+      "requiredText": "市场研究"
+    },
+    {
+      "id": "alerts",
+      "path": "/alerts?action=create&type=valuation_band_crossed&symbol=600519&market=a_shares&threshold=50",
+      "requiredText": "研究提醒"
+    }
+  ],
+  "passed": true,
+  "failures": [],
+  "results": [
+    {
+      "viewport": {
+        "id": "mobile-390x844",
+        "width": 390,
+        "height": 844
+      },
+      "route": {
+        "id": "evaluate",
+        "path": "/evaluate",
+        "requiredText": "开始评估"
+      },
+      "status": 200,
+      "layout": {
+        "documentOverflow": 0,
+        "outsideViewport": [],
+        "clippedControls": []
+      },
+      "consoleErrors": [],
+      "failedRequests": [],
+      "screenshot": "mobile-390x844-evaluate.png"
+    },
+    {
+      "viewport": {
+        "id": "mobile-390x844",
+        "width": 390,
+        "height": 844
+      },
+      "route": {
+        "id": "research",
+        "path": "/research/600519?market=a_shares&tf=1d&view=overview&mode=investor",
+        "requiredText": "市场研究"
+      },
+      "status": 200,
+      "layout": {
+        "documentOverflow": 0,
+        "outsideViewport": [],
+        "clippedControls": []
+      },
+      "consoleErrors": [],
+      "failedRequests": [],
+      "screenshot": "mobile-390x844-research.png"
+    },
+    {
+      "viewport": {
+        "id": "mobile-390x844",
+        "width": 390,
+        "height": 844
+      },
+      "route": {
+        "id": "alerts",
+        "path": "/alerts?action=create&type=valuation_band_crossed&symbol=600519&market=a_shares&threshold=50",
+        "requiredText": "研究提醒"
+      },
+      "status": 200,
+      "layout": {
+        "documentOverflow": 0,
+        "outsideViewport": [],
+        "clippedControls": []
+      },
+      "consoleErrors": [],
+      "failedRequests": [],
+      "screenshot": "mobile-390x844-alerts.png"
+    },
+    {
+      "viewport": {
+        "id": "tablet-768x1024",
+        "width": 768,
+        "height": 1024
+      },
+      "route": {
+        "id": "evaluate",
+        "path": "/evaluate",
+        "requiredText": "开始评估"
+      },
+      "status": 200,
+      "layout": {
+        "documentOverflow": 0,
+        "outsideViewport": [],
+        "clippedControls": []
+      },
+      "consoleErrors": [],
+      "failedRequests": [],
+      "screenshot": "tablet-768x1024-evaluate.png"
+    },
+    {
+      "viewport": {
+        "id": "tablet-768x1024",
+        "width": 768,
+        "height": 1024
+      },
+      "route": {
+        "id": "research",
+        "path": "/research/600519?market=a_shares&tf=1d&view=overview&mode=investor",
+        "requiredText": "市场研究"
+      },
+      "status": 200,
+      "layout": {
+        "documentOverflow": 0,
+        "outsideViewport": [],
+        "clippedControls": []
+      },
+      "consoleErrors": [],
+      "failedRequests": [],
+      "screenshot": "tablet-768x1024-research.png"
+    },
+    {
+      "viewport": {
+        "id": "tablet-768x1024",
+        "width": 768,
+        "height": 1024
+      },
+      "route": {
+        "id": "alerts",
+        "path": "/alerts?action=create&type=valuation_band_crossed&symbol=600519&market=a_shares&threshold=50",
+        "requiredText": "研究提醒"
+      },
+      "status": 200,
+      "layout": {
+        "documentOverflow": 0,
+        "outsideViewport": [],
+        "clippedControls": []
+      },
+      "consoleErrors": [],
+      "failedRequests": [],
+      "screenshot": "tablet-768x1024-alerts.png"
+    },
+    {
+      "viewport": {
+        "id": "laptop-1280x720",
+        "width": 1280,
+        "height": 720
+      },
+      "route": {
+        "id": "evaluate",
+        "path": "/evaluate",
+        "requiredText": "开始评估"
+      },
+      "status": 200,
+      "layout": {
+        "documentOverflow": 0,
+        "outsideViewport": [],
+        "clippedControls": []
+      },
+      "consoleErrors": [],
+      "failedRequests": [],
+      "screenshot": "laptop-1280x720-evaluate.png"
+    },
+    {
+      "viewport": {
+        "id": "laptop-1280x720",
+        "width": 1280,
+        "height": 720
+      },
+      "route": {
+        "id": "research",
+        "path": "/research/600519?market=a_shares&tf=1d&view=overview&mode=investor",
+        "requiredText": "市场研究"
+      },
+      "status": 200,
+      "layout": {
+        "documentOverflow": 0,
+        "outsideViewport": [],
+        "clippedControls": []
+      },
+      "consoleErrors": [],
+      "failedRequests": [],
+      "screenshot": "laptop-1280x720-research.png"
+    },
+    {
+      "viewport": {
+        "id": "laptop-1280x720",
+        "width": 1280,
+        "height": 720
+      },
+      "route": {
+        "id": "alerts",
+        "path": "/alerts?action=create&type=valuation_band_crossed&symbol=600519&market=a_shares&threshold=50",
+        "requiredText": "研究提醒"
+      },
+      "status": 200,
+      "layout": {
+        "documentOverflow": 0,
+        "outsideViewport": [],
+        "clippedControls": []
+      },
+      "consoleErrors": [],
+      "failedRequests": [],
+      "screenshot": "laptop-1280x720-alerts.png"
+    },
+    {
+      "viewport": {
+        "id": "desktop-1440x900",
+        "width": 1440,
+        "height": 900
+      },
+      "route": {
+        "id": "evaluate",
+        "path": "/evaluate",
+        "requiredText": "开始评估"
+      },
+      "status": 200,
+      "layout": {
+        "documentOverflow": 0,
+        "outsideViewport": [],
+        "clippedControls": []
+      },
+      "consoleErrors": [],
+      "failedRequests": [],
+      "screenshot": "desktop-1440x900-evaluate.png"
+    },
+    {
+      "viewport": {
+        "id": "desktop-1440x900",
+        "width": 1440,
+        "height": 900
+      },
+      "route": {
+        "id": "research",
+        "path": "/research/600519?market=a_shares&tf=1d&view=overview&mode=investor",
+        "requiredText": "市场研究"
+      },
+      "status": 200,
+      "layout": {
+        "documentOverflow": 0,
+        "outsideViewport": [],
+        "clippedControls": []
+      },
+      "consoleErrors": [],
+      "failedRequests": [],
+      "screenshot": "desktop-1440x900-research.png"
+    },
+    {
+      "viewport": {
+        "id": "desktop-1440x900",
+        "width": 1440,
+        "height": 900
+      },
+      "route": {
+        "id": "alerts",
+        "path": "/alerts?action=create&type=valuation_band_crossed&symbol=600519&market=a_shares&threshold=50",
+        "requiredText": "研究提醒"
+      },
+      "status": 200,
+      "layout": {
+        "documentOverflow": 0,
+        "outsideViewport": [],
+        "clippedControls": []
+      },
+      "consoleErrors": [],
+      "failedRequests": [],
+      "screenshot": "desktop-1440x900-alerts.png"
+    }
+  ]
+}

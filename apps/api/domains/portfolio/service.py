@@ -3,12 +3,14 @@ from __future__ import annotations
 import logging
 import os
 import re
+import time
 from datetime import UTC, datetime
 
 import pandas as pd
 import requests
 import yaml
 
+from apps.api import store
 from core.config import CONFIGS_DIR
 from core.data_feed.factory import get_data_source
 from core.data_feed.tencent_source import _to_tencent_code
@@ -261,13 +263,47 @@ def portfolio_snapshot() -> dict:
     }
 
 
-def watchlist_snapshot() -> dict:
+def watchlist_snapshot(owner_id: str = "local-user") -> dict:
     output = []
-    for item in repository.list_watchlist():
+    now = time.time()
+    scheduled_macro = [
+        event
+        for event in store.list_macro_events(
+            available_as_of=datetime.now(UTC),
+            limit=200,
+        )
+        if event.get("state") == "scheduled"
+        and isinstance((event.get("provenance") or {}).get("event_at"), str)
+        and datetime.fromisoformat(event["provenance"]["event_at"]).timestamp() >= now
+    ]
+    scheduled_macro.sort(
+        key=lambda event: datetime.fromisoformat(event["provenance"]["event_at"]).timestamp()
+    )
+    for item in repository.list_watchlist(owner_id):
         quote = quote_item(item["sym"], item["market"], item["name"])
         if not item["name"].strip() and quote.get("name"):
-            repository.update_watchlist(item["id"], {"name": quote["name"]})
-        output.append({**quote, "id": item["id"]})
+            repository.update_watchlist(item["id"], {"name": quote["name"]}, owner_id)
+        runs = store.list_research_runs(
+            limit=1,
+            symbol=item["sym"],
+            market=item["market"],
+            owner_id=owner_id,
+        )
+        latest_run = runs[0] if runs else None
+        decision = ((latest_run or {}).get("summary") or {}).get("research_decision") or {}
+        updated_at = float(latest_run["updated_at"]) if latest_run else None
+        output.append(
+            {
+                **quote,
+                "id": item["id"],
+                "latest_research_run_id": latest_run.get("id") if latest_run else None,
+                "research_direction": decision.get("direction"),
+                "research_execution_eligible": decision.get("execution_eligible") is True,
+                "research_updated_at": updated_at,
+                "evidence_age_hours": round((now - updated_at) / 3600, 2) if updated_at else None,
+                "next_event": scheduled_macro[0] if scheduled_macro else None,
+            }
+        )
     return {"ok": True, "items": output}
 
 

@@ -121,6 +121,7 @@ import type {
   ResearchRunsResp,
   ResearchVerification,
   ResearchStatus,
+  UserResearchPreference,
   RunRecord,
   RunResp,
   SignalLifecycleStatus,
@@ -364,6 +365,16 @@ export const api = {
     }),
 
   // ---- 可追溯研究运行（ResearchRun / Evidence）----
+  researchPreference: () =>
+    getJSON<{ ok: boolean; preference: UserResearchPreference }>('/research/preferences/me'),
+
+  updateResearchPreference: (preference: Omit<UserResearchPreference, 'user_id' | 'updated_at'>) =>
+    getJSON<{ ok: boolean; preference: UserResearchPreference }>('/research/preferences/me', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(preference),
+    }),
+
   createResearchRun: (payload: {
     symbol: string
     market?: string
@@ -392,7 +403,7 @@ export const api = {
     getJSON<{ ok: boolean; run: ResearchRun }>(`/research/runs/${encodeURIComponent(id)}`),
 
   researchExport: (id: string) =>
-    getJSON<{ ok: boolean; export_version: string; exported_at: number; run: ResearchRun }>(
+    getJSON<{ ok: boolean; export_version: string; exported_at: number; data_cutoff: string; method_versions: string[]; evidence_manifest: Array<Record<string, unknown>>; disclaimer: string; run: ResearchRun }>(
       `/research/runs/${encodeURIComponent(id)}/export`,
     ),
 

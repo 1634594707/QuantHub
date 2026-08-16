@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
-import type { AnalysisTask, Instrument } from '../api/types'
+import type { AnalysisTask, Instrument, WatchlistItem } from '../api/types'
 import { useApi } from '../api/useApi'
 import { IconChart, IconChevron, IconCog, IconSearch } from '../components/icons'
 import { AsyncStateBoundary } from '../components/ui/AsyncStateBoundary/AsyncStateBoundary'
@@ -14,6 +14,8 @@ import s from './StockEvaluationStartPage.module.css'
 
 type Horizon = 'short' | 'swing' | 'medium'
 type EvaluationProfile = 'quick' | 'balanced' | 'comprehensive'
+type ResearchMode = 'quick' | 'investor' | 'professional' | 'quant'
+type HoldingStatus = 'not_held' | 'held'
 type StrategyLens = 'trend_following' | 'mean_reversion' | 'risk_first'
 type EvaluationMarket = 'a_shares' | 'us_stocks' | 'crypto'
 
@@ -39,7 +41,7 @@ const HORIZONS: Record<EvaluationMarket, Record<Horizon, { label: string; timefr
   a_shares: {
     short: { label: '短线 1-5 日', timeframe: '1h', description: '关注近期节奏、波动和入场条件' },
     swing: { label: '波段 1-4 周', timeframe: '1d', description: '兼顾趋势、新闻和关键价格位置' },
-    medium: { label: '中线 1-6 月', timeframe: '1w', description: '观察更长周期趋势，暂不包含基本面估值' },
+    medium: { label: '中线 1-6 月', timeframe: '1w', description: '观察更长周期趋势；全面评估会同时读取财报与估值证据' },
   },
   us_stocks: {
     short: { label: '短线 1-10 日', timeframe: '1d', description: '使用日线评估近期趋势，匹配当前美股行情源能力' },
@@ -87,6 +89,13 @@ const EVALUATION_PROFILES: Record<EvaluationProfile, {
   },
 }
 
+const RESEARCH_MODES: Record<ResearchMode, { label: string; description: string }> = {
+  quick: { label: '简明', description: '优先看结论、主要依据、风险和下一观察条件。' },
+  investor: { label: '投资研究', description: '展开财务趋势、估值位置、事件和模块分歧。' },
+  professional: { label: '专业验证', description: '保留来源、口径、版本和完整证据。' },
+  quant: { label: '量化实验', description: '衔接因子、股票池和策略验证工作流。' },
+}
+
 const METHOD_LABELS: Record<string, string> = {
   trend: '趋势结构',
   momentum: '多周期动量',
@@ -113,6 +122,10 @@ const MODULE_LABELS: Record<string, string> = {
   news: '新闻 AI',
   pa: '价格结构 AI',
   ensemble: '模型共识',
+  fundamentals: '财报质量',
+  valuation: '估值位置',
+  announcements: '公司公告',
+  macro: '宏观传导',
 }
 
 const SAMPLE_INSTRUMENTS: Record<EvaluationMarket, Instrument> = {
@@ -132,15 +145,36 @@ function exchangeLabel(instrument: Instrument) {
   return instrument.exchange || MARKETS[instrument.market as EvaluationMarket]?.label || instrument.market
 }
 
+function watchResearchSummary(item: WatchlistItem) {
+  const direction = {
+    long: '偏强', short: '偏弱', neutral: '中性', conflicted: '有分歧', insufficient: '证据不足',
+  }[item.research_direction ?? ''] ?? '尚无研究'
+  const freshness = typeof item.evidence_age_hours === 'number'
+    ? `${Math.max(0, Math.round(item.evidence_age_hours))} 小时前更新`
+    : '等待首次评估'
+  const nextEventTitle = typeof item.next_event?.title === 'string' ? item.next_event.title : null
+  return `${direction} · ${freshness}${nextEventTitle ? ` · 下一事件：${nextEventTitle}` : ''}`
+}
+
 export default function StockEvaluationStartPage() {
   const navigate = useNavigate()
   const health = useApi(() => api.health(), [], { retryInterval: 15000 })
+  const preference = useApi(() => api.researchPreference(), [], { retry: false })
+  const preferenceHydrated = useRef(false)
   const [query, setQuery] = useState('')
   const [activeQuery, setActiveQuery] = useState('')
   const [selected, setSelected] = useState<Instrument | null>(null)
   const [market, setMarket] = useState<EvaluationMarket>('a_shares')
   const [horizon, setHorizon] = useState<Horizon>('swing')
   const [profile, setProfile] = useState<EvaluationProfile>('balanced')
+  const [researchMode, setResearchMode] = useLocalStorage<ResearchMode>(
+    'quanthub.research.mode',
+    'investor',
+  )
+  const [holdingStatus, setHoldingStatus] = useLocalStorage<HoldingStatus>(
+    'quanthub.research.holding-status',
+    'not_held',
+  )
   const [strategyLenses, setStrategyLenses] = useState<StrategyLens[]>([
     'trend_following', 'mean_reversion', 'risk_first',
   ])
@@ -167,10 +201,15 @@ export default function StockEvaluationStartPage() {
   )
   const profileConfig = EVALUATION_PROFILES[profile]
   const horizonConfig = HORIZONS[market][horizon]
-  const activeModules = useMemo(
-    () => profileConfig.modules.filter((module) => module !== 'news' || market === 'a_shares'),
-    [market, profileConfig.modules],
-  )
+  const activeModules = useMemo(() => {
+    const modules = profileConfig.modules.filter((module) => module !== 'news' || market === 'a_shares')
+    if (profile === 'comprehensive' && market === 'a_shares') {
+      modules.push('fundamentals', 'valuation', 'announcements', 'macro')
+    } else if (profile === 'comprehensive' && market === 'us_stocks') {
+      modules.push('fundamentals', 'valuation')
+    }
+    return modules
+  }, [market, profile, profileConfig.modules])
   const activeMethods = useMemo(
     () => Array.from(new Set([
       ...profileConfig.methods,
@@ -180,7 +219,38 @@ export default function StockEvaluationStartPage() {
   )
   const profileDescription = market !== 'a_shares' && profile === 'balanced'
     ? '加入回撤与均值偏离，并结合价格结构 AI 和模型共识。'
+    : market === 'a_shares' && profile === 'comprehensive'
+      ? '读取更长量价样本，并加入点时财报、估值、公司公告与宏观传导。'
+    : market === 'us_stocks' && profile === 'comprehensive'
+      ? '读取更长量价样本，并加入 SEC 点时财报与估值；历史估值参照不足时明确降级。'
     : profileConfig.description
+
+  useEffect(() => {
+    if (!preference.data || preferenceHydrated.current) return
+    preferenceHydrated.current = true
+    const saved = preference.data.preference
+    setResearchMode(saved.default_mode)
+    setHoldingStatus(saved.holding_status)
+    setMarket(saved.default_market)
+    setHorizon(saved.research_horizon === 'long' ? 'medium' : saved.research_horizon)
+  }, [preference.data, setHoldingStatus, setResearchMode])
+
+  function savePreference(patch: Partial<{
+    default_mode: ResearchMode
+    default_market: EvaluationMarket
+    holding_status: HoldingStatus
+    research_horizon: Horizon | 'long'
+  }>) {
+    const saved = preference.data?.preference
+    void api.updateResearchPreference({
+      default_mode: patch.default_mode ?? researchMode,
+      default_market: patch.default_market ?? market,
+      holding_status: patch.holding_status ?? holdingStatus,
+      research_horizon: patch.research_horizon ?? horizon,
+      risk_preference: saved?.risk_preference ?? 'balanced',
+      terminology_level: saved?.terminology_level ?? 'standard',
+    }).then((response) => preference.setData(response)).catch(() => undefined)
+  }
 
   function search(event: React.FormEvent) {
     event.preventDefault()
@@ -215,6 +285,7 @@ export default function StockEvaluationStartPage() {
   }
 
   function changeMarket(nextMarket: EvaluationMarket) {
+    savePreference({ default_market: nextMarket })
     setMarket(nextMarket)
     setQuery('')
     setActiveQuery('')
@@ -231,6 +302,7 @@ export default function StockEvaluationStartPage() {
       tf: timeframe,
       from: 'evaluate',
       evaluation_task_id: taskId,
+      mode: researchMode,
     })
     navigate(`/research/${encodeURIComponent(instrument.code)}?${params.toString()}`)
   }
@@ -243,6 +315,7 @@ export default function StockEvaluationStartPage() {
       tf: timeframe,
       from: 'evaluate',
       view: 'overview',
+      mode: researchMode,
     })
     navigate(`/research/${encodeURIComponent(instrument.code)}?${params.toString()}`)
   }
@@ -260,12 +333,14 @@ export default function StockEvaluationStartPage() {
         const recentRequest = recent.task?.request
         const sameProfile = recentRequest?.evaluation_profile === profile
         const sameHorizon = recentRequest?.evaluation_horizon === targetHorizon
+        const sameMode = recentRequest?.research_mode === researchMode
+        const sameHolding = recentRequest?.holding_status === holdingStatus
         const recentLenses = Array.isArray(recentRequest?.strategy_lenses)
           ? recentRequest.strategy_lenses.filter((item): item is string => typeof item === 'string')
           : []
         const sameLenses = recentLenses.length === strategyLenses.length
           && strategyLenses.every((lens) => recentLenses.includes(lens))
-        if (recent.task && sameProfile && sameHorizon && sameLenses) {
+        if (recent.task && sameProfile && sameHorizon && sameMode && sameHolding && sameLenses) {
           setRecentTask(recent.task)
           return
         }
@@ -282,6 +357,8 @@ export default function StockEvaluationStartPage() {
           market_methods: activeMethods,
           strategy_lenses: strategyLenses,
           market_limit: profileConfig.marketLimit,
+          research_mode: researchMode,
+          holding_status: holdingStatus,
         },
         timeout_seconds: 360,
       })
@@ -373,7 +450,7 @@ export default function StockEvaluationStartPage() {
               {(watchlist.data?.items ?? []).some((item) => item.market === market) && (
                 <div className={s.quickPickGroup}>
                   <span>自选标的</span>
-                  <div>{(watchlist.data?.items ?? []).filter((item) => item.market === market).slice(0, 6).map((item) => <button type="button" key={item.id ?? `${item.market}:${item.sym}`} onClick={() => queryInstrument(item.sym)}><b>{item.name || item.sym}</b><small>{item.sym} · {MARKETS[market].label}</small></button>)}</div>
+                  <div>{(watchlist.data?.items ?? []).filter((item) => item.market === market).slice(0, 6).map((item) => <button type="button" key={item.id ?? `${item.market}:${item.sym}`} onClick={() => queryInstrument(item.sym)}><b>{item.name || item.sym}</b><small>{item.sym} · {MARKETS[market].label} · {watchResearchSummary(item)}</small></button>)}</div>
                 </div>
               )}
             </div>
@@ -439,14 +516,54 @@ export default function StockEvaluationStartPage() {
         <aside className={s.setupSection}>
           <div className={s.sectionTitle}>
             <span>第二步</span>
-            <h2>选择周期与评估规模</h2>
-            <p>周期决定 K 线粒度，规模决定方法数量与样本长度。</p>
+            <h2>设置研究方式与计算范围</h2>
+            <p>查看方式只改变信息密度；周期和评估规模决定计算范围。</p>
+          </div>
+
+          <div className={s.profileField}>
+            <span>查看方式</span>
+            <SegmentedControl
+              value={researchMode}
+              onChange={(value) => {
+                const nextMode = value as ResearchMode
+                setResearchMode(nextMode)
+                savePreference({ default_mode: nextMode })
+                setRecentTask(null)
+              }}
+              fullWidth
+              options={(Object.keys(RESEARCH_MODES) as ResearchMode[]).map((value) => ({
+                value,
+                label: RESEARCH_MODES[value].label,
+              }))}
+            />
+            <p>{RESEARCH_MODES[researchMode].description}</p>
+          </div>
+
+          <div className={s.profileField}>
+            <span>当前持仓</span>
+            <SegmentedControl
+              value={holdingStatus}
+              onChange={(value) => {
+                const nextStatus = value as HoldingStatus
+                setHoldingStatus(nextStatus)
+                savePreference({ holding_status: nextStatus })
+                setRecentTask(null)
+              }}
+              fullWidth
+              options={[
+                { value: 'not_held', label: '未持仓' },
+                { value: 'held', label: '已持仓' },
+              ]}
+            />
+            <p>持仓状态只改变后续观察或风险动作，不改变研究事实和统一结论。</p>
           </div>
 
           <SegmentedControl
             value={horizon}
             onChange={(value) => {
-              setHorizon(value as Horizon)
+              const nextHorizon = value as Horizon
+              setHorizon(nextHorizon)
+              savePreference({ research_horizon: nextHorizon })
               setRecentTask(null)
             }}
             fullWidth
@@ -474,7 +591,7 @@ export default function StockEvaluationStartPage() {
               }))}
             />
             <p>{profileDescription}</p>
-            {market !== 'a_shares' && <p className={s.marketCapability}>当前市场按所选规模运行可用模块；独立新闻模块暂不运行。</p>}
+            {market !== 'a_shares' && <p className={s.marketCapability}>当前市场按所选规模运行可用模块；独立新闻模块暂不运行，美股全面评估使用 SEC 财报并对估值参照不足明确降级。</p>}
             <div className={s.methodList} aria-label="本次量化评估方法">
               {activeMethods.map((method) => <span key={method}>{METHOD_LABELS[method]}</span>)}
             </div>
@@ -499,6 +616,7 @@ export default function StockEvaluationStartPage() {
           <div className={s.readiness}>
             <div><span className={serviceReady ? s.readyDot : s.pendingDot} /><strong>分析服务</strong><em>{serviceReady ? '连接正常' : health.loading ? '正在检查' : '需要检查设置'}</em></div>
             <div><span className={s.readyDot} /><strong>交易方式</strong><em>仅研究和模拟</em></div>
+            <div><span className={s.readyDot} /><strong>查看方式</strong><em>{RESEARCH_MODES[researchMode].label} · {holdingStatus === 'held' ? '已持仓' : '未持仓'}</em></div>
             <div><span className={s.readyDot} /><strong>量化方法</strong><em>{activeMethods.length} 项 · {profileConfig.marketLimit} 根样本</em></div>
             <div><span className={s.readyDot} /><strong>评估模块</strong><em>{activeModules.map((module) => MODULE_LABELS[module]).join('、')}</em></div>
             <div><span className={strategyLenses.length ? s.readyDot : s.pendingDot} /><strong>策略视角</strong><em>{strategyLenses.length ? `${strategyLenses.length} 种` : '至少选择一种'}</em></div>

@@ -5,7 +5,7 @@ import math
 import threading
 import time
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from itertools import pairwise
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -240,14 +240,17 @@ def _evaluation_change(rule: dict) -> tuple[bool, str | None]:
     with store._lock, store._conn() as connection:
         rows = connection.execute(
             """SELECT id, summary_json FROM research_runs
-               WHERE symbol=? AND market=? AND status IN ('succeeded','partial')
+               WHERE symbol=? AND market=? AND owner_id=?
+                 AND status IN ('succeeded','partial')
                ORDER BY updated_at DESC, id DESC LIMIT 2""",
-            (rule["symbol"], rule["market"]),
+            (rule["symbol"], rule["market"], rule["user_id"]),
         ).fetchall()
     if not rows:
         return False, None
     latest_summary = json.loads(rows[0]["summary_json"] or "{}")
-    latest_direction = latest_summary.get("ensemble", {}).get("consensus", {}).get("direction")
+    latest_direction = latest_summary.get("research_decision", {}).get(
+        "direction"
+    ) or latest_summary.get("ensemble", {}).get("consensus", {}).get("direction")
     previous_direction = rule["context"].get("last_direction")
     rule["context"]["last_direction"] = latest_direction
     changed = (
@@ -266,13 +269,14 @@ def _latest_factor_snapshot(rule: dict) -> tuple[dict | None, dict | None]:
     with store._lock, store._conn() as connection:
         row = connection.execute(
             """SELECT id FROM research_runs
-               WHERE symbol=? AND market=? AND status IN ('succeeded','partial')
+               WHERE symbol=? AND market=? AND owner_id=?
+                 AND status IN ('succeeded','partial')
                  AND EXISTS (
                    SELECT 1 FROM json_each(research_runs.modules_json)
                    WHERE value IN ('factor_research', 'cross_sectional_factor_research')
                  )
                ORDER BY updated_at DESC, id DESC LIMIT 1""",
-            (symbol, rule["market"]),
+            (symbol, rule["market"], rule["user_id"]),
         ).fetchone()
     if row is None:
         return None, None
@@ -353,6 +357,125 @@ def _factor_condition(rule: dict) -> tuple[bool, float | None, str | None, str |
     )
 
 
+def _instrument_id(rule: dict) -> str | None:
+    with store._lock, store._conn() as connection:
+        row = connection.execute(
+            """SELECT instrument_id FROM research_runs
+               WHERE symbol=? AND market=? AND owner_id=? AND instrument_id IS NOT NULL
+               ORDER BY updated_at DESC, id DESC LIMIT 1""",
+            (rule["symbol"], rule["market"], rule["user_id"]),
+        ).fetchone()
+    return str(row["instrument_id"]) if row else None
+
+
+def _earnings_release(rule: dict) -> tuple[bool, float | None, str | None, str | None]:
+    instrument_id = _instrument_id(rule)
+    if instrument_id is None:
+        return False, None, None, None
+    checked = float(rule["last_checked_at"] or rule["created_at"])
+    now = time.time()
+    with store._lock, store._conn() as connection:
+        row = connection.execute(
+            """SELECT statement_id, available_at FROM financial_statements
+               WHERE instrument_id=? AND available_at>? AND available_at<=?
+               ORDER BY available_at DESC, statement_id DESC LIMIT 1""",
+            (instrument_id, checked, now),
+        ).fetchone()
+    return (
+        row is not None,
+        float(row["available_at"]) if row else None,
+        "financial_statement" if row else None,
+        str(row["statement_id"]) if row else None,
+    )
+
+
+def _valuation_band(rule: dict) -> tuple[bool, float | None, str | None, str | None]:
+    instrument_id = _instrument_id(rule)
+    if instrument_id is None:
+        return False, None, None, None
+    snapshots = store.list_valuation_snapshots(
+        instrument_id,
+        as_of=datetime.now(UTC),
+        limit=1,
+    )
+    if not snapshots:
+        return False, None, None, None
+    snapshot = snapshots[0]
+    metric_key = str(rule["context"].get("metric") or "pe_ttm")
+    metric = next(
+        (item for item in snapshot.get("metrics", []) if item.get("key") == metric_key),
+        None,
+    )
+    if not isinstance(metric, dict):
+        return False, None, "valuation_snapshot", str(snapshot.get("snapshot_id") or "")
+    percentile = metric.get("historical_percentile")
+    if not isinstance(percentile, (int, float)):
+        return False, None, "valuation_snapshot", str(snapshot.get("snapshot_id") or "")
+    current = float(percentile)
+    threshold = float(rule["threshold"])
+    if threshold > 1:
+        threshold /= 100
+    previous = rule["context"].get("last_percentile")
+    rule["context"]["last_percentile"] = current
+    crossed = isinstance(previous, (int, float)) and (
+        (float(previous) < threshold <= current) or (float(previous) > threshold >= current)
+    )
+    return crossed, current, "valuation_snapshot", str(snapshot.get("snapshot_id") or "")
+
+
+def _major_company_event(rule: dict) -> tuple[bool, float | None, str | None, str | None]:
+    instrument_id = _instrument_id(rule)
+    if instrument_id is None:
+        return False, None, None, None
+    checked = float(rule["last_checked_at"] or rule["created_at"])
+    now = time.time()
+    with store._lock, store._conn() as connection:
+        rows = connection.execute(
+            """SELECT event_id, available_at, payload_json FROM company_events
+               WHERE instrument_id=? AND available_at>? AND available_at<=?
+               ORDER BY available_at DESC, event_id DESC LIMIT 20""",
+            (instrument_id, checked, now),
+        ).fetchall()
+    row = next(
+        (
+            item
+            for item in rows
+            if (payload := json.loads(item["payload_json"] or "{}"))
+            and payload.get("importance") in {"high", "critical"}
+            and payload.get("verification_status") in {"verified", "corroborated"}
+            and payload.get("repost_of") is None
+        ),
+        None,
+    )
+    return (
+        row is not None,
+        float(row["available_at"]) if row else None,
+        "company_event" if row else None,
+        str(row["event_id"]) if row else None,
+    )
+
+
+def _macro_calendar(rule: dict) -> tuple[bool, float | None, str | None, str | None]:
+    checked = float(rule["last_checked_at"] or rule["created_at"])
+    now = time.time()
+    horizon = now + max(1, int(rule["context"].get("lead_hours", 72))) * 3600
+    with store._lock, store._conn() as connection:
+        rows = connection.execute(
+            """SELECT event_id, event_at, available_at, payload_json FROM macro_events
+               WHERE available_at<=? AND (available_at>? OR event_at BETWEEN ? AND ?)
+               ORDER BY COALESCE(event_at, available_at), event_id LIMIT 50""",
+            (now, checked, now, horizon),
+        ).fetchall()
+    seen = set(rule["context"].get("seen_event_ids") or [])
+    row = next((item for item in rows if str(item["event_id"]) not in seen), None)
+    if row is None:
+        return False, None, None, None
+    event_id = str(row["event_id"])
+    rule["context"]["seen_event_ids"] = [*list(seen)[-99:], event_id]
+    event_at = row["event_at"] if row["event_at"] is not None else row["available_at"]
+    return True, float(event_at), "macro_event", event_id
+
+
 def _condition(rule: dict) -> tuple[bool, float | None, str | None, str | None]:
     rule_type = rule["rule_type"]
     threshold = rule["threshold"]
@@ -387,6 +510,14 @@ def _condition(rule: dict) -> tuple[bool, float | None, str | None, str | None]:
     if rule_type == "evaluation_changed":
         triggered, related_id = _evaluation_change(rule)
         return triggered, None, "research_run", related_id
+    if rule_type == "earnings_released":
+        return _earnings_release(rule)
+    if rule_type == "valuation_band_crossed":
+        return _valuation_band(rule)
+    if rule_type == "major_company_event":
+        return _major_company_event(rule)
+    if rule_type == "macro_calendar":
+        return _macro_calendar(rule)
     if rule_type in {
         "factor_status_changed",
         "factor_ic_decay",

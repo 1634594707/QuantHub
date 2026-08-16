@@ -334,6 +334,7 @@ def pa_analyze(
     timeframe: str = "1h",
     market: str | None = None,
     research_run_id: str | None = None,
+    owner_id: str = "local-user",
 ) -> dict:
     """对单个标的执行完整 PA 两阶段分析，返回 view-model 渲染数据。
 
@@ -409,6 +410,7 @@ def pa_analyze(
                 module="pa",
                 input_data={"kline_limit": 300, "timeframe": timeframe},
                 run_id=research_run_id,
+                owner_id=owner_id,
             )
         except ResearchContextMismatchError as exc:
             logger.warning("PA 研究上下文不一致，回退到新建 run: %s", exc)
@@ -419,6 +421,7 @@ def pa_analyze(
                 module="pa",
                 input_data={"kline_limit": 300, "timeframe": timeframe},
                 run_id=None,
+                owner_id=owner_id,
             )
         add_evidence(
             run_id,

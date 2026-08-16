@@ -1873,6 +1873,7 @@ name = "quanthub"
 version = "0.4.0"
 source = { editable = "." }
 dependencies = [
+    { name = "akshare" },
     { name = "alembic" },
     { name = "loguru" },
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
@@ -1893,7 +1894,6 @@ dependencies = [
 
 [package.optional-dependencies]
 a-shares = [
-    { name = "akshare" },
     { name = "snownlp" },
     { name = "tqdm" },
 ]
@@ -1932,7 +1932,7 @@ test = [
 [package.metadata]
 requires-dist = [
     { name = "aiohttp", marker = "extra == 'crypto'", specifier = ">=3.9" },
-    { name = "akshare", marker = "extra == 'a-shares'", specifier = ">=1.16" },
+    { name = "akshare", specifier = ">=1.16" },
     { name = "alembic", specifier = ">=1.13,<2" },
     { name = "backtrader", marker = "extra == 'backtest'", specifier = ">=1.9.78" },
     { name = "base58", marker = "extra == 'heavy-solana'", specifier = ">=2.1" },

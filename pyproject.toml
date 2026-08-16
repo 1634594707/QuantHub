@@ -16,6 +16,7 @@ dependencies = [
     "urllib3>=2.0",
     "pandas>=2.2",
     "numpy>=1.26",
+    "akshare>=1.16",       # A 股财报与估值生产数据源
     "pyarrow>=14",         # 本地 Parquet 行情（A股 / 加密 / MT5 共用）
     "python-dateutil>=2.8",
     "pyyaml>=6.0",
@@ -32,7 +33,6 @@ dependencies = [
 [project.optional-dependencies]
 # 按市场/能力分组，按需安装
 a_shares = [
-    "akshare>=1.16",
     "snownlp>=0.12",
     "tqdm>=4.66",
 ]

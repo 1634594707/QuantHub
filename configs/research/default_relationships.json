@@ -1,0 +1,18 @@
+{
+  "version": "default-relationships-1.0.0",
+  "effective_from": "2026-01-01T00:00:00Z",
+  "markets": {
+    "a_shares": [
+      {"target_type": "currency", "target_key": "CNY", "direction": "mixed", "strength": 0.45},
+      {"target_type": "rate", "target_key": "PBOC_POLICY_RATE", "direction": "negative", "strength": 0.55},
+      {"target_type": "region", "target_key": "CN", "direction": "positive", "strength": 0.45},
+      {"target_type": "index", "target_key": "CSI_ALL_SHARE", "direction": "positive", "strength": 0.35}
+    ],
+    "us_stocks": [
+      {"target_type": "currency", "target_key": "USD", "direction": "mixed", "strength": 0.45},
+      {"target_type": "rate", "target_key": "FED_FUNDS", "direction": "negative", "strength": 0.6},
+      {"target_type": "region", "target_key": "US", "direction": "positive", "strength": 0.45},
+      {"target_type": "index", "target_key": "US_BROAD_MARKET", "direction": "positive", "strength": 0.35}
+    ]
+  }
+}

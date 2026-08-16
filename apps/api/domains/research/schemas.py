@@ -115,3 +115,12 @@ class ResearchCompareRequest(BaseModel):
         if len(normalized) < 2:
             raise ValueError("至少需要两个不同的研究运行")
         return normalized
+
+
+class UserResearchPreferenceUpdate(BaseModel):
+    default_mode: Literal["quick", "investor", "professional", "quant"] = "investor"
+    default_market: Literal["a_shares", "us_stocks", "crypto"] = "a_shares"
+    holding_status: Literal["not_held", "held"] = "not_held"
+    research_horizon: Literal["short", "swing", "medium", "long"] = "swing"
+    risk_preference: Literal["conservative", "balanced", "aggressive"] = "balanced"
+    terminology_level: Literal["plain", "standard", "technical"] = "standard"

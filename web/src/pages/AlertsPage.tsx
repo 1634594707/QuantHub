@@ -20,6 +20,10 @@ const RULE_LABELS: Record<AlertRuleType, string> = {
   volatility_above: '日波动率达到或高于',
   signal_created: '出现新信号',
   evaluation_changed: '评估结论变化',
+  earnings_released: '财报发布',
+  valuation_band_crossed: '估值跨越分位区间',
+  major_company_event: '重大公司事件',
+  macro_calendar: '宏观日历事件',
   risk_invalidated: '风险失效位触发',
   factor_status_changed: '因子状态变化',
   factor_ic_decay: '因子 IC 衰减',
@@ -31,6 +35,7 @@ const THRESHOLD_TYPES = new Set<AlertRuleType>([
   'price_above', 'price_below', 'change_pct_above', 'change_pct_below',
   'volatility_above', 'risk_invalidated', 'factor_ic_decay',
   'factor_drawdown_breach', 'factor_data_stale',
+  'valuation_band_crossed',
 ])
 
 const FACTOR_RULE_TYPES = new Set<AlertRuleType>([
@@ -64,6 +69,8 @@ export default function AlertsPage() {
     factorKey: searchParams.get('factor_key') || '',
     researchRunId: searchParams.get('research_run_id') || '',
     baselineTestIc: searchParams.get('baseline_test_ic') || '',
+    valuationMetric: searchParams.get('metric') || 'pe_ttm',
+    macroLeadHours: searchParams.get('lead_hours') || '72',
   })
   const [saving, setSaving] = useState(false)
   const [busy, setBusy] = useState('')
@@ -91,7 +98,14 @@ export default function AlertsPage() {
     setMessage('')
     try {
       const context: Record<string, unknown> = form.ruleType === 'risk_invalidated'
-        ? { condition: form.riskCondition }
+        ? {
+            condition: form.riskCondition,
+            ...(form.researchRunId ? { research_run_id: form.researchRunId } : {}),
+          }
+        : form.ruleType === 'valuation_band_crossed'
+          ? { metric: form.valuationMetric }
+        : form.ruleType === 'macro_calendar'
+          ? { lead_hours: Math.max(1, Number(form.macroLeadHours) || 72) }
         : FACTOR_RULE_TYPES.has(form.ruleType)
           ? {
               factor_key: form.factorKey.trim(),
@@ -157,7 +171,7 @@ export default function AlertsPage() {
   ]
 
   return <div className={s.page}>
-    <WorkspaceHeader context="执行 / 价格提醒" title="价格提醒" metrics={[
+    <WorkspaceHeader context="执行 / 研究提醒" title="研究提醒" metrics={[
       { label: '提醒规则', value: ruleRows.length },
       { label: '已启用', value: ruleRows.filter((rule) => rule.enabled).length },
       { label: '待确认', value: pendingCount },
@@ -169,8 +183,10 @@ export default function AlertsPage() {
         <label>类型<select value={form.ruleType} onChange={(event) => setForm({ ...form, ruleType: event.target.value as AlertRuleType })}>{Object.entries(RULE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
         <label>标的<input value={form.symbol} onChange={(event) => setForm({ ...form, symbol: event.target.value })} /></label>
         <label>市场<select value={form.market} onChange={(event) => setForm({ ...form, market: event.target.value })}><option value="a_shares">a_shares</option><option value="us_stocks">us_stocks</option><option value="crypto">crypto</option><option value="mt5">mt5</option></select></label>
-        {THRESHOLD_TYPES.has(form.ruleType) && <label>阈值<input type="number" step="any" value={form.threshold} onChange={(event) => setForm({ ...form, threshold: event.target.value })} /></label>}
+        {THRESHOLD_TYPES.has(form.ruleType) && <label>{form.ruleType === 'valuation_band_crossed' ? '历史分位阈值（0-1 或百分数）' : '阈值'}<input type="number" step="any" value={form.threshold} onChange={(event) => setForm({ ...form, threshold: event.target.value })} /></label>}
         {form.ruleType === 'risk_invalidated' && <label>触发方向<select value={form.riskCondition} onChange={(event) => setForm({ ...form, riskCondition: event.target.value })}><option value="below">价格低于失效位</option><option value="above">价格高于失效位</option></select></label>}
+        {form.ruleType === 'valuation_band_crossed' && <label>估值指标<select value={form.valuationMetric} onChange={(event) => setForm({ ...form, valuationMetric: event.target.value })}><option value="pe_ttm">PE TTM 历史分位</option><option value="pb">PB 历史分位</option><option value="ps">PS 历史分位</option><option value="ev_ebitda">EV/EBITDA 历史分位</option><option value="fcf_yield">FCF Yield 历史分位</option><option value="dividend_yield">股息率历史分位</option></select></label>}
+        {form.ruleType === 'macro_calendar' && <label>提前提醒（小时）<input type="number" min="1" max="720" value={form.macroLeadHours} onChange={(event) => setForm({ ...form, macroLeadHours: event.target.value })} /></label>}
         {FACTOR_RULE_TYPES.has(form.ruleType) && <label>因子键<input required value={form.factorKey} onChange={(event) => setForm({ ...form, factorKey: event.target.value })} /></label>}
         {form.ruleType === 'factor_ic_decay' && <label>基准样本外 IC<input required type="number" step="any" value={form.baselineTestIc} onChange={(event) => setForm({ ...form, baselineTestIc: event.target.value })} /></label>}
         <label>检查频率（分钟）<input type="number" min="1" max="10080" value={form.frequencyMinutes} onChange={(event) => setForm({ ...form, frequencyMinutes: event.target.value })} /></label>

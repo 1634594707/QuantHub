@@ -39,17 +39,23 @@ def delete_holding(holding_id: str) -> bool:
     return store.delete_holding(holding_id)
 
 
-def list_watchlist() -> list[dict]:
-    return store.list_watchlist()
+def list_watchlist(owner_id: str = "local-user") -> list[dict]:
+    return store.list_watchlist(owner_id=owner_id)
 
 
-def add_watchlist(symbol: str, name: str, market: str, instrument_id: str | None = None) -> dict:
-    return store.add_watchlist(symbol, name, market, instrument_id)
+def add_watchlist(
+    symbol: str,
+    name: str,
+    market: str,
+    instrument_id: str | None = None,
+    owner_id: str = "local-user",
+) -> dict:
+    return store.add_watchlist(symbol, name, market, instrument_id, owner_id=owner_id)
 
 
-def update_watchlist(watch_id: str, patch: dict) -> dict | None:
-    return store.update_watchlist(watch_id, patch)
+def update_watchlist(watch_id: str, patch: dict, owner_id: str = "local-user") -> dict | None:
+    return store.update_watchlist(watch_id, patch, owner_id=owner_id)
 
 
-def delete_watchlist(watch_id: str) -> bool:
-    return store.delete_watchlist(watch_id)
+def delete_watchlist(watch_id: str, owner_id: str = "local-user") -> bool:
+    return store.delete_watchlist(watch_id, owner_id=owner_id)

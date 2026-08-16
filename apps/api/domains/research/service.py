@@ -3,14 +3,20 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pandas as pd
 
 from apps.api import store
 from apps.api.domains.instrument import service as instrument_service
-from core.research_decision import ModuleOpinion, decide_research, normalize_direction
+from core.research_decision import (
+    ModuleOpinion,
+    decide_research,
+    decision_from_mapping,
+    normalize_direction,
+)
+from packages.financial_data import HoldingStatus, build_action_guidance
 
 logger = logging.getLogger(__name__)
 
@@ -37,10 +43,13 @@ def start_module(
     module: str,
     input_data: dict[str, Any],
     run_id: str | None = None,
+    owner_id: str = "local-user",
 ) -> str:
     if run_id:
         run = store.get_research_run(run_id)
         if run is None:
+            raise ResearchRunNotFoundError(run_id)
+        if run.get("owner_id") != owner_id:
             raise ResearchRunNotFoundError(run_id)
         expected = (run["symbol"], run["market"], run["timeframe"])
         actual = (symbol, market, timeframe)
@@ -64,6 +73,7 @@ def start_module(
         modules=[module],
         input_data={module: input_data},
         instrument_id=instrument.instrument_id,
+        owner_id=owner_id,
     )
     store.update_research_run(run["id"], {"status": "running"})
     return str(run["id"])
@@ -202,6 +212,8 @@ def build_research_decision(run: dict[str, Any]) -> dict[str, Any]:
     for kind, module in (
         ("fundamental_snapshot", "fundamentals"),
         ("valuation_snapshot", "valuation"),
+        ("company_event_snapshot", "company_events"),
+        ("macro_event_snapshot", "macro"),
         ("factor_exposure", "validated_factor"),
     ):
         evidence = next(
@@ -241,8 +253,20 @@ def build_research_decision(run: dict[str, Any]) -> dict[str, Any]:
         invalidation.append(f"价格触及判断失效位 {model_decision['stop_loss_price']}")
     watch_points = model_decision.get("watch_points")
     reevaluate = [str(item) for item in watch_points] if isinstance(watch_points, list) else []
+    configured_modules = set(run.get("modules") or [])
+    required_modules = [
+        decision_module
+        for configured_module, decision_module in (
+            ("fundamentals", "fundamentals"),
+            ("valuation", "valuation"),
+            ("announcements", "company_events"),
+            ("macro", "macro"),
+        )
+        if configured_module in configured_modules
+    ]
     decision = decide_research(
         opinions,
+        required_modules=required_modules,
         invalidation_conditions=invalidation,
         reevaluate_triggers=reevaluate or ["关键模块获得新的有效证据"],
     )
@@ -257,6 +281,8 @@ def build_evidence_fusion(run: dict[str, Any]) -> dict[str, Any]:
 
     fundamental = latest("fundamental_snapshot")
     valuation = latest("valuation_snapshot")
+    company_events = latest("company_event_snapshot")
+    macro_events = latest("macro_event_snapshot")
     factor = latest("factor_exposure")
     try:
         from apps.api.domains.ledger.domain import compute_positions
@@ -272,8 +298,10 @@ def build_evidence_fusion(run: dict[str, Any]) -> dict[str, Any]:
     def module(item: dict[str, Any] | None, required_fields: tuple[str, ...]) -> dict[str, Any]:
         payload = (item or {}).get("payload") or {}
         missing = [field for field in required_fields if payload.get(field) is None]
+        status = "covered" if item and not missing else "partial" if item else "missing"
         return {
-            "status": "covered" if item and not missing else "partial" if item else "missing",
+            "status": status,
+            "covered": status == "covered",
             "evidence_id": (item or {}).get("id"),
             "captured_at": (item or {}).get("captured_at"),
             "source": (item or {}).get("source"),
@@ -300,9 +328,15 @@ def build_evidence_fusion(run: dict[str, Any]) -> dict[str, Any]:
             fundamental, ("financial_quality", "earnings_trend", "cash_flow_quality")
         ),
         "valuation": module(valuation, ("valuation_range", "valuation_percentile")),
+        "company_events": module(company_events, ("total", "verified_count", "direction")),
+        "macro": module(
+            macro_events,
+            ("event_count", "relationship_count", "reliable_transmission_count", "direction"),
+        ),
         "factor": factor_module,
         "holding": {
             "status": "held" if holding else "not_held",
+            "available": holding is not None,
             "position": holding,
             "evidence_requirements": (
                 ["继续持有条件", "减仓条件", "退出条件"]
@@ -310,7 +344,9 @@ def build_evidence_fusion(run: dict[str, Any]) -> dict[str, Any]:
                 else ["建仓前验证条件", "失效条件"]
             ),
         },
-        "coverage_complete": bool(fundamental and valuation and factor),
+        "coverage_complete": bool(
+            fundamental and valuation and company_events and macro_events and factor
+        ),
     }
 
 
@@ -319,10 +355,36 @@ def persist_research_decision(run_id: str) -> dict[str, Any] | None:
     if run is None:
         return None
     decision = build_research_decision(run)
+    decision_model = decision_from_mapping(decision)
+    action_guidance = None
+    if decision_model is not None:
+        holding_raw = str((run.get("input") or {}).get("holding_status", "not_held"))
+        holding_status = (
+            HoldingStatus.HELD
+            if holding_raw == HoldingStatus.HELD.value
+            else HoldingStatus.NOT_HELD
+        )
+        evidence_coverage = {
+            opinion.module: (
+                "covered"
+                if opinion.status == "available"
+                else "stale"
+                if opinion.status == "stale"
+                else "missing"
+            )
+            for opinion in decision_model.module_opinions
+        }
+        action_guidance = build_action_guidance(
+            decision_model,
+            holding_status=holding_status,
+            evidence_coverage=evidence_coverage,
+            review_at=datetime.now(UTC) + timedelta(days=30),
+        ).model_dump(mode="json")
     summary = {
         **(run.get("summary") or {}),
         "research_decision": decision,
         "evidence_fusion": build_evidence_fusion(run),
+        "action_guidance": action_guidance,
     }
     store.update_research_run(run_id, {"summary": summary})
     add_evidence(
@@ -332,6 +394,14 @@ def persist_research_decision(run_id: str) -> dict[str, Any] | None:
         title=f"{run['symbol']} 统一研究决策",
         payload=decision,
     )
+    if action_guidance is not None:
+        add_evidence(
+            run_id,
+            kind="action_guidance",
+            source=str(action_guidance["method_version"]),
+            title=f"{run['symbol']} 场景化建议参考",
+            payload=action_guidance,
+        )
     return decision
 
 
@@ -368,6 +438,57 @@ def verify_run_snapshots(run: dict[str, Any]) -> dict[str, Any]:
         "has_analysis_output": has_analysis_output,
         "replay_ready": snapshots_valid and has_analysis_output,
         "checks": checks,
+    }
+
+
+def build_export_manifest(run: dict[str, Any]) -> dict[str, Any]:
+    evidence = run.get("evidence") or []
+    available_times: list[tuple[datetime, str]] = []
+    method_versions: set[str] = set()
+    manifest: list[dict[str, Any]] = []
+    for item in evidence:
+        payload = item.get("payload") if isinstance(item.get("payload"), dict) else {}
+        provenance = (
+            payload.get("provenance") if isinstance(payload.get("provenance"), dict) else {}
+        )
+        available_at = provenance.get("available_at")
+        if isinstance(available_at, str):
+            try:
+                parsed_available_at = datetime.fromisoformat(available_at)
+            except ValueError:
+                parsed_available_at = None
+            if parsed_available_at is not None and parsed_available_at.tzinfo is not None:
+                available_times.append((parsed_available_at, available_at))
+        source = str(item.get("source") or "")
+        if source:
+            method_versions.add(source)
+        for key in ("method_version", "decision_version", "version"):
+            value = payload.get(key)
+            if isinstance(value, str) and value:
+                method_versions.add(value)
+        manifest.append(
+            {
+                "id": item.get("id"),
+                "kind": item.get("kind"),
+                "title": item.get("title"),
+                "source": item.get("source"),
+                "uri": item.get("uri"),
+                "captured_at": item.get("captured_at"),
+                "available_at": available_at,
+                "revision": provenance.get("revision"),
+                "content_hash": provenance.get("content_hash"),
+            }
+        )
+    data_cutoff = (
+        max(available_times, key=lambda item: item[0])[1]
+        if available_times
+        else datetime.fromtimestamp(float(run["updated_at"]), UTC).isoformat()
+    )
+    return {
+        "data_cutoff": data_cutoff,
+        "method_versions": sorted(method_versions),
+        "evidence_manifest": manifest,
+        "disclaimer": "研究参考，不构成投资建议或收益承诺；请结合原始来源独立判断。",
     }
 
 
@@ -436,6 +557,19 @@ def compare_runs(runs: list[dict[str, Any]]) -> dict[str, Any]:
         model_decision = stage2.get("decision") if isinstance(stage2.get("decision"), dict) else {}
         news = summary.get("news") if isinstance(summary.get("news"), dict) else {}
         themes = news.get("themes") if isinstance(news.get("themes"), list) else []
+        fundamentals = (
+            summary.get("fundamentals") if isinstance(summary.get("fundamentals"), dict) else {}
+        )
+        valuation = summary.get("valuation") if isinstance(summary.get("valuation"), dict) else {}
+        company_events = (
+            summary.get("announcements") if isinstance(summary.get("announcements"), dict) else {}
+        )
+        macro = summary.get("macro") if isinstance(summary.get("macro"), dict) else {}
+        guidance = (
+            summary.get("action_guidance")
+            if isinstance(summary.get("action_guidance"), dict)
+            else {}
+        )
         return {
             "direction": decision.get("direction", "insufficient"),
             "execution_eligible": decision.get("execution_eligible") is True,
@@ -458,6 +592,33 @@ def compare_runs(runs: list[dict[str, Any]]) -> dict[str, Any]:
                 "target": model_decision.get("take_profit_price"),
             },
             "news_themes": themes,
+            "fundamentals": {
+                key: fundamentals.get(key)
+                for key in ("financial_quality", "earnings_trend", "cash_flow_quality")
+            },
+            "valuation": {
+                key: valuation.get(key)
+                for key in ("valuation_range", "valuation_percentile", "method_version")
+            },
+            "company_events": {
+                "direction": company_events.get("direction"),
+                "verified_count": company_events.get("verified_count"),
+                "event_ids": [
+                    item.get("event_id")
+                    for item in company_events.get("events", [])
+                    if isinstance(item, dict)
+                ],
+            },
+            "macro": {
+                "direction": macro.get("direction"),
+                "reliable_transmission_count": macro.get("reliable_transmission_count"),
+                "event_ids": [
+                    item.get("event_id")
+                    for item in macro.get("events", [])
+                    if isinstance(item, dict)
+                ],
+            },
+            "guidance_status": guidance.get("status"),
             "invalidation_conditions": decision.get("invalidation_conditions") or [],
             "reevaluate_triggers": decision.get("reevaluate_triggers") or [],
         }
@@ -510,6 +671,25 @@ def compare_runs(runs: list[dict[str, Any]]) -> dict[str, Any]:
                     "field": "directions",
                     "before": previous["module_opinions"],
                     "after": current["module_opinions"],
+                }
+            )
+        for field in ("fundamentals", "valuation", "company_events", "macro"):
+            if current[field] != previous[field]:
+                changes.append(
+                    {
+                        "kind": field,
+                        "field": "snapshot",
+                        "before": previous[field],
+                        "after": current[field],
+                    }
+                )
+        if current["guidance_status"] != previous["guidance_status"]:
+            changes.append(
+                {
+                    "kind": "guidance",
+                    "field": "status",
+                    "before": previous["guidance_status"],
+                    "after": current["guidance_status"],
                 }
             )
     return {

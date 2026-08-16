@@ -92,13 +92,25 @@ def _fingerprint(opinions: list[ModuleOpinion], version: str) -> str:
 def decide_research(
     opinions: list[ModuleOpinion],
     *,
+    required_modules: list[str] | None = None,
     invalidation_conditions: list[str] | None = None,
     reevaluate_triggers: list[str] | None = None,
     decided_at: datetime | None = None,
     decision_version: str = DECISION_VERSION,
 ) -> ResearchDecision:
     """Apply the conflict matrix without allowing prose to override state."""
-    ordered = sorted(opinions, key=lambda item: item.module)
+    by_module = {item.module: item for item in opinions}
+    if len(by_module) != len(opinions):
+        raise ValueError("module opinions must be unique by module")
+    for module in required_modules or []:
+        if module not in by_module:
+            by_module[module] = ModuleOpinion(
+                module=module,
+                direction="insufficient",
+                status="missing",
+                reason="研究配置要求该模块，但没有可用证据",
+            )
+    ordered = sorted(by_module.values(), key=lambda item: item.module)
     usable = [item for item in ordered if item.status == "available"]
     directional = {item.direction for item in usable if item.direction in {"long", "short"}}
     has_neutral = any(item.direction == "neutral" for item in usable)

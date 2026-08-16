@@ -12,6 +12,10 @@ AlertRuleType = Literal[
     "volatility_above",
     "signal_created",
     "evaluation_changed",
+    "earnings_released",
+    "valuation_band_crossed",
+    "major_company_event",
+    "macro_calendar",
     "risk_invalidated",
     "factor_status_changed",
     "factor_ic_decay",
@@ -29,6 +33,7 @@ THRESHOLD_RULE_TYPES = {
     "factor_ic_decay",
     "factor_drawdown_breach",
     "factor_data_stale",
+    "valuation_band_crossed",
 }
 
 
@@ -66,6 +71,18 @@ class AlertRuleCreate(BaseModel):
             "below",
         }:
             raise ValueError("risk_invalidated 的 context.condition 必须是 above 或 below")
+        if self.rule_type == "valuation_band_crossed" and self.context.get(
+            "metric", "pe_ttm"
+        ) not in {
+            "pe_ttm",
+            "forward_pe",
+            "pb",
+            "ps",
+            "ev_ebitda",
+            "fcf_yield",
+            "dividend_yield",
+        }:
+            raise ValueError("valuation_band_crossed 的 context.metric 不受支持")
         factor_rule_types = {
             "factor_status_changed",
             "factor_ic_decay",

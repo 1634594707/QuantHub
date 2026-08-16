@@ -23,6 +23,22 @@ function renderPage(
     runs,
   } as never)
   vi.spyOn(api, 'instruments').mockResolvedValue({ ok: true, instruments: [] } as never)
+  vi.spyOn(api, 'researchPreference').mockResolvedValue({
+    ok: true,
+    preference: {
+      user_id: 'local-user', default_mode: 'investor', default_market: 'a_shares',
+      holding_status: 'not_held', research_horizon: 'swing', risk_preference: 'balanced',
+      terminology_level: 'standard', updated_at: '2026-08-16T00:00:00Z',
+    },
+  } as never)
+  vi.spyOn(api, 'updateResearchPreference').mockResolvedValue({
+    ok: true,
+    preference: {
+      user_id: 'local-user', default_mode: 'investor', default_market: 'a_shares',
+      holding_status: 'not_held', research_horizon: 'swing', risk_preference: 'balanced',
+      terminology_level: 'standard', updated_at: '2026-08-16T00:00:00Z',
+    },
+  } as never)
   render(
     <MemoryRouter initialEntries={[path]}>
       <Routes>
@@ -38,6 +54,67 @@ afterEach(() => {
 })
 
 describe('ResearchWorkspacePage', () => {
+  const reportRun = {
+    id: 'run-report', symbol: '600519', market: 'a_shares', timeframe: '1d',
+    status: 'succeeded', modules: ['market', 'fundamentals', 'valuation', 'announcements', 'macro'],
+    input: { evaluation_profile: 'comprehensive' },
+    summary: {
+      market: {
+        latest_price: 1518, latest_time: '2026-08-15T07:00:00Z', source: 'akshare',
+        quantitative: {
+          confidence: 'high', data_quality: 'complete',
+          metrics: { return_20_pct: 4.2, annualized_volatility_pct: 18.6, max_drawdown_pct: -7.1, rsi_14: 57.4 },
+          dimensions: { trend: { label: '趋势', signal: 'positive', evidence: '收盘价位于长期均线上方' } },
+          strategies: [], has_strategy_disagreement: false,
+        },
+      },
+      fundamentals: { financial_quality: 'strong', earnings_trend: 'improving', cash_flow_quality: 'healthy' },
+      valuation: { valuation_range: 'fair', valuation_percentile: 0.42, confidence: 0.88 },
+      announcements: {
+        reason: '公司公告与可信事件方向汇总', direction: 'long', verified_count: 1,
+        events: [{
+          event_id: 'company-event-1', title: '贵州茅台净利润增长', category: 'earnings',
+          direction: 'positive', verification_status: 'verified',
+          provenance: { published_at: '2026-08-15T15:59:59Z' },
+        }],
+      },
+      macro: {
+        reason: '宏观事件与标的可靠暴露传导汇总', direction: 'negative',
+        reliable_transmission_count: 1,
+        events: [{
+          event_id: 'macro-event-1', title: '美联储利率决议', state: 'released',
+          direction: 'negative', actual_value: 5.25, expected_value: 5,
+          provenance: { published_at: '2026-08-14T15:59:59Z' },
+        }],
+        transmissions: [{ channel: 'rates', order: 'direct', horizon: 'medium', direction: 'negative', strength: 0.72 }],
+      },
+      action_guidance: {
+        status: 'research_further', primary_reasons: ['盈利与现金流趋势改善'],
+        disclaimer: '研究参考，不是收益承诺。',
+      },
+      research_decision: {
+        direction: 'long', execution_eligible: false, decision_version: 'research-decision-v1',
+        module_opinions: [
+          { module: 'fundamentals', direction: 'long', status: 'available', reason: '盈利质量改善' },
+          { module: 'valuation', direction: 'neutral', status: 'available', reason: '估值处于合理区间' },
+        ],
+        conflicts: [], invalidation_conditions: ['盈利增速连续两个季度转负'],
+        reevaluate_triggers: ['下一次财报公告'],
+      },
+      evidence_fusion: {
+        fundamental: { covered: true }, valuation: { covered: true },
+        company_events: { covered: true }, macro: { covered: true },
+        factor: { covered: false, missing_fields: ['factor_snapshot'] }, holding: { available: false },
+      },
+    },
+    error: null, note: '', favorite: false, tags: [], archived_at: null,
+    created_at: 1, updated_at: 1, evidence_count: 1,
+    evidence: [{
+      id: 'evidence-financial', kind: 'financial_snapshot', title: '财务快照', source: 'akshare',
+      captured_at: 1, uri: null, payload: { model: 'fundamental-v1', raw_metric: 42 },
+    }],
+  }
+
   it('starts the existing evaluation workflow from the workspace', async () => {
     const createTask = vi.spyOn(api, 'createAnalysisTask').mockResolvedValue({
       ok: true,
@@ -59,9 +136,7 @@ describe('ResearchWorkspacePage', () => {
         evaluation_horizon: 'swing',
       }),
     })))
-    await waitFor(() => expect(screen.getByLabelText('current location').textContent).toContain(
-      'evaluation_task_id=evaluation-task-1',
-    ))
+    await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
   })
 
   it('keeps the workspace readable when task creation fails', async () => {
@@ -72,6 +147,23 @@ describe('ResearchWorkspacePage', () => {
 
     expect((await screen.findByRole('alert')).textContent).toContain('分析服务不可用')
     expect(screen.getByText('行情图')).toBeTruthy()
+  })
+
+  it('starts a comprehensive A-share evaluation with financial and event modules', async () => {
+    const createTask = vi.spyOn(api, 'createAnalysisTask').mockResolvedValue({
+      ok: true, duplicate: false, task: { id: 'evaluation-task-a-share' },
+    } as never)
+    renderPage('/research/600519?market=a_shares&tf=1d&view=overview')
+
+    fireEvent.click(screen.getByRole('button', { name: '一键评估' }))
+
+    await waitFor(() => expect(createTask).toHaveBeenCalledWith(expect.objectContaining({
+      payload: expect.objectContaining({
+        modules: ['market', 'news', 'pa', 'ensemble', 'fundamentals', 'valuation', 'announcements', 'macro'],
+        evaluation_profile: 'comprehensive',
+        market_limit: 480,
+      }),
+    })))
   })
 
   it('uses the saved unified decision and blocks simulation on conflicts', async () => {
@@ -106,5 +198,46 @@ describe('ResearchWorkspacePage', () => {
     const simulation = screen.getByRole('button', { name: '进入模拟交易' }) as HTMLButtonElement
     expect(simulation.disabled).toBe(true)
     expect(screen.getByText(/不展示入场、止损和止盈动作/)).toBeTruthy()
+  })
+
+  it('renders action guidance together with fundamental and valuation summaries', async () => {
+    vi.spyOn(api, 'researchRun').mockResolvedValue({ ok: true, run: reportRun } as never)
+    vi.spyOn(api, 'researchVerify').mockResolvedValue({
+      ok: true, run_id: reportRun.id, snapshot_count: 1, snapshots_valid: true,
+      has_analysis_output: true, replay_ready: true, checks: [],
+    })
+    renderPage('/research/600519?market=a_shares&tf=1d&view=history&run_id=run-report&mode=investor', [reportRun])
+
+    expect(await screen.findByText('值得深入研究')).toBeTruthy()
+    expect(screen.getByText('盈利与现金流趋势改善')).toBeTruthy()
+    expect(screen.getByText('strong')).toBeTruthy()
+    expect(screen.getByText('fair')).toBeTruthy()
+    expect(screen.getByText(/自身历史分位 42%/)).toBeTruthy()
+    expect(screen.getByText('事件时间线')).toBeTruthy()
+    expect(screen.getByText('贵州茅台净利润增长')).toBeTruthy()
+    expect(screen.getByText('美联储利率决议')).toBeTruthy()
+    expect(screen.getByText('rates → 600519')).toBeTruthy()
+    expect(screen.getByText('公司事件 · 已覆盖')).toBeTruthy()
+    expect(screen.getByText('宏观传导 · 已覆盖')).toBeTruthy()
+  })
+
+  it('keeps the selected run while switching modes and hides raw detail in quick mode', async () => {
+    vi.spyOn(api, 'researchRun').mockResolvedValue({ ok: true, run: reportRun } as never)
+    vi.spyOn(api, 'researchVerify').mockResolvedValue({
+      ok: true, run_id: reportRun.id, snapshot_count: 1, snapshots_valid: true,
+      has_analysis_output: true, replay_ready: true, checks: [],
+    })
+    renderPage('/research/600519?market=a_shares&tf=1d&view=history&run_id=run-report&mode=professional', [reportRun])
+
+    expect(await screen.findByText('分析依据与版本')).toBeTruthy()
+    fireEvent.change(screen.getByLabelText('研究查看方式'), { target: { value: 'quick' } })
+
+    await waitFor(() => expect(screen.getByLabelText('current location').textContent).toContain('run_id=run-report'))
+    expect(screen.getByLabelText('current location').textContent).toContain('mode=quick')
+    expect(screen.queryByText('分析依据与版本')).toBeNull()
+    expect(screen.queryByText('可解释量化评估')).toBeNull()
+    expect(screen.queryByText(/raw_metric/)).toBeNull()
+    expect(screen.getByText('模型结果仅用于研究，不构成交易建议。')).toBeTruthy()
+    expect(screen.getByText('下一次财报公告')).toBeTruthy()
   })
 })

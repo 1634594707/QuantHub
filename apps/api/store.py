@@ -128,6 +128,7 @@ def _init() -> None:
         c.execute(
             """CREATE TABLE IF NOT EXISTS watchlist (
                 id TEXT PRIMARY KEY,
+                owner_id TEXT NOT NULL DEFAULT 'local-user',
                 instrument_id TEXT,
                 sym TEXT NOT NULL,
                 name TEXT NOT NULL,
@@ -463,6 +464,7 @@ def _init() -> None:
         c.execute(
             """CREATE TABLE IF NOT EXISTS research_runs (
                 id TEXT PRIMARY KEY,
+                owner_id TEXT NOT NULL DEFAULT 'local-user',
                 instrument_id TEXT,
                 symbol TEXT NOT NULL,
                 market TEXT NOT NULL,
@@ -480,6 +482,15 @@ def _init() -> None:
         _ensure_column(c, "research_runs", "favorite", "INTEGER NOT NULL DEFAULT 0")
         _ensure_column(c, "research_runs", "tags_json", "TEXT NOT NULL DEFAULT '[]'")
         _ensure_column(c, "research_runs", "archived_at", "REAL")
+        _ensure_column(c, "research_runs", "owner_id", "TEXT NOT NULL DEFAULT 'local-user'")
+        c.execute(
+            """CREATE TABLE IF NOT EXISTS user_research_preferences (
+                user_id TEXT PRIMARY KEY,
+                payload_json TEXT NOT NULL DEFAULT '{}',
+                updated_at REAL NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            )"""
+        )
         c.execute(
             """CREATE TABLE IF NOT EXISTS research_evidence (
                 id TEXT PRIMARY KEY,
@@ -493,6 +504,96 @@ def _init() -> None:
                 FOREIGN KEY (run_id) REFERENCES research_runs(id) ON DELETE CASCADE
             )"""
         )
+        c.execute(
+            """CREATE TABLE IF NOT EXISTS financial_statements (
+                statement_id TEXT PRIMARY KEY,
+                instrument_id TEXT NOT NULL,
+                statement_type TEXT NOT NULL,
+                period_start TEXT NOT NULL,
+                period_end TEXT NOT NULL,
+                published_at REAL NOT NULL,
+                available_at REAL NOT NULL,
+                fetched_at REAL NOT NULL,
+                source TEXT NOT NULL,
+                revision TEXT NOT NULL,
+                content_hash TEXT NOT NULL,
+                payload_json TEXT NOT NULL,
+                created_at REAL NOT NULL
+            )"""
+        )
+        c.execute(
+            """CREATE TABLE IF NOT EXISTS valuation_snapshots (
+                snapshot_id TEXT PRIMARY KEY,
+                instrument_id TEXT NOT NULL,
+                as_of REAL NOT NULL,
+                price_at REAL NOT NULL,
+                source TEXT NOT NULL,
+                method_version TEXT NOT NULL,
+                content_hash TEXT NOT NULL,
+                payload_json TEXT NOT NULL,
+                created_at REAL NOT NULL
+            )"""
+        )
+        c.execute(
+            """CREATE TABLE IF NOT EXISTS company_events (
+                event_id TEXT PRIMARY KEY,
+                instrument_id TEXT NOT NULL,
+                category TEXT NOT NULL,
+                published_at REAL NOT NULL,
+                available_at REAL NOT NULL,
+                source TEXT NOT NULL,
+                revision TEXT NOT NULL,
+                content_hash TEXT NOT NULL,
+                payload_json TEXT NOT NULL,
+                created_at REAL NOT NULL
+            )"""
+        )
+        c.execute(
+            """CREATE TABLE IF NOT EXISTS macro_events (
+                event_id TEXT PRIMARY KEY,
+                region TEXT NOT NULL,
+                category TEXT NOT NULL,
+                event_at REAL,
+                published_at REAL NOT NULL,
+                available_at REAL NOT NULL,
+                source TEXT NOT NULL,
+                revision TEXT NOT NULL,
+                content_hash TEXT NOT NULL,
+                payload_json TEXT NOT NULL,
+                created_at REAL NOT NULL
+            )"""
+        )
+        c.execute(
+            """CREATE TABLE IF NOT EXISTS instrument_relationships (
+                relationship_id TEXT PRIMARY KEY,
+                owner_id TEXT NOT NULL DEFAULT 'local-user',
+                instrument_id TEXT NOT NULL,
+                target_type TEXT NOT NULL,
+                target_key TEXT NOT NULL,
+                valid_from REAL NOT NULL,
+                valid_to REAL,
+                source TEXT NOT NULL,
+                revision TEXT NOT NULL,
+                content_hash TEXT NOT NULL,
+                payload_json TEXT NOT NULL,
+                created_at REAL NOT NULL
+            )"""
+        )
+        _ensure_column(
+            c, "instrument_relationships", "owner_id", "TEXT NOT NULL DEFAULT 'local-user'"
+        )
+        c.execute(
+            """CREATE TABLE IF NOT EXISTS macro_transmissions (
+                transmission_id TEXT PRIMARY KEY,
+                owner_id TEXT NOT NULL DEFAULT 'local-user',
+                event_id TEXT NOT NULL,
+                instrument_id TEXT NOT NULL,
+                relationship_id TEXT NOT NULL,
+                payload_json TEXT NOT NULL,
+                created_at REAL NOT NULL
+            )"""
+        )
+        _ensure_column(c, "macro_transmissions", "owner_id", "TEXT NOT NULL DEFAULT 'local-user'")
         c.execute(
             """CREATE TABLE IF NOT EXISTS factor_universes (
                 id TEXT PRIMARY KEY,
@@ -649,6 +750,7 @@ def _init() -> None:
         c.execute(
             """CREATE TABLE IF NOT EXISTS analysis_tasks (
                 id TEXT PRIMARY KEY,
+                owner_id TEXT NOT NULL DEFAULT 'local-user',
                 kind TEXT NOT NULL,
                 status TEXT NOT NULL,
                 symbol TEXT NOT NULL,
@@ -667,6 +769,7 @@ def _init() -> None:
                 duration_ms INTEGER
             )"""
         )
+        _ensure_column(c, "analysis_tasks", "owner_id", "TEXT NOT NULL DEFAULT 'local-user'")
         c.execute(
             """CREATE TABLE IF NOT EXISTS simulation_orders (
                 id TEXT PRIMARY KEY,
@@ -928,6 +1031,8 @@ def _init() -> None:
         _ensure_column(c, "automation_runs", "result_id", "TEXT")
         _ensure_column(c, "holdings", "instrument_id", "TEXT")
         _ensure_column(c, "watchlist", "instrument_id", "TEXT")
+        _ensure_column(c, "watchlist", "owner_id", "TEXT NOT NULL DEFAULT 'local-user'")
+        c.execute("CREATE INDEX IF NOT EXISTS idx_watchlist_owner_ts ON watchlist(owner_id, ts)")
         _ensure_column(c, "signals", "instrument_id", "TEXT")
         _ensure_column(c, "research_runs", "instrument_id", "TEXT")
         _ensure_column(c, "experiments", "instrument_id", "TEXT")
@@ -1010,6 +1115,7 @@ def _init() -> None:
         c.execute("CREATE INDEX IF NOT EXISTS idx_signals_instrument ON signals(instrument_id)")
         c.execute("CREATE INDEX IF NOT EXISTS idx_signals_fingerprint ON signals(fingerprint)")
         c.execute("CREATE INDEX IF NOT EXISTS idx_research_symbol ON research_runs(symbol)")
+        c.execute("CREATE INDEX IF NOT EXISTS idx_research_owner ON research_runs(owner_id)")
         c.execute("CREATE INDEX IF NOT EXISTS idx_research_updated ON research_runs(updated_at)")
         c.execute("CREATE INDEX IF NOT EXISTS idx_research_favorite ON research_runs(favorite)")
         c.execute("CREATE INDEX IF NOT EXISTS idx_research_archived ON research_runs(archived_at)")
@@ -1033,6 +1139,30 @@ def _init() -> None:
             "CREATE INDEX IF NOT EXISTS idx_research_instrument ON research_runs(instrument_id)"
         )
         c.execute("CREATE INDEX IF NOT EXISTS idx_evidence_run ON research_evidence(run_id)")
+        c.execute(
+            "CREATE INDEX IF NOT EXISTS idx_financial_statement_pit "
+            "ON financial_statements(instrument_id, statement_type, period_end, available_at)"
+        )
+        c.execute(
+            "CREATE INDEX IF NOT EXISTS idx_valuation_snapshot_pit "
+            "ON valuation_snapshots(instrument_id, as_of)"
+        )
+        c.execute(
+            "CREATE INDEX IF NOT EXISTS idx_company_events_instrument_time "
+            "ON company_events(instrument_id, available_at)"
+        )
+        c.execute(
+            "CREATE INDEX IF NOT EXISTS idx_macro_events_region_time "
+            "ON macro_events(region, available_at)"
+        )
+        c.execute(
+            "CREATE INDEX IF NOT EXISTS idx_relationships_instrument_time "
+            "ON instrument_relationships(owner_id, instrument_id, valid_from, valid_to)"
+        )
+        c.execute(
+            "CREATE INDEX IF NOT EXISTS idx_transmissions_owner_instrument_event "
+            "ON macro_transmissions(owner_id, instrument_id, event_id)"
+        )
         c.execute(
             "CREATE INDEX IF NOT EXISTS idx_factor_universe_market ON factor_universes(market)"
         )
@@ -1073,6 +1203,7 @@ def _init() -> None:
             "ON factor_confirmation_set_openings(experiment_id)"
         )
         c.execute("CREATE INDEX IF NOT EXISTS idx_analysis_tasks_status ON analysis_tasks(status)")
+        c.execute("CREATE INDEX IF NOT EXISTS idx_analysis_tasks_owner ON analysis_tasks(owner_id)")
         c.execute(
             "CREATE INDEX IF NOT EXISTS idx_analysis_tasks_fingerprint "
             "ON analysis_tasks(fingerprint)"
@@ -1353,14 +1484,17 @@ def delete_holding(hid: str) -> bool:
 # ---------------------------------------------------------------------------
 # 关注列表 watchlist（用户可编辑，落库持久化）
 # ---------------------------------------------------------------------------
-def list_watchlist() -> list[dict]:
+def list_watchlist(*, owner_id: str = "local-user") -> list[dict]:
     with _lock, _conn() as c:
         rows = c.execute(
-            "SELECT id, instrument_id, sym, name, market, ts FROM watchlist ORDER BY ts ASC"
+            """SELECT id, owner_id, instrument_id, sym, name, market, ts
+               FROM watchlist WHERE owner_id=? ORDER BY ts ASC""",
+            (owner_id,),
         ).fetchall()
     return [
         {
             "id": r["id"],
+            "owner_id": r["owner_id"],
             "instrument_id": r["instrument_id"],
             "sym": r["sym"],
             "name": r["name"],
@@ -1371,19 +1505,33 @@ def list_watchlist() -> list[dict]:
 
 
 def add_watchlist(
-    sym: str, name: str, market: str = "a_shares", instrument_id: str | None = None
+    sym: str,
+    name: str,
+    market: str = "a_shares",
+    instrument_id: str | None = None,
+    *,
+    owner_id: str = "local-user",
 ) -> dict:
     wid = uuid.uuid4().hex[:12]
     resolved_id = instrument_id or _instrument_id(sym, market)
     with _lock, _conn() as c:
         c.execute(
-            "INSERT INTO watchlist (id, instrument_id, sym, name, market, ts) VALUES (?,?,?,?,?,?)",
-            (wid, resolved_id, sym, name, market, _now()),
+            """INSERT INTO watchlist
+               (id, owner_id, instrument_id, sym, name, market, ts)
+               VALUES (?,?,?,?,?,?,?)""",
+            (wid, owner_id, resolved_id, sym, name, market, _now()),
         )
-    return {"id": wid, "instrument_id": resolved_id, "sym": sym, "name": name, "market": market}
+    return {
+        "id": wid,
+        "owner_id": owner_id,
+        "instrument_id": resolved_id,
+        "sym": sym,
+        "name": name,
+        "market": market,
+    }
 
 
-def update_watchlist(wid: str, patch: dict) -> dict | None:
+def update_watchlist(wid: str, patch: dict, *, owner_id: str = "local-user") -> dict | None:
     allowed = ("instrument_id", "sym", "name", "market")
     sets: list[str] = []
     vals: list = []
@@ -1395,14 +1543,18 @@ def update_watchlist(wid: str, patch: dict) -> dict | None:
         return None
     vals.append(wid)
     with _lock, _conn() as c:
-        c.execute(f"UPDATE watchlist SET {', '.join(sets)} WHERE id=?", vals)
+        vals.append(owner_id)
+        c.execute(f"UPDATE watchlist SET {', '.join(sets)} WHERE id=? AND owner_id=?", vals)
         r = c.execute(
-            "SELECT id, instrument_id, sym, name, market FROM watchlist WHERE id=?", (wid,)
+            """SELECT id, owner_id, instrument_id, sym, name, market
+               FROM watchlist WHERE id=? AND owner_id=?""",
+            (wid, owner_id),
         ).fetchone()
     if r is None:
         return None
     return {
         "id": r["id"],
+        "owner_id": r["owner_id"],
         "instrument_id": r["instrument_id"],
         "sym": r["sym"],
         "name": r["name"],
@@ -1410,9 +1562,9 @@ def update_watchlist(wid: str, patch: dict) -> dict | None:
     }
 
 
-def delete_watchlist(wid: str) -> bool:
+def delete_watchlist(wid: str, *, owner_id: str = "local-user") -> bool:
     with _lock, _conn() as c:
-        cursor = c.execute("DELETE FROM watchlist WHERE id=?", (wid,))
+        cursor = c.execute("DELETE FROM watchlist WHERE id=? AND owner_id=?", (wid, owner_id))
     return cursor.rowcount > 0
 
 
@@ -2094,6 +2246,7 @@ def cancel_simulation_order(
 def _research_run_dict(row: sqlite3.Row, evidence_count: int | None = None) -> dict:
     result = {
         "id": row["id"],
+        "owner_id": row["owner_id"],
         "instrument_id": row["instrument_id"],
         "symbol": row["symbol"],
         "market": row["market"],
@@ -2122,6 +2275,7 @@ def create_research_run(
     modules: list[str],
     input_data: dict,
     instrument_id: str | None = None,
+    owner_id: str = "local-user",
 ) -> dict:
     run_id = uuid.uuid4().hex
     now = _now()
@@ -2129,11 +2283,12 @@ def create_research_run(
     with _lock, _conn() as c:
         c.execute(
             """INSERT INTO research_runs
-               (id, instrument_id, symbol, market, timeframe, status, modules_json, input_json,
-                summary_json, error, created_at, updated_at)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+               (id, owner_id, instrument_id, symbol, market, timeframe, status, modules_json,
+                input_json, summary_json, error, created_at, updated_at)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (
                 run_id,
+                owner_id,
                 resolved_id,
                 symbol,
                 market,
@@ -2165,6 +2320,7 @@ def list_research_runs(
     factor_transaction_cost_bps: float | None = None,
     factor_walk_forward_mode: str | None = None,
     factor_walk_forward_folds: int | None = None,
+    owner_id: str | None = None,
 ) -> list[dict]:
     return list_research_runs_page(
         limit=limit,
@@ -2180,6 +2336,7 @@ def list_research_runs(
         factor_transaction_cost_bps=factor_transaction_cost_bps,
         factor_walk_forward_mode=factor_walk_forward_mode,
         factor_walk_forward_folds=factor_walk_forward_folds,
+        owner_id=owner_id,
     )["items"]
 
 
@@ -2202,12 +2359,16 @@ def list_research_runs_page(
     archived: bool | None = False,
     module: str | None = None,
     cursor: str | None = None,
+    owner_id: str | None = None,
 ) -> dict:
     sql = """SELECT r.*, COUNT(e.id) AS evidence_count
              FROM research_runs r
              LEFT JOIN research_evidence e ON e.run_id = r.id"""
     clauses: list[str] = []
     params: list = []
+    if owner_id:
+        clauses.append("r.owner_id=?")
+        params.append(owner_id)
     if symbol:
         clauses.append("r.symbol=?")
         params.append(symbol)
@@ -2369,6 +2530,30 @@ def update_research_runs(run_ids: list[str], patch: dict) -> list[dict]:
     return updated
 
 
+def get_user_research_preference(user_id: str) -> dict[str, Any] | None:
+    with _lock, _conn() as c:
+        row = c.execute(
+            "SELECT payload_json FROM user_research_preferences WHERE user_id=?",
+            (user_id,),
+        ).fetchone()
+    return json.loads(row["payload_json"]) if row is not None else None
+
+
+def save_user_research_preference(user_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+    now = _now()
+    serialized = json.dumps(payload, ensure_ascii=False, default=str)
+    with _lock, _conn() as c:
+        c.execute(
+            """INSERT INTO user_research_preferences (user_id, payload_json, updated_at)
+               VALUES (?,?,?)
+               ON CONFLICT(user_id) DO UPDATE SET
+                   payload_json=excluded.payload_json,
+                   updated_at=excluded.updated_at""",
+            (user_id, serialized, now),
+        )
+    return payload
+
+
 def add_research_evidence(
     run_id: str,
     kind: str,
@@ -2412,11 +2597,268 @@ def add_research_evidence(
 
 
 # ---------------------------------------------------------------------------
+# 点时财务报表与估值快照
+# ---------------------------------------------------------------------------
+def save_financial_statement(payload: dict[str, Any]) -> bool:
+    provenance = payload["provenance"]
+    with _lock, _conn() as c:
+        result = c.execute(
+            """INSERT OR IGNORE INTO financial_statements
+               (statement_id, instrument_id, statement_type, period_start, period_end,
+                published_at, available_at, fetched_at, source, revision, content_hash,
+                payload_json, created_at)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (
+                payload["statement_id"],
+                payload["instrument_id"],
+                payload["statement_type"],
+                payload["period_start"],
+                payload["period_end"],
+                datetime.fromisoformat(provenance["published_at"]).timestamp(),
+                datetime.fromisoformat(provenance["available_at"]).timestamp(),
+                datetime.fromisoformat(provenance["fetched_at"]).timestamp(),
+                provenance["source"],
+                provenance["revision"],
+                provenance["content_hash"],
+                json.dumps(payload, ensure_ascii=False, default=str),
+                _now(),
+            ),
+        )
+    return result.rowcount > 0
+
+
+def list_financial_statements(
+    instrument_id: str,
+    *,
+    available_as_of: datetime,
+    statement_type: str | None = None,
+    limit: int = 200,
+) -> list[dict[str, Any]]:
+    sql = "SELECT payload_json FROM financial_statements WHERE instrument_id=? AND available_at<=?"
+    params: list[Any] = [instrument_id, available_as_of.timestamp()]
+    if statement_type:
+        sql += " AND statement_type=?"
+        params.append(statement_type)
+    sql += " ORDER BY period_end DESC, available_at DESC, statement_id DESC LIMIT ?"
+    params.append(max(1, min(limit, 2000)))
+    with _lock, _conn() as c:
+        rows = c.execute(sql, params).fetchall()
+    return [json.loads(row["payload_json"]) for row in rows]
+
+
+def save_valuation_snapshot(payload: dict[str, Any]) -> bool:
+    provenance = payload["provenance"]
+    canonical = json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str)
+    content_hash = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    with _lock, _conn() as c:
+        result = c.execute(
+            """INSERT OR IGNORE INTO valuation_snapshots
+               (snapshot_id, instrument_id, as_of, price_at, source, method_version,
+                content_hash, payload_json, created_at)
+               VALUES (?,?,?,?,?,?,?,?,?)""",
+            (
+                payload["snapshot_id"],
+                payload["instrument_id"],
+                datetime.fromisoformat(payload["as_of"]).timestamp(),
+                datetime.fromisoformat(payload["price_at"]).timestamp(),
+                provenance["source"],
+                payload["method_version"],
+                content_hash,
+                json.dumps(payload, ensure_ascii=False, default=str),
+                _now(),
+            ),
+        )
+    return result.rowcount > 0
+
+
+def list_valuation_snapshots(
+    instrument_id: str,
+    *,
+    as_of: datetime,
+    limit: int = 200,
+) -> list[dict[str, Any]]:
+    with _lock, _conn() as c:
+        rows = c.execute(
+            """SELECT payload_json FROM valuation_snapshots
+               WHERE instrument_id=? AND as_of<=?
+               ORDER BY as_of DESC, snapshot_id DESC LIMIT ?""",
+            (instrument_id, as_of.timestamp(), max(1, min(limit, 2000))),
+        ).fetchall()
+    return [json.loads(row["payload_json"]) for row in rows]
+
+
+def save_company_event(payload: dict[str, Any]) -> bool:
+    provenance = payload["provenance"]
+    with _lock, _conn() as c:
+        result = c.execute(
+            """INSERT OR IGNORE INTO company_events
+               (event_id, instrument_id, category, published_at, available_at, source,
+                revision, content_hash, payload_json, created_at)
+               VALUES (?,?,?,?,?,?,?,?,?,?)""",
+            (
+                payload["event_id"],
+                payload["instrument_id"],
+                payload["category"],
+                datetime.fromisoformat(provenance["published_at"]).timestamp(),
+                datetime.fromisoformat(provenance["available_at"]).timestamp(),
+                provenance["source"],
+                provenance["revision"],
+                provenance["content_hash"],
+                json.dumps(payload, ensure_ascii=False, default=str),
+                _now(),
+            ),
+        )
+    return result.rowcount > 0
+
+
+def list_company_events(
+    instrument_id: str, *, available_as_of: datetime, limit: int = 200
+) -> list[dict[str, Any]]:
+    with _lock, _conn() as c:
+        rows = c.execute(
+            """SELECT payload_json FROM company_events
+               WHERE instrument_id=? AND available_at<=?
+               ORDER BY available_at DESC, event_id DESC LIMIT ?""",
+            (instrument_id, available_as_of.timestamp(), max(1, min(limit, 2000))),
+        ).fetchall()
+    return [json.loads(row["payload_json"]) for row in rows]
+
+
+def save_macro_event(payload: dict[str, Any]) -> bool:
+    provenance = payload["provenance"]
+    event_at = provenance.get("event_at")
+    with _lock, _conn() as c:
+        result = c.execute(
+            """INSERT OR IGNORE INTO macro_events
+               (event_id, region, category, event_at, published_at, available_at, source,
+                revision, content_hash, payload_json, created_at)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+            (
+                payload["event_id"],
+                payload["region"],
+                payload["category"],
+                datetime.fromisoformat(event_at).timestamp() if event_at else None,
+                datetime.fromisoformat(provenance["published_at"]).timestamp(),
+                datetime.fromisoformat(provenance["available_at"]).timestamp(),
+                provenance["source"],
+                provenance["revision"],
+                provenance["content_hash"],
+                json.dumps(payload, ensure_ascii=False, default=str),
+                _now(),
+            ),
+        )
+    return result.rowcount > 0
+
+
+def list_macro_events(
+    *, available_as_of: datetime, region: str | None = None, limit: int = 200
+) -> list[dict[str, Any]]:
+    sql = "SELECT payload_json FROM macro_events WHERE available_at<=?"
+    params: list[Any] = [available_as_of.timestamp()]
+    if region:
+        sql += " AND region=?"
+        params.append(region)
+    sql += " ORDER BY available_at DESC, event_id DESC LIMIT ?"
+    params.append(max(1, min(limit, 2000)))
+    with _lock, _conn() as c:
+        rows = c.execute(sql, params).fetchall()
+    return [json.loads(row["payload_json"]) for row in rows]
+
+
+def save_instrument_relationship(payload: dict[str, Any], *, owner_id: str = "local-user") -> bool:
+    provenance = payload["provenance"]
+    storage_id = f"{owner_id}:{payload['relationship_id']}"
+    with _lock, _conn() as c:
+        result = c.execute(
+            """INSERT OR IGNORE INTO instrument_relationships
+               (relationship_id, owner_id, instrument_id, target_type, target_key, valid_from,
+                valid_to, source, revision, content_hash, payload_json, created_at)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (
+                storage_id,
+                owner_id,
+                payload["instrument_id"],
+                payload["target_type"],
+                payload["target_key"],
+                datetime.fromisoformat(payload["valid_from"]).timestamp(),
+                datetime.fromisoformat(payload["valid_to"]).timestamp()
+                if payload.get("valid_to")
+                else None,
+                provenance["source"],
+                provenance["revision"],
+                provenance["content_hash"],
+                json.dumps(payload, ensure_ascii=False, default=str),
+                _now(),
+            ),
+        )
+    return result.rowcount > 0
+
+
+def list_instrument_relationships(
+    instrument_id: str,
+    *,
+    as_of: datetime,
+    limit: int = 200,
+    owner_id: str = "local-user",
+) -> list[dict[str, Any]]:
+    with _lock, _conn() as c:
+        rows = c.execute(
+            """SELECT payload_json FROM instrument_relationships
+               WHERE owner_id=? AND instrument_id=? AND valid_from<=?
+                 AND (valid_to IS NULL OR valid_to>?)
+               ORDER BY valid_from DESC, relationship_id DESC LIMIT ?""",
+            (
+                owner_id,
+                instrument_id,
+                as_of.timestamp(),
+                as_of.timestamp(),
+                max(1, min(limit, 2000)),
+            ),
+        ).fetchall()
+    return [json.loads(row["payload_json"]) for row in rows]
+
+
+def save_macro_transmission(payload: dict[str, Any], *, owner_id: str = "local-user") -> bool:
+    storage_id = f"{owner_id}:{payload['transmission_id']}"
+    with _lock, _conn() as c:
+        result = c.execute(
+            """INSERT OR IGNORE INTO macro_transmissions
+               (transmission_id, owner_id, event_id, instrument_id, relationship_id,
+                payload_json, created_at)
+               VALUES (?,?,?,?,?,?,?)""",
+            (
+                storage_id,
+                owner_id,
+                payload["event_id"],
+                payload["instrument_id"],
+                payload["relationship_id"],
+                json.dumps(payload, ensure_ascii=False, default=str),
+                _now(),
+            ),
+        )
+    return result.rowcount > 0
+
+
+def list_macro_transmissions(
+    instrument_id: str, *, limit: int = 200, owner_id: str = "local-user"
+) -> list[dict[str, Any]]:
+    with _lock, _conn() as c:
+        rows = c.execute(
+            """SELECT payload_json FROM macro_transmissions
+               WHERE owner_id=? AND instrument_id=?
+               ORDER BY created_at DESC, transmission_id DESC LIMIT ?""",
+            (owner_id, instrument_id, max(1, min(limit, 2000))),
+        ).fetchall()
+    return [json.loads(row["payload_json"]) for row in rows]
+
+
+# ---------------------------------------------------------------------------
 # 持久化分析任务 analysis_tasks
 # ---------------------------------------------------------------------------
 def _analysis_task_dict(row: sqlite3.Row) -> dict:
     return {
         "id": row["id"],
+        "owner_id": row["owner_id"],
         "kind": row["kind"],
         "status": row["status"],
         "symbol": row["symbol"],
@@ -2446,17 +2888,19 @@ def create_analysis_task(
     request: dict,
     attempt: int = 1,
     parent_task_id: str | None = None,
+    owner_id: str = "local-user",
 ) -> dict:
     task_id = uuid.uuid4().hex
     now = _now()
     with _lock, _conn() as c:
         c.execute(
             """INSERT INTO analysis_tasks
-               (id, kind, status, symbol, market, timeframe, fingerprint, request_json,
+               (id, owner_id, kind, status, symbol, market, timeframe, fingerprint, request_json,
                 result_json, error, attempt, parent_task_id, created_at, updated_at)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (
                 task_id,
+                owner_id,
                 kind,
                 "queued",
                 symbol,
@@ -2482,26 +2926,38 @@ def get_analysis_task(task_id: str) -> dict | None:
     return _analysis_task_dict(row) if row is not None else None
 
 
-def find_active_analysis_task(fingerprint: str) -> dict | None:
+def find_active_analysis_task(fingerprint: str, owner_id: str | None = None) -> dict | None:
+    owner_clause = " AND owner_id=?" if owner_id else ""
+    params = (fingerprint, owner_id) if owner_id else (fingerprint,)
     with _lock, _conn() as c:
         row = c.execute(
-            """SELECT * FROM analysis_tasks
-               WHERE fingerprint=? AND status IN ('queued','running')
+            f"""SELECT * FROM analysis_tasks
+               WHERE fingerprint=?{owner_clause} AND status IN ('queued','running')
                ORDER BY created_at DESC LIMIT 1""",
-            (fingerprint,),
+            params,
         ).fetchone()
     return _analysis_task_dict(row) if row is not None else None
 
 
 def find_recent_analysis_task(
-    *, kind: str, symbol: str, market: str, timeframe: str, since: float
+    *,
+    kind: str,
+    symbol: str,
+    market: str,
+    timeframe: str,
+    since: float,
+    owner_id: str | None = None,
 ) -> dict | None:
+    owner_clause = " AND owner_id=?" if owner_id else ""
+    params: tuple[Any, ...] = (kind, symbol, market, timeframe, since)
+    if owner_id:
+        params = (*params, owner_id)
     with _lock, _conn() as c:
         row = c.execute(
-            """SELECT * FROM analysis_tasks
-               WHERE kind=? AND symbol=? AND market=? AND timeframe=? AND created_at>=?
+            f"""SELECT * FROM analysis_tasks
+               WHERE kind=? AND symbol=? AND market=? AND timeframe=? AND created_at>=?{owner_clause}
                ORDER BY created_at DESC, id DESC LIMIT 1""",
-            (kind, symbol, market, timeframe, since),
+            params,
         ).fetchone()
     return _analysis_task_dict(row) if row is not None else None
 
@@ -2511,9 +2967,13 @@ def list_analysis_tasks(
     limit: int = 50,
     status: str | None = None,
     kind: str | None = None,
+    owner_id: str | None = None,
 ) -> list[dict]:
     clauses: list[str] = []
     params: list = []
+    if owner_id:
+        clauses.append("owner_id=?")
+        params.append(owner_id)
     if status:
         clauses.append("status=?")
         params.append(status)
@@ -2536,9 +2996,13 @@ def list_analysis_tasks_page(
     status: str | None = None,
     kind: str | None = None,
     cursor: str | None = None,
+    owner_id: str | None = None,
 ) -> dict:
     clauses: list[str] = []
     params: list = []
+    if owner_id:
+        clauses.append("owner_id=?")
+        params.append(owner_id)
     if status:
         clauses.append("status=?")
         params.append(status)

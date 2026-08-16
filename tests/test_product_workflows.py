@@ -10,6 +10,7 @@ from pathlib import Path
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
+from fastapi import Request
 from fastapi.testclient import TestClient
 
 from apps.api import database, store
@@ -248,6 +249,69 @@ class UnifiedEvaluationTests(TemporaryStoreTestCase):
         self.assertEqual(run["status"], "partial")
         self.assertIn("news: 新闻测试失败", run["error"])
 
+    def test_a_share_evaluation_persists_fundamental_and_valuation_evidence(self) -> None:
+        modules = ["market", "fundamentals", "valuation"]
+        task = self.create_running_evaluation("evaluation-financials", modules)
+        candles = [
+            {
+                "t": "2026-07-28T15:00:00+08:00",
+                "o": 100.0,
+                "h": 102.0,
+                "l": 99.0,
+                "c": 101.0,
+                "v": 10.0,
+            }
+        ]
+        fundamental = {
+            "snapshot_id": "fundamental-1",
+            "direction": "long",
+            "confidence": 0.8,
+            "reason": "盈利改善",
+            "execution_eligible": True,
+            "provenance": {"source": "fixture", "source_url": "https://example.test/fund"},
+        }
+        valuation = {
+            "snapshot_id": "valuation-1",
+            "valuation_range": "fair",
+            "direction": "neutral",
+            "confidence": 0.7,
+            "reason": "估值中性",
+            "execution_eligible": True,
+            "provenance": {"source": "fixture", "source_url": "https://example.test/value"},
+        }
+        with (
+            patch(
+                "apps.api.domains.market.service.fetch_kline",
+                return_value={"ok": True, "source": "test", "candles": candles},
+            ),
+            patch(
+                "apps.api.domains.financials.service.evaluate_fundamentals",
+                return_value=fundamental,
+            ),
+            patch(
+                "apps.api.domains.financials.service.evaluate_valuation",
+                return_value=valuation,
+            ),
+        ):
+            result = task_service._run_evaluation(task, {"modules": modules})
+
+        run = store.get_research_run(result["research_run_id"])
+        self.assertTrue(result["ok"])
+        self.assertEqual(
+            {module: step["status"] for module, step in result["steps"].items()},
+            {"market": "succeeded", "fundamentals": "succeeded", "valuation": "succeeded"},
+        )
+        evidence_kinds = {item["kind"] for item in run["evidence"]}
+        self.assertIn("fundamental_snapshot", evidence_kinds)
+        self.assertIn("valuation_snapshot", evidence_kinds)
+        self.assertIn("action_guidance", evidence_kinds)
+        self.assertEqual(run["summary"]["action_guidance"]["holding_status"], "not_held")
+        decision_modules = {
+            item["module"] for item in run["summary"]["research_decision"]["module_opinions"]
+        }
+        self.assertIn("fundamentals", decision_modules)
+        self.assertIn("valuation", decision_modules)
+
     def test_failed_step_is_persisted_on_research_run(self) -> None:
         task = store.create_analysis_task(
             kind="evaluation",
@@ -371,13 +435,48 @@ class UnifiedEvaluationTests(TemporaryStoreTestCase):
             },
         )
         retried = {**task, "id": "RETRY-1", "attempt": 2, "status": "queued"}
+        request = Request({"type": "http", "headers": []})
+        request.state.principal = {"id": "local-user"}
         with patch.object(task_service, "submit_task", return_value=(retried, False)) as submit:
-            response = retry_task(task["id"])
+            response = retry_task(task["id"], request)
 
         self.assertEqual(response["task"]["id"], "RETRY-1")
         payload = submit.call_args.kwargs["payload"]
         self.assertEqual(payload["modules"], ["market"])
         self.assertEqual(payload["research_run_id"], run["id"])
+
+    def test_retry_accepts_partial_success_and_runs_only_failed_modules(self) -> None:
+        run = store.create_research_run(
+            symbol="600519",
+            market="a_shares",
+            timeframe="1d",
+            modules=["market", "news"],
+            input_data={},
+        )
+        task = self.create_running_evaluation("evaluation-partial-retry", ["market", "news"])
+        task = store.update_analysis_task(
+            task["id"],
+            {
+                "status": "succeeded",
+                "result": {
+                    "partial": True,
+                    "research_run_id": run["id"],
+                    "steps": {
+                        "market": {"status": "succeeded", "error": None},
+                        "news": {"status": "failed", "error": "新闻失败"},
+                    },
+                },
+            },
+        )
+        retried = {**task, "id": "RETRY-PARTIAL", "attempt": 2, "status": "queued"}
+        request = Request({"type": "http", "headers": []})
+        request.state.principal = {"id": "local-user"}
+        with patch.object(task_service, "submit_task", return_value=(retried, False)) as submit:
+            response = retry_task(task["id"], request)
+
+        self.assertEqual(response["task"]["id"], "RETRY-PARTIAL")
+        self.assertEqual(submit.call_args.kwargs["payload"]["modules"], ["news"])
+        self.assertEqual(submit.call_args.kwargs["payload"]["research_run_id"], run["id"])
 
 
 class MultiMarketInstrumentSearchTests(TemporaryStoreTestCase):
@@ -624,8 +723,324 @@ class AlertCenterTests(TemporaryStoreTestCase):
         self.assertEqual(changed["event"]["related_id"], second_run["id"])
         self.assertEqual(changed["event"]["related_modules"], ["ensemble"])
 
+    def test_evaluation_change_reads_only_the_rule_owner_runs(self) -> None:
+        alice = governance_repository.create_user("alert_alice", "Alert Alice", ["reviewer"])
+        bob = governance_repository.create_user("alert_bob", "Alert Bob", ["reviewer"])
+        alice_run = store.create_research_run(
+            symbol="600519",
+            market="a_shares",
+            timeframe="1d",
+            modules=["ensemble"],
+            input_data={},
+            owner_id=alice["id"],
+        )
+        store.update_research_run(
+            alice_run["id"],
+            {
+                "status": "succeeded",
+                "summary": {"research_decision": {"direction": "long"}},
+            },
+        )
+        bob_run = store.create_research_run(
+            symbol="600519",
+            market="a_shares",
+            timeframe="1d",
+            modules=["ensemble"],
+            input_data={},
+            owner_id=bob["id"],
+        )
+        store.update_research_run(
+            bob_run["id"],
+            {
+                "status": "succeeded",
+                "summary": {"research_decision": {"direction": "short"}},
+            },
+        )
+        rule = alert_service.create_rule(
+            alice["id"],
+            {
+                "name": "Alice 研究结论变化",
+                "rule_type": "evaluation_changed",
+                "symbol": "600519",
+                "market": "a_shares",
+                "threshold": None,
+                "enabled": True,
+                "frequency_minutes": 15,
+                "quiet_start": None,
+                "quiet_end": None,
+                "expires_at": None,
+                "context": {},
+            },
+        )
+
+        baseline = alert_service.check_rule(rule, force=True)
+
+        self.assertFalse(baseline["triggered"])
+        saved = alert_service.get_rule(rule["id"], alice["id"])
+        self.assertEqual(saved["context"]["last_direction"], "long")
+
+    def test_research_event_alert_types_route_to_domain_observations(self) -> None:
+        cases = {
+            "earnings_released": "_earnings_release",
+            "valuation_band_crossed": "_valuation_band",
+            "major_company_event": "_major_company_event",
+            "macro_calendar": "_macro_calendar",
+        }
+        for rule_type, helper_name in cases.items():
+            with self.subTest(rule_type=rule_type):
+                rule = self.create_price_rule(
+                    name=f"{rule_type} fixture",
+                    rule_type=rule_type,
+                    threshold=0.5 if rule_type == "valuation_band_crossed" else None,
+                    context={"metric": "pe_ttm"} if rule_type == "valuation_band_crossed" else {},
+                )
+                with (
+                    patch.object(
+                        alert_service,
+                        helper_name,
+                        return_value=(True, 0.75, "research_fixture", "fixture-id"),
+                    ),
+                    patch("core.alert.get_notifier") as get_notifier,
+                ):
+                    get_notifier.return_value.send.return_value = {}
+                    result = alert_service.check_rule(rule, force=True)
+                self.assertTrue(result["triggered"])
+                self.assertEqual(result["event"]["related_type"], "research_fixture")
+                self.assertEqual(result["event"]["related_id"], "fixture-id")
+
 
 class GovernanceTests(TemporaryStoreTestCase):
+    def test_research_runs_tasks_and_preferences_are_isolated_by_user(self) -> None:
+        from apps.api.main import app
+
+        alice = governance_repository.create_user("alice_research", "Alice", ["reviewer"])
+        bob = governance_repository.create_user("bob_research", "Bob", ["reviewer"])
+        alice_token = governance_repository.create_token(alice["id"], "alice", None)["token"]
+        bob_token = governance_repository.create_token(bob["id"], "bob", None)["token"]
+        alice_run = store.create_research_run(
+            symbol="600519",
+            market="a_shares",
+            timeframe="1d",
+            modules=[],
+            input_data={},
+            owner_id=alice["id"],
+        )
+        bob_run = store.create_research_run(
+            symbol="000333",
+            market="a_shares",
+            timeframe="1d",
+            modules=[],
+            input_data={},
+            owner_id=bob["id"],
+        )
+        alice_task = store.create_analysis_task(
+            kind="evaluation",
+            symbol="600519",
+            market="a_shares",
+            timeframe="1d",
+            fingerprint="alice-task",
+            request={},
+            owner_id=alice["id"],
+        )
+        store.create_analysis_task(
+            kind="evaluation",
+            symbol="000333",
+            market="a_shares",
+            timeframe="1d",
+            fingerprint="bob-task",
+            request={},
+            owner_id=bob["id"],
+        )
+        env = {
+            "QUANTHUB_DEPLOYMENT_MODE": "lan",
+            "QUANTHUB_AUTH_REQUIRED": "1",
+            "QUANTHUB_BOOTSTRAP_ADMIN_TOKEN": "",
+        }
+        with patch.dict(os.environ, env):
+            client = TestClient(app)
+            alice_headers = {"Authorization": f"Bearer {alice_token}"}
+            bob_headers = {"Authorization": f"Bearer {bob_token}"}
+            alice_preference = client.put(
+                "/research/preferences/me",
+                headers=alice_headers,
+                json={"default_mode": "quick", "terminology_level": "plain"},
+            )
+            bob_preference = client.put(
+                "/research/preferences/me",
+                headers=bob_headers,
+                json={"default_mode": "professional", "terminology_level": "technical"},
+            )
+            alice_runs = client.get("/research/runs", headers=alice_headers).json()["runs"]
+            bob_runs = client.get("/research/runs", headers=bob_headers).json()["runs"]
+            alice_tasks = client.get("/analysis/tasks", headers=alice_headers).json()["tasks"]
+            cross_run = client.get(f"/research/runs/{bob_run['id']}", headers=alice_headers)
+            cross_task = client.get(f"/analysis/tasks/{alice_task['id']}", headers=bob_headers)
+
+        self.assertEqual(alice_preference.status_code, 200)
+        self.assertEqual(alice_preference.json()["preference"]["default_mode"], "quick")
+        self.assertEqual(bob_preference.json()["preference"]["default_mode"], "professional")
+        self.assertEqual([item["id"] for item in alice_runs], [alice_run["id"]])
+        self.assertEqual([item["id"] for item in bob_runs], [bob_run["id"]])
+        self.assertEqual([item["id"] for item in alice_tasks], [alice_task["id"]])
+        self.assertEqual(cross_run.status_code, 404)
+        self.assertEqual(cross_task.status_code, 404)
+
+    def test_relationship_and_transmission_queries_are_isolated_by_user(self) -> None:
+        from apps.api.main import app
+
+        alice = governance_repository.create_user("alice_macro", "Alice Macro", ["reviewer"])
+        bob = governance_repository.create_user("bob_macro", "Bob Macro", ["reviewer"])
+        alice_token = governance_repository.create_token(alice["id"], "alice macro", None)["token"]
+        bob_token = governance_repository.create_token(bob["id"], "bob macro", None)["token"]
+        relationship = {
+            "relationship_id": "shared-relationship-id",
+            "instrument_id": "a_shares:600519",
+            "target_type": "rate",
+            "target_key": "PBOC_POLICY_RATE",
+            "relation_source": "user",
+            "direction": "negative",
+            "strength": 0.8,
+            "valid_from": "2026-01-01T00:00:00Z",
+            "method_version": "relationship-test-v1",
+            "provenance": {
+                "source": "fixture",
+                "published_at": "2026-01-01T00:00:00Z",
+                "available_at": "2026-01-01T00:00:00Z",
+                "fetched_at": "2026-01-01T00:00:01Z",
+                "revision": "1",
+                "content_hash": "a" * 64,
+            },
+        }
+        transmission = {
+            "transmission_id": "shared-transmission-id",
+            "event_id": "macro-event-fixture",
+            "instrument_id": "a_shares:600519",
+            "relationship_id": "shared-relationship-id",
+            "channel": "rates",
+            "order": "direct",
+            "direction": "negative",
+            "horizon": "medium",
+            "strength": 0.7,
+            "evidence_level": "medium",
+            "counterexamples": [],
+            "method_version": "macro-transmission-v1",
+        }
+        env = {
+            "QUANTHUB_DEPLOYMENT_MODE": "lan",
+            "QUANTHUB_AUTH_REQUIRED": "1",
+            "QUANTHUB_BOOTSTRAP_ADMIN_TOKEN": "",
+        }
+        with patch.dict(os.environ, env):
+            client = TestClient(app)
+            alice_headers = {"Authorization": f"Bearer {alice_token}"}
+            bob_headers = {"Authorization": f"Bearer {bob_token}"}
+            self.assertEqual(
+                client.post(
+                    "/research-data/relationships", headers=alice_headers, json=relationship
+                ).status_code,
+                201,
+            )
+            bob_relationship = {**relationship, "target_key": "USER_CONFIGURED_RATE"}
+            self.assertEqual(
+                client.post(
+                    "/research-data/relationships", headers=bob_headers, json=bob_relationship
+                ).status_code,
+                201,
+            )
+            store.save_macro_transmission(transmission, owner_id=alice["id"])
+            store.save_macro_transmission(
+                {**transmission, "direction": "positive"}, owner_id=bob["id"]
+            )
+            alice_relationships = client.get(
+                "/research-data/relationships?instrument_id=a_shares%3A600519",
+                headers=alice_headers,
+            ).json()["items"]
+            bob_relationships = client.get(
+                "/research-data/relationships?instrument_id=a_shares%3A600519",
+                headers=bob_headers,
+            ).json()["items"]
+            alice_transmissions = client.get(
+                "/research-data/transmissions?instrument_id=a_shares%3A600519",
+                headers=alice_headers,
+            ).json()["items"]
+            bob_transmissions = client.get(
+                "/research-data/transmissions?instrument_id=a_shares%3A600519",
+                headers=bob_headers,
+            ).json()["items"]
+
+        self.assertEqual([item["target_key"] for item in alice_relationships], ["PBOC_POLICY_RATE"])
+        self.assertEqual(
+            [item["target_key"] for item in bob_relationships], ["USER_CONFIGURED_RATE"]
+        )
+        self.assertEqual([item["direction"] for item in alice_transmissions], ["negative"])
+        self.assertEqual([item["direction"] for item in bob_transmissions], ["positive"])
+
+    def test_watchlist_is_owner_scoped_and_includes_latest_research_state(self) -> None:
+        from apps.api.main import app
+
+        alice = governance_repository.create_user("alice_watch", "Alice Watch", ["admin"])
+        bob = governance_repository.create_user("bob_watch", "Bob Watch", ["admin"])
+        alice_token = governance_repository.create_token(alice["id"], "alice watch", None)["token"]
+        bob_token = governance_repository.create_token(bob["id"], "bob watch", None)["token"]
+        alice_watch = store.add_watchlist(
+            "600519", "贵州茅台", "a_shares", "a_shares:600519", owner_id=alice["id"]
+        )
+        store.add_watchlist("AAPL", "Apple", "us_stocks", "us_stocks:AAPL", owner_id=bob["id"])
+        run = store.create_research_run(
+            symbol="600519",
+            market="a_shares",
+            timeframe="1d",
+            modules=["market"],
+            input_data={},
+            owner_id=alice["id"],
+        )
+        store.update_research_run(
+            run["id"],
+            {
+                "status": "succeeded",
+                "summary": {
+                    "research_decision": {
+                        "direction": "long",
+                        "execution_eligible": True,
+                    }
+                },
+            },
+        )
+        env = {
+            "QUANTHUB_DEPLOYMENT_MODE": "lan",
+            "QUANTHUB_AUTH_REQUIRED": "1",
+            "QUANTHUB_BOOTSTRAP_ADMIN_TOKEN": "",
+        }
+        with (
+            patch.dict(os.environ, env),
+            patch.object(
+                portfolio_service,
+                "quote_item",
+                side_effect=lambda symbol, market, name="": {
+                    "sym": symbol,
+                    "name": name,
+                    "market": market,
+                    "price": 100.0,
+                    "chgPct": 1.0,
+                    "available": True,
+                },
+            ),
+        ):
+            client = TestClient(app)
+            alice_headers = {"Authorization": f"Bearer {alice_token}"}
+            bob_headers = {"Authorization": f"Bearer {bob_token}"}
+            alice_items = client.get("/market/watchlist", headers=alice_headers).json()["items"]
+            bob_items = client.get("/market/watchlist", headers=bob_headers).json()["items"]
+            cross_delete = client.delete(
+                f"/market/watchlist/{alice_watch['id']}", headers=bob_headers
+            )
+
+        self.assertEqual([item["sym"] for item in alice_items], ["600519"])
+        self.assertEqual([item["sym"] for item in bob_items], ["AAPL"])
+        self.assertEqual(alice_items[0]["research_direction"], "long")
+        self.assertEqual(alice_items[0]["latest_research_run_id"], run["id"])
+        self.assertEqual(cross_delete.status_code, 404)
+
     def test_deactivating_user_revokes_tokens_and_reactivation_keeps_them_revoked(self) -> None:
         user = governance_repository.create_user("api_test", "API Test", ["viewer"])
         token = governance_repository.create_token(user["id"], "test token", None)

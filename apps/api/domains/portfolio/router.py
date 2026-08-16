@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 
 from apps.api.domains.instrument import service as instrument_service
 
@@ -8,6 +8,11 @@ from . import repository, service
 from .schemas import AllocationCreate, HoldingCreate, HoldingUpdate, WatchCreate, WatchUpdate
 
 router = APIRouter(tags=["portfolio"])
+
+
+def _owner_id(request: Request) -> str:
+    principal = getattr(request.state, "principal", None) or {}
+    return str(principal.get("id") or "local-user")
 
 
 @router.get("/portfolio/manage")
@@ -101,12 +106,12 @@ def get_market_breadth() -> dict:
 
 
 @router.get("/market/watchlist")
-def get_watchlist() -> dict:
-    return service.watchlist_snapshot()
+def get_watchlist(request: Request) -> dict:
+    return service.watchlist_snapshot(_owner_id(request))
 
 
 @router.post("/market/watchlist")
-def add_watchlist(req: WatchCreate) -> dict:
+def add_watchlist(req: WatchCreate, request: Request) -> dict:
     try:
         instrument = instrument_service.resolve_strict(req.sym, req.market, req.name)
     except instrument_service.InstrumentResolutionError as exc:
@@ -119,14 +124,18 @@ def add_watchlist(req: WatchCreate) -> dict:
             name,
             instrument.market,
             instrument.instrument_id,
+            _owner_id(request),
         ),
     }
 
 
 @router.patch("/market/watchlist/{watch_id}")
-def update_watchlist(watch_id: str, req: WatchUpdate) -> dict:
+def update_watchlist(watch_id: str, req: WatchUpdate, request: Request) -> dict:
     patch = req.model_dump(exclude_unset=True)
-    current = next((item for item in repository.list_watchlist() if item["id"] == watch_id), None)
+    owner_id = _owner_id(request)
+    current = next(
+        (item for item in repository.list_watchlist(owner_id) if item["id"] == watch_id), None
+    )
     if current is None:
         raise HTTPException(status_code=404, detail=f"关注标的不存在: {watch_id}")
     symbol = str(patch.get("sym", current["sym"]))
@@ -144,15 +153,15 @@ def update_watchlist(watch_id: str, req: WatchUpdate) -> dict:
     )
     if not str(patch.get("name", "")).strip():
         patch["name"] = instrument.name or service.resolve_security_name(symbol, market)
-    watch = repository.update_watchlist(watch_id, patch)
+    watch = repository.update_watchlist(watch_id, patch, owner_id)
     if watch is None:
         raise HTTPException(status_code=404, detail=f"关注标的不存在: {watch_id}")
     return {"ok": True, "watch": watch}
 
 
 @router.delete("/market/watchlist/{watch_id}")
-def delete_watchlist(watch_id: str) -> dict:
-    if not repository.delete_watchlist(watch_id):
+def delete_watchlist(watch_id: str, request: Request) -> dict:
+    if not repository.delete_watchlist(watch_id, _owner_id(request)):
         raise HTTPException(status_code=404, detail=f"关注标的不存在: {watch_id}")
     return {"ok": True}
 

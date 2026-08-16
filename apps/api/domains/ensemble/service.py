@@ -237,7 +237,7 @@ def _aggregate_consensus(contributors: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def predict(req: EnsembleRequest) -> dict[str, Any]:
+def predict(req: EnsembleRequest, *, owner_id: str = "local-user") -> dict[str, Any]:
     """执行协同预测，返回 EnsembleResp 结构（与前端 types.ts 对齐）。"""
     symbol = req.symbol
     timeframe = req.timeframe
@@ -249,7 +249,7 @@ def predict(req: EnsembleRequest) -> dict[str, Any]:
         if req.research_run_id:
             try:
                 fail_module(req.research_run_id, "ensemble", error)
-            except Exception:
+            except Exception:  # noqa: BLE001 - persistence failure must not hide analysis error
                 logger.warning("Ensemble 失败时写 ResearchRun 失败: %s", error)
         return {
             "ok": False,
@@ -264,7 +264,7 @@ def predict(req: EnsembleRequest) -> dict[str, Any]:
     try:
         source = get_data_source(actual_market)
         frame = source.get_kline(symbol, timeframe, limit=req.limit)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - data-source boundary converts failures to result
         logger.exception("Ensemble 取 K 线失败 %s/%s", actual_market, symbol)
         return _fail(f"取 K 线失败: {exc}")
 
@@ -348,6 +348,7 @@ def predict(req: EnsembleRequest) -> dict[str, Any]:
                 module="ensemble",
                 input_data={"limit": req.limit, "timeframe": timeframe},
                 run_id=req.research_run_id,
+                owner_id=owner_id,
             )
         except ResearchContextMismatchError as exc:
             logger.warning("Ensemble 研究上下文不一致，回退到新建 run: %s", exc)
@@ -358,6 +359,7 @@ def predict(req: EnsembleRequest) -> dict[str, Any]:
                 module="ensemble",
                 input_data={"limit": req.limit, "timeframe": timeframe},
                 run_id=None,
+                owner_id=owner_id,
             )
         add_evidence(
             run_id,
@@ -391,7 +393,7 @@ def predict(req: EnsembleRequest) -> dict[str, Any]:
                 "version": ENSEMBLE_VERSION,
             },
         )
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - persistence is best-effort for analysis output
         logger.warning("Ensemble 结果持久化失败 %s: %s", symbol, exc)
         run_id = req.research_run_id
 
