@@ -250,7 +250,17 @@ def _init() -> None:
                 fee REAL NOT NULL DEFAULT 0,
                 ts REAL NOT NULL,
                 source TEXT NOT NULL DEFAULT 'manual',
-                note TEXT NOT NULL DEFAULT ''
+                note TEXT NOT NULL DEFAULT '',
+                strategy_id TEXT,
+                strategy_version TEXT,
+                factor_key TEXT,
+                factor_version TEXT,
+                research_run_id TEXT,
+                signal_id TEXT,
+                simulation_order_id TEXT,
+                execution_id TEXT,
+                market_regime_id TEXT,
+                attribution_status TEXT NOT NULL DEFAULT 'unknown_attribution'
             )"""
         )
         c.execute(
@@ -660,6 +670,7 @@ def _init() -> None:
         c.execute(
             """CREATE TABLE IF NOT EXISTS simulation_orders (
                 id TEXT PRIMARY KEY,
+                intent_id TEXT UNIQUE,
                 signal_id TEXT UNIQUE,
                 account_id TEXT NOT NULL DEFAULT 'paper',
                 instrument_id TEXT,
@@ -676,6 +687,67 @@ def _init() -> None:
                 created_at REAL NOT NULL,
                 updated_at REAL NOT NULL,
                 FOREIGN KEY (signal_id) REFERENCES signals(id) ON DELETE SET NULL
+            )"""
+        )
+        c.execute(
+            """CREATE TABLE IF NOT EXISTS simulation_risk_decisions (
+                id TEXT PRIMARY KEY,
+                intent_id TEXT NOT NULL,
+                order_id TEXT,
+                account_id TEXT NOT NULL,
+                symbol TEXT NOT NULL,
+                market TEXT NOT NULL,
+                outcome TEXT NOT NULL,
+                reason_codes_json TEXT NOT NULL DEFAULT '[]',
+                snapshot_json TEXT NOT NULL,
+                decision_json TEXT NOT NULL,
+                input_fingerprint TEXT NOT NULL,
+                rule_version TEXT NOT NULL,
+                created_at REAL NOT NULL
+            )"""
+        )
+        c.execute(
+            """CREATE TABLE IF NOT EXISTS trading_cost_profiles (
+                profile_id TEXT NOT NULL,
+                version TEXT NOT NULL,
+                market TEXT NOT NULL,
+                account_scope TEXT,
+                effective_from TEXT,
+                effective_to TEXT,
+                content_hash TEXT NOT NULL,
+                snapshot_json TEXT NOT NULL,
+                created_at REAL NOT NULL,
+                PRIMARY KEY (profile_id, version)
+            )"""
+        )
+        c.execute(
+            """CREATE TABLE IF NOT EXISTS factor_universe_versions (
+                id TEXT PRIMARY KEY,
+                universe_id TEXT NOT NULL,
+                version INTEGER NOT NULL,
+                parent_version_id TEXT,
+                source TEXT NOT NULL,
+                snapshot_hash TEXT NOT NULL,
+                members_json TEXT NOT NULL,
+                created_at REAL NOT NULL,
+                UNIQUE (universe_id, version),
+                FOREIGN KEY (universe_id) REFERENCES factor_universes(id) ON DELETE CASCADE
+            )"""
+        )
+        c.execute(
+            """CREATE TABLE IF NOT EXISTS factor_universe_batches (
+                id TEXT PRIMARY KEY,
+                universe_id TEXT NOT NULL,
+                idempotency_key TEXT NOT NULL,
+                source TEXT NOT NULL,
+                status TEXT NOT NULL,
+                diff_json TEXT NOT NULL DEFAULT '{}',
+                errors_json TEXT NOT NULL DEFAULT '[]',
+                version_id TEXT,
+                created_at REAL NOT NULL,
+                updated_at REAL NOT NULL,
+                UNIQUE (universe_id, idempotency_key),
+                FOREIGN KEY (universe_id) REFERENCES factor_universes(id) ON DELETE CASCADE
             )"""
         )
         c.execute(
@@ -861,6 +933,26 @@ def _init() -> None:
         _ensure_column(c, "experiments", "instrument_id", "TEXT")
         _ensure_column(c, "simulation_orders", "instrument_id", "TEXT")
         _ensure_column(c, "simulation_orders", "audit_json", "TEXT NOT NULL DEFAULT '{}' ")
+        _ensure_column(c, "simulation_orders", "intent_id", "TEXT")
+        _ensure_column(c, "factor_universes", "current_version_id", "TEXT")
+        for column in (
+            "strategy_id",
+            "strategy_version",
+            "factor_key",
+            "factor_version",
+            "research_run_id",
+            "signal_id",
+            "simulation_order_id",
+            "execution_id",
+            "market_regime_id",
+        ):
+            _ensure_column(c, "ledger_trades", column, "TEXT")
+        _ensure_column(
+            c,
+            "ledger_trades",
+            "attribution_status",
+            "TEXT NOT NULL DEFAULT 'unknown_attribution'",
+        )
         _ensure_column(
             c,
             "factor_experiments",
@@ -991,11 +1083,27 @@ def _init() -> None:
             "CREATE INDEX IF NOT EXISTS idx_sim_orders_instrument ON simulation_orders(instrument_id)"
         )
         c.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_sim_orders_intent ON simulation_orders(intent_id) "
+            "WHERE intent_id IS NOT NULL"
+        )
+        c.execute(
             "CREATE INDEX IF NOT EXISTS idx_sim_executions_order ON simulation_executions(order_id)"
         )
         c.execute(
             "CREATE INDEX IF NOT EXISTS idx_sim_executions_ledger_sync "
             "ON simulation_executions(ledger_sync_status)"
+        )
+        c.execute(
+            "CREATE INDEX IF NOT EXISTS idx_sim_risk_intent "
+            "ON simulation_risk_decisions(intent_id, created_at)"
+        )
+        c.execute(
+            "CREATE INDEX IF NOT EXISTS idx_ledger_factor "
+            "ON ledger_trades(factor_key, factor_version, research_run_id)"
+        )
+        c.execute(
+            "CREATE INDEX IF NOT EXISTS idx_universe_versions "
+            "ON factor_universe_versions(universe_id, version)"
         )
         c.execute("CREATE INDEX IF NOT EXISTS idx_automation_runs_job ON automation_runs(job_name)")
         c.execute(
@@ -1558,6 +1666,7 @@ def _simulation_order_dict(row: sqlite3.Row, executions: list[dict] | None = Non
         execution["live_trading_enabled"] = False
     return {
         "id": row["id"],
+        "intent_id": row["intent_id"],
         "signal_id": row["signal_id"],
         "account_id": row["account_id"],
         "instrument_id": row["instrument_id"],
@@ -1591,6 +1700,7 @@ def create_simulation_order(
     account_id: str = "paper",
     instrument_id: str | None = None,
     audit: dict[str, Any] | None = None,
+    intent_id: str | None = None,
 ) -> dict:
     """创建模拟订单；关联信号时在同一事务中完成 converted 状态流转。"""
     order_id = f"SIM-{uuid.uuid4().hex[:12].upper()}"
@@ -1606,12 +1716,13 @@ def create_simulation_order(
         try:
             c.execute(
                 """INSERT INTO simulation_orders
-                   (id, signal_id, account_id, instrument_id, symbol, market, side, order_type,
+                   (id, intent_id, signal_id, account_id, instrument_id, symbol, market, side, order_type,
                    quantity, limit_price, status, filled_quantity, average_price, audit_json,
                    created_at, updated_at)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,'pending',0,NULL,?,?,?)""",
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,'pending',0,NULL,?,?,?)""",
                 (
                     order_id,
+                    intent_id,
                     signal_id,
                     account_id,
                     resolved_id,
@@ -1652,6 +1763,185 @@ def get_simulation_order(order_id: str) -> dict | None:
             (order_id,),
         ).fetchall()
     return _simulation_order_dict(row, [_execution_row_dict(item) for item in executions])
+
+
+def get_simulation_order_by_intent(intent_id: str) -> dict | None:
+    with _lock, _conn() as c:
+        row = c.execute(
+            "SELECT * FROM simulation_orders WHERE intent_id=?", (intent_id,)
+        ).fetchone()
+        if row is None:
+            return None
+        executions = c.execute(
+            "SELECT * FROM simulation_executions WHERE order_id=? ORDER BY executed_at ASC",
+            (row["id"],),
+        ).fetchall()
+    return _simulation_order_dict(row, [_execution_row_dict(item) for item in executions])
+
+
+def add_simulation_risk_decision(
+    *,
+    intent_id: str,
+    order_id: str | None,
+    account_id: str,
+    symbol: str,
+    market: str,
+    outcome: str,
+    reason_codes: list[str],
+    snapshot: dict[str, Any],
+    decision: dict[str, Any],
+    input_fingerprint: str,
+    rule_version: str,
+) -> dict:
+    decision_id = f"RISK-{uuid.uuid4().hex[:16].upper()}"
+    created_at = _now()
+    with _lock, _conn() as c:
+        c.execute(
+            """INSERT INTO simulation_risk_decisions
+               (id, intent_id, order_id, account_id, symbol, market, outcome,
+                reason_codes_json, snapshot_json, decision_json, input_fingerprint,
+                rule_version, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                decision_id,
+                intent_id,
+                order_id,
+                account_id,
+                symbol,
+                market,
+                outcome,
+                json.dumps(reason_codes, ensure_ascii=False),
+                json.dumps(snapshot, ensure_ascii=False, default=str),
+                json.dumps(decision, ensure_ascii=False, default=str),
+                input_fingerprint,
+                rule_version,
+                created_at,
+            ),
+        )
+    return {
+        "id": decision_id,
+        "intent_id": intent_id,
+        "order_id": order_id,
+        "account_id": account_id,
+        "symbol": symbol,
+        "market": market,
+        "outcome": outcome,
+        "reason_codes": reason_codes,
+        "snapshot": snapshot,
+        "decision": decision,
+        "input_fingerprint": input_fingerprint,
+        "rule_version": rule_version,
+        "created_at": created_at,
+    }
+
+
+def update_simulation_risk_order(decision_id: str, order_id: str) -> None:
+    with _lock, _conn() as c:
+        c.execute(
+            "UPDATE simulation_risk_decisions SET order_id=? WHERE id=?",
+            (order_id, decision_id),
+        )
+
+
+def list_simulation_risk_decisions(intent_id: str | None = None, limit: int = 200) -> list[dict]:
+    sql = "SELECT * FROM simulation_risk_decisions"
+    params: list[Any] = []
+    if intent_id:
+        sql += " WHERE intent_id=?"
+        params.append(intent_id)
+    sql += " ORDER BY created_at DESC LIMIT ?"
+    params.append(limit)
+    with _lock, _conn() as c:
+        rows = c.execute(sql, params).fetchall()
+    return [
+        {
+            "id": row["id"],
+            "intent_id": row["intent_id"],
+            "order_id": row["order_id"],
+            "account_id": row["account_id"],
+            "symbol": row["symbol"],
+            "market": row["market"],
+            "outcome": row["outcome"],
+            "reason_codes": json.loads(row["reason_codes_json"] or "[]"),
+            "snapshot": json.loads(row["snapshot_json"] or "{}"),
+            "decision": json.loads(row["decision_json"] or "{}"),
+            "input_fingerprint": row["input_fingerprint"],
+            "rule_version": row["rule_version"],
+            "created_at": float(row["created_at"]),
+        }
+        for row in rows
+    ]
+
+
+def save_trading_cost_profile(snapshot: dict[str, Any]) -> dict:
+    profile_id = str(snapshot["profile_id"])
+    version = str(snapshot["version"])
+    content_hash = str(snapshot["content_hash"])
+    now = _now()
+    serialized = json.dumps(snapshot, ensure_ascii=False, sort_keys=True, default=str)
+    with _lock, _conn() as c:
+        existing = c.execute(
+            "SELECT * FROM trading_cost_profiles WHERE profile_id=? AND version=?",
+            (profile_id, version),
+        ).fetchone()
+        if existing is not None:
+            if existing["content_hash"] != content_hash:
+                raise ValueError("成本档案版本已存在且内容不可修改")
+        else:
+            c.execute(
+                """INSERT INTO trading_cost_profiles
+                   (profile_id, version, market, account_scope, effective_from,
+                    effective_to, content_hash, snapshot_json, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    profile_id,
+                    version,
+                    snapshot["market"],
+                    snapshot.get("account_scope"),
+                    snapshot.get("effective_from"),
+                    snapshot.get("effective_to"),
+                    content_hash,
+                    serialized,
+                    now,
+                ),
+            )
+    return snapshot
+
+
+def get_trading_cost_profile(profile_id: str, version: str | None = None) -> dict | None:
+    with _lock, _conn() as c:
+        if version:
+            row = c.execute(
+                "SELECT * FROM trading_cost_profiles WHERE profile_id=? AND version=?",
+                (profile_id, version),
+            ).fetchone()
+        else:
+            row = c.execute(
+                """SELECT * FROM trading_cost_profiles WHERE profile_id=?
+                   ORDER BY version DESC, created_at DESC LIMIT 1""",
+                (profile_id,),
+            ).fetchone()
+    return json.loads(row["snapshot_json"]) if row else None
+
+
+def list_trading_cost_profiles(
+    *, market: str | None = None, account_scope: str | None = None
+) -> list[dict]:
+    clauses: list[str] = []
+    params: list[Any] = []
+    if market:
+        clauses.append("market=?")
+        params.append(market)
+    if account_scope:
+        clauses.append("(account_scope IS NULL OR account_scope=?)")
+        params.append(account_scope)
+    sql = "SELECT * FROM trading_cost_profiles"
+    if clauses:
+        sql += " WHERE " + " AND ".join(clauses)
+    sql += " ORDER BY market, profile_id, version DESC"
+    with _lock, _conn() as c:
+        rows = c.execute(sql, params).fetchall()
+    return [json.loads(row["snapshot_json"]) for row in rows]
 
 
 def list_simulation_orders(
@@ -2804,6 +3094,7 @@ def _factor_experiment_dict(row) -> dict:
         "estimated_compute_units": int(row["estimated_compute_units"]),
         "model": model,
         "prompt": prompt,
+        "ai_trace": proposal.get("ai_trace", {}),
         "proposal": proposal,
         "pre_registration": pre_registration,
         "attempt_number": int(row["attempt_number"]),
@@ -3158,6 +3449,7 @@ def _factor_universe_dict(row) -> dict:
         "name": row["name"],
         "market": row["market"],
         "description": row["description"],
+        "current_version_id": row["current_version_id"],
         "created_at": float(row["created_at"]),
         "updated_at": float(row["updated_at"]),
     }
@@ -3310,6 +3602,36 @@ def list_factor_universe_members(
     start_date: str | None = None,
     end_date: str | None = None,
 ) -> list[dict]:
+    with _lock, _conn() as c:
+        universe = c.execute(
+            "SELECT current_version_id FROM factor_universes WHERE id=?", (universe_id,)
+        ).fetchone()
+        if universe and universe["current_version_id"]:
+            version = c.execute(
+                "SELECT members_json FROM factor_universe_versions WHERE id=?",
+                (universe["current_version_id"],),
+            ).fetchone()
+            if version is not None:
+                members = json.loads(version["members_json"] or "[]")
+                if active_on:
+                    return [
+                        item
+                        for item in members
+                        if item["effective_from"] <= active_on
+                        and (item.get("effective_to") is None or item["effective_to"] >= active_on)
+                    ]
+                if start_date or end_date:
+                    return [
+                        item
+                        for item in members
+                        if (
+                            not start_date
+                            or item.get("effective_to") is None
+                            or item["effective_to"] >= start_date
+                        )
+                        and (not end_date or item["effective_from"] <= end_date)
+                    ]
+                return members
     clauses = ["universe_id=?"]
     params: list[Any] = [universe_id]
     if active_on:
@@ -3330,6 +3652,165 @@ def list_factor_universe_members(
             params,
         ).fetchall()
     return [_factor_universe_member_dict(row) for row in rows]
+
+
+def create_factor_universe_version(
+    universe_id: str,
+    *,
+    members: list[dict[str, Any]],
+    source: str,
+    parent_version_id: str | None = None,
+) -> dict:
+    canonical = json.dumps(members, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    snapshot_hash = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    version_id = f"UV-{uuid.uuid4().hex[:16].upper()}"
+    now = _now()
+    with _lock, _conn() as c:
+        latest = c.execute(
+            "SELECT COALESCE(MAX(version), 0) AS version FROM factor_universe_versions WHERE universe_id=?",
+            (universe_id,),
+        ).fetchone()
+        version = int(latest["version"]) + 1
+        c.execute(
+            """INSERT INTO factor_universe_versions
+               (id, universe_id, version, parent_version_id, source, snapshot_hash,
+                members_json, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                version_id,
+                universe_id,
+                version,
+                parent_version_id,
+                source,
+                snapshot_hash,
+                canonical,
+                now,
+            ),
+        )
+        c.execute(
+            "UPDATE factor_universes SET current_version_id=?, updated_at=? WHERE id=?",
+            (version_id, now, universe_id),
+        )
+    return {
+        "id": version_id,
+        "universe_id": universe_id,
+        "version": version,
+        "parent_version_id": parent_version_id,
+        "source": source,
+        "snapshot_hash": snapshot_hash,
+        "members": members,
+        "created_at": now,
+    }
+
+
+def get_factor_universe_version(version_id: str) -> dict | None:
+    with _lock, _conn() as c:
+        row = c.execute(
+            "SELECT * FROM factor_universe_versions WHERE id=?", (version_id,)
+        ).fetchone()
+    if row is None:
+        return None
+    return {
+        "id": row["id"],
+        "universe_id": row["universe_id"],
+        "version": int(row["version"]),
+        "parent_version_id": row["parent_version_id"],
+        "source": row["source"],
+        "snapshot_hash": row["snapshot_hash"],
+        "members": json.loads(row["members_json"] or "[]"),
+        "created_at": float(row["created_at"]),
+    }
+
+
+def list_factor_universe_versions(universe_id: str) -> list[dict]:
+    with _lock, _conn() as c:
+        rows = c.execute(
+            """SELECT id FROM factor_universe_versions WHERE universe_id=?
+               ORDER BY version DESC""",
+            (universe_id,),
+        ).fetchall()
+    return [item for row in rows if (item := get_factor_universe_version(row["id"])) is not None]
+
+
+def set_factor_universe_current_version(universe_id: str, version_id: str) -> None:
+    now = _now()
+    with _lock, _conn() as c:
+        row = c.execute(
+            "SELECT universe_id FROM factor_universe_versions WHERE id=?", (version_id,)
+        ).fetchone()
+        if row is None or row["universe_id"] != universe_id:
+            raise KeyError(version_id)
+        c.execute(
+            "UPDATE factor_universes SET current_version_id=?, updated_at=? WHERE id=?",
+            (version_id, now, universe_id),
+        )
+
+
+def get_factor_universe_batch(universe_id: str, idempotency_key: str) -> dict | None:
+    with _lock, _conn() as c:
+        row = c.execute(
+            """SELECT * FROM factor_universe_batches
+               WHERE universe_id=? AND idempotency_key=?""",
+            (universe_id, idempotency_key),
+        ).fetchone()
+    if row is None:
+        return None
+    return {
+        "id": row["id"],
+        "universe_id": row["universe_id"],
+        "idempotency_key": row["idempotency_key"],
+        "source": row["source"],
+        "status": row["status"],
+        "diff": json.loads(row["diff_json"] or "{}"),
+        "errors": json.loads(row["errors_json"] or "[]"),
+        "version_id": row["version_id"],
+        "created_at": float(row["created_at"]),
+        "updated_at": float(row["updated_at"]),
+    }
+
+
+def save_factor_universe_batch(
+    universe_id: str,
+    *,
+    idempotency_key: str,
+    source: str,
+    status: str,
+    diff: dict[str, Any],
+    errors: list[dict[str, Any]],
+    version_id: str | None,
+) -> dict:
+    now = _now()
+    existing = get_factor_universe_batch(universe_id, idempotency_key)
+    if existing and existing["status"] == "succeeded":
+        return existing
+    batch_id = existing["id"] if existing else f"UB-{uuid.uuid4().hex[:16].upper()}"
+    with _lock, _conn() as c:
+        c.execute(
+            """INSERT INTO factor_universe_batches
+               (id, universe_id, idempotency_key, source, status, diff_json,
+                errors_json, version_id, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               ON CONFLICT(universe_id, idempotency_key) DO UPDATE SET
+                   status=excluded.status, diff_json=excluded.diff_json,
+                   errors_json=excluded.errors_json, version_id=excluded.version_id,
+                   updated_at=excluded.updated_at""",
+            (
+                batch_id,
+                universe_id,
+                idempotency_key,
+                source,
+                status,
+                json.dumps(diff, ensure_ascii=False, default=str),
+                json.dumps(errors, ensure_ascii=False, default=str),
+                version_id,
+                now,
+                now,
+            ),
+        )
+    result = get_factor_universe_batch(universe_id, idempotency_key)
+    if result is None:
+        raise RuntimeError("股票池批次保存后无法读取")
+    return result
 
 
 # ---------------------------------------------------------------------------

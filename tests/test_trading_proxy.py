@@ -6,13 +6,14 @@
     - 响应外壳字段（status/source/observed_at/freshness/error_code）
     - Runner 不可达、超时、认证失败、404、拒单的错误码映射
     - shadow 环境禁止下单
-    - 首期范围（永续 + 限价单）服务端强制
+    - 可交易目录、限价/市价、修改与只减仓平仓服务端强制
     - 幂等透传
     - 凭据永不出现在响应中
 """
 
 from __future__ import annotations
 
+import json
 import unittest
 from datetime import UTC, datetime
 from typing import Any
@@ -239,13 +240,22 @@ class TradingProxyContractTests(unittest.TestCase):
         self.assertEqual(response.json()["error_code"], errors.TRADING_LIVE_NOT_APPROVED)
         self.assertEqual(transport.calls, [])
 
-    def test_market_order_is_refused_in_first_phase(self) -> None:
-        client, transport = build_client(make_settings(), {})
+    def test_market_order_is_forwarded_after_dynamic_preflight(self) -> None:
+        path = "/api/preflight?symbols=BTC-USDT-SWAP"
+        client, transport = build_client(
+            make_settings(),
+            {
+                ("GET", path): RunnerResponse(200, demo_preflight("BTC-USDT-SWAP")),
+                ("POST", "/api/orders"): RunnerResponse(
+                    200, {"order_id": "market-1", "status": "SUBMITTED"}
+                ),
+            },
+        )
         payload = valid_order() | {"order_type": "market", "price": None}
         response = client.post("/trading/orders", json=payload)
-        self.assertEqual(response.status_code, 422)
-        self.assertEqual(response.json()["error_code"], errors.TRADING_ORDER_TYPE_NOT_ALLOWED)
-        self.assertEqual(transport.calls, [])
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["data"]["order_id"], "market-1")
+        self.assertEqual([call["method"] for call in transport.calls], ["GET", "POST"])
 
     def test_inactive_demo_symbol_is_refused_by_dynamic_preflight(self) -> None:
         path = "/api/preflight?symbols=ETH-USDT-SWAP"
@@ -330,6 +340,72 @@ class TradingProxyContractTests(unittest.TestCase):
         self.assertEqual(response.status_code, 422)
         self.assertEqual(response.json()["error_code"], errors.TRADING_REJECTED)
         self.assertEqual(transport.calls, [])
+
+    def test_amend_order_forwards_structured_protection(self) -> None:
+        path = "/api/orders/order-1/amend"
+        client, transport = build_client(
+            make_settings(),
+            {("POST", path): RunnerResponse(200, {"order_id": "order-1", "status": "SUBMITTED"})},
+        )
+        response = client.post(
+            "/trading/orders/order-1/amend",
+            json={
+                "quantity": 0.02,
+                "price": 51000,
+                "stop_loss": {"trigger_price": 49000},
+                "take_profit": {"trigger_price": 55000},
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        sent = json.loads(transport.calls[0]["body"])
+        self.assertEqual(sent["stop_loss"]["trigger_price"], 49000.0)
+        self.assertEqual(sent["take_profit"]["trigger_price"], 55000.0)
+
+    def test_demo_quick_close_uses_dynamic_instrument_validation(self) -> None:
+        symbol = "ETH-USDT-SWAP"
+        preflight_path = f"/api/preflight?symbols={symbol}"
+        close_path = f"/api/positions/acc-1/{symbol}/close"
+        client, transport = build_client(
+            make_settings(),
+            {
+                ("GET", preflight_path): RunnerResponse(200, demo_preflight(symbol)),
+                ("POST", close_path): RunnerResponse(
+                    200, {"order_id": "close-1", "status": "SUBMITTED"}
+                ),
+            },
+        )
+        response = client.post(
+            f"/trading/positions/acc-1/{symbol}/close",
+            json={
+                "strategy_id": "demo-strategy",
+                "strategy_version": "1.0.0",
+                "intent_id": "close-intent",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([call["method"] for call in transport.calls], ["GET", "POST"])
+
+    def test_live_quick_close_uses_static_allowlist_without_demo_preflight(self) -> None:
+        path = "/api/positions/acc-1/BTC-USDT-SWAP/close"
+        client, transport = build_client(
+            make_settings("live", live_approved=True),
+            {
+                ("POST", path): RunnerResponse(
+                    200, {"order_id": "close-live-1", "status": "SUBMITTED"}
+                )
+            },
+        )
+        response = client.post(
+            "/trading/positions/acc-1/BTC-USDT-SWAP/close",
+            json={
+                "strategy_id": "demo-strategy",
+                "strategy_version": "1.0.0",
+                "intent_id": "close-live-intent",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(transport.calls), 1)
+        self.assertEqual(transport.calls[0]["method"], "POST")
 
     # -- 正常链路 -----------------------------------------------------------
 

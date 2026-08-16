@@ -148,6 +148,28 @@ export interface ResearchRun {
   evidence?: ResearchEvidence[]
 }
 
+export interface ResearchModuleOpinion {
+  module: string
+  direction: 'long' | 'short' | 'neutral' | 'insufficient'
+  confidence: number | null
+  evidence_at: string | null
+  status: 'available' | 'stale' | 'failed' | 'missing'
+  reason: string
+  evidence_id: string | null
+}
+
+export interface ResearchDecision {
+  direction: 'long' | 'short' | 'neutral' | 'conflicted' | 'insufficient'
+  execution_eligible: boolean
+  module_opinions: ResearchModuleOpinion[]
+  conflicts: Array<{ kind: string; modules: string[]; reason: string; blocking: boolean }>
+  invalidation_conditions: string[]
+  reevaluate_triggers: string[]
+  decision_version: string
+  decided_at: string
+  input_fingerprint: string
+}
+
 export interface ResearchVerification {
   ok: boolean
   run_id: string
@@ -181,6 +203,25 @@ export interface ResearchComparison {
     evidence_count: number
     evidence_kind_counts: Record<string, number>
     snapshot_sha256: string[]
+  }>
+  structured_snapshots: Array<{
+    direction: string
+    execution_eligible: boolean
+    conflicts: Array<Record<string, unknown>>
+    decision_version: string | null
+    module_opinions: Array<Record<string, unknown>>
+    metrics: Record<string, number | null>
+    levels: Record<string, number | null>
+    news_themes: unknown[]
+    invalidation_conditions: string[]
+    reevaluate_triggers: string[]
+  }>
+  changes: Array<{
+    kind: string
+    field: string
+    before: unknown
+    after: unknown
+    delta?: number | null
   }>
 }
 
@@ -497,12 +538,11 @@ export interface DemoRunRecord {
 }
 
 export interface SimulationOrderPreviewCheck {
-  key: string
-  label: string
-  status: 'passed' | 'failed' | 'unavailable'
-  actual: number | null
-  limit: number | null
-  unit: 'ratio' | 'currency' | 'price'
+  code: string
+  status: 'passed' | 'failed'
+  actual: unknown
+  limit: unknown
+  reevaluate_action: string
 }
 
 export interface SimulationOrderPreview {
@@ -514,8 +554,6 @@ export interface SimulationOrderPreview {
   order_notional: number | null
   current_quantity: number
   projected_quantity: number
-  current_symbol_value: number | null
-  projected_symbol_value: number | null
   gross_exposure_before: number
   gross_exposure_after: number | null
   cash_before: number
@@ -523,7 +561,19 @@ export interface SimulationOrderPreview {
   equity: number
   risk_evaluated: boolean
   can_submit: boolean
+  outcome: 'approved' | 'rejected'
+  reason_codes: string[]
   checks: SimulationOrderPreviewCheck[]
+  evaluated_at: string
+  rule_version: string
+  input_fingerprint: string
+  snapshot: {
+    market: Record<string, unknown>
+    account: Record<string, unknown>
+    open_order_count: number
+    cost_profile: Record<string, unknown>
+    research_decision: Record<string, unknown> | null
+  }
 }
 
 export interface SignalsResp {
@@ -1068,6 +1118,73 @@ export interface FactorFactoryRunResponse {
     after_cost_return: number | null
     max_drawdown: number
   }
+  market_data_status?: {
+    event_time: string
+    bar_open_time: string | null
+    bar_close_time: string | null
+    fetched_at: string
+    received_at: string
+    is_closed: boolean
+    age_ms: number
+    source: string
+    quality_status: string
+    event_kind: string
+    forming_bars_excluded: number
+    research_signal_allowed: boolean
+    market_open: boolean
+    adjustment?: string | null
+  } | null
+  cohort?: {
+    definition: Record<string, unknown>
+    status: string
+    engine_version: string
+    start_market_time: string
+    latest_report: {
+      ranking: Array<{ member_key: string; metrics: Record<string, number | boolean | string | string[]> }>
+      ledgers: Record<string, Record<string, unknown>>
+      comparison: Record<string, number | boolean | string | Record<string, unknown>>
+      fairness: Record<string, boolean | number>
+      benchmark_pool: Record<string, unknown>
+      execution_policy?: Record<string, unknown>
+      replay_verification?: Record<string, unknown>
+      regime_analysis?: Record<string, Record<string, Record<string, number>>>
+      grid_risk?: Record<string, {
+        mode: string
+        levels: number
+        range: { lower: number; center: number; upper: number }
+        inventory_quantity: number
+        inventory_notional: number
+        inventory_risk: number
+        capital_utilization: number
+        trade_count: number
+        fee_share_of_initial_capital: number
+        outside_range: boolean
+        outside_range_loss: number
+        idle_cash_ratio: number
+        preregistered: boolean
+        exit_rule: string
+      }>
+    }
+    program_gate: {
+      passed: boolean
+      checks: Record<string, boolean>
+      violations: string[]
+      allowed_transition: string | null
+      manual_approval_required: boolean
+      live_trading_enabled: false
+    }
+    ai_review?: Record<string, unknown> | null
+    live_request?: Record<string, unknown> | null
+    manual_approval?: Record<string, unknown> | null
+    manual_approval_validity?: {
+      valid: boolean
+      reasons: string[]
+      current_binding_hash: string
+      approved_binding_hash: string | null
+      live_trading_enabled: false
+    } | null
+    live_trading_enabled: false
+  } | null
   live_trading_enabled: false
 }
 
@@ -1232,7 +1349,9 @@ export interface FactorFactoryStartPayload {
     falsification_tests?: string[]
   }>
   horizon: number
-  commission_bps: number
+  commission_bps?: number
+  cost_profile_id?: string
+  cost_profile_version?: string
   initial_capital: number
   observation_days: number
   paper_target?: 'simulation_orders' | 'okx_demo'
@@ -1449,8 +1568,28 @@ export interface FactorUniverse {
   name: string
   market: 'a_shares' | 'us_stocks' | 'crypto' | 'mt5'
   description: string
+  current_version_id: string | null
   created_at: number
   updated_at: number
+}
+
+export interface FactorUniverseVersion {
+  id: string
+  universe_id: string
+  version: number
+  parent_version_id: string | null
+  source: string
+  snapshot_hash: string
+  members: FactorUniverseMember[]
+  created_at: number
+}
+
+export interface FactorUniverseBatchDiff {
+  additions: Array<Record<string, unknown>>
+  updates: Array<{ before: Record<string, unknown>; after: Record<string, unknown> }>
+  conflicts: Array<Record<string, unknown>>
+  ignored: Array<Record<string, unknown>>
+  counts: { additions: number; updates: number; conflicts: number; ignored: number; invalid: number }
 }
 
 export interface FactorUniverseMember {
@@ -1967,17 +2106,23 @@ export interface OkxSwapInstrument extends Instrument {
   base: string
   quote: string
   settle: string
-  contract_size: number
+  contract_size: number | null
   price_precision: number | null
   amount_precision: number | null
   minimum_amount: number | null
   linear: boolean
-  verified: true
+  verified: boolean
+  research_ready?: boolean
+  trading_ready?: boolean
+  available_intervals?: string[]
+  last_market_time?: string | null
 }
 
 export interface OkxSwapCatalogResponse {
   ok: boolean
-  source: 'okx_public' | 'unavailable'
+  source: 'okx_public' | 'okx_public_cache' | 'okx_local_cache' | 'unavailable'
+  degraded?: boolean
+  warning?: string | null
   query: string
   count: number
   total: number
@@ -1985,6 +2130,7 @@ export interface OkxSwapCatalogResponse {
   cache_ttl_seconds: number
   fetched_at: number | null
   error: string | null
+  trading_ready_count?: number
   instruments: OkxSwapInstrument[]
 }
 
@@ -2130,6 +2276,25 @@ export interface LedgerAttributionGroup {
   cash_flow: number
 }
 
+export interface LedgerPerformanceAttributionGroup {
+  key: string
+  trade_count: number
+  wins: number
+  win_rate_pct: number
+  gross_pnl: number
+  fees: number
+  net_pnl: number
+  fee_drag_pct: number
+  average_holding_seconds: number
+  max_drawdown: number
+  links: Array<{
+    research_run_id?: string | null
+    signal_id?: string | null
+    simulation_order_id?: string | null
+    execution_id?: string | null
+  }>
+}
+
 export interface LedgerAttribution {
   ok: boolean
   start_at: number | null
@@ -2147,6 +2312,19 @@ export interface LedgerAttribution {
   by_strategy: LedgerAttributionGroup[]
   by_direction: LedgerAttributionGroup[]
   by_period: LedgerAttributionGroup[]
+  by_factor: LedgerPerformanceAttributionGroup[]
+  by_factor_version: LedgerPerformanceAttributionGroup[]
+  by_research_run: LedgerPerformanceAttributionGroup[]
+  by_strategy_performance: LedgerPerformanceAttributionGroup[]
+  by_signal: LedgerPerformanceAttributionGroup[]
+  by_market_regime: LedgerPerformanceAttributionGroup[]
+  unknown_attribution: LedgerPerformanceAttributionGroup[]
+  conservation: {
+    closed_trade_net_pnl: number
+    factor_group_net_pnl: number
+    balanced: boolean
+    matching: { open_lot_count: number; open_quantity: number }
+  }
 }
 
 export interface DecisionTimelineEvent {
@@ -2816,12 +2994,18 @@ export interface TradingHealth {
 
 export interface OkxDemoCredentialStatus {
   ok: boolean
+  available?: boolean
   configured: boolean
   environment: 'demo'
   source: 'local_vault'
+  protection_scope?: 'windows_current_user'
+  runtime_identity?: string | null
   fingerprint: string | null
   updated_at: string | null
   validated_at: string | null
+  error_code?: string | null
+  error?: string | null
+  recovery_action?: string | null
 }
 
 export interface OkxDemoConnectionTest extends OkxDemoCredentialStatus {
@@ -2847,6 +3031,30 @@ export interface TradingOrderIntent {
   quantity: number
   price?: number | null
   leverage?: number
+  reduce_only?: boolean
+  stop_loss?: TradingProtectionOrder | null
+  take_profit?: TradingProtectionOrder | null
+}
+
+export interface TradingProtectionOrder {
+  trigger_price: number
+  order_price?: number | null
+}
+
+export interface TradingOrderAmendment {
+  quantity: number
+  price?: number | null
+  stop_loss?: TradingProtectionOrder | null
+  take_profit?: TradingProtectionOrder | null
+}
+
+export interface TradingClosePositionIntent {
+  strategy_id: string
+  strategy_version: string
+  intent_id: string
+  quantity?: number | null
+  order_type?: 'limit' | 'market'
+  price?: number | null
 }
 
 export interface TradingInstrumentRule {
@@ -2917,6 +3125,7 @@ export interface TradingOrderRecord {
   quantity: number
   price: number | null
   leverage: number
+  reduce_only?: boolean
   external_order_id: string | null
   status: string
   filled_quantity: number

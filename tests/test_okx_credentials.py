@@ -14,6 +14,7 @@ from apps.api.domains.settings.schemas import OkxDemoCredentialsUpdate
 from packages.credential_vault import (
     OkxCredentials,
     delete_okx_demo_credentials,
+    inspect_okx_demo_credentials,
     load_okx_demo_credentials,
     okx_demo_credential_status,
     save_okx_demo_credentials,
@@ -68,6 +69,21 @@ class OkxCredentialVaultTests(unittest.TestCase):
         self.assertNotIn("api-marker", rendered)
         self.assertNotIn("secret-marker", rendered)
         self.assertNotIn("pass-marker", rendered)
+
+    @unittest.skipUnless(sys.platform == "win32", "Windows DPAPI is required")
+    def test_corrupt_vault_reports_recovery_and_can_be_rebuilt(self) -> None:
+        self.vault_path.parent.mkdir(parents=True, exist_ok=True)
+        self.vault_path.write_bytes(b"not-a-dpapi-payload")
+
+        unavailable = inspect_okx_demo_credentials()
+
+        self.assertFalse(unavailable["ok"])
+        self.assertFalse(unavailable["available"])
+        self.assertTrue(unavailable["configured"])
+        self.assertEqual(unavailable["error_code"], "credential_vault_unavailable")
+        rebuilt = save_okx_demo_credentials(OkxCredentials("new-key", "new-secret", "new-pass"))
+        self.assertTrue(rebuilt["available"])
+        self.assertEqual(load_okx_demo_credentials().api_key, "new-key")
 
 
 class OkxConnectionTestTests(unittest.TestCase):

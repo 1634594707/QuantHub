@@ -8,10 +8,13 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 import threading
 import time
+from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 import requests
@@ -50,9 +53,13 @@ _OKX_MARKET_CACHE: tuple[float, list[dict[str, Any]]] = (0.0, [])
 _OKX_MARKET_RETRY_AT = 0.0
 _OKX_MARKET_FETCHED_AT = 0.0
 _OKX_MARKET_LAST_ERROR = ""
+_OKX_MARKET_SOURCE = "unavailable"
 _OKX_MARKET_LOCK = threading.Lock()
 _OKX_MARKET_TTL_SECONDS = 15 * 60
 _OKX_MARKET_RETRY_SECONDS = 60
+_PROJECT_ROOT = Path(__file__).resolve().parents[4]
+_OKX_CATALOG_SNAPSHOT_PATH = _PROJECT_ROOT / "data" / "market_cache" / "okx_swap_catalog.json"
+_OKX_LOCAL_INDEX_PATH = _PROJECT_ROOT / "data" / "market_cache" / "okx_local_index.json"
 
 
 class InstrumentResolutionError(ValueError):
@@ -157,9 +164,131 @@ def _public_okx_catalog_error(exc: Exception) -> str:
     return "OKX 公共合约目录暂不可用"
 
 
+def _contract_from_row(row: dict[str, Any], *, source: str) -> dict[str, Any] | None:
+    code = str(row.get("code") or row.get("instId") or "").upper()
+    if not code.endswith("-USDT-SWAP"):
+        return None
+    base = str(row.get("base") or code.split("-", 1)[0]).upper()
+    name = str(row.get("name") or f"{base} / USDT 永续")
+    live = source == "okx_public"
+    return {
+        "instrument": build_instrument(code, "crypto", name),
+        "base": base,
+        "quote": "USDT",
+        "settle": str(row.get("settle") or row.get("settleCcy") or "USDT").upper(),
+        "contract_size": _optional_float(row.get("contract_size", row.get("ctVal"))),
+        "price_precision": _optional_float(row.get("price_precision", row.get("tickSz"))),
+        "amount_precision": _optional_float(row.get("amount_precision", row.get("lotSz"))),
+        "minimum_amount": _optional_float(row.get("minimum_amount", row.get("minSz"))),
+        "linear": bool(row.get("linear", row.get("ctType") == "linear")),
+        "verified": live,
+        "research_ready": True,
+        "trading_ready": live,
+        "available_intervals": list(row.get("available_intervals") or []),
+        "last_market_time": row.get("last_market_time"),
+        "_catalog_source": source,
+    }
+
+
+def _reclassify_okx_catalog(
+    contracts: list[dict[str, Any]], *, source: str
+) -> list[dict[str, Any]]:
+    reclassified: list[dict[str, Any]] = []
+    for contract in contracts:
+        instrument: Instrument = contract["instrument"]
+        row = {
+            **contract,
+            "code": instrument.code,
+            "name": instrument.name,
+        }
+        converted = _contract_from_row(row, source=source)
+        if converted is not None:
+            reclassified.append(converted)
+    return reclassified
+
+
+def _persist_okx_catalog(contracts: list[dict[str, Any]]) -> None:
+    path = _OKX_CATALOG_SNAPSHOT_PATH
+    path.parent.mkdir(parents=True, exist_ok=True)
+    rows = []
+    for contract in contracts:
+        instrument: Instrument = contract["instrument"]
+        rows.append(
+            {
+                "code": instrument.code,
+                "name": instrument.name,
+                "base": contract["base"],
+                "settle": contract["settle"],
+                "contract_size": contract["contract_size"],
+                "price_precision": contract["price_precision"],
+                "amount_precision": contract["amount_precision"],
+                "minimum_amount": contract["minimum_amount"],
+                "linear": contract["linear"],
+            }
+        )
+    temporary = path.with_suffix(".tmp")
+    temporary.write_text(
+        json.dumps({"fetched_at": time.time(), "instruments": rows}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    temporary.replace(path)
+
+
+def _load_persisted_okx_catalog() -> tuple[list[dict[str, Any]], float]:
+    try:
+        payload = json.loads(_OKX_CATALOG_SNAPSHOT_PATH.read_text(encoding="utf-8"))
+        fetched_at = float(payload.get("fetched_at") or 0)
+        contracts = [
+            contract
+            for row in payload.get("instruments") or []
+            if (contract := _contract_from_row(row, source="okx_public_cache")) is not None
+        ]
+        return contracts, fetched_at
+    except (OSError, TypeError, ValueError, json.JSONDecodeError):
+        return [], 0.0
+
+
+def _load_local_okx_research_catalog() -> tuple[list[dict[str, Any]], float]:
+    try:
+        payload = json.loads(_OKX_LOCAL_INDEX_PATH.read_text(encoding="utf-8"))
+    except (OSError, TypeError, ValueError, json.JSONDecodeError):
+        return [], 0.0
+    rows: list[dict[str, Any]] = []
+    aliases_by_code = {code: name for code, name in CRYPTO_ALIASES.values()}
+    for raw_symbol, intervals in (payload.get("symbols") or {}).items():
+        normalized = str(raw_symbol).upper()
+        if not normalized.endswith("USDT"):
+            continue
+        base = normalized[:-4]
+        code = f"{base}-USDT-SWAP"
+        last_market_time = max(
+            (str(item.get("last")) for item in intervals.values() if item.get("last")),
+            default=None,
+        )
+        contract = _contract_from_row(
+            {
+                "code": code,
+                "name": aliases_by_code.get(code, f"{base} / USDT 离线研究"),
+                "linear": True,
+                "available_intervals": sorted(intervals),
+                "last_market_time": last_market_time,
+            },
+            source="okx_local_cache",
+        )
+        if contract is not None:
+            rows.append(contract)
+    rows.sort(key=lambda item: item["instrument"].code)
+    try:
+        built_at = datetime.fromisoformat(str(payload.get("built_at"))).timestamp()
+    except (TypeError, ValueError):
+        built_at = _OKX_LOCAL_INDEX_PATH.stat().st_mtime
+    return rows, built_at
+
+
 def _load_okx_swap_contracts(*, refresh: bool = False) -> list[dict[str, Any]]:
     """Load public OKX USDT swap metadata with a short-lived process cache."""
     global _OKX_MARKET_CACHE, _OKX_MARKET_FETCHED_AT, _OKX_MARKET_LAST_ERROR
+    global _OKX_MARKET_SOURCE
     global _OKX_MARKET_RETRY_AT
     now = time.monotonic()
     cached_at, cached = _OKX_MARKET_CACHE
@@ -176,7 +305,7 @@ def _load_okx_swap_contracts(*, refresh: bool = False) -> list[dict[str, Any]]:
             response = requests.get(
                 "https://www.okx.com/api/v5/public/instruments",
                 params={"instType": "SWAP"},
-                timeout=(5, 15),
+                timeout=(3, 10),
             )
             response.raise_for_status()
             payload = response.json()
@@ -191,30 +320,42 @@ def _load_okx_swap_contracts(*, refresh: bool = False) -> list[dict[str, Any]]:
                     continue
                 base = str(market_data.get("base") or code.split("-", 1)[0]).upper()
                 name = f"{base} / USDT 永续"
-                discovered.append(
-                    {
-                        "instrument": build_instrument(code, "crypto", name),
-                        "base": base,
-                        "quote": "USDT",
-                        "settle": str(market_data.get("settleCcy") or "USDT").upper(),
-                        "contract_size": float(market_data.get("ctVal") or 1),
-                        "price_precision": _optional_float(market_data.get("tickSz")),
-                        "amount_precision": _optional_float(market_data.get("lotSz")),
-                        "minimum_amount": _optional_float(market_data.get("minSz")),
-                        "linear": market_data.get("ctType") == "linear",
-                    }
+                contract = _contract_from_row(
+                    {**market_data, "code": code, "base": base, "name": name}, source="okx_public"
                 )
+                if contract is not None:
+                    discovered.append(contract)
             discovered.sort(key=lambda item: item["instrument"].code)
+            try:
+                _persist_okx_catalog(discovered)
+            except OSError:
+                logger.warning(
+                    "OKX public catalogue snapshot could not be persisted", exc_info=True
+                )
             _OKX_MARKET_CACHE = (now, discovered)
             _OKX_MARKET_RETRY_AT = 0.0
             _OKX_MARKET_FETCHED_AT = time.time()
             _OKX_MARKET_LAST_ERROR = ""
+            _OKX_MARKET_SOURCE = "okx_public"
             return discovered
         except Exception as exc:  # noqa: BLE001 - search must degrade to cached metadata
             logger.info("OKX public market discovery unavailable", exc_info=True)
             _OKX_MARKET_RETRY_AT = now + _OKX_MARKET_RETRY_SECONDS
             _OKX_MARKET_LAST_ERROR = _public_okx_catalog_error(exc)
-            return cached
+            fallback = _reclassify_okx_catalog(cached, source="okx_public_cache")
+            fetched_at = _OKX_MARKET_FETCHED_AT
+            source = "okx_public_cache" if cached else "unavailable"
+            if not fallback:
+                fallback, fetched_at = _load_persisted_okx_catalog()
+                source = "okx_public_cache" if fallback else "unavailable"
+            if not fallback:
+                fallback, fetched_at = _load_local_okx_research_catalog()
+                source = "okx_local_cache" if fallback else "unavailable"
+            if fallback:
+                _OKX_MARKET_CACHE = (now, fallback)
+                _OKX_MARKET_FETCHED_AT = fetched_at
+            _OKX_MARKET_SOURCE = source
+            return fallback
 
 
 def _optional_float(value: Any) -> float | None:
@@ -257,16 +398,25 @@ def okx_swap_catalog(query: str = "", limit: int = 100, *, refresh: bool = False
                 "amount_precision": contract["amount_precision"],
                 "minimum_amount": contract["minimum_amount"],
                 "linear": contract["linear"],
-                "verified": True,
+                "verified": bool(contract.get("verified", True)),
+                "research_ready": bool(contract.get("research_ready", True)),
+                "trading_ready": bool(contract.get("trading_ready", True)),
+                "available_intervals": list(contract.get("available_intervals") or []),
+                "last_market_time": contract.get("last_market_time"),
             }
         )
         if len(rows) >= limit:
             break
     cached_at, _ = _OKX_MARKET_CACHE
     age_seconds = max(0, int(time.monotonic() - cached_at)) if contracts else None
+    source = _OKX_MARKET_SOURCE
+    if contracts and source == "unavailable":
+        source = str(contracts[0].get("_catalog_source") or "okx_public")
     return {
         "ok": bool(contracts),
-        "source": "okx_public" if contracts else "unavailable",
+        "source": source if contracts else "unavailable",
+        "degraded": bool(contracts) and source != "okx_public",
+        "warning": _OKX_MARKET_LAST_ERROR or None,
         "query": raw_query,
         "count": len(rows),
         "total": len(contracts),
@@ -274,6 +424,7 @@ def okx_swap_catalog(query: str = "", limit: int = 100, *, refresh: bool = False
         "cache_ttl_seconds": _OKX_MARKET_TTL_SECONDS,
         "fetched_at": _OKX_MARKET_FETCHED_AT or None,
         "error": _OKX_MARKET_LAST_ERROR or None,
+        "trading_ready_count": sum(1 for item in contracts if item.get("trading_ready", True)),
         "instruments": rows,
     }
 

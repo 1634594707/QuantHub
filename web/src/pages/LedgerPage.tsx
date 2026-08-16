@@ -65,6 +65,8 @@ export default function LedgerPage() {
   const [benchmarkCorrectionId, setBenchmarkCorrectionId] = useState('')
   const [correctionReason, setCorrectionReason] = useState('')
   const [reviewInstrumentId, setReviewInstrumentId] = useState('')
+  const [attributionDimension, setAttributionDimension] = useState<'factor' | 'factor_version' | 'research' | 'strategy' | 'signal' | 'regime'>('factor_version')
+  const [attributionQuery, setAttributionQuery] = useState('')
   const decisionContext = useApi(
     () => api.ledgerPositionDecisionContext(reviewInstrumentId),
     [reviewInstrumentId, tick],
@@ -84,6 +86,21 @@ export default function LedgerPage() {
   const [benchmarkMetrics, setBenchmarkMetrics] = useState([{ key: '', value: '' }])
 
   const metrics = summary.data?.summary
+  const attributionGroups = useMemo(() => {
+    const source = attributionDimension === 'factor'
+      ? attribution.data?.by_factor
+      : attributionDimension === 'factor_version'
+        ? attribution.data?.by_factor_version
+        : attributionDimension === 'research'
+          ? attribution.data?.by_research_run
+          : attributionDimension === 'strategy'
+            ? attribution.data?.by_strategy_performance
+            : attributionDimension === 'signal'
+              ? attribution.data?.by_signal
+              : attribution.data?.by_market_regime
+    const normalized = attributionQuery.trim().toLowerCase()
+    return (source ?? []).filter((item) => !normalized || item.key.toLowerCase().includes(normalized))
+  }, [attribution.data, attributionDimension, attributionQuery])
 
   function refresh(message = '') {
     setActionMessage(message)
@@ -560,8 +577,21 @@ export default function LedgerPage() {
                 )) : <div className={s.empty}>暂无市场敞口</div>}
               </div>
               <div className={s.subsection}>
-                <div className={s.sectionHead}><h3>来源策略归因</h3><span>按月</span></div>
-                {(attribution.data?.by_strategy ?? []).map((item) => <div className={s.statusLine} key={item.key}><span>{item.key} · {item.trade_count} 笔</span><b className={item.cash_flow >= 0 ? s.positive : s.negative}>{money(item.cash_flow)}</b></div>)}
+                <div className={s.sectionHead}><h3>研究身份收益归因</h3><span>{attribution.data?.period ?? 'month'}</span></div>
+                <div className={s.formGrid}>
+                  <label>归因维度<Select value={attributionDimension} options={[{ value: 'factor', label: '因子' }, { value: 'factor_version', label: '因子版本' }, { value: 'research', label: '研究运行' }, { value: 'strategy', label: '策略' }, { value: 'signal', label: '信号' }, { value: 'regime', label: '市场状态' }]} onChange={(event) => setAttributionDimension(event.target.value as typeof attributionDimension)} /></label>
+                  <label>筛选<Input value={attributionQuery} placeholder="输入身份 ID" onChange={(event) => setAttributionQuery(event.target.value)} /></label>
+                </div>
+                <div className={s.attributionList}>
+                  {attributionGroups.map((item) => {
+                    const link = item.links.find((candidate) => candidate.research_run_id || candidate.signal_id || candidate.simulation_order_id)
+                    const href = link?.research_run_id ? `/research/history?run_id=${encodeURIComponent(link.research_run_id)}` : link?.signal_id ? `/signals?signal_id=${encodeURIComponent(link.signal_id)}` : link?.simulation_order_id ? `/simulation?order_id=${encodeURIComponent(link.simulation_order_id)}` : ''
+                    return <div key={item.key}><span>{item.key} · {item.trade_count} 笔 · 胜率 {item.win_rate_pct}%</span><b className={item.net_pnl >= 0 ? s.positive : s.negative}>净 {money(item.net_pnl)}</b><strong>毛 {money(item.gross_pnl)} / 费 {money(item.fees)}</strong><small>持有 {money(item.average_holding_seconds)} 秒 · 回撤 {money(item.max_drawdown)}</small>{href && <Link to={href}>打开来源</Link>}</div>
+                  })}
+                  {!attributionGroups.length && <div className={s.empty}>当前维度没有归因记录</div>}
+                </div>
+                <div className={attribution.data?.conservation.balanced ? s.success : s.error}>归因守恒：账本净收益 {money(attribution.data?.conservation.closed_trade_net_pnl)} / 分组净收益 {money(attribution.data?.conservation.factor_group_net_pnl)} · {attribution.data?.conservation.balanced ? '一致' : '不一致'}</div>
+                {(attribution.data?.unknown_attribution ?? []).filter((item) => item.key === 'unknown' && item.trade_count > 0).map((item) => <div className={s.statusLine} key="unknown-attribution"><span>未知归因 · {item.trade_count} 笔，不并入任何已知因子或策略</span><b className={item.net_pnl >= 0 ? s.positive : s.negative}>{money(item.net_pnl)}</b></div>)}
               </div>
               <div className={s.subsection}>
                 <div className={s.sectionHead}><h3>方向与时间归因</h3></div>

@@ -12,6 +12,7 @@ from core.config import get_config, get_path
 from core.llm import reset_clients
 from packages.credential_vault import (
     OkxCredentials,
+    inspect_okx_demo_credentials,
     load_okx_demo_credentials,
     okx_demo_credential_status,
     save_okx_demo_credentials,
@@ -62,7 +63,7 @@ _LLM_PROVIDER_PRESETS = {
 
 
 def okx_demo_status() -> dict:
-    return okx_demo_credential_status()
+    return inspect_okx_demo_credentials()
 
 
 def update_okx_demo_credentials(api_key: str, secret_key: str, passphrase: str) -> dict:

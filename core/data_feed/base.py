@@ -130,6 +130,22 @@ class DataSource(ABC):
         """返回该数据源支持的周期。"""
         return tuple(Interval)
 
+    def data_contract(self) -> dict:
+        """Return capabilities without implying that bar snapshots are tick data."""
+        operations = ["get_kline"] if tuple(self.supported_intervals()) else []
+        if type(self).get_news is not DataSource.get_news:
+            operations.append("get_news")
+        if type(self).get_announcements is not DataSource.get_announcements:
+            operations.append("get_announcements")
+        return {
+            "name": self.name,
+            "market": self.market,
+            "operations": operations,
+            "intervals": [item.value for item in self.supported_intervals()],
+            "kline_semantics": "bar_snapshot" if "get_kline" in operations else None,
+            "tick_by_tick": False,
+        }
+
 
 def klines_to_df(klines: list[Kline]) -> pd.DataFrame:
     """把 Kline 列表转为 DataFrame，按 ts 升序。"""

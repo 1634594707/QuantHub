@@ -17,12 +17,7 @@ router = APIRouter(prefix="/config", tags=["settings"])
 
 @router.get("/okx-demo")
 def get_okx_demo_status() -> dict:
-    try:
-        return service.okx_demo_status()
-    except (OSError, RuntimeError) as exc:
-        from fastapi import HTTPException
-
-        raise HTTPException(status_code=503, detail="本地凭据库不可用") from exc
+    return service.okx_demo_status()
 
 
 @router.put("/okx-demo")

@@ -21,7 +21,7 @@ from packages.strategy_package import (
 
 from .adapter import AccountSnapshot, ExternalOrder, TradingAdapter
 from .database import connect
-from .schemas import OrderRequest
+from .schemas import AmendOrderRequest, ClosePositionRequest, OrderRequest
 
 FINAL_STATUSES = {"FILLED", "CANCELLED", "REJECTED"}
 OPEN_STATUSES = {"PENDING_SUBMIT", "SUBMITTED", "PARTIALLY_FILLED", "UNKNOWN"}
@@ -181,7 +181,9 @@ class RunnerEngine:
     def _snapshot_equity(snapshot: AccountSnapshot) -> float:
         return sum(float(values.get("total", 0)) for values in snapshot.balances.values())
 
-    def _risk_snapshot(self, request: OrderRequest) -> tuple[AccountSnapshot, dict[str, Any]]:
+    def _risk_snapshot(
+        self, request: OrderRequest, *, exclude_order_id: str | None = None
+    ) -> tuple[AccountSnapshot, dict[str, Any]]:
         snapshot = self.adapter.account_snapshot(request.account_id)
         now = datetime.now(UTC)
         observed_at = snapshot.observed_at.astimezone(UTC)
@@ -196,6 +198,20 @@ class RunnerEngine:
         mark_price = self.adapter.mark_price(request.symbol)
         if mark_price <= 0:
             raise RiskViolation("no usable mark price for requested instrument")
+        current_position = snapshot.positions.get(request.symbol, {})
+        current_quantity = float(current_position.get("quantity", 0))
+        if request.reduce_only:
+            valid_reduce = (
+                current_quantity > 0
+                and request.side == "sell"
+                and request.quantity <= current_quantity
+            ) or (
+                current_quantity < 0
+                and request.side == "buy"
+                and request.quantity <= abs(current_quantity)
+            )
+            if not valid_reduce:
+                raise RiskViolation("reduce-only order would increase or reverse the position")
         symbol_exposure = sum(
             abs(float(position.get("quantity", 0)) * float(position.get("mark_price", 0)))
             for symbol, position in snapshot.positions.items()
@@ -205,9 +221,13 @@ class RunnerEngine:
             abs(float(position.get("quantity", 0)) * float(position.get("mark_price", 0)))
             for position in snapshot.positions.values()
         )
+        current_position_exposure = abs(
+            current_quantity * float(current_position.get("mark_price", mark_price))
+        )
+        open_symbol_exposure = 0.0
         with connect(self.database_path) as connection:
             open_orders = connection.execute(
-                """SELECT symbol, quantity, price FROM orders
+                """SELECT order_id, symbol, quantity, price FROM orders
                    WHERE account_id=? AND status IN ('PENDING_SUBMIT', 'SUBMITTED', 'PARTIALLY_FILLED', 'UNKNOWN')""",
                 (request.account_id,),
             ).fetchall()
@@ -216,6 +236,8 @@ class RunnerEngine:
                 (request.account_id,),
             ).fetchall()
         for order in open_orders:
+            if order["order_id"] == exclude_order_id:
+                continue
             try:
                 price = float(self.adapter.mark_price(order["symbol"]))
             except Exception:  # noqa: BLE001 - adapters expose provider-specific failures
@@ -228,6 +250,7 @@ class RunnerEngine:
             total_exposure += exposure
             if order["symbol"] == request.symbol:
                 symbol_exposure += exposure
+                open_symbol_exposure += exposure
         peak_equity = max(
             [
                 equity,
@@ -235,6 +258,17 @@ class RunnerEngine:
                 *(float(row["total"]) for row in previous_equities),
             ]
         )
+        requested_notional = abs(request.quantity * mark_price)
+        if request.reduce_only:
+            signed = request.quantity if request.side == "buy" else -request.quantity
+            projected_position_exposure = abs((current_quantity + signed) * mark_price)
+            projected_symbol_exposure = open_symbol_exposure + projected_position_exposure
+            projected_total_exposure = (
+                total_exposure - current_position_exposure + projected_position_exposure
+            )
+        else:
+            projected_symbol_exposure = symbol_exposure + requested_notional
+            projected_total_exposure = total_exposure + requested_notional
         calculation = {
             "observed_at": observed_at.isoformat(),
             "equity": equity,
@@ -242,11 +276,11 @@ class RunnerEngine:
             "requested_order_price": request.price,
             "existing_symbol_exposure": symbol_exposure,
             "existing_total_exposure": total_exposure,
-            "requested_notional": abs(request.quantity * mark_price),
-            "projected_symbol_exposure": (symbol_exposure + abs(request.quantity * mark_price))
-            / equity,
-            "projected_total_exposure": (total_exposure + abs(request.quantity * mark_price))
-            / equity,
+            "requested_notional": requested_notional,
+            "reduce_only": request.reduce_only,
+            "current_quantity": current_quantity,
+            "projected_symbol_exposure": projected_symbol_exposure / equity,
+            "projected_total_exposure": projected_total_exposure / equity,
             "realized_loss": max(0.0, -float(snapshot.realized_pnl)),
             "drawdown": max(0.0, (peak_equity - equity) / peak_equity),
             "peak_equity": peak_equity,
@@ -287,7 +321,11 @@ class RunnerEngine:
             )
 
     def _validate_risk(
-        self, request: OrderRequest, package: StrategyReleasePayload
+        self,
+        request: OrderRequest,
+        package: StrategyReleasePayload,
+        *,
+        exclude_order_id: str | None = None,
     ) -> dict[str, Any]:
         mode = self._risk_mode(request.account_id)
         if mode != "normal":
@@ -302,9 +340,15 @@ class RunnerEngine:
             raise RiskViolation(reason)
         rules = self.adapter.instrument_rules(request.symbol)
         limits = package.risk_limits
+        decision_recorded = False
         try:
-            _, calculation = self._risk_snapshot(request)
+            _, calculation = self._risk_snapshot(request, exclude_order_id=exclude_order_id)
+            mark_price = calculation["mark_price"]
             checks = (
+                (
+                    request.order_type == "limit" and request.price is None,
+                    "limit order requires a price",
+                ),
                 (request.quantity < rules.minimum_quantity, "quantity is below instrument minimum"),
                 (
                     not math.isclose(
@@ -324,15 +368,35 @@ class RunnerEngine:
                     "price does not match instrument precision",
                 ),
                 (
+                    request.stop_loss is not None
+                    and (
+                        request.stop_loss.trigger_price >= mark_price
+                        if request.side == "buy"
+                        else request.stop_loss.trigger_price <= mark_price
+                    ),
+                    "stop loss trigger is on the wrong side of the market",
+                ),
+                (
+                    request.take_profit is not None
+                    and (
+                        request.take_profit.trigger_price <= mark_price
+                        if request.side == "buy"
+                        else request.take_profit.trigger_price >= mark_price
+                    ),
+                    "take profit trigger is on the wrong side of the market",
+                ),
+                (
                     request.leverage > min(limits.max_leverage, rules.maximum_leverage),
                     "leverage exceeds a hard limit",
                 ),
                 (
-                    calculation["projected_symbol_exposure"] > limits.max_symbol_exposure,
+                    not request.reduce_only
+                    and calculation["projected_symbol_exposure"] > limits.max_symbol_exposure,
                     "symbol exposure exceeds package hard limit",
                 ),
                 (
-                    calculation["projected_total_exposure"] > limits.max_total_exposure,
+                    not request.reduce_only
+                    and calculation["projected_total_exposure"] > limits.max_total_exposure,
                     "total exposure exceeds package hard limit",
                 ),
                 (calculation["realized_loss"] >= limits.max_loss, "loss hard limit reached"),
@@ -341,10 +405,22 @@ class RunnerEngine:
             for failed, reason in checks:
                 if failed:
                     self._record_risk_decision(request, package, calculation, "rejected", reason)
+                    decision_recorded = True
                     raise RiskViolation(reason)
             self._record_risk_decision(request, package, calculation, "approved")
             return calculation
-        except RiskViolation:
+        except RiskViolation as exc:
+            if not decision_recorded:
+                self._record_risk_decision(
+                    request,
+                    package,
+                    {
+                        "observed_at": datetime.now(UTC).isoformat(),
+                        "risk_snapshot_error": str(exc),
+                    },
+                    "rejected",
+                    str(exc),
+                )
             raise
         except Exception as exc:  # noqa: BLE001
             reason = redact_secrets(f"risk snapshot unavailable: {type(exc).__name__}: {exc}")
@@ -795,6 +871,92 @@ class RunnerEngine:
         external = self.adapter.cancel_order(order["external_order_id"])
         self._apply_external(order_id, external)
         return self.order(order_id)
+
+    def amend(self, order_id: str, amendment: AmendOrderRequest) -> dict[str, Any]:
+        order = self.order(order_id)
+        if order["status"] not in OPEN_STATUSES:
+            raise ValueError("only open orders can be amended")
+        if not order["external_order_id"]:
+            raise ValueError("cannot amend an order without an external order id")
+        original = json.loads(order["request_json"])
+        merged = {
+            key: original.get(key)
+            for key in (
+                "strategy_id",
+                "strategy_version",
+                "intent_id",
+                "account_id",
+                "symbol",
+                "side",
+                "order_type",
+                "leverage",
+                "reduce_only",
+            )
+        }
+        merged.update(amendment.model_dump(mode="json"))
+        request = OrderRequest.model_validate(merged)
+        risk_calculation = self._validate_risk(
+            request,
+            self._package(request.strategy_id, request.strategy_version),
+            exclude_order_id=order_id,
+        )
+        external_request = request.model_dump(mode="json") | {
+            "client_order_id": order["client_order_id"],
+            "risk_snapshot": risk_calculation,
+        }
+        external = self.adapter.amend_order(
+            order["external_order_id"], order["symbol"], external_request
+        )
+        now = datetime.now(UTC).isoformat()
+        safe_json = redact_secrets(canonical_json(external_request))
+        with connect(self.database_path) as connection:
+            connection.execute(
+                """UPDATE orders SET quantity=?, price=?, request_json=?, request_hash=?,
+                   updated_at=? WHERE order_id=?""",
+                (
+                    request.quantity,
+                    request.price,
+                    safe_json,
+                    content_hash(external_request),
+                    now,
+                    order_id,
+                ),
+            )
+            self._event(
+                connection,
+                order_id,
+                order["status"],
+                order["status"],
+                order["external_order_id"],
+                {"amended": True, "risk_snapshot": risk_calculation},
+            )
+        self._apply_external(order_id, external)
+        return self.order(order_id)
+
+    def close_position(
+        self, account_id: str, symbol: str, request: ClosePositionRequest
+    ) -> dict[str, Any]:
+        snapshot = self.adapter.account_snapshot(account_id)
+        position = snapshot.positions.get(symbol)
+        current_quantity = float((position or {}).get("quantity", 0))
+        if abs(current_quantity) <= 1e-12:
+            raise ValueError("position is already flat")
+        quantity = request.quantity or abs(current_quantity)
+        if quantity > abs(current_quantity):
+            raise RiskViolation("close quantity exceeds the current position")
+        intent = OrderRequest(
+            strategy_id=request.strategy_id,
+            strategy_version=request.strategy_version,
+            intent_id=request.intent_id,
+            account_id=account_id,
+            symbol=symbol,
+            side="sell" if current_quantity > 0 else "buy",
+            order_type=request.order_type,
+            quantity=quantity,
+            price=request.price,
+            reduce_only=True,
+        )
+        return self.submit(intent)
 
     def recover_open_orders(self) -> list[dict[str, Any]]:
         with connect(self.database_path) as connection:

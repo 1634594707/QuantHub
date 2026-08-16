@@ -5,6 +5,7 @@ import type {
   SimulationExecution,
   SimulationLedgerSyncStatus,
   SimulationOrder,
+  SimulationOrderPreview,
   SimulationOrderStatus,
 } from '../api/types'
 import { useApi } from '../api/useApi'
@@ -69,6 +70,20 @@ function isOrderStatus(value: string | null): value is SimulationOrderStatus {
   return Boolean(value && Object.prototype.hasOwnProperty.call(STATUS_META, value))
 }
 
+function newIntentId(): string {
+  const suffix = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+  return `paper-${suffix}`
+}
+
+function riskValue(value: unknown): string {
+  if (value == null) return '—'
+  if (typeof value === 'number') return value.toLocaleString('zh-CN', { maximumFractionDigits: 4 })
+  if (typeof value === 'string') return value
+  return JSON.stringify(value)
+}
+
 export default function SimulationOrdersPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const requestedOrderId = searchParams.get('order_id') || ''
@@ -90,7 +105,15 @@ export default function SimulationOrdersPage() {
     market: requestedMarket,
     side: requestedSide === 'sell' ? 'sell' as const : 'buy' as const,
     quantity: 100,
+    orderType: 'market' as 'market' | 'limit',
+    limitPrice: '',
+    accountId: 'paper',
+    reduceOnly: false,
   })
+  const [intentId, setIntentId] = useState(newIntentId)
+  const [preview, setPreview] = useState<SimulationOrderPreview | null>(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [previewError, setPreviewError] = useState('')
   const [creating, setCreating] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
   const orders = useApi(
@@ -100,6 +123,43 @@ export default function SimulationOrdersPage() {
   )
   const account = useApi(() => api.simulationAccount(), [tick], { retry: false })
   const rows = orders.data?.orders ?? []
+
+  useEffect(() => {
+    const symbol = form.symbol.trim().toUpperCase()
+    if (!symbol || form.quantity <= 0 || (form.orderType === 'limit' && !(Number(form.limitPrice) > 0))) {
+      setPreview(null)
+      setPreviewError('')
+      return
+    }
+    let cancelled = false
+    setPreviewLoading(true)
+    setPreviewError('')
+    const timer = window.setTimeout(() => {
+      api.previewSimulationOrder({
+        symbol,
+        market: form.market,
+        side: form.side,
+        order_type: form.orderType,
+        quantity: form.quantity,
+        limit_price: form.orderType === 'limit' ? Number(form.limitPrice) : null,
+        account_id: form.accountId,
+        reduce_only: form.reduceOnly,
+      }).then((response) => {
+        if (!cancelled) setPreview(response.preview)
+      }).catch((caught: unknown) => {
+        if (!cancelled) {
+          setPreview(null)
+          setPreviewError(caught instanceof Error ? caught.message : '风控预览失败')
+        }
+      }).finally(() => {
+        if (!cancelled) setPreviewLoading(false)
+      })
+    }, 250)
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [form])
 
   async function loadMoreOrders() {
     const cursor = orders.data?.next_cursor
@@ -171,8 +231,23 @@ export default function SimulationOrdersPage() {
     setCreating(true)
     setError('')
     try {
-      await api.createSimulationOrder({ ...form, symbol })
+      if (!preview?.risk_evaluated || !preview.can_submit) {
+        throw new Error('服务端风控未放行，不能创建模拟订单')
+      }
+      await api.createSimulationOrder({
+        intent_id: intentId,
+        symbol,
+        market: form.market,
+        side: form.side,
+        order_type: form.orderType,
+        quantity: form.quantity,
+        limit_price: form.orderType === 'limit' ? Number(form.limitPrice) : undefined,
+        account_id: form.accountId,
+        reduce_only: form.reduceOnly,
+      })
       setForm((current) => ({ ...current, symbol: '' }))
+      setIntentId(newIntentId())
+      setPreview(null)
       setTick((value) => value + 1)
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : '模拟订单创建失败')
@@ -272,8 +347,17 @@ export default function SimulationOrdersPage() {
         <label>标的代码<input value={form.symbol} onChange={(event) => setForm((current) => ({ ...current, symbol: event.target.value }))} placeholder="如 600519" /></label>
         <label>市场<select value={form.market} onChange={(event) => setForm((current) => ({ ...current, market: event.target.value }))}><option value="a_shares">A股</option><option value="us_stocks">美股</option><option value="crypto">加密</option></select></label>
         <label>方向<select value={form.side} onChange={(event) => setForm((current) => ({ ...current, side: event.target.value as 'buy' | 'sell' }))}><option value="buy">买入</option><option value="sell">卖出</option></select></label>
+        <label>订单类型<select value={form.orderType} onChange={(event) => setForm((current) => ({ ...current, orderType: event.target.value as 'market' | 'limit' }))}><option value="market">市价</option><option value="limit">限价</option></select></label>
         <label>数量<input type="number" min="0.000001" step={form.market === 'a_shares' ? 100 : 0.01} value={form.quantity} onChange={(event) => setForm((current) => ({ ...current, quantity: Number(event.target.value) || 0 }))} /></label>
-        <button type="submit" disabled={creating || !form.symbol.trim() || form.quantity <= 0}>{creating ? '创建中…' : '创建模拟订单'}</button>
+        {form.orderType === 'limit' && <label>限价<input type="number" min="0.000001" step="any" value={form.limitPrice} onChange={(event) => setForm((current) => ({ ...current, limitPrice: event.target.value }))} /></label>}
+        <label>账户<input value={form.accountId} onChange={(event) => setForm((current) => ({ ...current, accountId: event.target.value }))} /></label>
+        <label className="simulation-reduce-only"><input type="checkbox" checked={form.reduceOnly} onChange={(event) => setForm((current) => ({ ...current, reduceOnly: event.target.checked }))} />只减仓</label>
+        <div className={`simulation-risk-preview ${preview?.can_submit ? 'approved' : 'blocked'}`}>
+          <header><strong>{previewLoading ? '正在重新评估' : preview?.can_submit ? '服务端风控通过' : '服务端风控未通过'}</strong><span>{preview?.rule_version ?? '等待完整订单意图'}</span></header>
+          {preview && <><div className="simulation-risk-metrics"><span>执行价 <b>{riskValue(preview.price)}</b></span><span>订单金额 <b>{riskValue(preview.order_notional)}</b></span><span>现金后 <b>{riskValue(preview.cash_after)}</b></span><span>总敞口后 <b>{riskValue(preview.gross_exposure_after)}</b></span></div><div className="simulation-risk-checks">{preview.checks.filter((check) => check.status === 'failed').map((check) => <div key={check.code}><b>{check.code}</b><span>{riskValue(check.actual)} / {riskValue(check.limit)}</span><small>{check.reevaluate_action}</small></div>)}</div></>}
+          {previewError && <p role="alert">{previewError}</p>}
+        </div>
+        <button type="submit" disabled={creating || previewLoading || !preview?.risk_evaluated || !preview.can_submit}>{creating ? '创建中…' : '创建模拟订单'}</button>
       </form>
 
       <div className="simulation-toolbar">

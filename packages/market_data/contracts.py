@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import math
 import re
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from hashlib import sha256
 from typing import Any
@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 CONTRACT_VERSION = "1.0.0"
 SNAPSHOT_CONTRACT_VERSION = "1.1.0"
+REALTIME_CONTRACT_VERSION = "2.0.0"
 
 
 class Market(StrEnum):
@@ -133,6 +134,157 @@ class SnapshotQuality(StrEnum):
     INVALID = "invalid"
     EMPTY = "empty"
     EXPIRED = "expired"
+
+
+class MarketEventKind(StrEnum):
+    HISTORICAL_SNAPSHOT = "historical_snapshot"
+    CLOSED_BAR_LIVE = "closed_bar_live"
+    FORMING_BAR = "forming_bar"
+    TICKER = "ticker"
+    BEST_BID_ASK = "best_bid_ask"
+    TRADE = "trade"
+
+
+class MarketEventQuality(StrEnum):
+    FRESH = "fresh"
+    DELAYED = "delayed"
+    STALE = "stale"
+    GAP_RECOVERED = "gap_recovered"
+    INVALID = "invalid"
+
+
+class MarketEvent(BaseModel):
+    """Unified immutable freshness contract for research, valuation, and execution."""
+
+    model_config = ConfigDict(frozen=True)
+
+    protocol_version: str = REALTIME_CONTRACT_VERSION
+    event_id: str = Field(min_length=1)
+    instrument_id: str = Field(min_length=1)
+    kind: MarketEventKind
+    event_time: datetime
+    fetched_at: datetime
+    received_at: datetime
+    source: str = Field(min_length=1)
+    quality_status: MarketEventQuality = MarketEventQuality.FRESH
+    bar_open_time: datetime | None = None
+    bar_close_time: datetime | None = None
+    is_closed: bool | None = None
+    age_ms: int | None = Field(default=None, ge=0)
+    price: float | None = None
+    bid: float | None = None
+    ask: float | None = None
+    open: float | None = None
+    high: float | None = None
+    low: float | None = None
+    close: float | None = None
+    volume: float | None = Field(default=None, ge=0)
+    recovery: dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def validate_event(self) -> MarketEvent:
+        timestamps = [self.event_time, self.fetched_at, self.received_at]
+        timestamps.extend(
+            value for value in (self.bar_open_time, self.bar_close_time) if value is not None
+        )
+        if any(value.tzinfo is None for value in timestamps):
+            raise ValueError("market event timestamps must be timezone-aware")
+        if self.received_at < self.event_time:
+            raise ValueError("received_at cannot precede event_time")
+        if self.kind in {
+            MarketEventKind.HISTORICAL_SNAPSHOT,
+            MarketEventKind.CLOSED_BAR_LIVE,
+            MarketEventKind.FORMING_BAR,
+        }:
+            if self.bar_open_time is None or self.bar_close_time is None:
+                raise ValueError("bar events require bar_open_time and bar_close_time")
+            if self.bar_close_time <= self.bar_open_time:
+                raise ValueError("bar_close_time must follow bar_open_time")
+            if self.is_closed is None:
+                raise ValueError("bar events require is_closed")
+            if self.kind == MarketEventKind.FORMING_BAR and self.is_closed:
+                raise ValueError("forming_bar cannot be closed")
+            if self.kind != MarketEventKind.FORMING_BAR and not self.is_closed:
+                raise ValueError("closed bar events must be closed")
+        elif self.is_closed is not None:
+            raise ValueError("non-bar events must not set is_closed")
+        numeric = [
+            value
+            for value in (
+                self.price,
+                self.bid,
+                self.ask,
+                self.open,
+                self.high,
+                self.low,
+                self.close,
+                self.volume,
+            )
+            if value is not None
+        ]
+        if any(not math.isfinite(value) for value in numeric):
+            raise ValueError("market event prices and volume must be finite")
+        if self.bid is not None and self.ask is not None and self.ask < self.bid:
+            raise ValueError("ask cannot be below bid")
+        computed_age = max(0, int((self.received_at - self.event_time).total_seconds() * 1000))
+        object.__setattr__(self, "age_ms", computed_age)
+        return self
+
+    def usable_for_research_signal(self) -> bool:
+        return bool(
+            self.kind in {MarketEventKind.HISTORICAL_SNAPSHOT, MarketEventKind.CLOSED_BAR_LIVE}
+            and self.is_closed
+            and self.quality_status not in {MarketEventQuality.STALE, MarketEventQuality.INVALID}
+        )
+
+    def usable_for_valuation(self) -> bool:
+        return bool(
+            self.kind
+            in {MarketEventKind.TICKER, MarketEventKind.BEST_BID_ASK, MarketEventKind.TRADE}
+            and self.quality_status not in {MarketEventQuality.STALE, MarketEventQuality.INVALID}
+        )
+
+    def freshness_at(
+        self,
+        now: datetime,
+        *,
+        delayed_after: timedelta,
+        stale_after: timedelta,
+    ) -> dict[str, Any]:
+        if now.tzinfo is None:
+            raise ValueError("freshness evaluation time must be timezone-aware")
+        age_ms = max(0, int((now - self.event_time).total_seconds() * 1000))
+        quality = classify_market_event_quality(
+            event_time=self.event_time,
+            received_at=now,
+            delayed_after=delayed_after,
+            stale_after=stale_after,
+        )
+        if self.quality_status in {MarketEventQuality.INVALID, MarketEventQuality.GAP_RECOVERED}:
+            quality = self.quality_status
+        usable = quality not in {MarketEventQuality.STALE, MarketEventQuality.INVALID}
+        return {
+            "age_ms": age_ms,
+            "quality_status": quality.value,
+            "usable_for_research_signal": usable and self.usable_for_research_signal(),
+            "usable_for_valuation": usable and self.usable_for_valuation(),
+            "action": "allow" if usable else "block_new_risk",
+        }
+
+
+def classify_market_event_quality(
+    *,
+    event_time: datetime,
+    received_at: datetime,
+    delayed_after: timedelta,
+    stale_after: timedelta,
+) -> MarketEventQuality:
+    age = received_at - event_time
+    if age > stale_after:
+        return MarketEventQuality.STALE
+    if age > delayed_after:
+        return MarketEventQuality.DELAYED
+    return MarketEventQuality.FRESH
 
 
 class CandleSnapshot(BaseModel):

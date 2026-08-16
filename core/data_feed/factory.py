@@ -22,6 +22,24 @@ from core.data_feed.telemetry import telemetry
 logger = logging.getLogger(__name__)
 
 
+def _source_contract(source: DataSource) -> dict:
+    """Normalize legacy and third-party adapters into serializable metadata."""
+    try:
+        contract = source.data_contract()
+    except (AttributeError, TypeError):
+        contract = None
+    if isinstance(contract, dict):
+        return contract
+    return {
+        "name": str(source.name),
+        "market": str(source.market),
+        "operations": ["get_kline"],
+        "intervals": [item.value for item in Interval],
+        "kline_semantics": "bar_snapshot",
+        "tick_by_tick": False,
+    }
+
+
 def _cached(fn):
     """装饰 get_kline/get_news/get_announcements，自动读写缓存。"""
 
@@ -113,9 +131,34 @@ class DataSourceProxy(DataSource):
     def supported_intervals(self):
         return self._primary.supported_intervals()
 
+    def source_plan(self, operation: str, interval: Interval | str | None = None) -> list[dict]:
+        """Expose the configured priority after capability and interval filtering."""
+        normalized_interval = Interval(interval) if isinstance(interval, str) else interval
+        plan: list[dict] = []
+        for priority, source in enumerate([self._primary, *self._fallbacks], start=1):
+            contract = _source_contract(source)
+            if operation not in contract["operations"]:
+                continue
+            if (
+                operation == "get_kline"
+                and normalized_interval is not None
+                and normalized_interval.value not in contract["intervals"]
+            ):
+                continue
+            candidate_priority = getattr(source, "_configured_priority", None)
+            configured_priority = (
+                candidate_priority
+                if isinstance(candidate_priority, int) and candidate_priority > 0
+                else priority
+            )
+            plan.append({"priority": configured_priority, **contract})
+        return plan
+
     @_cached
     def get_kline(self, symbol, interval, start=None, end=None, limit=500) -> pd.DataFrame:
-        sources = [self._primary] + self._fallbacks
+        source_by_name = {source.name: source for source in [self._primary, *self._fallbacks]}
+        plan = self.source_plan("get_kline", interval)
+        sources = [source_by_name[item["name"]] for item in plan]
         last_err: Exception | None = None
         for src in sources:
             started = time.perf_counter()
@@ -129,6 +172,8 @@ class DataSourceProxy(DataSource):
                         latency_ms=(time.perf_counter() - started) * 1000,
                     )
                     df.attrs["_source"] = src.name
+                    df.attrs["_source_plan"] = plan
+                    df.attrs["_data_contract"] = _source_contract(src)
                     return df
                 telemetry.record_source(
                     src.name,
@@ -153,7 +198,8 @@ class DataSourceProxy(DataSource):
 
     @_cached
     def get_news(self, symbol=None, limit=50) -> list[News]:
-        sources = [self._primary] + self._fallbacks
+        source_by_name = {source.name: source for source in [self._primary, *self._fallbacks]}
+        sources = [source_by_name[item["name"]] for item in self.source_plan("get_news")]
         for src in sources:
             started = time.perf_counter()
             try:
@@ -186,7 +232,8 @@ class DataSourceProxy(DataSource):
 
     @_cached
     def get_announcements(self, symbol, limit=50) -> list[Announcement]:
-        sources = [self._primary] + self._fallbacks
+        source_by_name = {source.name: source for source in [self._primary, *self._fallbacks]}
+        sources = [source_by_name[item["name"]] for item in self.source_plan("get_announcements")]
         for src in sources:
             started = time.perf_counter()
             try:
@@ -318,9 +365,9 @@ def get_data_source(market: str = "a_shares", **kwargs: Any) -> DataSourceProxy:
     for index, source_name in enumerate(source_names):
         try:
             source_kwargs = kwargs if index == 0 else {}
-            built_sources.append(
-                _build_source(source_name, cfg=cfg, market=market, **source_kwargs)
-            )
+            source = _build_source(source_name, cfg=cfg, market=market, **source_kwargs)
+            source._configured_priority = index + 1
+            built_sources.append(source)
         except Exception as exc:  # noqa: BLE001 - optional adapters may fail during construction
             role = "primary" if index == 0 else "fallback"
             _log_source_construction_failure(source_name, role, exc)

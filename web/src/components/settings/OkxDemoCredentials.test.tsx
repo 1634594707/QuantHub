@@ -70,4 +70,25 @@ describe('OkxDemoCredentials', () => {
     expect(await screen.findByText('OKX Demo 只读连接成功 · 85 ms')).toBeTruthy()
     expect(screen.getByText('2 个')).toBeTruthy()
   })
+
+  it('shows a recoverable state instead of a raw 503 when the vault is unreadable', async () => {
+    vi.spyOn(api, 'okxDemoCredentialStatus').mockResolvedValue({
+      ...UNCONFIGURED,
+      ok: false,
+      available: false,
+      configured: true,
+      runtime_identity: 'desktop\\service-user',
+      error_code: 'credential_vault_unavailable',
+      error: '本机凭据无法由当前 API 运行账户解密',
+      recovery_action: '请使用同一 Windows 用户重启 API，或重新填写并重建凭据',
+    })
+
+    render(<OkxDemoCredentials />)
+
+    expect(await screen.findByText('凭据库异常')).toBeTruthy()
+    expect(screen.getByText('本机凭据无法由当前 API 运行账户解密')).toBeTruthy()
+    expect(screen.getByRole('button', { name: '重新检测' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '重建凭据' })).toBeTruthy()
+    expect((screen.getByRole('button', { name: '测试只读连接' }) as HTMLButtonElement).disabled).toBe(true)
+  })
 })

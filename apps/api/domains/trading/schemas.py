@@ -11,6 +11,13 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 
+class ProtectionOrder(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    trigger_price: float = Field(gt=0)
+    order_price: float | None = Field(default=None, gt=0)
+
+
 class OrderIntentRequest(BaseModel):
     """订单意图。``intent_id`` 是幂等键，重复提交必须返回同一笔订单。"""
 
@@ -26,6 +33,9 @@ class OrderIntentRequest(BaseModel):
     quantity: float = Field(gt=0)
     price: float | None = Field(default=None, gt=0)
     leverage: float = Field(default=1, gt=0)
+    reduce_only: bool = False
+    stop_loss: ProtectionOrder | None = None
+    take_profit: ProtectionOrder | None = None
 
     def to_runner_payload(self) -> dict:
         return {
@@ -39,7 +49,30 @@ class OrderIntentRequest(BaseModel):
             "quantity": self.quantity,
             "price": self.price,
             "leverage": self.leverage,
+            "reduce_only": self.reduce_only,
+            "stop_loss": self.stop_loss.model_dump(mode="json") if self.stop_loss else None,
+            "take_profit": self.take_profit.model_dump(mode="json") if self.take_profit else None,
         }
+
+
+class AmendOrderRequest(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    quantity: float = Field(gt=0)
+    price: float | None = Field(default=None, gt=0)
+    stop_loss: ProtectionOrder | None = None
+    take_profit: ProtectionOrder | None = None
+
+
+class ClosePositionRequest(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    strategy_id: str = Field(min_length=1, max_length=128)
+    strategy_version: str = Field(min_length=1, max_length=64)
+    intent_id: str = Field(min_length=3, max_length=128)
+    quantity: float | None = Field(default=None, gt=0)
+    order_type: Literal["market", "limit"] = "market"
+    price: float | None = Field(default=None, gt=0)
 
 
 class RiskModeRequest(BaseModel):

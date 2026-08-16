@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 OrderSide = Literal["buy", "sell"]
 OrderType = Literal["market", "limit"]
@@ -11,6 +11,9 @@ OrderStatus = Literal["pending", "partially_filled", "filled", "cancelled"]
 
 
 class SimulationOrderCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    intent_id: str | None = Field(default=None, min_length=3, max_length=128)
     signal_id: str | None = None
     symbol: str | None = None
     market: str = "a_shares"
@@ -27,6 +30,12 @@ class SimulationOrderCreate(BaseModel):
     tradable_time: datetime | None = None
     theoretical_price: float | None = Field(default=None, gt=0)
     capacity_used: float = Field(default=0, ge=0)
+    strategy_id: str | None = Field(default=None, max_length=128)
+    strategy_version: str | None = Field(default=None, max_length=64)
+    market_regime_id: str | None = Field(default=None, max_length=120)
+    cost_profile_id: str | None = Field(default=None, max_length=120)
+    cost_profile_version: str | None = Field(default=None, max_length=40)
+    reduce_only: bool = False
 
     @field_validator("signal_id")
     @classmethod
@@ -58,16 +67,35 @@ class SimulationOrderCreate(BaseModel):
 
 
 class SimulationOrderPreviewRequest(BaseModel):
-    signal_id: str = Field(min_length=1)
+    model_config = ConfigDict(extra="forbid")
+
+    signal_id: str | None = None
+    symbol: str | None = None
+    market: str = "a_shares"
+    side: OrderSide | None = None
+    order_type: OrderType = "market"
     quantity: float = Field(gt=0)
+    limit_price: float | None = Field(default=None, gt=0)
+    account_id: str = Field(default="paper", min_length=1, max_length=100)
+    research_run_id: str | None = None
+    cost_profile_id: str | None = None
+    cost_profile_version: str | None = None
+    reduce_only: bool = False
 
     @field_validator("signal_id")
     @classmethod
-    def normalize_signal_id(cls, value: str) -> str:
-        normalized = value.strip()
-        if not normalized:
-            raise ValueError("字段不能为空")
-        return normalized
+    def normalize_signal_id(cls, value: str | None) -> str | None:
+        return value.strip() if value and value.strip() else None
+
+    @model_validator(mode="after")
+    def validate_context(self):
+        if not self.signal_id and (not self.symbol or not self.side):
+            raise ValueError("手工预览必须提供 symbol 和 side")
+        if self.order_type == "limit" and self.limit_price is None:
+            raise ValueError("限价单必须提供 limit_price")
+        if self.symbol:
+            self.symbol = self.symbol.strip().upper()
+        return self
 
 
 class SimulationFillCreate(BaseModel):

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Activity, ListRestart, Plus, RefreshCw, Search, ShieldAlert, XCircle } from 'lucide-react'
+import { Activity, ListRestart, Pencil, Plus, RefreshCw, Search, ShieldAlert, XCircle } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { api } from '../api/client'
 import type {
@@ -20,10 +20,11 @@ import { Field } from '../components/ui/Field/Field'
 import { Input } from '../components/ui/Input/Input'
 import { Panel } from '../components/ui/Panel/Panel'
 import { Select } from '../components/ui/Select/Select'
+import { SegmentedControl } from '../components/ui/SegmentedControl/SegmentedControl'
+import { Toggle } from '../components/ui/Toggle/Toggle'
 import { ConfirmActionButton } from '../components/ui/ConfirmActionButton/ConfirmActionButton'
 import s from './TradingWorkspacePage.module.css'
 
-const FIRST_PHASE_SYMBOLS = ['BTC-USDT-SWAP']
 const ENVIRONMENT_LABELS: Record<string, string> = {
   shadow: '影子（只读）',
   demo: 'OKX 模拟盘',
@@ -37,20 +38,30 @@ interface OrderForm {
   strategyVersion: string
   symbol: string
   side: 'buy' | 'sell'
+  orderType: 'limit' | 'market'
   quantity: string
   price: string
   leverage: string
+  reduceOnly: boolean
+  stopLoss: string
+  takeProfit: string
+  allocationPct: string
 }
 
 const EMPTY_FORM: OrderForm = {
   accountId: 'okx-demo-account',
   strategyId: '',
   strategyVersion: '',
-  symbol: FIRST_PHASE_SYMBOLS[0],
+  symbol: '',
   side: 'buy',
+  orderType: 'limit',
   quantity: '',
   price: '',
   leverage: '1',
+  reduceOnly: false,
+  stopLoss: '',
+  takeProfit: '',
+  allocationPct: '5',
 }
 
 function newIntentId(): string {
@@ -102,6 +113,8 @@ export default function TradingWorkspacePage() {
   const [operationMessage, setOperationMessage] = useState('')
   const [operationError, setOperationError] = useState('')
   const [operationLoading, setOperationLoading] = useState(false)
+  const [amendTarget, setAmendTarget] = useState<TradingOrderDetail | null>(null)
+  const [amendForm, setAmendForm] = useState({ quantity: '', price: '', stopLoss: '', takeProfit: '' })
 
   const healthData: TradingHealth | null = health.data?.data ?? null
   const dashboardData: TradingDashboard | null = dashboard.data?.data ?? null
@@ -109,6 +122,7 @@ export default function TradingWorkspacePage() {
   const configured = Boolean(healthData?.configured)
   const reachable = Boolean(healthData?.reachable)
   const tradingEnabled = Boolean(healthData?.trading_enabled)
+  const instruments = preflight.data?.data?.instruments.filter((item) => item.active) ?? []
   const instrument = preflight.data?.data?.instruments.find((item) => item.symbol === form.symbol) ?? null
   const globalRisk = dashboardData?.risk_states.find((item) => item.scope === 'global') ?? null
   const openDiffs = dashboardData?.reconciliation_diffs.filter((item) => item.status === 'open') ?? []
@@ -123,6 +137,11 @@ export default function TradingWorkspacePage() {
     (item, index, items) => item.account_id === accountSummary?.account_id
       && items.findIndex((candidate) => candidate.account_id === item.account_id && candidate.symbol === item.symbol) === index,
   )
+
+  useEffect(() => {
+    if (form.symbol || !instruments.length) return
+    setForm((previous) => ({ ...previous, symbol: instruments[0].symbol }))
+  }, [form.symbol, instruments])
 
   useEffect(() => {
     if (!instrument || form.quantity) return
@@ -154,23 +173,48 @@ export default function TradingWorkspacePage() {
   const formError = useMemo(() => {
     if (!form.accountId.trim()) return '请填写本地账户账本 ID'
     if (!form.strategyId.trim() || !form.strategyVersion.trim()) return '请选择已导入的策略版本'
+    if (!form.symbol || !instrument?.active) return '请选择预检确认可交易的品种'
     const quantity = Number(form.quantity)
     if (!Number.isFinite(quantity) || quantity <= 0) return '数量必须为正数'
     if (instrument && quantity < instrument.minimum_quantity) return `数量不得低于 ${instrument.minimum_quantity}`
     const price = Number(form.price)
-    if (!Number.isFinite(price) || price <= 0) return '限价必须为正数'
+    if (form.orderType === 'limit' && (!Number.isFinite(price) || price <= 0)) return '限价必须为正数'
     const leverage = Number(form.leverage)
     if (!Number.isFinite(leverage) || leverage <= 0) return '杠杆必须为正数'
+    const reference = instrument.reference_price
+    const stopLoss = Number(form.stopLoss)
+    const takeProfit = Number(form.takeProfit)
+    if (form.stopLoss && (!Number.isFinite(stopLoss) || stopLoss <= 0)) return '止损触发价必须为正数'
+    if (form.takeProfit && (!Number.isFinite(takeProfit) || takeProfit <= 0)) return '止盈触发价必须为正数'
+    if (reference && form.stopLoss && (form.side === 'buy' ? stopLoss >= reference : stopLoss <= reference)) return '止损触发价位于当前价格错误一侧'
+    if (reference && form.takeProfit && (form.side === 'buy' ? takeProfit <= reference : takeProfit >= reference)) return '止盈触发价位于当前价格错误一侧'
+    if (form.reduceOnly) {
+      const position = accountPositions.find((item) => item.symbol === form.symbol)
+      if (!position || Math.abs(position.quantity) < quantity) return '只减仓数量不得超过当前持仓'
+      if ((position.quantity > 0 && form.side !== 'sell') || (position.quantity < 0 && form.side !== 'buy')) return '只减仓方向必须与当前持仓相反'
+    }
     return ''
-  }, [form, instrument])
+  }, [accountPositions, form, instrument])
 
   const notionalHint = useMemo(() => {
     const quantity = Number(form.quantity)
-    const price = Number(form.price)
+    const price = form.orderType === 'market' ? instrument?.reference_price ?? 0 : Number(form.price)
     if (!Number.isFinite(quantity) || !Number.isFinite(price) || quantity <= 0 || price <= 0) return ''
     const multiplier = instrument?.contract_size ?? 1
     return `估算名义价值 ${(quantity * price * multiplier).toLocaleString('zh-CN', { maximumFractionDigits: 4 })} USDT · 合约乘数 ${multiplier}`
-  }, [form.price, form.quantity, instrument?.contract_size])
+  }, [form.orderType, form.price, form.quantity, instrument?.contract_size, instrument?.reference_price])
+
+  function applyAllocation() {
+    const equity = accountSummary?.equity
+    const reference = form.orderType === 'limit' ? Number(form.price) : instrument?.reference_price
+    const percentage = Number(form.allocationPct)
+    const multiplier = instrument?.contract_size ?? 1
+    const step = instrument?.quantity_step ?? 0.01
+    if (!equity || !reference || percentage <= 0 || !step) return
+    const raw = equity * percentage / 100 / (reference * multiplier)
+    const quantity = Math.max(instrument?.minimum_quantity ?? step, Math.floor(raw / step) * step)
+    setForm((previous) => ({ ...previous, quantity: String(quantity) }))
+  }
 
   function setProtectivePrice() {
     if (!instrument?.reference_price) return
@@ -190,10 +234,13 @@ export default function TradingWorkspacePage() {
       account_id: form.accountId.trim(),
       symbol: form.symbol,
       side: form.side,
-      order_type: 'limit',
+      order_type: form.orderType,
       quantity: Number(form.quantity),
-      price: Number(form.price),
+      price: form.orderType === 'limit' ? Number(form.price) : null,
       leverage: Number(form.leverage),
+      reduce_only: form.reduceOnly,
+      stop_loss: form.stopLoss ? { trigger_price: Number(form.stopLoss) } : null,
+      take_profit: form.takeProfit ? { trigger_price: Number(form.takeProfit) } : null,
     }
     try {
       const response = await api.tradingSubmitOrder(payload)
@@ -230,6 +277,58 @@ export default function TradingWorkspacePage() {
     } catch (reason) {
       setLookupError(reason instanceof Error ? reason.message : String(reason))
       throw reason
+    }
+  }
+
+  function beginAmend(order: TradingOrderDetail) {
+    setAmendTarget(order)
+    setAmendForm({
+      quantity: String(order.quantity),
+      price: order.price === null ? '' : String(order.price),
+      stopLoss: '',
+      takeProfit: '',
+    })
+  }
+
+  async function amendOrder() {
+    if (!amendTarget) return
+    setOperationLoading(true)
+    setOperationError('')
+    try {
+      await api.tradingAmendOrder(amendTarget.order_id, {
+        quantity: Number(amendForm.quantity),
+        price: amendTarget.order_type === 'limit' ? Number(amendForm.price) : null,
+        stop_loss: amendForm.stopLoss ? { trigger_price: Number(amendForm.stopLoss) } : null,
+        take_profit: amendForm.takeProfit ? { trigger_price: Number(amendForm.takeProfit) } : null,
+      })
+      setAmendTarget(null)
+      setOperationMessage(`订单 ${amendTarget.order_id} 已重新风控并提交修改。`)
+      dashboard.refetch()
+    } catch (reason) {
+      setOperationError(reason instanceof Error ? reason.message : String(reason))
+    } finally {
+      setOperationLoading(false)
+    }
+  }
+
+  async function closePosition(symbol: string, quantity: number) {
+    setOperationLoading(true)
+    setOperationError('')
+    try {
+      await api.tradingClosePosition(form.accountId.trim(), symbol, {
+        strategy_id: form.strategyId,
+        strategy_version: form.strategyVersion,
+        intent_id: newIntentId(),
+        quantity: Math.abs(quantity),
+        order_type: 'market',
+      })
+      setOperationMessage(`${symbol} 已提交只减仓市价平仓。`)
+      dashboard.refetch()
+    } catch (reason) {
+      setOperationError(reason instanceof Error ? reason.message : String(reason))
+      throw reason
+    } finally {
+      setOperationLoading(false)
     }
   }
 
@@ -315,14 +414,14 @@ export default function TradingWorkspacePage() {
               </div>
               <div>
                 <h3>持仓</h3>
-                {accountPositions.length ? <div className={s.tableWrap}><table className={s.ordersTable}><thead><tr><th>品种</th><th>方向</th><th>数量</th><th>开仓价</th><th>标记价</th><th>未实现盈亏</th></tr></thead><tbody>{accountPositions.map((position) => <tr key={`${position.account_id}-${position.symbol}-${position.observed_at}`}><td>{position.symbol}</td><td>{position.position_side === 'short' || position.quantity < 0 ? '空' : '多'}</td><td>{formatNumber(Math.abs(position.quantity), 4)}</td><td>{formatNumber(position.entry_price, 4)}</td><td>{formatNumber(position.mark_price, 4)}</td><td className={pnlClass(position.unrealized_pnl)}>{formatNumber(position.unrealized_pnl)} USD</td></tr>)}</tbody></table></div> : <EmptyState variant="no-data" title="暂无持仓" desc="当前账户没有持仓，或尚未完成账户同步。" />}
+                {accountPositions.length ? <div className={s.tableWrap}><table className={s.ordersTable}><thead><tr><th>品种</th><th>方向</th><th>数量</th><th>开仓价</th><th>标记价</th><th>未实现盈亏</th><th><span className="sr-only">操作</span></th></tr></thead><tbody>{accountPositions.map((position) => <tr key={`${position.account_id}-${position.symbol}-${position.observed_at}`}><td>{position.symbol}</td><td>{position.position_side === 'short' || position.quantity < 0 ? '空' : '多'}</td><td>{formatNumber(Math.abs(position.quantity), 4)}</td><td>{formatNumber(position.entry_price, 4)}</td><td>{formatNumber(position.mark_price, 4)}</td><td className={pnlClass(position.unrealized_pnl)}>{formatNumber(position.unrealized_pnl)} USD</td><td><ConfirmActionButton label="平仓" title={`确认平仓 ${position.symbol}`} description={`数量：${Math.abs(position.quantity)}\nRunner 将以只减仓市价单重新风控。`} confirmLabel="确认平仓" disabled={Boolean(disabledReason) || operationLoading || !form.strategyId} onConfirm={() => closePosition(position.symbol, position.quantity)} /></td></tr>)}</tbody></table></div> : <EmptyState variant="no-data" title="暂无持仓" desc="当前账户没有持仓，或尚未完成账户同步。" />}
               </div>
             </div>
           </>
         ) : <EmptyState variant="no-data" title="暂无账户快照" desc="点击右上角“同步账户”读取余额、持仓和收益。" />}
       </Panel>
 
-      <Panel title="创建 Demo 限价单" subtitle="同一 intent 重复提交只会返回同一笔订单；点击“新意图”后才会生成新订单。">
+      <Panel title="创建 Demo 订单" subtitle="同一 intent 重复提交只会返回同一笔订单；Runner 始终使用最新账户与行情重新风控。">
         <div className={s.orderFormGroups}>
           <section className={s.orderFormGroup} aria-labelledby="order-account-title">
             <header><h3 id="order-account-title">账户与策略</h3><p>选择本地账本和 Runner 已导入的不可变策略版本。</p></header>
@@ -346,13 +445,19 @@ export default function TradingWorkspacePage() {
             <header><h3 id="order-contract-title">合约与方向</h3><p>合约规则来自 OKX 预检结果。</p></header>
             <div className={s.formGrid}>
               <Field label="品种" required>
-                <Select value={form.symbol} options={FIRST_PHASE_SYMBOLS.map((symbol) => ({ value: symbol, label: symbol }))} onChange={(event) => setForm((previous) => ({ ...previous, symbol: event.target.value }))} />
+                <Select value={form.symbol} options={instruments.map((item) => ({ value: item.symbol, label: `${item.symbol} · ${item.product_type}` }))} onChange={(event) => setForm((previous) => ({ ...previous, symbol: event.target.value }))} />
               </Field>
               <Field label="方向" required>
                 <Select value={form.side} options={[{ value: 'buy', label: '买入 / 开多' }, { value: 'sell', label: '卖出 / 开空' }]} onChange={(event) => setForm((previous) => ({ ...previous, side: event.target.value as 'buy' | 'sell' }))} />
               </Field>
               <Field label="杠杆" required>
                 <Input type="number" min="1" step="1" value={form.leverage} onChange={(event) => setForm((previous) => ({ ...previous, leverage: event.target.value }))} />
+              </Field>
+              <Field label="订单类型" required>
+                <SegmentedControl value={form.orderType} options={[{ value: 'limit', label: '限价' }, { value: 'market', label: '市价' }]} onChange={(value) => setForm((previous) => ({ ...previous, orderType: value as 'limit' | 'market' }))} fullWidth />
+              </Field>
+              <Field label="风险方向">
+                <Toggle checked={form.reduceOnly} onChange={(checked) => setForm((previous) => ({ ...previous, reduceOnly: checked }))} label="只减仓" />
               </Field>
             </div>
           </section>
@@ -362,12 +467,17 @@ export default function TradingWorkspacePage() {
               <Field label="数量（张）" required hint={instrument ? `最小 ${instrument.minimum_quantity}，步长 ${instrument.quantity_step}` : undefined}>
                 <Input type="number" min={instrument?.minimum_quantity ?? 0} step={instrument?.quantity_step ?? 'any'} value={form.quantity} onChange={(event) => setForm((previous) => ({ ...previous, quantity: event.target.value }))} />
               </Field>
-              <Field label="限价（USDT）" required hint={instrument?.reference_price ? `参考 ${instrument.reference_price}` : '以 OKX 行情为准'}>
+              <Field label="账户比例" hint="按当前账户权益与参考价换算数量">
+                <div className={s.allocationField}><input aria-label="账户比例" type="range" min="1" max="100" step="1" value={form.allocationPct} onChange={(event) => setForm((previous) => ({ ...previous, allocationPct: event.target.value }))} /><span>{form.allocationPct}%</span><Button type="button" variant="ghost" size="sm" onClick={applyAllocation}>应用</Button></div>
+              </Field>
+              {form.orderType === 'limit' ? <Field label="限价（USDT）" required hint={instrument?.reference_price ? `参考 ${instrument.reference_price}` : '以 OKX 行情为准'}>
                 <div className={s.priceField}>
                   <Input type="number" min="0" step={instrument?.price_tick ?? 'any'} value={form.price} onChange={(event) => setForm((previous) => ({ ...previous, price: event.target.value }))} />
                   <Button type="button" variant="ghost" size="sm" onClick={setProtectivePrice} disabled={!instrument?.reference_price}>设置测试价</Button>
                 </div>
-              </Field>
+              </Field> : <div className={s.marketPriceNote}><span>市价执行</span><strong>{instrument?.reference_price ?? '—'} USDT</strong><small>仅用于预估，Runner 以提交时标记价风控。</small></div>}
+              <Field label="止损触发价" hint={form.side === 'buy' ? '做多应低于当前价' : '做空应高于当前价'}><Input type="number" min="0" step={instrument?.price_tick ?? 'any'} value={form.stopLoss} onChange={(event) => setForm((previous) => ({ ...previous, stopLoss: event.target.value }))} /></Field>
+              <Field label="止盈触发价" hint={form.side === 'buy' ? '做多应高于当前价' : '做空应低于当前价'}><Input type="number" min="0" step={instrument?.price_tick ?? 'any'} value={form.takeProfit} onChange={(event) => setForm((previous) => ({ ...previous, takeProfit: event.target.value }))} /></Field>
             </div>
           </section>
         </div>
@@ -392,7 +502,7 @@ export default function TradingWorkspacePage() {
               label={receipt?.data?.idempotent_replay ? '再次验证幂等' : '提交 Demo 订单'}
               variant="danger"
               title={`确认在【${ENVIRONMENT_LABELS[environment ?? ''] ?? '未知环境'}】提交订单`}
-              description={`策略：${form.strategyId}@${form.strategyVersion}\n品种：${form.symbol}\n方向：${form.side}\n数量：${form.quantity || '未填'}\n价格：${form.price || '未填'}\n意图：${intentId}`}
+              description={`策略：${form.strategyId}@${form.strategyVersion}\n品种：${form.symbol}\n类型：${form.orderType}\n方向：${form.side}${form.reduceOnly ? '（只减仓）' : ''}\n数量：${form.quantity || '未填'}\n价格：${form.orderType === 'market' ? '市价' : form.price || '未填'}\n意图：${intentId}`}
               confirmLabel="确认提交"
               disabled={Boolean(disabledReason) || Boolean(formError) || submitting}
               onConfirm={submitOrder}
@@ -438,13 +548,15 @@ export default function TradingWorkspacePage() {
                   <td>{formatTime(order.updated_at)}</td>
                   <td className={s.rowActions}>
                     <Button variant="ghost" size="sm" icon={<Search size={15} />} title="查询订单" aria-label={`查询订单 ${order.order_id}`} onClick={() => { setOrderLookupId(order.order_id); void api.tradingOrder(order.order_id).then(setLookup) }} />
-                    {OPEN_ORDER_STATUSES.has(order.status) ? <ConfirmActionButton label="撤单" title="确认撤销 Demo 订单" description={`订单：${order.order_id}\n当前状态：${order.status}`} confirmLabel="确认撤单" onConfirm={() => cancelOrder(order.order_id)} /> : null}
+                    {OPEN_ORDER_STATUSES.has(order.status) ? <><Button variant="ghost" size="sm" icon={<Pencil size={14} />} onClick={() => beginAmend(order as TradingOrderDetail)}>修改</Button><ConfirmActionButton label="撤单" title="确认撤销 Demo 订单" description={`订单：${order.order_id}\n当前状态：${order.status}`} confirmLabel="确认撤单" onConfirm={() => cancelOrder(order.order_id)} /></> : null}
                   </td>
                 </tr>
               ))}</tbody>
             </table>
           </div>
         ) : <EmptyState variant="no-data" title="暂无 Runner 订单" desc="选择策略版本并创建第一笔 Demo 订单。" />}
+
+        {amendTarget ? <section className={s.amendPanel} aria-label="修改开放订单"><header><div><strong>修改 {amendTarget.order_id}</strong><small>提交时 Runner 会重新读取账户、行情与交易规则。</small></div><Button variant="ghost" size="sm" onClick={() => setAmendTarget(null)}>关闭</Button></header><div className={s.formGrid}><Field label="新数量"><Input type="number" min="0" step={instrument?.quantity_step ?? 'any'} value={amendForm.quantity} onChange={(event) => setAmendForm((previous) => ({ ...previous, quantity: event.target.value }))} /></Field>{amendTarget.order_type === 'limit' ? <Field label="新限价"><Input type="number" min="0" step={instrument?.price_tick ?? 'any'} value={amendForm.price} onChange={(event) => setAmendForm((previous) => ({ ...previous, price: event.target.value }))} /></Field> : null}<Field label="止损触发价"><Input type="number" min="0" value={amendForm.stopLoss} onChange={(event) => setAmendForm((previous) => ({ ...previous, stopLoss: event.target.value }))} /></Field><Field label="止盈触发价"><Input type="number" min="0" value={amendForm.takeProfit} onChange={(event) => setAmendForm((previous) => ({ ...previous, takeProfit: event.target.value }))} /></Field></div><div className={s.actions}><Button variant="primary" loading={operationLoading} onClick={() => void amendOrder()}>重新风控并修改</Button></div></section> : null}
 
         <div className={s.lookupRow}>
           <Input value={orderLookupId} placeholder="内部订单 ID" onChange={(event) => setOrderLookupId(event.target.value)} />

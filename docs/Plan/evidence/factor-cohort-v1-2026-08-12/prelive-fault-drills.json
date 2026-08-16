@@ -1,0 +1,93 @@
+{
+  "evidence_kind": "isolated_runner_prelive_fault_drill",
+  "generated_at": "2026-08-12T16:42:26.730587+00:00",
+  "environment": "throwaway_demo_runner_databases",
+  "credentials_used": false,
+  "external_orders_created": 0,
+  "monitoring_cycles_to_block_new_risk": 1,
+  "scenarios": [
+    {
+      "scenario": "network_down",
+      "blocked_before_external_submit": true,
+      "risk_error": "risk snapshot unavailable: ConnectionError: injected network outage",
+      "audit_counts": {
+        "risk_decisions": 1,
+        "risk_mode_changes": 0,
+        "open_reconciliation_differences": 0
+      },
+      "setup": {},
+      "passed": true
+    },
+    {
+      "scenario": "data_stale",
+      "blocked_before_external_submit": true,
+      "risk_error": "account snapshot is stale or has an invalid timestamp",
+      "audit_counts": {
+        "risk_decisions": 1,
+        "risk_mode_changes": 0,
+        "open_reconciliation_differences": 0
+      },
+      "setup": {},
+      "passed": true
+    },
+    {
+      "scenario": "reconciliation_anomaly",
+      "blocked_before_external_submit": true,
+      "risk_error": "new orders are blocked while risk mode is cancel_only",
+      "audit_counts": {
+        "risk_decisions": 1,
+        "risk_mode_changes": 1,
+        "open_reconciliation_differences": 1
+      },
+      "setup": {
+        "reconciliation": {
+          "account_id": "demo-account",
+          "difference_ids": [
+            "diff-88295e6929f9457981d923feb77d690d"
+          ],
+          "passed": false
+        },
+        "risk_mode": {
+          "scope": "global",
+          "mode": "cancel_only",
+          "reason": "open reconciliation difference",
+          "operator": "risk-drill"
+        }
+      },
+      "passed": true
+    },
+    {
+      "scenario": "drawdown_breach",
+      "blocked_before_external_submit": true,
+      "risk_error": "drawdown hard limit reached",
+      "audit_counts": {
+        "risk_decisions": 1,
+        "risk_mode_changes": 0,
+        "open_reconciliation_differences": 0
+      },
+      "setup": {},
+      "passed": true
+    },
+    {
+      "scenario": "kill_switch",
+      "blocked_before_external_submit": true,
+      "risk_error": "new orders are blocked while risk mode is halted",
+      "audit_counts": {
+        "risk_decisions": 1,
+        "risk_mode_changes": 1,
+        "open_reconciliation_differences": 0
+      },
+      "setup": {
+        "risk_mode": {
+          "scope": "global",
+          "mode": "halted",
+          "reason": "pre-live kill switch drill",
+          "operator": "risk-drill"
+        }
+      },
+      "passed": true
+    }
+  ],
+  "all_passed": true,
+  "live_trading_enabled": false
+}

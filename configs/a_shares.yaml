@@ -6,7 +6,8 @@ market: "a_shares"
 # ===== A股数据源 =====
 data_sources:
   # 在线源优先：当前环境 akshare 经系统代理访问东财接口必失败（ProxyError），
-  # 腾讯接口可正常穿透代理，故以 tencent 为 primary 保证实时数据低延迟可用。
+  # 腾讯接口可正常穿透代理，故以 tencent 为日/周 K 线 primary。
+  # 这些接口均为 bar snapshot，不是逐笔实时；盘中形成中 K 线不得用于研究信号。
   # 东方财富直连负责个股新闻；新浪财经提供独立新闻兜底，akshare 为兼容备用。
   primary: "tencent"
   fallback: ["eastmoney", "sina_news", "akshare", "local_parquet"]

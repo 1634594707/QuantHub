@@ -99,13 +99,11 @@ function formatStructured(value: unknown): string {
   return JSON.stringify(value, null, 2)
 }
 
-function formatCheckValue(
-  value: number | null,
-  unit: 'ratio' | 'currency' | 'price',
-): string {
+function formatRiskValue(value: unknown): string {
   if (value == null) return '—'
-  if (unit === 'ratio') return `${(value * 100).toFixed(2)}%`
-  return formatNumber(value, unit === 'price' ? 4 : 2)
+  if (typeof value === 'number') return formatNumber(value, 4)
+  if (typeof value === 'string') return value
+  return JSON.stringify(value)
 }
 
 function csvEscape(value: string | number): string {
@@ -358,7 +356,7 @@ export default function SignalsPage() {
     }
     setPreviewLoading(true)
     const timer = window.setTimeout(() => {
-      api.previewSimulationOrder(selectedId, selectedQuantity)
+      api.previewSimulationOrder({ signal_id: selectedId, quantity: selectedQuantity })
         .then((response) => {
           if (previewRequest.current === requestId) setPreview(response.preview)
         })
@@ -862,13 +860,13 @@ export default function SignalsPage() {
                     </div>
                     <div className={s.checkList}>
                       {preview.checks.map((check) => (
-                        <div key={check.key} className={s[`check_${check.status}`]}>
-                          <span className={s.checkMark}>{check.status === 'passed' ? '✓' : check.status === 'failed' ? '!' : '—'}</span>
-                          <span><b>{check.label}</b><small>{formatCheckValue(check.actual, check.unit)} / {formatCheckValue(check.limit, check.unit)}</small></span>
+                        <div key={check.code} className={s[`check_${check.status}`]}>
+                          <span className={s.checkMark}>{check.status === 'passed' ? '✓' : '!'}</span>
+                          <span><b>{check.code}</b><small>{formatRiskValue(check.actual)} / {formatRiskValue(check.limit)} · {check.reevaluate_action}</small></span>
                         </div>
                       ))}
                     </div>
-                    {!preview.risk_evaluated && <div className={s.executionWarning}>行情价格不可用，仓位和敞口规则未完成评估。模拟订单仍可创建，成交前需再次核对价格。</div>}
+                    {!preview.risk_evaluated && <div className={s.executionWarning}>风控未完成，必须刷新数据并重新评估后才能创建订单。</div>}
                   </>
                 )}
 
@@ -877,11 +875,11 @@ export default function SignalsPage() {
                   fullWidth
                   onClick={() => void handleConvert(selectedSignal)}
                   loading={actionId === `${selectedSignal.id}:converted`}
-                  disabled={previewLoading || Boolean(preview && !preview.can_submit)}
+                  disabled={previewLoading || !preview || !preview.risk_evaluated || !preview.can_submit}
                 >
                   转模拟订单
                 </Button>
-                {preview && !preview.can_submit && <div className={s.executionBlocked}>订单超过当前账户规则，已阻止创建。</div>}
+                {preview && !preview.can_submit && <div className={s.executionBlocked}>服务端已阻止创建：{preview.reason_codes.join('、') || '风险证据不完整'}。</div>}
               </>
             )}
           </aside>

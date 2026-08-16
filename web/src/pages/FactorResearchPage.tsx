@@ -791,6 +791,12 @@ export default function FactorResearchPage() {
       const request = {
         ...form,
         symbol: form.symbol.trim().toUpperCase(),
+        cost_profile_id: form.market === 'a_shares'
+          ? 'a-shares-reference'
+          : form.market === 'us_stocks'
+            ? 'us-stocks-reference'
+            : 'okx-reference',
+        cost_profile_version: '1.0.0',
         start_date: form.start_date || undefined,
         end_date: form.end_date || undefined,
       }

@@ -5,7 +5,7 @@ import shutil
 import tempfile
 import time
 import unittest
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
@@ -29,6 +29,7 @@ from apps.api.domains.simulation.schemas import SimulationFillCreate, Simulation
 from apps.api.domains.tasks import service as task_service
 from apps.api.domains.tasks.router import retry_task
 from core import config as core_config
+from core.research_decision import ModuleOpinion, decide_research
 
 
 class TemporaryStoreTestCase(unittest.TestCase):
@@ -416,12 +417,13 @@ class SignalSimulationLedgerTests(TemporaryStoreTestCase):
         accepted = signal_service.review(signal["id"], target="accepted", note="测试通过")
         self.assertEqual(accepted["status"], "accepted")
 
-        order = simulation_service.create_order(
-            SimulationOrderCreate(
-                signal_id=signal["id"],
-                quantity=10,
+        with patch.object(portfolio_service, "latest_close", return_value=100.0):
+            order = simulation_service.create_order(
+                SimulationOrderCreate(
+                    signal_id=signal["id"],
+                    quantity=100,
+                )
             )
-        )
         converted = store.get_signal(signal["id"])
         self.assertEqual(converted["status"], "converted")
         self.assertEqual(converted["order_id"], order["id"])
@@ -436,19 +438,36 @@ class SignalSimulationLedgerTests(TemporaryStoreTestCase):
         trade = ledger_repository.get_trade(execution["ledger_trade_id"])
         self.assertIsNotNone(trade)
         self.assertEqual(trade.code, "600519")
-        self.assertEqual(trade.quantity, 10)
+        self.assertEqual(trade.quantity, 100)
 
     def test_paper_order_persists_research_audit_and_side_aware_slippage(self) -> None:
+        research_run = store.create_research_run(
+            symbol="600519",
+            market="a_shares",
+            timeframe="1d",
+            modules=["market", "factor"],
+            input_data={},
+        )
+        decision = decide_research(
+            [
+                ModuleOpinion(module="market", direction="short", evidence_at=datetime.now(UTC)),
+                ModuleOpinion(module="factor", direction="short", evidence_at=datetime.now(UTC)),
+            ]
+        )
+        store.update_research_run(
+            research_run["id"],
+            {"summary": {"research_decision": decision.model_dump(mode="json")}},
+        )
         with patch.object(portfolio_service, "latest_close", return_value=100.0):
             order = simulation_service.create_order(
                 SimulationOrderCreate(
                     symbol="600519",
                     market="a_shares",
                     side="sell",
-                    quantity=20,
+                    quantity=100,
                     factor_key="mean_reversion",
                     factor_version="1.0.0",
-                    research_run_id="research-001",
+                    research_run_id=research_run["id"],
                     rebalance_cycle_id="cycle-001",
                     capacity_used=0.08,
                 )
@@ -478,7 +497,7 @@ class SignalSimulationLedgerTests(TemporaryStoreTestCase):
                     symbol="600519",
                     market="a_shares",
                     side="buy",
-                    quantity=10,
+                    quantity=100,
                 )
             )
 

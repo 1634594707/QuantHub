@@ -1,0 +1,12 @@
+{
+  "cohort_id": "factor-cohort-v1-acceptance-20260812",
+  "candidate_key": "candidate:momentum-quality:v1",
+  "candidate_version": "1.0.0",
+  "benchmark_pool_version": "factor-cohort-v2",
+  "benchmark_pool_hash": "e5f6717d5ed65961e7caaf2d657300b33492b31ba684d3d6b344dad5cfdfb680",
+  "started_at": "2026-08-12T12:00:00+00:00",
+  "ends_at": "after_7_natural_days_and_3_effective_rebalances",
+  "config_hash": "3032bdea9b342c6e8888880615056f8d64cb8c83d2f7359bc79777db8c68033b",
+  "market_data_fingerprint": "7866d9f0551100d399c91f8a98f0d106139cb99415bb570d87e02e4d5c31bb2e",
+  "status": "cohort_observing"
+}

@@ -16,6 +16,8 @@ import type {
   RiskMode,
   TradingHealth,
   TradingDashboard,
+  TradingClosePositionIntent,
+  TradingOrderAmendment,
   TradingOrderDetail,
   TradingOrderIntent,
   TradingPreflight,
@@ -508,6 +510,7 @@ export const api = {
     ),
 
   createSimulationOrder: (payload: {
+    intent_id?: string
     signal_id?: string
     symbol?: string
     market?: string
@@ -515,6 +518,7 @@ export const api = {
     order_type?: 'market' | 'limit'
     quantity: number
     limit_price?: number
+    account_id?: string
     factor_key?: string
     factor_version?: string
     research_run_id?: string
@@ -523,6 +527,12 @@ export const api = {
     tradable_time?: string
     theoretical_price?: number
     capacity_used?: number
+    strategy_id?: string
+    strategy_version?: string
+    market_regime_id?: string
+    cost_profile_id?: string
+    cost_profile_version?: string
+    reduce_only?: boolean
   }) =>
     getJSON<{ ok: boolean; order: SimulationOrder }>('/simulation/orders', {
       method: 'POST',
@@ -697,6 +707,8 @@ export const api = {
     limit: number
     horizon: number
     transaction_cost_bps: number
+    cost_profile_id?: string
+    cost_profile_version?: string
     start_date?: string
     end_date?: string
     walk_forward_mode: 'expanding' | 'rolling'
@@ -714,6 +726,8 @@ export const api = {
     limit: number
     horizon: number
     transaction_cost_bps: number
+    cost_profile_id?: string
+    cost_profile_version?: string
     start_date?: string
     end_date?: string
     walk_forward_mode: 'expanding' | 'rolling'
@@ -812,6 +826,28 @@ export const api = {
     getJSON<FactorFactoryRunResponse>(`/factor-factory/runs/${encodeURIComponent(runId)}/observe`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ force_refresh: forceRefresh }),
     }),
+  reviewFactorFactoryCohort: (runId: string, provider?: 'deepseek' | 'openai' | 'custom') =>
+    getJSON<FactorFactoryRunResponse>(`/factor-factory/runs/${encodeURIComponent(runId)}/cohort/review`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider: provider || null }),
+    }),
+  requestFactorFactorySmallLive: (runId: string, actor: string, reason: string) =>
+    getJSON<FactorFactoryRunResponse>(`/factor-factory/runs/${encodeURIComponent(runId)}/cohort/live-request`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ actor, reason }),
+    }),
+  approveFactorFactorySmallLive: (runId: string, payload: {
+    actor: string
+    symbol: string
+    interval: '1h' | '4h' | '1d'
+    factor_version: string
+    strategy_version?: string
+    maximum_capital: number
+    maximum_exposure: number
+    maximum_loss: number
+    valid_until: string
+    risks_acknowledged: boolean
+  }) => getJSON<FactorFactoryRunResponse>(`/factor-factory/runs/${encodeURIComponent(runId)}/cohort/manual-approval`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+  }),
   seedBuiltinFactorDefinitions: () => getJSON<{
     ok: boolean
     count: number
@@ -1295,7 +1331,7 @@ export const api = {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
     }),
   factorUniverseMembers: (universeId: string, asOf?: string) =>
-    getJSON<{ ok: boolean; universe: FactorUniverse; count: number; members: FactorUniverseMember[] }>(
+    getJSON<{ ok: boolean; universe: FactorUniverse; count: number; members: FactorUniverseMember[]; versions: import('./types').FactorUniverseVersion[] }>(
       `/factor-research/universes/${encodeURIComponent(universeId)}/members${asOf ? `?as_of=${encodeURIComponent(asOf)}` : ''}`,
     ),
   upsertFactorUniverseMember: (universeId: string, payload: {
@@ -1313,6 +1349,23 @@ export const api = {
     `/factor-research/universes/${encodeURIComponent(universeId)}/members`,
     { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) },
   ),
+  previewFactorUniverseBatch: (universeId: string, payload: {
+    idempotency_key: string; source: string; filename: string; content_base64: string
+  }) => getJSON<{ ok: boolean; diff: import('./types').FactorUniverseBatchDiff; errors: Array<Record<string, unknown>> }>(
+    `/factor-research/universes/${encodeURIComponent(universeId)}/batch/preview`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) },
+  ),
+  applyFactorUniverseBatch: (universeId: string, payload: {
+    idempotency_key: string; source: string; filename: string; content_base64: string
+  }) => getJSON<{ ok: boolean; idempotent_replay: boolean; batch: Record<string, unknown>; version?: import('./types').FactorUniverseVersion }>(
+    `/factor-research/universes/${encodeURIComponent(universeId)}/batch/apply`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) },
+  ),
+  rollbackFactorUniverse: (universeId: string, versionId: string, reason: string) =>
+    getJSON<{ ok: boolean; universe: FactorUniverse; version: import('./types').FactorUniverseVersion }>(
+      `/factor-research/universes/${encodeURIComponent(universeId)}/rollback`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ version_id: versionId, reason }) },
+    ),
   crossSectionResearch: (payload: {
     run_id?: string
     universe_id: string
@@ -1326,6 +1379,8 @@ export const api = {
     min_assets: number
     portfolio_mode: 'cohort' | 'non_overlapping'
     transaction_cost_bps: number
+    cost_profile_id?: string
+    cost_profile_version?: string
     participation_rate: number
     neutralize_industry: boolean
     neutralize_market_cap: boolean
@@ -1447,11 +1502,24 @@ export const api = {
     body: JSON.stringify(payload),
   }),
 
-  previewSimulationOrder: (signalId: string, quantity: number) =>
+  previewSimulationOrder: (payload: {
+    signal_id?: string
+    symbol?: string
+    market?: string
+    side?: 'buy' | 'sell'
+    order_type?: 'market' | 'limit'
+    quantity: number
+    limit_price?: number | null
+    account_id?: string
+    research_run_id?: string
+    cost_profile_id?: string
+    cost_profile_version?: string
+    reduce_only?: boolean
+  }) =>
     getJSON<{ ok: boolean; preview: SimulationOrderPreview }>('/simulation/orders/preview', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ signal_id: signalId, quantity }),
+      body: JSON.stringify(payload),
     }),
 
   // ---- 组合账本 ----
@@ -1951,6 +2019,29 @@ export const api = {
       '/trading/orders/' + encodeURIComponent(orderId) + '/cancel',
       { method: 'POST' },
     ),
+
+  tradingAmendOrder: (orderId: string, amendment: TradingOrderAmendment) =>
+    getJSON<ContractEnvelope<TradingOrderDetail>>(
+      '/trading/orders/' + encodeURIComponent(orderId) + '/amend',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(amendment),
+      },
+    ),
+
+  tradingClosePosition: (
+    accountId: string,
+    symbol: string,
+    intent: TradingClosePositionIntent,
+  ) => getJSON<ContractEnvelope<TradingOrderDetail>>(
+    `/trading/positions/${encodeURIComponent(accountId)}/${encodeURIComponent(symbol)}/close`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(intent),
+    },
+  ),
 
   tradingRecoverOrders: () =>
     getJSON<ContractEnvelope<Record<string, unknown>>>('/trading/recovery/orders', { method: 'POST' }),

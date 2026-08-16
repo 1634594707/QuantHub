@@ -24,6 +24,16 @@ def _trade_row(row) -> Trade:
         ts=row["ts"],
         source=row["source"],
         note=row["note"],
+        strategy_id=row["strategy_id"],
+        strategy_version=row["strategy_version"],
+        factor_key=row["factor_key"],
+        factor_version=row["factor_version"],
+        research_run_id=row["research_run_id"],
+        signal_id=row["signal_id"],
+        simulation_order_id=row["simulation_order_id"],
+        execution_id=row["execution_id"],
+        market_regime_id=row["market_regime_id"],
+        attribution_status=row["attribution_status"] or "unknown_attribution",
     )
 
 
@@ -56,8 +66,11 @@ def save_trade(trade: Trade) -> Trade:
     with store._lock, store._conn() as c:
         c.execute(
             """INSERT INTO ledger_trades
-               (id, instrument_id, code, market, direction, quantity, price, fee, ts, source, note)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               (id, instrument_id, code, market, direction, quantity, price, fee, ts,
+                source, note, strategy_id, strategy_version, factor_key, factor_version,
+                research_run_id, signal_id, simulation_order_id, execution_id,
+                market_regime_id, attribution_status)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 trade.id,
                 trade.instrument_id,
@@ -70,6 +83,16 @@ def save_trade(trade: Trade) -> Trade:
                 trade.ts,
                 trade.source,
                 trade.note,
+                trade.strategy_id,
+                trade.strategy_version,
+                trade.factor_key,
+                trade.factor_version,
+                trade.research_run_id,
+                trade.signal_id,
+                trade.simulation_order_id,
+                trade.execution_id,
+                trade.market_regime_id,
+                trade.attribution_status,
             ),
         )
         c.commit()
@@ -81,8 +104,11 @@ def save_trade_if_absent(trade: Trade) -> Trade:
     with store._lock, store._conn() as c:
         c.execute(
             """INSERT OR IGNORE INTO ledger_trades
-               (id, instrument_id, code, market, direction, quantity, price, fee, ts, source, note)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               (id, instrument_id, code, market, direction, quantity, price, fee, ts,
+                source, note, strategy_id, strategy_version, factor_key, factor_version,
+                research_run_id, signal_id, simulation_order_id, execution_id,
+                market_regime_id, attribution_status)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 trade.id,
                 trade.instrument_id,
@@ -95,6 +121,16 @@ def save_trade_if_absent(trade: Trade) -> Trade:
                 trade.ts,
                 trade.source,
                 trade.note,
+                trade.strategy_id,
+                trade.strategy_version,
+                trade.factor_key,
+                trade.factor_version,
+                trade.research_run_id,
+                trade.signal_id,
+                trade.simulation_order_id,
+                trade.execution_id,
+                trade.market_regime_id,
+                trade.attribution_status,
             ),
         )
         row = c.execute("SELECT * FROM ledger_trades WHERE id=?", (trade.id,)).fetchone()
@@ -171,7 +207,10 @@ def correct_trade(trade: Trade, reason: str) -> dict | None:
         before = _trade_row(row).to_dict()
         c.execute(
             """UPDATE ledger_trades SET instrument_id=?, code=?, market=?, direction=?,
-               quantity=?, price=?, fee=?, source=?, note=? WHERE id=?""",
+               quantity=?, price=?, fee=?, source=?, note=?, strategy_id=?,
+               strategy_version=?, factor_key=?, factor_version=?, research_run_id=?,
+               signal_id=?, simulation_order_id=?, execution_id=?, market_regime_id=?,
+               attribution_status=? WHERE id=?""",
             (
                 trade.instrument_id,
                 trade.code,
@@ -182,6 +221,16 @@ def correct_trade(trade: Trade, reason: str) -> dict | None:
                 trade.fee,
                 trade.source,
                 trade.note,
+                trade.strategy_id,
+                trade.strategy_version,
+                trade.factor_key,
+                trade.factor_version,
+                trade.research_run_id,
+                trade.signal_id,
+                trade.simulation_order_id,
+                trade.execution_id,
+                trade.market_regime_id,
+                trade.attribution_status,
                 trade.id,
             ),
         )

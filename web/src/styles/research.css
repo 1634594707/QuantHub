@@ -277,6 +277,16 @@
 .research-report-metrics dd { overflow-wrap: anywhere; }
 .research-report-levels { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .research-report-levels b { color: var(--text-1); font-family: var(--font-mono); font-size: var(--fs-h2); }
+.research-decision-modules { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); border-top: 1px solid var(--divider); border-bottom: 1px solid var(--divider); }
+.research-decision-modules > div { display: grid; gap: 3px; min-width: 0; padding: var(--sp-3); border-right: 1px solid var(--divider); }
+.research-decision-modules span,
+.research-decision-modules small { color: var(--text-3); font-size: var(--fs-11); overflow-wrap: anywhere; }
+.research-decision-modules b { color: var(--text-1); font-family: var(--font-mono); font-size: var(--fs-12); }
+.research-evidence-coverage { display: flex; flex-wrap: wrap; gap: var(--sp-2); padding: var(--sp-3) var(--sp-5); }
+.research-evidence-coverage span { padding: 4px 7px; border: 1px solid var(--border); border-radius: 4px; font-size: var(--fs-11); }
+.research-evidence-coverage .covered { color: var(--up-ink); background: var(--up-weak); }
+.research-evidence-coverage .missing { color: var(--warn-ink); background: var(--warn-weak); }
+.research-execution-gate { display: flex; flex-wrap: wrap; gap: var(--sp-2); padding: var(--sp-3) var(--sp-5); border-left: 3px solid var(--down); background: var(--down-weak); color: var(--down-ink); font-size: var(--fs-12); }
 .research-quantitative {
   border-top: 1px solid var(--divider);
   background: var(--bg-elevated);
@@ -468,6 +478,11 @@
 .research-comparison-col > span { color: var(--text-3); font-size: var(--fs-11); }
 .research-comparison-col > b { overflow: hidden; color: var(--text-1); font-size: var(--fs-12); text-overflow: ellipsis; }
 .research-comparison-col > small { overflow: hidden; color: var(--text-2); font-size: var(--fs-11); text-overflow: ellipsis; white-space: nowrap; }
+.research-comparison-changes { display: grid; margin-top: var(--sp-3); border-top: 1px solid var(--divider); }
+.research-comparison-changes > div { display: grid; grid-template-columns: minmax(150px, .5fr) minmax(220px, 1fr) auto; gap: var(--sp-3); min-width: 0; padding: var(--sp-2) 0; border-bottom: 1px solid var(--divider); font-size: var(--fs-11); }
+.research-comparison-changes span,
+.research-comparison-changes small { color: var(--text-3); }
+.research-comparison-changes b { overflow-wrap: anywhere; }
 .research-evidence-ledger { border-top: 1px solid var(--divider); }
 .research-evidence-list { display: grid; }
 .research-evidence-row { border-bottom: 1px solid var(--divider); }

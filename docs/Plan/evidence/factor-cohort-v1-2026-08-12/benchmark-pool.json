@@ -1,0 +1,626 @@
+{
+  "version": "factor-cohort-v2",
+  "market": "crypto",
+  "interval": "1h",
+  "definitions": [
+    {
+      "key": "cash",
+      "strategy_type": "cash",
+      "params": {},
+      "markets": [
+        "crypto"
+      ],
+      "risk_limits": {
+        "maximum_exposure": 1.0,
+        "maximum_drawdown": 0.25
+      },
+      "code_version": "1.1.0",
+      "content_hash": "aeaa3de647eed5e04fec0c41eb5868bf21d6afe55a909f4948be749f9a2a1894"
+    },
+    {
+      "key": "buy_hold",
+      "strategy_type": "buy_hold",
+      "params": {},
+      "markets": [
+        "crypto"
+      ],
+      "risk_limits": {
+        "maximum_exposure": 1.0,
+        "maximum_drawdown": 0.25
+      },
+      "code_version": "1.1.0",
+      "content_hash": "f16d905e325165961c10bbf8c53bc4e1ef173fb137f69269dd1962dcdcea0483"
+    },
+    {
+      "key": "dca",
+      "strategy_type": "dca",
+      "params": {
+        "frequency": 20,
+        "target_step": 0.1
+      },
+      "markets": [
+        "crypto"
+      ],
+      "risk_limits": {
+        "maximum_exposure": 1.0,
+        "maximum_drawdown": 0.25
+      },
+      "code_version": "1.1.0",
+      "content_hash": "e9a3b9ce8610111796831d4a0c06b7ece168a9ac7d451b4519dc82d5a2ad1aba"
+    },
+    {
+      "key": "fixed_exposure",
+      "strategy_type": "fixed_exposure",
+      "params": {
+        "weight": 0.5
+      },
+      "markets": [
+        "crypto"
+      ],
+      "risk_limits": {
+        "maximum_exposure": 1.0,
+        "maximum_drawdown": 0.25
+      },
+      "code_version": "1.1.0",
+      "content_hash": "368a2a0c8eacd3df39f2e7a3a72dba9ee797c21756d1bbff5afb82f179cfb65e"
+    },
+    {
+      "key": "ma_trend",
+      "strategy_type": "ma_trend",
+      "params": {
+        "fast": 10,
+        "slow": 40
+      },
+      "markets": [
+        "crypto"
+      ],
+      "risk_limits": {
+        "maximum_exposure": 1.0,
+        "maximum_drawdown": 0.25
+      },
+      "code_version": "1.1.0",
+      "content_hash": "0c7764eec61f2ef2978c33a52e3dce5e7d37f2313a9e2c5d61dd070c696f3676"
+    },
+    {
+      "key": "time_series_momentum",
+      "strategy_type": "momentum",
+      "params": {
+        "lookback": 20
+      },
+      "markets": [
+        "crypto"
+      ],
+      "risk_limits": {
+        "maximum_exposure": 1.0,
+        "maximum_drawdown": 0.25
+      },
+      "code_version": "1.1.0",
+      "content_hash": "443591db0445a56ecc706596f52a95e208937fb81aba8599a9f11c57e96763e0"
+    },
+    {
+      "key": "donchian_breakout",
+      "strategy_type": "donchian",
+      "params": {
+        "lookback": 20
+      },
+      "markets": [
+        "crypto"
+      ],
+      "risk_limits": {
+        "maximum_exposure": 1.0,
+        "maximum_drawdown": 0.25
+      },
+      "code_version": "1.1.0",
+      "content_hash": "50b1a51826e54e0b7304fbcdebf4cc3cc42cb16e0f5db5b6c0cf849634ed9beb"
+    },
+    {
+      "key": "zscore_mean_reversion",
+      "strategy_type": "mean_reversion",
+      "params": {
+        "lookback": 20,
+        "entry_z": 1.5
+      },
+      "markets": [
+        "crypto"
+      ],
+      "risk_limits": {
+        "maximum_exposure": 1.0,
+        "maximum_drawdown": 0.25
+      },
+      "code_version": "1.1.0",
+      "content_hash": "b98f7be50df9447762f406a88c12ecfc245c4cc4ab80db4772a744c3c2ca0c9d"
+    },
+    {
+      "key": "volatility_target",
+      "strategy_type": "volatility_target",
+      "params": {
+        "lookback": 20,
+        "target": 0.15
+      },
+      "markets": [
+        "crypto"
+      ],
+      "risk_limits": {
+        "maximum_exposure": 1.0,
+        "maximum_drawdown": 0.25
+      },
+      "code_version": "1.1.0",
+      "content_hash": "490708b7bcfd5c3336add59c39b788d74d603b40b77ba381ef59105f6c1dfc1e"
+    },
+    {
+      "key": "grid_arithmetic",
+      "strategy_type": "grid",
+      "params": {
+        "mode": "arithmetic",
+        "levels": 8,
+        "width": 0.08,
+        "capital_per_level": 0.125,
+        "exit_rule": "return_to_center_or_cohort_end"
+      },
+      "markets": [
+        "crypto"
+      ],
+      "risk_limits": {
+        "maximum_exposure": 1.0,
+        "maximum_drawdown": 0.25
+      },
+      "code_version": "1.1.0",
+      "content_hash": "20d1ef10651a95bbcd0ef798ce20dada379d174a934c007551a4fc5a35f7958b"
+    },
+    {
+      "key": "grid_geometric",
+      "strategy_type": "grid",
+      "params": {
+        "mode": "geometric",
+        "levels": 8,
+        "width": 0.08,
+        "capital_per_level": 0.125,
+        "exit_rule": "return_to_center_or_cohort_end"
+      },
+      "markets": [
+        "crypto"
+      ],
+      "risk_limits": {
+        "maximum_exposure": 1.0,
+        "maximum_drawdown": 0.25
+      },
+      "code_version": "1.1.0",
+      "content_hash": "16725d2125c33d8abe4e4d6443febd446e1cd5339ecc22d7bde199f6ef3502c6"
+    },
+    {
+      "key": "grid_adaptive",
+      "strategy_type": "grid",
+      "params": {
+        "mode": "adaptive",
+        "levels": 8,
+        "width": 0.08,
+        "atr": 2.0,
+        "capital_per_level": 0.125,
+        "exit_rule": "return_to_center_or_cohort_end"
+      },
+      "markets": [
+        "crypto"
+      ],
+      "risk_limits": {
+        "maximum_exposure": 1.0,
+        "maximum_drawdown": 0.25
+      },
+      "code_version": "1.1.0",
+      "content_hash": "93b60e51c651705b35744cd542f0c153d3079d06d5ba39cec06879125ac08261"
+    },
+    {
+      "key": "grid_trend_filtered",
+      "strategy_type": "grid",
+      "params": {
+        "mode": "trend_filtered",
+        "levels": 8,
+        "width": 0.08,
+        "capital_per_level": 0.125,
+        "exit_rule": "return_to_center_or_cohort_end"
+      },
+      "markets": [
+        "crypto"
+      ],
+      "risk_limits": {
+        "maximum_exposure": 1.0,
+        "maximum_drawdown": 0.25
+      },
+      "code_version": "1.1.0",
+      "content_hash": "18a019ad673373697081cd6c03c957662c81afb9004591773f98ec72c119bfff"
+    },
+    {
+      "key": "fixed_stop_time_exit",
+      "strategy_type": "fixed_stop",
+      "params": {
+        "stop": 0.04,
+        "take": 0.08,
+        "bars": 20
+      },
+      "markets": [
+        "crypto"
+      ],
+      "risk_limits": {
+        "maximum_exposure": 1.0,
+        "maximum_drawdown": 0.25
+      },
+      "code_version": "1.1.0",
+      "content_hash": "9c9b38f67ade382ac64d6fcb4bd7bdd3ce733094394ba15ae39a0739b4e43f91"
+    },
+    {
+      "key": "limited_martingale",
+      "strategy_type": "martingale",
+      "params": {
+        "layers": 3,
+        "multiplier": 1.5
+      },
+      "markets": [
+        "crypto"
+      ],
+      "risk_limits": {
+        "maximum_exposure": 1.0,
+        "maximum_drawdown": 0.25
+      },
+      "code_version": "1.1.0",
+      "content_hash": "4abcab98b2ad01b7bab19effda7ff578874cb7810494d7c7ce3ae25d4036fbd2"
+    },
+    {
+      "key": "anti_martingale",
+      "strategy_type": "anti_martingale",
+      "params": {
+        "layers": 3,
+        "multiplier": 1.25
+      },
+      "markets": [
+        "crypto"
+      ],
+      "risk_limits": {
+        "maximum_exposure": 1.0,
+        "maximum_drawdown": 0.25
+      },
+      "code_version": "1.1.0",
+      "content_hash": "8ed01aad643619dffeed1ab51ce426855533661779faff7b6df6a0529cd9122c"
+    },
+    {
+      "key": "random_00",
+      "strategy_type": "random",
+      "params": {
+        "seed": 0,
+        "hold_probability": 0.6
+      },
+      "markets": [
+        "crypto"
+      ],
+      "risk_limits": {
+        "maximum_exposure": 1.0,
+        "maximum_drawdown": 0.25
+      },
+      "code_version": "1.1.0",
+      "content_hash": "59229d655e4a3fe8b2df26a1b7987285931eaa02065c0ac61014c80131d8bb1a"
+    },
+    {
+      "key": "random_01",
+      "strategy_type": "random",
+      "params": {
+        "seed": 1,
+        "hold_probability": 0.6
+      },
+      "markets": [
+        "crypto"
+      ],
+      "risk_limits": {
+        "maximum_exposure": 1.0,
+        "maximum_drawdown": 0.25
+      },
+      "code_version": "1.1.0",
+      "content_hash": "2586232f50755714abe3d0301a474737f2bf58cef0cbaa93fb13e0c9b9c66ee1"
+    },
+    {
+      "key": "random_02",
+      "strategy_type": "random",
+      "params": {
+        "seed": 2,
+        "hold_probability": 0.6
+      },
+      "markets": [
+        "crypto"
+      ],
+      "risk_limits": {
+        "maximum_exposure": 1.0,
+        "maximum_drawdown": 0.25
+      },
+      "code_version": "1.1.0",
+      "content_hash": "d8a12a6725abc74fb46ceacba0238695ff455c9e1be5ee5a8fa5c47a958157fe"
+    },
+    {
+      "key": "random_03",
+      "strategy_type": "random",
+      "params": {
+        "seed": 3,
+        "hold_probability": 0.6
+      },
+      "markets": [
+        "crypto"
+      ],
+      "risk_limits": {
+        "maximum_exposure": 1.0,
+        "maximum_drawdown": 0.25
+      },
+      "code_version": "1.1.0",
+      "content_hash": "7726c7c4846d27915b1b171c5fa480e8ca6ba5e2a271fab6677ea3b49b91d3f2"
+    },
+    {
+      "key": "random_04",
+      "strategy_type": "random",
+      "params": {
+        "seed": 4,
+        "hold_probability": 0.6
+      },
+      "markets": [
+        "crypto"
+      ],
+      "risk_limits": {
+        "maximum_exposure": 1.0,
+        "maximum_drawdown": 0.25
+      },
+      "code_version": "1.1.0",
+      "content_hash": "60770132be501e97c2e8b371ac151c3700f678df876719c4f1b4e9a33b38864b"
+    },
+    {
+      "key": "random_05",
+      "strategy_type": "random",
+      "params": {
+        "seed": 5,
+        "hold_probability": 0.6
+      },
+      "markets": [
+        "crypto"
+      ],
+      "risk_limits": {
+        "maximum_exposure": 1.0,
+        "maximum_drawdown": 0.25
+      },
+      "code_version": "1.1.0",
+      "content_hash": "8b27085171255b2ba162b4e22f30d0e9caeebd622ad23ee6213db9626bbdf012"
+    },
+    {
+      "key": "random_06",
+      "strategy_type": "random",
+      "params": {
+        "seed": 6,
+        "hold_probability": 0.6
+      },
+      "markets": [
+        "crypto"
+      ],
+      "risk_limits": {
+        "maximum_exposure": 1.0,
+        "maximum_drawdown": 0.25
+      },
+      "code_version": "1.1.0",
+      "content_hash": "4ee15a15f27a399b25d8f453c9736138d784ea608ee0ad6d691abce2b189e908"
+    },
+    {
+      "key": "random_07",
+      "strategy_type": "random",
+      "params": {
+        "seed": 7,
+        "hold_probability": 0.6
+      },
+      "markets": [
+        "crypto"
+      ],
+      "risk_limits": {
+        "maximum_exposure": 1.0,
+        "maximum_drawdown": 0.25
+      },
+      "code_version": "1.1.0",
+      "content_hash": "a0e040af59758b6598803879d9106d17a21d5615868aea739b0fbdc710b06343"
+    },
+    {
+      "key": "random_08",
+      "strategy_type": "random",
+      "params": {
+        "seed": 8,
+        "hold_probability": 0.6
+      },
+      "markets": [
+        "crypto"
+      ],
+      "risk_limits": {
+        "maximum_exposure": 1.0,
+        "maximum_drawdown": 0.25
+      },
+      "code_version": "1.1.0",
+      "content_hash": "5dd4695b7dd0758ec556708058542b5ea08c4ca060ac1ec771aaf7d6b9a177bf"
+    },
+    {
+      "key": "random_09",
+      "strategy_type": "random",
+      "params": {
+        "seed": 9,
+        "hold_probability": 0.6
+      },
+      "markets": [
+        "crypto"
+      ],
+      "risk_limits": {
+        "maximum_exposure": 1.0,
+        "maximum_drawdown": 0.25
+      },
+      "code_version": "1.1.0",
+      "content_hash": "faa4502410e7b002ef0f2542dbd8ae209d31a3acf324d11015755bb34776d237"
+    },
+    {
+      "key": "random_10",
+      "strategy_type": "random",
+      "params": {
+        "seed": 10,
+        "hold_probability": 0.6
+      },
+      "markets": [
+        "crypto"
+      ],
+      "risk_limits": {
+        "maximum_exposure": 1.0,
+        "maximum_drawdown": 0.25
+      },
+      "code_version": "1.1.0",
+      "content_hash": "c7453de232c2e06b94a2cf785fbeb3e81a0479b34a42c8e09024468e6474da5e"
+    },
+    {
+      "key": "random_11",
+      "strategy_type": "random",
+      "params": {
+        "seed": 11,
+        "hold_probability": 0.6
+      },
+      "markets": [
+        "crypto"
+      ],
+      "risk_limits": {
+        "maximum_exposure": 1.0,
+        "maximum_drawdown": 0.25
+      },
+      "code_version": "1.1.0",
+      "content_hash": "b3265e86277d0df15197e454160764dc335e793fff3e4a036d0a90067226d67a"
+    },
+    {
+      "key": "random_12",
+      "strategy_type": "random",
+      "params": {
+        "seed": 12,
+        "hold_probability": 0.6
+      },
+      "markets": [
+        "crypto"
+      ],
+      "risk_limits": {
+        "maximum_exposure": 1.0,
+        "maximum_drawdown": 0.25
+      },
+      "code_version": "1.1.0",
+      "content_hash": "59b36dab588cbe919c5ad283398986e95e964f5cff73ec8e0af904830fcf5129"
+    },
+    {
+      "key": "random_13",
+      "strategy_type": "random",
+      "params": {
+        "seed": 13,
+        "hold_probability": 0.6
+      },
+      "markets": [
+        "crypto"
+      ],
+      "risk_limits": {
+        "maximum_exposure": 1.0,
+        "maximum_drawdown": 0.25
+      },
+      "code_version": "1.1.0",
+      "content_hash": "d9e5900156cd0d6216940e67f9fe317733ce63332fa1816e0bd249698859fb91"
+    },
+    {
+      "key": "random_14",
+      "strategy_type": "random",
+      "params": {
+        "seed": 14,
+        "hold_probability": 0.6
+      },
+      "markets": [
+        "crypto"
+      ],
+      "risk_limits": {
+        "maximum_exposure": 1.0,
+        "maximum_drawdown": 0.25
+      },
+      "code_version": "1.1.0",
+      "content_hash": "ab4e3ae3bf3318dcfac69324f32edaab7fab2b073f80ab1f26918afe5a9ad339"
+    },
+    {
+      "key": "random_15",
+      "strategy_type": "random",
+      "params": {
+        "seed": 15,
+        "hold_probability": 0.6
+      },
+      "markets": [
+        "crypto"
+      ],
+      "risk_limits": {
+        "maximum_exposure": 1.0,
+        "maximum_drawdown": 0.25
+      },
+      "code_version": "1.1.0",
+      "content_hash": "5e8161402974d2b7191f3d5761d676b5faae96531841c7a0e77fae40347e4674"
+    },
+    {
+      "key": "random_16",
+      "strategy_type": "random",
+      "params": {
+        "seed": 16,
+        "hold_probability": 0.6
+      },
+      "markets": [
+        "crypto"
+      ],
+      "risk_limits": {
+        "maximum_exposure": 1.0,
+        "maximum_drawdown": 0.25
+      },
+      "code_version": "1.1.0",
+      "content_hash": "f4f16afaa0856757847c97515687fe2fa23595991c283a97a1f8cfd9bf3c2aba"
+    },
+    {
+      "key": "random_17",
+      "strategy_type": "random",
+      "params": {
+        "seed": 17,
+        "hold_probability": 0.6
+      },
+      "markets": [
+        "crypto"
+      ],
+      "risk_limits": {
+        "maximum_exposure": 1.0,
+        "maximum_drawdown": 0.25
+      },
+      "code_version": "1.1.0",
+      "content_hash": "e42cdc578c66e0ab79bd796824a599061051efc3fe68367cdf37f287fa8f7bdf"
+    },
+    {
+      "key": "random_18",
+      "strategy_type": "random",
+      "params": {
+        "seed": 18,
+        "hold_probability": 0.6
+      },
+      "markets": [
+        "crypto"
+      ],
+      "risk_limits": {
+        "maximum_exposure": 1.0,
+        "maximum_drawdown": 0.25
+      },
+      "code_version": "1.1.0",
+      "content_hash": "c283c21d83284d026e8b73963d7804e94b6cd04e087892b30f5332ac32fdca90"
+    },
+    {
+      "key": "random_19",
+      "strategy_type": "random",
+      "params": {
+        "seed": 19,
+        "hold_probability": 0.6
+      },
+      "markets": [
+        "crypto"
+      ],
+      "risk_limits": {
+        "maximum_exposure": 1.0,
+        "maximum_drawdown": 0.25
+      },
+      "code_version": "1.1.0",
+      "content_hash": "1ef9be2cf4abac5afb999f3b5ca3a11dbabded3575c514f5bee805764f2f48e1"
+    }
+  ],
+  "created_at": "2026-08-12T17:30:28.403265+00:00",
+  "content_hash": "e5f6717d5ed65961e7caaf2d657300b33492b31ba684d3d6b344dad5cfdfb680"
+}

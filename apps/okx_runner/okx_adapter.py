@@ -186,17 +186,59 @@ class OkxCcxtAdapter:
     def submit_order(self, request: dict[str, Any]) -> ExternalOrder:
         exchange_symbol, market = self._resolve_market(request["symbol"])
         trade_mode = "cross" if bool(market.get("contract")) else "cash"
+        params: dict[str, Any] = {
+            "clOrdId": request["client_order_id"],
+            "tdMode": trade_mode,
+        }
+        if request.get("reduce_only"):
+            params["reduceOnly"] = True
+        if request.get("stop_loss"):
+            params["stopLoss"] = {
+                "triggerPrice": request["stop_loss"]["trigger_price"],
+                "price": request["stop_loss"].get("order_price"),
+            }
+        if request.get("take_profit"):
+            params["takeProfit"] = {
+                "triggerPrice": request["take_profit"]["trigger_price"],
+                "price": request["take_profit"].get("order_price"),
+            }
         payload = self.exchange.create_order(
             exchange_symbol,
             request["order_type"],
             request["side"],
             request["quantity"],
             request.get("price"),
-            {"clOrdId": request["client_order_id"], "tdMode": trade_mode},
+            params,
         )
         order = self._order(payload)
         self._symbols_by_order[order.external_order_id] = exchange_symbol
         return order
+
+    def amend_order(
+        self, external_order_id: str, symbol: str, request: dict[str, Any]
+    ) -> ExternalOrder:
+        exchange_symbol, _ = self._resolve_market(symbol)
+        params: dict[str, Any] = {}
+        if request.get("stop_loss"):
+            params["stopLoss"] = {
+                "triggerPrice": request["stop_loss"]["trigger_price"],
+                "price": request["stop_loss"].get("order_price"),
+            }
+        if request.get("take_profit"):
+            params["takeProfit"] = {
+                "triggerPrice": request["take_profit"]["trigger_price"],
+                "price": request["take_profit"].get("order_price"),
+            }
+        payload = self.exchange.edit_order(
+            external_order_id,
+            exchange_symbol,
+            request["order_type"],
+            request["side"],
+            request["quantity"],
+            request.get("price"),
+            params,
+        )
+        return self._order(payload)
 
     def _fetch_all_orders(
         self, params: dict[str, Any] | None = None, symbol: str | None = None

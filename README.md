@@ -33,7 +33,7 @@ QuantHub 将综合评估、因子验证、AI 研究证据、策略回测、信�
 
 - **可用历史优先**：OKX 返回的历史 K 线少于请求值时，只要仍有至少 `240` 根有效 K 线就继续研究，并在界面同时显示请求样本和实际样本；数据不足或行情不可用会返回可解释的 `422`，而不是笼统的 `500`。
 - **真实 OKX 数据**：系统可读取 OKX 公共合约目录和实时公共 K 线；当前只读 Demo 凭据验证已成功，连接测试能够返回账户币种信息。
-- **本地凭据保护**：Windows 本地凭据由当前 Windows 用户的 DPAPI 加密保存在仓库之外，设置页只显示状态和指纹，不回显 Key、Secret 或 Passphrase。
+- **本地凭据保护**：Windows 本地凭据由当前 Windows 用户的 DPAPI 加密保存在仓库之外，设置页只显示状态和指纹，不回显 Key、Secret 或 Passphrase。API 运行账户变化导致旧凭据不可解密时，状态接口会返回可诊断、可重建的恢复信息，不再以原始 `503` 阻断设置页。
 - **执行默认关闭**：Web 只访问统一 API，API 再代理无界面的 OKX Runner。研究模式可通过 `-SkipRunner` 保持 Runner 关闭；启动 Runner 时默认仍为 `shadow` 只读模式，不会因为 Demo 失败而回退到实盘。
 - **无静默假数据**：前端不会在首次访问时自动写入演示持仓或自选数据，真实数据失败会明确显示错误；假数据和产品凭据扫描覆盖 Python、TypeScript、JSON 与 YAML。
 
@@ -315,7 +315,7 @@ uv run --frozen python -B tools/check_fake_data.py
 uv run --frozen python -B tools/check_product_secrets.py --product okx-runner
 ```
 
-当前 Factor Factory 收口改动已通过后端相关用例、前端 `144` 项用例、TypeScript 类型检查、生产构建与 Ruff 检查；假数据扫描和 OKX 产品凭据扫描保持 `0` 违规。完整浏览器验收覆盖主要桌面与移动视口、导航路径、真实 API 交互和 shadow 安全边界，详细结果以 `docs/Plan/evidence/` 中的落盘证据为准。
+当前闭环改动已通过后端 `393` 项用例、前端 `153` 项用例、TypeScript 类型检查、生产构建与相关 Ruff 检查；OKX 产品凭据扫描保持 `0` 违规。完整浏览器验收覆盖主要桌面与移动视口、导航路径、真实 API 交互和 shadow 安全边界，详细结果以 `docs/Plan/evidence/` 中的落盘证据为准。
 
 创建新策略前可以先用 `--dry-run` 预览变更：
 

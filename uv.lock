@@ -2021,6 +2021,7 @@ name = "quanthub-api"
 version = "0.4.0"
 source = { editable = "apps/api" }
 dependencies = [
+    { name = "aiohttp" },
     { name = "alembic" },
     { name = "apscheduler" },
     { name = "ccxt" },
@@ -2036,6 +2037,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "aiohttp", specifier = ">=3.9" },
     { name = "alembic", specifier = ">=1.13,<2" },
     { name = "apscheduler", specifier = ">=3.10" },
     { name = "ccxt", specifier = ">=4.3" },

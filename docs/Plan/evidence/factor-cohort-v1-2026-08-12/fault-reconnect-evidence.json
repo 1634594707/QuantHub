@@ -1,0 +1,11 @@
+{
+  "status": "partially_verified",
+  "deterministic_tests": {
+    "rest_compensation": "passed",
+    "duplicate_suppression": "passed",
+    "gap_evidence": "passed",
+    "manager_start_stop": "passed"
+  },
+  "real_exchange_disconnect_reconnect_drill": "pending",
+  "note": "No external connectivity result is claimed by this fixture."
+}

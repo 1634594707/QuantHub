@@ -18,8 +18,8 @@ from core.factor_dsl import (
 )
 from core.llm import LLMClient, get_llm
 
-ALPHA_MINING_VERSION = "brain-alpha-v1.5"
-AI_PROMPT_VERSION = "brain-alpha-refinement-json-v7"
+ALPHA_MINING_VERSION = "brain-alpha-v1.6"
+AI_PROMPT_VERSION = "brain-alpha-refinement-json-v8"
 AI_RAW_OUTPUT_LIMIT = 50_000
 
 EXPRESSION_FIELDS = {"open", "high", "low", "close", "volume"}
@@ -158,6 +158,7 @@ class AlphaProposal:
     ast: dict[str, Any]
     hypothesis: str
     invalidation: str
+    research_claims: dict[str, Any] = field(default_factory=dict)
     falsification_tests: tuple[str, ...] = (
         "rolling_validation_stability",
         "double_cost_stress",
@@ -316,8 +317,15 @@ def _transform_alpha(value: dict[str, Any], *, transform: int, lookback: int) ->
 
 
 def generate_grammar_proposals(
-    *, seed: int, count: int, interval: str, market: str = "crypto"
+    *,
+    seed: int,
+    count: int,
+    interval: str,
+    market: str = "crypto",
+    source_mode: str = "mixed",
 ) -> list[AlphaProposal]:
+    if source_mode not in {"mixed", "random_dsl", "symbolic_regression"}:
+        raise ValueError(f"unsupported grammar source mode: {source_mode}")
     rng = random.Random(seed)
     lookbacks = [3, 6, 12, 18, 24, 36, 48, 72]
     if interval == "4h":
@@ -325,14 +333,30 @@ def generate_grammar_proposals(
     proposals: list[AlphaProposal] = []
     formula_hashes: set[str] = set()
     attempts = 0
+    symbolic_space: list[tuple[int, int, int, bool]] = []
+    if source_mode == "symbolic_regression":
+        symbolic_space = [
+            (lookback, kind, transform, inverse)
+            for lookback in lookbacks
+            for kind in range(7)
+            for transform in range(7)
+            for inverse in (False, True)
+        ]
+        rng.shuffle(symbolic_space)
     while len(proposals) < count and attempts < max(200, count * 30):
         attempts += 1
-        lookback = rng.choice(lookbacks)
-        kind = rng.randrange(7)
-        transform = rng.randrange(7)
+        if symbolic_space:
+            if attempts > len(symbolic_space):
+                break
+            lookback, kind, transform, inverse = symbolic_space[attempts - 1]
+        else:
+            lookback = rng.choice(lookbacks)
+            kind = rng.randrange(7)
+            transform = rng.randrange(7)
+            inverse = rng.random() < 0.35
         family, primitive, hypothesis, invalidation = _brain_primitive(kind, lookback)
         ast = _transform_alpha(primitive, transform=transform, lookback=lookback)
-        if rng.random() < 0.35:
+        if inverse:
             ast = {"op": "neg", "value": ast}
             family = f"inverse_{family}"
         candidate_id = f"brain_{family}_{lookback}_{transform}_{attempts}"
@@ -350,7 +374,12 @@ def generate_grammar_proposals(
         if definition.formula_hash in formula_hashes:
             continue
         formula_hashes.add(definition.formula_hash)
-        source = "symbolic_regression" if len(proposals) % 2 == 0 else "random_dsl"
+        source = (
+            "symbolic_regression"
+            if source_mode == "symbolic_regression"
+            or (source_mode == "mixed" and len(proposals) % 2 == 0)
+            else "random_dsl"
+        )
         proposals.append(
             AlphaProposal(
                 candidate_id=candidate_id,
@@ -597,6 +626,7 @@ def _ai_messages(
     market: str,
     seed_candidates: list[dict[str, Any]] | None = None,
     prior_direction_radar: dict[str, Any] | None = None,
+    market_context: dict[str, Any] | None = None,
 ) -> list[dict[str, str]]:
     catalog = {
         "fields": ["open", "high", "low", "close", "volume"],
@@ -643,6 +673,7 @@ def _ai_messages(
         "research_brief": brief,
         "screened_seed_candidates": seeds,
         "prior_direction_radar": prior_direction_radar,
+        "market_context": market_context or {},
         "catalog": catalog,
         "ast_contract": {
             "field": {"op": "field", "name": "close"},
@@ -678,8 +709,19 @@ def _ai_messages(
                     "label": "short label",
                     "family": "hypothesis_family",
                     "hypothesis": "economic hypothesis",
+                    "economic_mechanism": "why the signal may be paid",
+                    "expected_direction": "positive | negative | state_dependent",
+                    "applicable_regimes": ["market state"],
+                    "failure_regimes": ["market state"],
                     "invalidation": "falsifiable invalidation condition",
                     "falsification_tests": ["test name"],
+                    "expected_turnover": "low | medium | high with reason",
+                    "cost_sensitivity": "expected response to doubled costs",
+                    "data_latency_tolerance": "maximum acceptable data/execution delay",
+                    "parameter_plateau": "nearby parameter range expected to remain valid",
+                    "complexity_notes": "why each operator is necessary",
+                    "substantive_difference": "material difference from seed and existing families",
+                    "suggested_benchmarks": ["benchmark family"],
                     "formula_ast": {"op": "..."},
                 }
             ]
@@ -698,6 +740,8 @@ def _ai_messages(
             ),
             "Prefer one meaningful structural change per candidate so the result remains falsifiable.",
             "Do not use confirmation or holdout evidence; only the supplied discovery metrics exist.",
+            "Account for supplied fees, spread, slippage, funding, minimum quantity, latency, capacity, and risk budget.",
+            "State a falsifiable mechanism, applicable and failure regimes, and a substantive structural difference.",
         ],
         "confirmation_labels_exposed": False,
     }
@@ -718,6 +762,7 @@ def generate_ai_proposals(
     client: LLMClient | None = None,
     seed_candidates: list[dict[str, Any]] | None = None,
     prior_direction_radar: dict[str, Any] | None = None,
+    market_context: dict[str, Any] | None = None,
 ) -> tuple[list[AlphaProposal], dict[str, Any]]:
     if count <= 0:
         return [], {
@@ -732,6 +777,7 @@ def generate_ai_proposals(
         market=market,
         seed_candidates=seed_candidates,
         prior_direction_radar=prior_direction_radar,
+        market_context=market_context,
     )
     input_text = json.dumps(messages, ensure_ascii=False, sort_keys=True)
     input_fingerprint = hashlib.sha256(input_text.encode("utf-8")).hexdigest()
@@ -848,6 +894,56 @@ def generate_ai_proposals(
                 "double_cost_stress",
             ]
             candidate_raw = json.dumps(row, ensure_ascii=False, sort_keys=True)
+            research_claims = {
+                "economic_mechanism": str(
+                    row.get("economic_mechanism") or row.get("hypothesis") or brief
+                ),
+                "expected_direction": str(row.get("expected_direction") or "state_dependent"),
+                "applicable_regimes": [
+                    str(item) for item in (row.get("applicable_regimes") or ["trend", "range"])[:8]
+                ],
+                "failure_regimes": [
+                    str(item) for item in (row.get("failure_regimes") or ["structural_break"])[:8]
+                ],
+                "expected_turnover": str(
+                    row.get("expected_turnover") or "unknown_until_deterministic_backtest"
+                ),
+                "cost_sensitivity": str(
+                    row.get("cost_sensitivity") or "must_pass_doubled_cost_stress"
+                ),
+                "data_latency_tolerance": str(
+                    row.get("data_latency_tolerance") or "one_bar_execution_delay"
+                ),
+                "parameter_plateau": str(
+                    row.get("parameter_plateau") or "requires_nearby_parameter_test"
+                ),
+                "complexity_notes": str(
+                    row.get("complexity_notes") or "minimal_safe_dsl_expression"
+                ),
+                "substantive_difference": str(
+                    row.get("substantive_difference") or "structural_difference_not_supplied"
+                ),
+                "suggested_benchmarks": [
+                    str(item) for item in (row.get("suggested_benchmarks") or [])[:8]
+                ],
+                "defaults_applied": sorted(
+                    key
+                    for key in (
+                        "economic_mechanism",
+                        "expected_direction",
+                        "applicable_regimes",
+                        "failure_regimes",
+                        "expected_turnover",
+                        "cost_sensitivity",
+                        "data_latency_tolerance",
+                        "parameter_plateau",
+                        "complexity_notes",
+                        "substantive_difference",
+                        "suggested_benchmarks",
+                    )
+                    if not row.get(key)
+                ),
+            }
             proposals.append(
                 AlphaProposal(
                     candidate_id=candidate_id,
@@ -860,6 +956,7 @@ def generate_ai_proposals(
                         row.get("invalidation")
                         or "The alpha fails rolling validation or doubled-cost stress."
                     ),
+                    research_claims=research_claims,
                     falsification_tests=tuple(str(item) for item in falsification[:10]),
                     model={
                         "provider": getattr(llm, "_provider", "unknown"),
@@ -877,6 +974,7 @@ def generate_ai_proposals(
                         "generation_stage": "ai_refinement" if seed_ids else "ai_proposal",
                         "seed_candidate_id": seed_candidate_id or None,
                         "confirmation_labels_exposed": False,
+                        "research_claims": research_claims,
                     },
                 )
             )

@@ -1,0 +1,49 @@
+{
+  "ok": true,
+  "review": {
+    "recommendation": "request_small_live",
+    "summary": "候选仍需完成真实自然日观察，当前不能进入小额实盘。",
+    "primary_return_source": "趋势暴露与信号择时的组合。",
+    "weaker_than_benchmarks": [
+      "buy_hold"
+    ],
+    "applicable_regimes": [
+      "trend",
+      "normal_liquidity"
+    ],
+    "failure_regimes": [
+      "range",
+      "liquidity_stress"
+    ],
+    "remaining_risks": [
+      "真实七日观察尚未完成",
+      "联网重连演练尚未完成"
+    ],
+    "evidence": [
+      "program_gate.passed=false",
+      "minimum_observation_days=false"
+    ]
+  },
+  "effective_recommendation": "continue_observation",
+  "conflict_reasons": [
+    "program_gate_not_passed"
+  ],
+  "application_draft": {
+    "status": "draft",
+    "created_by": "ai",
+    "submission_allowed": false,
+    "live_trading_enabled": false
+  },
+  "audit": {
+    "recorded_at": "2026-08-12T17:30:31.458936+00:00",
+    "provider": "deterministic_acceptance_fixture",
+    "model": "deterministic-review-fixture-v1",
+    "prompt_version": "cohort-evidence-review-v1",
+    "evidence_hash": "b39577eb8afdfca930ec64096e73f6f15666ced4896c64c2e9830627fae1b220",
+    "output_hash": "064a341b1478dcfdb30277c2d0027e55117cd9d04418f1b6866054f691ad9c65",
+    "output_raw": "{\"recommendation\": \"request_small_live\", \"summary\": \"候选仍需完成真实自然日观察，当前不能进入小额实盘。\", \"primary_return_source\": \"趋势暴露与信号择时的组合。\", \"weaker_than_benchmarks\": [\"buy_hold\"], \"applicable_regimes\": [\"trend\", \"normal_liquidity\"], \"failure_regimes\": [\"range\", \"liquidity_stress\"], \"remaining_risks\": [\"真实七日观察尚未完成\", \"联网重连演练尚未完成\"], \"evidence\": [\"program_gate.passed=false\", \"minimum_observation_days=false\"]}",
+    "metrics_locked": true,
+    "ledger_write_access": false,
+    "live_trading_enabled": false
+  }
+}

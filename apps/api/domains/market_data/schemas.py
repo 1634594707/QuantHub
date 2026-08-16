@@ -17,4 +17,13 @@ class DataSourceCheckRequest(BaseModel):
     interval: str = Field(..., min_length=1)
 
 
-__all__ = ["DataSourceCheckRequest", "MarketDataStatusResponse"]
+class PublicMarketStreamStartRequest(BaseModel):
+    inst_id: str = Field(default="BTC-USDT-SWAP", min_length=3, max_length=40)
+    candle_channel: Literal["candle1H", "candle4H", "candle1D"] = "candle1H"
+
+
+__all__ = [
+    "DataSourceCheckRequest",
+    "MarketDataStatusResponse",
+    "PublicMarketStreamStartRequest",
+]

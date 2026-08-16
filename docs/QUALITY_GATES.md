@@ -20,6 +20,18 @@ npm.cmd run typecheck
 npm.cmd run build
 ```
 
+涉及研究、风控、执行或归因契约时，还必须运行：
+
+```powershell
+uv run --frozen python -m pytest -q
+Set-Location web
+npm.cmd run test -- --run
+npm.cmd run typecheck
+npm.cmd run build
+```
+
+2026-08-16 闭环基线：后端 `392` 项、前端 `152` 项通过；Chromium 在 `390x844`、`768x1024`、`1440x900` 三个视口完成阻断态、冲突与历史差异、归因筛选与守恒验收。
+
 ## 当前基线
 
 `tools.quality_baseline` 使用隔离临时 SQLite 数据库，不读取或修改业务库。默认门限：

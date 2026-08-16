@@ -17,7 +17,11 @@ from core.backtest import factors as factor_module
 from core.backtest import market_data as market_data_module
 from core.backtest import strategies_demo as demo_strategy_module
 from core.config import get_config
+from core.cost_profiles import select_reference_profile
+from core.research_decision import decision_from_mapping
+from core.trading_costs import TradingCostProfile
 
+from .risk import PaperOrderIntent, evaluate_risk
 from .schemas import (
     DemoRunRequest,
     SimulationFillCreate,
@@ -26,6 +30,13 @@ from .schemas import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+class SimulationRiskRejected(ValueError):
+    def __init__(self, decision: dict[str, Any]) -> None:
+        super().__init__("模拟订单未通过服务端风控")
+        self.decision = decision
+
 
 # 回测 demo 运行记录落地目录（与既有 data/ 体系一致，JSON 可复现、可审查）
 DEMO_RUNS_DIR = Path("data/demo_runs")
@@ -291,195 +302,204 @@ def get_demo_run(run_id: str) -> dict[str, Any] | None:
         return None
 
 
-def _risk_check(
-    key: str,
-    label: str,
-    actual: float,
-    limit: float,
-    *,
-    unit: str = "ratio",
-) -> dict[str, Any]:
-    passed = actual <= limit
+def _resolve_order_context(req: SimulationOrderCreate | SimulationOrderPreviewRequest) -> dict:
+    signal = store.get_signal(req.signal_id) if req.signal_id else None
+    if req.signal_id and signal is None:
+        raise KeyError(req.signal_id)
+    if signal and signal["direction"] not in {"buy", "sell"}:
+        raise ValueError("观望信号不能转为模拟订单")
+    symbol = signal["symbol"] if signal else req.symbol
+    market = signal["market"] if signal else req.market
+    side = signal["direction"] if signal else req.side
+    assert symbol is not None and side is not None
+    research_run_id = req.research_run_id
+    if not research_run_id and signal:
+        research_run_id = (signal.get("meta") or {}).get("research_run_id")
+    instrument = instrument_service.resolve_strict(symbol, market)
     return {
-        "key": key,
-        "label": label,
-        "status": "passed" if passed else "failed",
-        "actual": round(actual, 6),
-        "limit": round(limit, 6),
-        "unit": unit,
+        "signal": signal,
+        "instrument": instrument,
+        "side": side,
+        "research_run_id": research_run_id,
     }
+
+
+def _market_snapshot(symbol: str, market: str) -> dict[str, Any]:
+    observed_at = datetime.now(UTC).isoformat()
+    price = portfolio_service.latest_close(symbol, market)
+    return {
+        "price": float(price) if price is not None and price > 0 else None,
+        "observed_at": observed_at,
+        "source": "portfolio.latest_close",
+        "quality_status": "available" if price is not None and price > 0 else "unavailable",
+    }
+
+
+def _cost_snapshot(
+    market: str,
+    *,
+    account_id: str,
+    profile_id: str | None,
+    version: str | None,
+) -> dict[str, Any]:
+    stored = store.get_trading_cost_profile(profile_id, version) if profile_id else None
+    if stored:
+        profile = TradingCostProfile.model_validate(stored)
+    else:
+        profile = select_reference_profile(
+            market,
+            profile_id=profile_id,
+            version=version,
+            account_scope=account_id,
+        )
+    snapshot = profile.immutable_snapshot()
+    store.save_trading_cost_profile(snapshot)
+    return snapshot
+
+
+def _research_decision(run_id: str | None) -> dict[str, Any] | None:
+    if not run_id:
+        return None
+    run = store.get_research_run(run_id)
+    if run is None:
+        return None
+    decision = decision_from_mapping((run.get("summary") or {}).get("research_decision"))
+    return decision.model_dump(mode="json") if decision else None
+
+
+def _evaluate_order(
+    req: SimulationOrderCreate | SimulationOrderPreviewRequest,
+    *,
+    intent_id: str,
+    trusted_market_snapshot: dict[str, Any] | None = None,
+    trusted_research_decision: dict[str, Any] | None = None,
+    trusted_limits: dict[str, float] | None = None,
+) -> tuple[dict[str, Any], dict[str, Any], PaperOrderIntent]:
+    context = _resolve_order_context(req)
+    instrument = context["instrument"]
+    intent = PaperOrderIntent(
+        intent_id=intent_id,
+        account_id=req.account_id,
+        symbol=instrument.code,
+        market=instrument.market,
+        side=context["side"],
+        order_type=req.order_type,
+        quantity=req.quantity,
+        limit_price=req.limit_price,
+        signal_id=req.signal_id,
+        research_run_id=context["research_run_id"],
+        reduce_only=req.reduce_only,
+    )
+    account = account_snapshot(account_id=req.account_id)
+    open_orders = [
+        item
+        for item in store.list_simulation_orders(account_id=req.account_id, limit=10_000)
+        if item["status"] in {"pending", "partially_filled"}
+    ]
+    risk_config = get_config(instrument.market).get("risk", {})
+    decision = evaluate_risk(
+        intent,
+        market_snapshot=(
+            trusted_market_snapshot
+            if trusted_market_snapshot is not None
+            else _market_snapshot(instrument.code, instrument.market)
+        ),
+        account_snapshot=account,
+        open_orders=open_orders,
+        cost_profile=_cost_snapshot(
+            instrument.market,
+            account_id=req.account_id,
+            profile_id=req.cost_profile_id,
+            version=req.cost_profile_version,
+        ),
+        research_decision=(
+            trusted_research_decision
+            if trusted_research_decision is not None
+            else _research_decision(context["research_run_id"])
+        ),
+        limits=(
+            trusted_limits
+            if trusted_limits is not None
+            else {
+                "max_position_per_symbol": float(risk_config.get("max_position_per_symbol", 0.15)),
+                "max_total_exposure": float(risk_config.get("max_total_exposure", 0.8)),
+            }
+        ),
+    )
+    return context, decision, intent
 
 
 def preview_order(req: SimulationOrderPreviewRequest) -> dict:
-    """在创建模拟订单前计算账户影响，不写入订单或账本。"""
-    signal = store.get_signal(req.signal_id)
-    if signal is None:
-        raise KeyError(req.signal_id)
-    if signal["direction"] not in {"buy", "sell"}:
-        raise ValueError("观望信号不能转为模拟订单")
-
-    symbol = signal["symbol"]
-    market = signal["market"]
-    side = signal["direction"]
-    account = account_snapshot()
-    position = next(
-        (
-            item
-            for item in account["positions"]
-            if item["symbol"] == symbol and item["market"] == market
-        ),
-        None,
-    )
-    current_quantity = float(position["quantity"]) if position else 0.0
-    signed_quantity = req.quantity if side == "buy" else -req.quantity
-    projected_quantity = current_quantity + signed_quantity
-    price = portfolio_service.latest_close(symbol, market)
-    if price is not None and price <= 0:
-        price = None
-
-    risk = get_config(market).get("risk", {})
-    max_symbol_weight = float(risk.get("max_position_per_symbol", 0.15))
-    max_total_exposure = float(risk.get("max_total_exposure", 0.8))
-    equity = float(account["equity"])
-    cash = float(account["cash"])
-    checks: list[dict[str, Any]] = []
-
-    if price is None:
-        checks.append(
-            {
-                "key": "price_available",
-                "label": "行情价格",
-                "status": "unavailable",
-                "actual": None,
-                "limit": None,
-                "unit": "price",
-            }
-        )
-        return {
-            "symbol": symbol,
-            "market": market,
-            "side": side,
-            "quantity": req.quantity,
-            "price": None,
-            "order_notional": None,
-            "current_quantity": round(current_quantity, 8),
-            "projected_quantity": round(projected_quantity, 8),
-            "current_symbol_value": None,
-            "projected_symbol_value": None,
-            "gross_exposure_before": round(
-                sum(abs(float(item["market_value"])) for item in account["positions"]), 2
-            ),
-            "gross_exposure_after": None,
-            "cash_before": round(cash, 2),
-            "cash_after": None,
-            "equity": round(equity, 2),
-            "risk_evaluated": False,
-            "can_submit": True,
-            "checks": checks,
-        }
-
-    order_notional = req.quantity * price
-    current_symbol_value = current_quantity * price
-    projected_symbol_value = projected_quantity * price
-    existing_symbol_value = float(position["market_value"]) if position else 0.0
-    recorded_gross = sum(abs(float(item["market_value"])) for item in account["positions"])
-    gross_before = recorded_gross - abs(existing_symbol_value) + abs(current_symbol_value)
-    gross_after = gross_before - abs(current_symbol_value) + abs(projected_symbol_value)
-    cash_after = cash - order_notional if side == "buy" else cash + order_notional
-
-    if equity <= 0:
-        checks.append(
-            {
-                "key": "positive_equity",
-                "label": "账户权益",
-                "status": "failed",
-                "actual": round(equity, 2),
-                "limit": 0.0,
-                "unit": "currency",
-            }
-        )
-    else:
-        checks.extend(
-            [
-                _risk_check(
-                    "symbol_weight",
-                    "单标的仓位",
-                    abs(projected_symbol_value) / equity,
-                    max_symbol_weight,
-                ),
-                _risk_check(
-                    "gross_exposure",
-                    "组合总敞口",
-                    gross_after / equity,
-                    max_total_exposure,
-                ),
-            ]
-        )
-    if side == "buy":
-        checks.append(
-            {
-                "key": "available_cash",
-                "label": "可用现金",
-                "status": "passed" if cash_after >= 0 else "failed",
-                "actual": round(cash, 2),
-                "limit": round(order_notional, 2),
-                "unit": "currency",
-            }
-        )
-
+    """Evaluate the same server-side risk path as create, without writing an order."""
+    context, decision, intent = _evaluate_order(req, intent_id=f"preview:{uuid.uuid4().hex}")
+    calculation = decision["calculation"]
     return {
-        "symbol": symbol,
-        "market": market,
-        "side": side,
-        "quantity": req.quantity,
-        "price": round(price, 8),
-        "order_notional": round(order_notional, 2),
-        "current_quantity": round(current_quantity, 8),
-        "projected_quantity": round(projected_quantity, 8),
-        "current_symbol_value": round(current_symbol_value, 2),
-        "projected_symbol_value": round(projected_symbol_value, 2),
-        "gross_exposure_before": round(gross_before, 2),
-        "gross_exposure_after": round(gross_after, 2),
-        "cash_before": round(cash, 2),
-        "cash_after": round(cash_after, 2),
-        "equity": round(equity, 2),
-        "risk_evaluated": True,
-        "can_submit": not any(item["status"] == "failed" for item in checks),
-        "checks": checks,
+        "symbol": intent.symbol,
+        "market": intent.market,
+        "side": intent.side,
+        "quantity": intent.quantity,
+        "research_run_id": context["research_run_id"],
+        "price": calculation["execution_price"],
+        "order_notional": calculation["order_notional"],
+        "current_quantity": calculation["current_quantity"],
+        "projected_quantity": calculation["projected_quantity"],
+        "gross_exposure_before": calculation["gross_exposure_before"],
+        "gross_exposure_after": calculation["gross_exposure_after"],
+        "cash_before": calculation["cash_before"],
+        "cash_after": calculation["cash_after"],
+        "equity": decision["snapshot"]["account"].get("equity"),
+        **decision,
     }
 
 
-def create_order(req: SimulationOrderCreate) -> dict:
-    symbol = req.symbol
-    market = req.market
-    side = req.side
-    if req.signal_id:
-        signal = store.get_signal(req.signal_id)
-        if signal is None:
-            raise KeyError(req.signal_id)
-        symbol = signal["symbol"]
-        market = signal["market"]
-        if signal["direction"] not in {"buy", "sell"}:
-            raise ValueError("观望信号不能转为模拟订单")
-        side = signal["direction"]
-    assert symbol is not None and side is not None
-    instrument = instrument_service.resolve_strict(symbol, market)
+def create_order(
+    req: SimulationOrderCreate,
+    *,
+    trusted_market_snapshot: dict[str, Any] | None = None,
+    trusted_research_decision: dict[str, Any] | None = None,
+    trusted_limits: dict[str, float] | None = None,
+) -> dict:
+    intent_id = req.intent_id or (f"signal:{req.signal_id}" if req.signal_id else uuid.uuid4().hex)
+    existing = store.get_simulation_order_by_intent(intent_id)
+    if existing is not None:
+        return {**existing, "idempotent_replay": True}
+    context, decision, intent = _evaluate_order(
+        req,
+        intent_id=intent_id,
+        trusted_market_snapshot=trusted_market_snapshot,
+        trusted_research_decision=trusted_research_decision,
+        trusted_limits=trusted_limits,
+    )
+    risk_record = store.add_simulation_risk_decision(
+        intent_id=intent_id,
+        order_id=None,
+        account_id=intent.account_id,
+        symbol=intent.symbol,
+        market=intent.market,
+        outcome=decision["outcome"],
+        reason_codes=decision["reason_codes"],
+        snapshot=decision["snapshot"],
+        decision=decision,
+        input_fingerprint=decision["input_fingerprint"],
+        rule_version=decision["rule_version"],
+    )
+    if not decision["can_submit"]:
+        raise SimulationRiskRejected({**decision, "risk_decision_id": risk_record["id"]})
+    instrument = context["instrument"]
     now_iso = datetime.now(UTC).isoformat()
     theoretical_price = req.theoretical_price
     if theoretical_price is None:
-        try:
-            latest = portfolio_service.latest_close(instrument.code, instrument.market)
-            theoretical_price = float(latest) if latest and latest > 0 else None
-        except (LookupError, ValueError, TypeError):
-            theoretical_price = None
+        theoretical_price = decision["calculation"]["execution_price"]
     signal_time = req.signal_time.isoformat() if req.signal_time else None
-    if signal_time is None and req.signal_id and signal is not None:
+    signal = context["signal"]
+    if signal_time is None and signal is not None:
         signal_time = signal.get("ts")
-    return store.create_simulation_order(
+    order = store.create_simulation_order(
+        intent_id=intent_id,
         signal_id=req.signal_id,
         symbol=instrument.code,
         market=instrument.market,
-        side=side,
+        side=intent.side,
         order_type=req.order_type,
         quantity=req.quantity,
         limit_price=req.limit_price,
@@ -488,15 +508,24 @@ def create_order(req: SimulationOrderCreate) -> dict:
         audit={
             "factor_key": req.factor_key,
             "factor_version": req.factor_version,
-            "research_run_id": req.research_run_id,
+            "strategy_id": req.strategy_id,
+            "strategy_version": req.strategy_version,
+            "research_run_id": context["research_run_id"],
+            "market_regime_id": req.market_regime_id,
             "rebalance_cycle_id": req.rebalance_cycle_id,
             "signal_time": signal_time or now_iso,
             "tradable_time": req.tradable_time.isoformat() if req.tradable_time else now_iso,
             "theoretical_price": theoretical_price,
             "capacity_used": req.capacity_used,
             "rejection_reason": None,
+            "risk_decision_id": risk_record["id"],
+            "risk_decision": decision,
+            "cost_profile": decision["snapshot"]["cost_profile"],
+            "reduce_only": req.reduce_only,
         },
     )
+    store.update_simulation_risk_order(risk_record["id"], order["id"])
+    return {**order, "idempotent_replay": False}
 
 
 def _find_execution(order: dict, execution_id: str) -> dict:
@@ -531,6 +560,27 @@ def sync_execution_to_ledger(order_id: str, execution_id: str) -> dict:
             ts=execution["executed_at"],
             source="simulation",
             note=(f"模拟账户 {order['account_id']} / 订单 {order_id} / 成交 {execution_id}"),
+            strategy_id=order["audit"].get("strategy_id"),
+            strategy_version=order["audit"].get("strategy_version"),
+            factor_key=order["audit"].get("factor_key"),
+            factor_version=order["audit"].get("factor_version"),
+            research_run_id=order["audit"].get("research_run_id"),
+            signal_id=order.get("signal_id"),
+            simulation_order_id=order_id,
+            execution_id=execution_id,
+            market_regime_id=order["audit"].get("market_regime_id"),
+            attribution_status=(
+                "attributed"
+                if any(
+                    (
+                        order["audit"].get("strategy_id"),
+                        order["audit"].get("factor_key"),
+                        order["audit"].get("research_run_id"),
+                        order.get("signal_id"),
+                    )
+                )
+                else "unknown_attribution"
+            ),
         )
         saved_trade = ledger_repository.save_trade_if_absent(trade)
         comparable_fields = (
@@ -608,8 +658,12 @@ def fill_isolated_order(order_id: str, req: SimulationFillCreate) -> dict:
     return refreshed
 
 
-def account_snapshot(starting_cash: float = 1_000_000.0) -> dict:
-    orders = store.list_simulation_orders(limit=10_000)
+def account_snapshot(
+    starting_cash: float = 1_000_000.0,
+    *,
+    account_id: str | None = None,
+) -> dict:
+    orders = store.list_simulation_orders(account_id=account_id, limit=10_000)
     events = sorted(
         (
             {
@@ -721,6 +775,7 @@ def account_snapshot(starting_cash: float = 1_000_000.0) -> dict:
     return {
         "ok": True,
         "mode": "paper",
+        "observed_at": datetime.now(UTC).isoformat(),
         "starting_cash": starting_cash,
         "cash": round(cash, 2),
         "market_value": round(market_value, 2),

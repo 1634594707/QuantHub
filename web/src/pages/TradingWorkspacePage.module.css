@@ -242,6 +242,48 @@
   align-items: center;
 }
 
+.allocationField {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) 44px auto;
+  gap: var(--sp-2);
+  align-items: center;
+  min-height: 36px;
+}
+
+.allocationField input {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.allocationField span {
+  color: var(--text-2);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  text-align: right;
+}
+
+.marketPriceNote {
+  display: grid;
+  align-content: center;
+  gap: 3px;
+  min-height: 68px;
+  padding: var(--sp-2) var(--sp-3);
+  border-left: 3px solid var(--accent);
+  background: var(--surface-2, var(--bg-subtle));
+}
+
+.marketPriceNote span,
+.marketPriceNote small {
+  color: var(--text-3);
+  font-size: 11px;
+}
+
+.marketPriceNote strong {
+  color: var(--text-1);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 14px;
+}
+
 .strategyLine {
   display: flex;
   flex-wrap: wrap;
@@ -347,6 +389,39 @@
   flex-wrap: wrap;
   gap: var(--sp-2);
   margin-bottom: var(--sp-3);
+}
+
+.amendPanel {
+  display: grid;
+  gap: var(--sp-3);
+  margin: var(--sp-4) 0;
+  padding: var(--sp-3);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--surface-2, var(--bg-subtle));
+}
+
+.amendPanel > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+
+.amendPanel > header div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.amendPanel > header strong {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.amendPanel > header small {
+  color: var(--text-3);
+  font-size: 11px;
 }
 
 .successMessage {

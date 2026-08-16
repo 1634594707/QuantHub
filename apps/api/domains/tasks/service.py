@@ -351,6 +351,9 @@ def _run_evaluation(task: dict, request: dict[str, Any]) -> dict[str, Any]:
         else "failed"
     )
     error_text = "；".join(errors) if errors else None
+    from apps.api.domains.research.service import persist_research_decision
+
+    persist_research_decision(run_id)
     store.update_research_run(run_id, {"status": final_status, "error": error_text})
     return {
         "ok": bool(successful_modules),

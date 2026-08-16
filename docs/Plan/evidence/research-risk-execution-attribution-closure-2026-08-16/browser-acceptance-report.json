@@ -1,0 +1,251 @@
+{
+  "generated_at": "2026-08-16T04:37:54.128Z",
+  "base_url": "http://127.0.0.1:5173",
+  "api_base": "http://127.0.0.1:8001",
+  "browser": "chromium",
+  "evidence_kind": "deterministic_api_fixture_real_page",
+  "viewports": [
+    {
+      "id": "mobile-390x844",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "id": "tablet-768x1024",
+      "width": 768,
+      "height": 1024
+    },
+    {
+      "id": "desktop-1440x900",
+      "width": 1440,
+      "height": 900
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "simulation-risk-blocked",
+      "path": "/simulation?symbol=AAPL&market=us_stocks"
+    },
+    {
+      "id": "research-conflict-history-diff",
+      "path": "/research/NVDA?market=us_stocks&tf=1d&view=history&run_id=run-conflicted"
+    },
+    {
+      "id": "ledger-attribution-conservation",
+      "path": "/ledger?tab=performance"
+    }
+  ],
+  "passed": true,
+  "results": [
+    {
+      "viewport": {
+        "id": "mobile-390x844",
+        "width": 390,
+        "height": 844
+      },
+      "scenario": "simulation-risk-blocked",
+      "assertions": {
+        "blockedStateVisible": true,
+        "machineReasonVisible": true,
+        "reevaluateActionVisible": true,
+        "createDisabled": true
+      },
+      "layout": {
+        "documentOverflow": 0,
+        "clippedText": []
+      },
+      "consoleErrors": [],
+      "failedRequests": [],
+      "failedResponses": [],
+      "passed": true
+    },
+    {
+      "viewport": {
+        "id": "mobile-390x844",
+        "width": 390,
+        "height": 844
+      },
+      "scenario": "research-conflict-history-diff",
+      "assertions": {
+        "conflictVisible": true,
+        "executionLanguageHidden": true,
+        "simulationDisabled": true,
+        "moduleOpinionsVisible": true,
+        "structuredDirectionChange": true,
+        "structuredMetricChange": true,
+        "structuredLevelChange": true
+      },
+      "layout": {
+        "documentOverflow": 0,
+        "clippedText": []
+      },
+      "consoleErrors": [],
+      "failedRequests": [],
+      "failedResponses": [],
+      "passed": true
+    },
+    {
+      "viewport": {
+        "id": "mobile-390x844",
+        "width": 390,
+        "height": 844
+      },
+      "scenario": "ledger-attribution-conservation",
+      "assertions": {
+        "factorVersionsSeparated": true,
+        "dimensionFilterWorks": true,
+        "conservationBalanced": true,
+        "unknownAttributionVisible": true,
+        "stableBacklinkVisible": true
+      },
+      "layout": {
+        "documentOverflow": 0,
+        "clippedText": []
+      },
+      "consoleErrors": [],
+      "failedRequests": [],
+      "failedResponses": [],
+      "passed": true
+    },
+    {
+      "viewport": {
+        "id": "tablet-768x1024",
+        "width": 768,
+        "height": 1024
+      },
+      "scenario": "simulation-risk-blocked",
+      "assertions": {
+        "blockedStateVisible": true,
+        "machineReasonVisible": true,
+        "reevaluateActionVisible": true,
+        "createDisabled": true
+      },
+      "layout": {
+        "documentOverflow": 0,
+        "clippedText": []
+      },
+      "consoleErrors": [],
+      "failedRequests": [],
+      "failedResponses": [],
+      "passed": true
+    },
+    {
+      "viewport": {
+        "id": "tablet-768x1024",
+        "width": 768,
+        "height": 1024
+      },
+      "scenario": "research-conflict-history-diff",
+      "assertions": {
+        "conflictVisible": true,
+        "executionLanguageHidden": true,
+        "simulationDisabled": true,
+        "moduleOpinionsVisible": true,
+        "structuredDirectionChange": true,
+        "structuredMetricChange": true,
+        "structuredLevelChange": true
+      },
+      "layout": {
+        "documentOverflow": 0,
+        "clippedText": []
+      },
+      "consoleErrors": [],
+      "failedRequests": [],
+      "failedResponses": [],
+      "passed": true
+    },
+    {
+      "viewport": {
+        "id": "tablet-768x1024",
+        "width": 768,
+        "height": 1024
+      },
+      "scenario": "ledger-attribution-conservation",
+      "assertions": {
+        "factorVersionsSeparated": true,
+        "dimensionFilterWorks": true,
+        "conservationBalanced": true,
+        "unknownAttributionVisible": true,
+        "stableBacklinkVisible": true
+      },
+      "layout": {
+        "documentOverflow": 0,
+        "clippedText": []
+      },
+      "consoleErrors": [],
+      "failedRequests": [],
+      "failedResponses": [],
+      "passed": true
+    },
+    {
+      "viewport": {
+        "id": "desktop-1440x900",
+        "width": 1440,
+        "height": 900
+      },
+      "scenario": "simulation-risk-blocked",
+      "assertions": {
+        "blockedStateVisible": true,
+        "machineReasonVisible": true,
+        "reevaluateActionVisible": true,
+        "createDisabled": true
+      },
+      "layout": {
+        "documentOverflow": 0,
+        "clippedText": []
+      },
+      "consoleErrors": [],
+      "failedRequests": [],
+      "failedResponses": [],
+      "passed": true
+    },
+    {
+      "viewport": {
+        "id": "desktop-1440x900",
+        "width": 1440,
+        "height": 900
+      },
+      "scenario": "research-conflict-history-diff",
+      "assertions": {
+        "conflictVisible": true,
+        "executionLanguageHidden": true,
+        "simulationDisabled": true,
+        "moduleOpinionsVisible": true,
+        "structuredDirectionChange": true,
+        "structuredMetricChange": true,
+        "structuredLevelChange": true
+      },
+      "layout": {
+        "documentOverflow": 0,
+        "clippedText": []
+      },
+      "consoleErrors": [],
+      "failedRequests": [],
+      "failedResponses": [],
+      "passed": true
+    },
+    {
+      "viewport": {
+        "id": "desktop-1440x900",
+        "width": 1440,
+        "height": 900
+      },
+      "scenario": "ledger-attribution-conservation",
+      "assertions": {
+        "factorVersionsSeparated": true,
+        "dimensionFilterWorks": true,
+        "conservationBalanced": true,
+        "unknownAttributionVisible": true,
+        "stableBacklinkVisible": true
+      },
+      "layout": {
+        "documentOverflow": 0,
+        "clippedText": []
+      },
+      "consoleErrors": [],
+      "failedRequests": [],
+      "failedResponses": [],
+      "passed": true
+    }
+  ]
+}

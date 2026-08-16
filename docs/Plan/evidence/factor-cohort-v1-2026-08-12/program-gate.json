@@ -1,0 +1,37 @@
+{
+  "version": "small-live-gate-v1",
+  "passed": false,
+  "checks": {
+    "minimum_observation_days": false,
+    "minimum_rebalances": false,
+    "positive_after_cost_return": true,
+    "risk_adjusted_excess": false,
+    "random_distribution": true,
+    "not_leverage_driven": true,
+    "drawdown_within_limit": true,
+    "fill_and_capacity": true,
+    "risk_limits": false,
+    "replay_reconciled": true,
+    "regime_stability": false,
+    "freshness": true,
+    "reconciliation": false,
+    "kill_switch": false
+  },
+  "violations": [
+    "minimum_observation_days",
+    "minimum_rebalances",
+    "risk_adjusted_excess",
+    "risk_limits",
+    "regime_stability",
+    "reconciliation",
+    "kill_switch"
+  ],
+  "allowed_transition": null,
+  "ai_can_override": false,
+  "manual_approval_required": true,
+  "live_trading_enabled": false,
+  "observation_status": "pending",
+  "observed_natural_days": 0,
+  "required_natural_days": 7,
+  "real_duration_fabricated": false
+}

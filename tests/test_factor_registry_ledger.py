@@ -19,11 +19,13 @@ from apps.api.domains.factor_research.schemas import (
     FactorExperimentCreate,
     FactorExperimentEventCreate,
     FactorLifecycleTransitionRequest,
+    FactorLineageRequest,
     FactorPreRegistration,
     FactorRedundancyRequest,
     FactorResearchDataPartition,
     FactorResearchDataSplit,
     FactorResearchPlanCreate,
+    FactorRetirementImpactRequest,
     TokenFormulaImportRequest,
 )
 
@@ -331,6 +333,12 @@ class FactorRegistryLedgerTests(unittest.TestCase):
                     required_observation_periods=5,
                     human_reviewed=True,
                     retirement_reason="持续衰减",
+                    retirement_impact=service.preview_factor_retirement_impact(
+                        FactorRetirementImpactRequest(
+                            factor_key="dsl_momentum",
+                            replacement_factor_key="residual_momentum",
+                        )
+                    )["preview"],
                 ),
             ),
         )
@@ -348,6 +356,25 @@ class FactorRegistryLedgerTests(unittest.TestCase):
                     required_observation_periods=5,
                     human_reviewed=True,
                     retirement_reason="持续衰减且恢复门禁未通过",
+                    retirement_impact=service.preview_factor_retirement_impact(
+                        FactorRetirementImpactRequest(
+                            factor_key="dsl_momentum",
+                            replacement_factor_key="residual_momentum",
+                            strategies=[
+                                {
+                                    "strategy_id": "strategy-a",
+                                    "factor_keys": ["dsl_momentum", "quality"],
+                                }
+                            ],
+                            portfolio_allocations=[
+                                {
+                                    "portfolio_id": "shadow-a",
+                                    "factor_key": "dsl_momentum",
+                                    "weight": 0.25,
+                                }
+                            ],
+                        )
+                    )["preview"],
                 ),
             ),
         )
@@ -375,6 +402,18 @@ class FactorRegistryLedgerTests(unittest.TestCase):
             history["events"][2]["evidence"]["formula_definition_hash"],
             definition["definition_hash"],
         )
+        lineage = service.get_factor_lineage(
+            "dsl_momentum",
+            "1.0.0",
+            FactorLineageRequest(target_market="a_shares"),
+        )
+        self.assertEqual(lineage["current_state"], "retired")
+        self.assertEqual(lineage["retirement_record"]["reason"], "持续衰减且恢复门禁未通过")
+        impact = lineage["retirement_record"]["impact"]
+        self.assertEqual(impact["replacement_factor_key"], "residual_momentum")
+        self.assertEqual(impact["impacted_strategy_count"], 1)
+        self.assertEqual(impact["impacted_portfolio_weight"], 0.25)
+        self.assertFalse(impact["definition_deletion_allowed"])
 
     def test_ai_and_training_selection_cannot_upgrade_lifecycle(self) -> None:
         definition = self.register()

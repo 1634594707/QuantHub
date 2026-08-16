@@ -44,9 +44,27 @@ def create_order(req: SimulationOrderCreate) -> dict:
         order = service.create_order(req)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=f"信号不存在: {exc.args[0]}") from exc
+    except service.SimulationRiskRejected as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "SIMULATION_RISK_REJECTED",
+                "message": str(exc),
+                "risk_decision": exc.decision,
+            },
+        ) from exc
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     return {"ok": True, "order": order}
+
+
+@router.get("/risk-decisions")
+def list_risk_decisions(
+    intent_id: str | None = None,
+    limit: int = Query(default=100, ge=1, le=500),
+) -> dict:
+    rows = store.list_simulation_risk_decisions(intent_id=intent_id, limit=limit)
+    return {"ok": True, "count": len(rows), "risk_decisions": rows}
 
 
 @router.get("/orders")

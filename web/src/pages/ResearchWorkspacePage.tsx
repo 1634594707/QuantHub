@@ -134,18 +134,23 @@ function buildReadableReport(run: ResearchRun) {
   const quantitativeStrategies = Array.isArray(quantitative?.strategies)
     ? quantitative.strategies.map(asRecord).filter((item): item is Record<string, unknown> => item !== null)
     : []
-  const ensemble = asRecord(summary?.ensemble)
-  const consensus = asRecord(ensemble?.consensus)
   const news = asRecord(summary?.news)
-  const consensusDirection = consensus?.direction === 'buy'
-    || consensus?.direction === 'sell'
-    || consensus?.direction === 'hold'
-    ? consensus.direction
-    : null
-  const orderDirection = decision?.order_direction === '做多'
-    || decision?.order_direction === '做空'
-    ? decision.order_direction
-    : null
+  const unifiedDecision = asRecord(summary?.research_decision)
+  const evidenceFusion = asRecord(summary?.evidence_fusion)
+  const decisionDirection = unifiedDecision?.direction === 'long'
+    || unifiedDecision?.direction === 'short'
+    || unifiedDecision?.direction === 'neutral'
+    || unifiedDecision?.direction === 'conflicted'
+    || unifiedDecision?.direction === 'insufficient'
+    ? unifiedDecision.direction
+    : 'insufficient'
+  const executionEligible = unifiedDecision?.execution_eligible === true
+  const moduleOpinions = Array.isArray(unifiedDecision?.module_opinions)
+    ? unifiedDecision.module_opinions.map(asRecord).filter((item): item is Record<string, unknown> => item !== null)
+    : []
+  const decisionConflicts = Array.isArray(unifiedDecision?.conflicts)
+    ? unifiedDecision.conflicts.map(asRecord).filter((item): item is Record<string, unknown> => item !== null)
+    : []
   const successfulModules = run.modules.filter((module) => {
     const moduleSummary = asRecord(summary?.[module])
     return moduleSummary !== null && moduleSummary.ok !== false
@@ -154,18 +159,16 @@ function buildReadableReport(run: ResearchRun) {
     ? ensemblePayload.contributors.map(asRecord).filter((item): item is Record<string, unknown> => item !== null)
     : []
   const availableContributors = contributors.filter((item) => item.available !== false)
-  const contributorDirections = availableContributors
-    .map((item) => item.direction)
-    .filter((direction): direction is 'buy' | 'sell' | 'hold' => direction === 'buy' || direction === 'sell' || direction === 'hold')
-  const directionSet = new Set(contributorDirections)
-  const hasConflict = directionSet.size > 1
-  const conclusion = successfulModules.length < 2 || (!consensusDirection && !orderDirection)
-    ? '数据不足'
-    : consensusDirection === 'buy' || (!consensusDirection && orderDirection === '做多')
-      ? '偏强'
-      : consensusDirection === 'sell' || (!consensusDirection && orderDirection === '做空')
-        ? '偏弱'
-        : '中性'
+  const hasConflict = decisionDirection === 'conflicted'
+  const conclusion = decisionDirection === 'long'
+    ? '偏强'
+    : decisionDirection === 'short'
+      ? '偏弱'
+      : decisionDirection === 'neutral'
+        ? '中性'
+        : decisionDirection === 'conflicted'
+          ? '方向分歧'
+          : '数据不足'
   const keyFactors = Array.isArray(decision?.key_factors)
     ? decision.key_factors.filter((item): item is string => typeof item === 'string').slice(0, 3)
     : []
@@ -182,33 +185,60 @@ function buildReadableReport(run: ResearchRun) {
       keyFactors.push(`${typeof item.label === 'string' ? item.label : '量化维度'}：${item.evidence}`)
     })
   }
-  const watchPoints = Array.isArray(decision?.watch_points)
-    ? decision.watch_points.filter((item): item is string => typeof item === 'string').slice(0, 3)
-    : []
+  const watchPoints = Array.isArray(unifiedDecision?.reevaluate_triggers)
+    ? unifiedDecision.reevaluate_triggers.filter((item): item is string => typeof item === 'string').slice(0, 5)
+    : Array.isArray(decision?.watch_points)
+      ? decision.watch_points.filter((item): item is string => typeof item === 'string').slice(0, 3)
+      : []
   const sourceDetails = Array.from(new Set((run.evidence ?? []).map((item) => item.source).filter(Boolean)))
-  const disagreements = hasConflict
-    ? availableContributors
-      .filter((item) => item.direction === 'buy' || item.direction === 'sell' || item.direction === 'hold')
-      .map((item) => `${typeof item.name === 'string' ? item.name : '模型'}：${item.direction}`)
-    : []
+  const disagreements = decisionConflicts.map((item) => String(item.reason ?? item.kind ?? '模块意见冲突'))
+  const coverage = ['fundamental', 'valuation', 'factor', 'holding'].map((key) => {
+    const item = asRecord(evidenceFusion?.[key])
+    return {
+      key,
+      covered: item?.covered === true || (key === 'holding' && item?.available === true),
+      missing: Array.isArray(item?.missing_fields) ? item.missing_fields.map(String) : [],
+    }
+  })
+  const entry = asNumber(decision?.entry_price)
+  const invalidation = asNumber(decision?.stop_loss_price)
+  const target = asNumber(decision?.take_profit_price)
+  const geometryReference = entry ?? asNumber(marketSummary?.latest_price)
+  const targetGeometryValid = target === null || geometryReference === null
+    ? null
+    : decisionDirection === 'long'
+      ? target > geometryReference
+      : decisionDirection === 'short'
+        ? target < geometryReference
+        : null
 
   return {
     conclusion,
-    headline: conclusion === '数据不足'
-      ? '当前成功模块不足，不能形成完整结论。'
+    decisionDirection,
+    executionEligible,
+    decisionVersion: typeof unifiedDecision?.decision_version === 'string' ? unifiedDecision.decision_version : null,
+    moduleOpinions,
+    coverage,
+    headline: decisionDirection === 'insufficient'
+      ? '关键证据缺失或过期，当前不能形成可执行结论。'
       : hasConflict
-        ? '可用模块方向存在分歧，需要等待新的确认依据。'
-        : `可用模块当前共同指向${conclusion}。`,
-    explanation: hasConflict
-      ? `分歧来源：${disagreements.join('；')}`
-      : `本结论仅使用已成功完成的模块：${successfulModules.map((module) => MODULE_LABELS[module] ?? module).join('、') || '无'}。`,
+        ? '有效模块方向相反，统一决策已失败关闭。'
+        : decisionDirection === 'neutral'
+          ? '有效模块没有形成方向性优势。'
+          : `统一研究决策为${conclusion}。`,
+    explanation: disagreements.length
+      ? `阻断原因：${disagreements.join('；')}`
+      : `决策版本 ${typeof unifiedDecision?.decision_version === 'string' ? unifiedDecision.decision_version : '未知'}，有效模块：${successfulModules.map((module) => MODULE_LABELS[module] ?? module).join('、') || '无'}。`,
     newsStatus: asNumber(news?.total) === 0 ? '暂无有效新闻' : news ? '已纳入新闻' : '新闻未纳入',
     latestPrice: asNumber(marketSummary?.latest_price),
     latestTime: marketSummary?.latest_time,
     marketSource: typeof marketSummary?.source === 'string' ? marketSummary.source : null,
-    entry: asNumber(decision?.entry_price),
-    invalidation: asNumber(decision?.stop_loss_price),
-    target: asNumber(decision?.take_profit_price),
+    entry,
+    invalidation,
+    target,
+    targetLabel: decisionDirection === 'long' ? '上方目标位' : decisionDirection === 'short' ? '下方目标位' : '参考目标位',
+    targetGeometryValid,
+    invalidationConditions: Array.isArray(unifiedDecision?.invalidation_conditions) ? unifiedDecision.invalidation_conditions.filter((item): item is string => typeof item === 'string') : [],
     keyFactors,
     watchPoints,
     disagreements,
@@ -925,6 +955,13 @@ export default function ResearchWorkspacePage() {
                       </div>
                     </header>
                     <p className="research-report-explanation">{readableReport.explanation}</p>
+                    <div className="research-decision-modules" aria-label="统一研究决策模块意见">
+                      {readableReport.moduleOpinions.map((opinion) => <div key={String(opinion.module)}><span>{MODULE_LABELS[String(opinion.module)] ?? String(opinion.module)}</span><b>{String(opinion.direction)}</b><small>{String(opinion.status)}{typeof opinion.reason === 'string' && opinion.reason ? ` · ${opinion.reason}` : ''}</small></div>)}
+                      {!readableReport.moduleOpinions.length && <div><span>统一决策</span><b>insufficient</b><small>没有保存模块意见</small></div>}
+                    </div>
+                    <div className="research-evidence-coverage" aria-label="证据覆盖范围">
+                      {readableReport.coverage.map((item) => <span key={item.key} className={item.covered ? 'covered' : 'missing'}>{item.key === 'fundamental' ? '基本面' : item.key === 'valuation' ? '估值' : item.key === 'factor' ? '因子' : '持仓'} · {item.covered ? '已覆盖' : `缺失${item.missing.length ? `：${item.missing.join('/')}` : ''}`}</span>)}
+                    </div>
                     <dl className="research-report-metrics">
                       <div><dt>最新价格</dt><dd>{readableReport.latestPrice?.toLocaleString('zh-CN') ?? '数据不足'}</dd></div>
                       <div><dt>价格时间</dt><dd>{typeof readableReport.latestTime === 'string' ? readableReport.latestTime : '数据不足'}</dd></div>
@@ -969,11 +1006,11 @@ export default function ResearchWorkspacePage() {
                         {readableReport.quantitativeDisagreement && <p className="research-strategy-disagreement">不同策略视角给出了不同约束，这是需要保留的判断分歧。</p>}
                       </section>
                     )}
-                    <div className="research-report-levels" aria-label="模型关键价位">
+                    {readableReport.executionEligible ? <div className="research-report-levels" aria-label="模型关键价位">
                       <div><span>模型观察位</span><b>{readableReport.entry?.toLocaleString('zh-CN') ?? '—'}</b><small>不是买入价</small></div>
                       <div><span>判断失效位</span><b>{readableReport.invalidation?.toLocaleString('zh-CN') ?? '—'}</b><small>突破后重新评估</small></div>
-                      <div><span>下方参考位</span><b>{readableReport.target?.toLocaleString('zh-CN') ?? '—'}</b><small>关注支撑反应</small></div>
-                    </div>
+                      <div><span>{readableReport.targetLabel}</span><b>{readableReport.target?.toLocaleString('zh-CN') ?? '—'}</b><small>{readableReport.targetGeometryValid === false ? '价位几何关系异常，禁止执行' : readableReport.decisionDirection === 'long' ? '应高于观察位' : '应低于观察位'}</small></div>
+                    </div> : <div className="research-execution-gate" role="status"><b>执行入口已锁定</b><span>{readableReport.decisionDirection === 'conflicted' ? '方向冲突' : '证据不足或无方向性优势'}，不展示入场、止损和止盈动作。</span></div>}
                     <div className="research-report-reasons">
                       <div>
                         <h3>为什么这样判断</h3>
@@ -1001,11 +1038,12 @@ export default function ResearchWorkspacePage() {
                       </div>
                     </div>
                     {readableReport.disagreements.length > 0 && <p className="research-report-risk"><b>模块分歧</b>{readableReport.disagreements.join('；')}</p>}
+                    {readableReport.invalidationConditions.length > 0 && <p className="research-report-risk"><b>失效条件</b>{readableReport.invalidationConditions.join('；')}</p>}
                     <p className="research-report-risk"><b>主要风险</b>{readableReport.risk}</p>
                     <div className="research-report-actions">
                       <button type="button" onClick={() => void addCurrentInstrumentToWatchlist()}>加入自选</button>
                       <button type="button" onClick={() => navigate(`/alerts?action=create&symbol=${encodeURIComponent(symbol)}&market=${encodeURIComponent(market)}`)}>设置提醒</button>
-                      <button type="button" onClick={() => navigate(`/simulation?symbol=${encodeURIComponent(symbol)}&market=${encodeURIComponent(market)}`)}>进入模拟交易</button>
+                      <button type="button" disabled={!readableReport.executionEligible || readableReport.targetGeometryValid === false} title={!readableReport.executionEligible ? '统一研究决策未通过执行门禁' : readableReport.targetGeometryValid === false ? '关键价位几何关系异常' : undefined} onClick={() => navigate(`/simulation?symbol=${encodeURIComponent(symbol)}&market=${encodeURIComponent(market)}`)}>进入模拟交易</button>
                       <button type="button" onClick={() => exportReadableHtml(detailedRun, readableReport)}>导出 HTML</button>
                       <button type="button" onClick={() => printReadableReport(detailedRun, readableReport)}>打印 / PDF</button>
                       {reportActionMessage && <span role="status">{reportActionMessage}</span>}
@@ -1087,10 +1125,14 @@ export default function ResearchWorkspacePage() {
                           <span>{index === 0 ? '当前运行' : '对比运行'}</span>
                           <b className="mono-num">{row.id.slice(0, 12)}</b>
                           <small>分析内容：{formatModules(row.modules) || '—'}</small>
-                          <small>依据：{row.evidence_count} 条 · 摘要：{Object.keys(row.summary).map((key) => MODULE_LABELS[key] ?? key).join(' / ') || '—'}</small>
-                          <small>行情哈希：{row.snapshot_sha256[0]?.slice(0, 12) || '无快照'}</small>
+                          <small>依据：{row.evidence_count} 条 · 方向：{comparison.data?.structured_snapshots[index]?.direction ?? 'insufficient'}</small>
+                          <small>规则：{comparison.data?.structured_snapshots[index]?.decision_version ?? '未知'} · 执行：{comparison.data?.structured_snapshots[index]?.execution_eligible ? '允许' : '阻断'}</small>
                         </div>
                       ))}
+                    </div>
+                    <div className="research-comparison-changes">
+                      {comparison.data.changes.map((change, index) => <div key={`${change.kind}:${change.field}:${index}`}><span>{change.kind} / {change.field}</span><b>{String(change.before ?? '—')} → {String(change.after ?? '—')}</b>{typeof change.delta === 'number' && <small>差值 {change.delta > 0 ? '+' : ''}{change.delta}</small>}</div>)}
+                      {!comparison.data.changes.length && <div><span>实质变化</span><b>未检测到结构化字段变化</b></div>}
                     </div>
                   </div>
                 )}

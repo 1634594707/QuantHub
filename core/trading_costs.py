@@ -7,7 +7,9 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime
+import hashlib
+import json
+from datetime import UTC, date, datetime
 from math import isfinite
 from typing import Literal
 
@@ -79,7 +81,15 @@ class TradingExecutionConstraint(BaseModel):
 
 
 class TradingCostProfile(BaseModel):
+    profile_id: str = Field(default="inline", min_length=1, max_length=120)
+    version: str = Field(default="1.0.0", min_length=1, max_length=40)
+    name: str = Field(default="Inline cost profile", min_length=1, max_length=160)
     market: str = Field(min_length=1, max_length=40)
+    account_scope: str | None = Field(default=None, max_length=120)
+    effective_from: date | None = None
+    effective_to: date | None = None
+    source: str = Field(default="user_supplied", min_length=1, max_length=120)
+    captured_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     components: list[TradingCostComponent] = Field(min_length=1, max_length=20)
     participation_rate: float | None = Field(default=None, gt=0, le=1)
     execution_constraints: list[TradingExecutionConstraint] = Field(
@@ -98,7 +108,27 @@ class TradingCostProfile(BaseModel):
         mismatched = [item.key for item in self.components if item.market != self.market]
         if mismatched:
             raise ValueError(f"成本组件市场与档案不一致: {', '.join(mismatched)}")
+        if self.captured_at.tzinfo is None or self.captured_at.utcoffset() is None:
+            raise ValueError("captured_at 必须包含时区")
+        if self.effective_from and self.effective_to and self.effective_from > self.effective_to:
+            raise ValueError("effective_from 不能晚于 effective_to")
         return self
+
+    @property
+    def content_hash(self) -> str:
+        payload = self.model_dump(mode="json", exclude={"captured_at"})
+        canonical = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+    def immutable_snapshot(self) -> dict:
+        gaps = execution_profile_gaps(self)
+        return {
+            **self.model_dump(mode="json"),
+            "content_hash": self.content_hash,
+            "total_transaction_cost_bps": self.total_transaction_cost_bps,
+            "gaps": gaps,
+            "complete": not any(gaps.values()) and self.participation_rate is not None,
+        }
 
 
 # 这些键是 QuantHub 成本档案的公开契约，不对应或推断任何券商、交易所或
@@ -109,12 +139,12 @@ MARKET_EXECUTION_REQUIREMENTS: dict[str, dict[str, set[str]]] = {
         "constraints": {"limit_up", "limit_down", "suspended", "lot_size"},
     },
     "us_stocks": {
-        "components": {"spread", "commission"},
+        "components": {"spread", "commission", "sec_fee", "finra_taf"},
         "constraints": {"corporate_action_adjusted"},
     },
     "crypto": {
         "components": {"fee_tier", "funding_rate", "spread", "slippage"},
-        "constraints": set(),
+        "constraints": {"quantity_step", "price_tick"},
     },
     "mt5": {
         "components": {"spread", "overnight_swap", "contract_multiplier", "slippage"},

@@ -27,8 +27,10 @@ from .schemas import (
     FactorRobustnessRequest,
     FactorSimulationAttributionRequest,
     FactorSimulationValidationRequest,
+    FactorUniverseBatchRequest,
     FactorUniverseCreate,
     FactorUniverseMemberUpsert,
+    FactorUniverseRollbackRequest,
     TokenFormulaImportRequest,
 )
 from .service import (
@@ -36,6 +38,7 @@ from .service import (
     analyze_factor_redundancy,
     analyze_factor_robustness,
     append_factor_experiment_event,
+    apply_factor_universe_batch,
     attribute_factor_simulation_gap,
     build_factor_candidate_inbox,
     compare_factor_discovery_efficiency,
@@ -47,6 +50,7 @@ from .service import (
     factor_plan_multiple_testing,
     factor_research_attention,
     factor_status_matrix,
+    factor_universe_import_template,
     get_cross_sectional_research_run,
     get_factor_confirmation_set_opening,
     get_factor_experiment_record,
@@ -65,8 +69,10 @@ from .service import (
     list_registered_factor_definitions,
     open_factor_confirmation_set,
     preview_factor_retirement_impact,
+    preview_factor_universe_batch,
     register_factor_definition,
     review_factor_research,
+    rollback_factor_universe,
     run_and_save_factor_research,
     run_cross_sectional_research,
     seed_builtin_factor_definitions,
@@ -354,6 +360,35 @@ def list_universes(
     market: Literal["a_shares", "us_stocks", "crypto", "mt5"] | None = None,
 ) -> dict:
     return list_factor_universes(market=market)
+
+
+@router.get("/universes/import-template")
+def universe_import_template() -> dict:
+    return factor_universe_import_template()
+
+
+@router.post("/universes/{universe_id}/batch/preview")
+def preview_universe_batch(universe_id: str, req: FactorUniverseBatchRequest) -> dict:
+    result = preview_factor_universe_batch(universe_id, req)
+    if not result.get("ok"):
+        raise HTTPException(status_code=422, detail=result.get("error"))
+    return result
+
+
+@router.post("/universes/{universe_id}/batch/apply")
+def apply_universe_batch(universe_id: str, req: FactorUniverseBatchRequest) -> dict:
+    result = apply_factor_universe_batch(universe_id, req)
+    if not result.get("ok") and not result.get("batch"):
+        raise HTTPException(status_code=422, detail=result.get("error"))
+    return result
+
+
+@router.post("/universes/{universe_id}/rollback")
+def rollback_universe(universe_id: str, req: FactorUniverseRollbackRequest) -> dict:
+    result = rollback_factor_universe(universe_id, req)
+    if not result.get("ok"):
+        raise HTTPException(status_code=404, detail=result.get("error"))
+    return result
 
 
 @router.post("/universes/{universe_id}/members")

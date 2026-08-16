@@ -5,6 +5,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from core.cost_profiles import select_reference_profile
 from core.trading_costs import TradingCostProfile
 
 
@@ -486,6 +487,8 @@ class FactorResearchRequest(BaseModel):
     horizon: int = Field(default=5, ge=1, le=60)
     transaction_cost_bps: float = Field(default=10.0, ge=0, le=200)
     transaction_cost_profile: TradingCostProfile | None = None
+    cost_profile_id: str | None = None
+    cost_profile_version: str | None = None
     start_date: date | None = None
     end_date: date | None = None
     walk_forward_mode: Literal["expanding", "rolling"] = "expanding"
@@ -511,6 +514,12 @@ class FactorResearchRequest(BaseModel):
     def validate_date_range(self) -> FactorResearchRequest:
         if self.start_date and self.end_date and self.start_date > self.end_date:
             raise ValueError("start_date 不能晚于 end_date")
+        if self.transaction_cost_profile is None and self.cost_profile_id:
+            self.transaction_cost_profile = select_reference_profile(
+                self.market,
+                profile_id=self.cost_profile_id,
+                version=self.cost_profile_version,
+            )
         if self.transaction_cost_profile is not None:
             if self.transaction_cost_profile.market != self.market:
                 raise ValueError("transaction_cost_profile.market 与研究市场不一致")
@@ -518,6 +527,8 @@ class FactorResearchRequest(BaseModel):
             if total_bps > 200:
                 raise ValueError("transaction_cost_profile 总成本不能超过 200 bp")
             self.transaction_cost_bps = total_bps
+            self.cost_profile_id = self.transaction_cost_profile.profile_id
+            self.cost_profile_version = self.transaction_cost_profile.version
         return self
 
 
@@ -570,6 +581,25 @@ class FactorUniverseMemberUpsert(BaseModel):
         return self
 
 
+class FactorUniverseBatchRequest(BaseModel):
+    idempotency_key: str = Field(min_length=3, max_length=128)
+    source: str = Field(default="manual_import", min_length=1, max_length=120)
+    filename: str | None = Field(default=None, max_length=240)
+    content_base64: str | None = None
+    rows: list[FactorUniverseMemberUpsert] = Field(default_factory=list, max_length=20_000)
+
+    @model_validator(mode="after")
+    def validate_batch_source(self):
+        if bool(self.filename and self.content_base64) == bool(self.rows):
+            raise ValueError("必须且只能提供文件内容或结构化 rows")
+        return self
+
+
+class FactorUniverseRollbackRequest(BaseModel):
+    version_id: str = Field(min_length=1, max_length=64)
+    reason: str = Field(min_length=3, max_length=500)
+
+
 class CrossSectionResearchRequest(BaseModel):
     run_id: str | None = Field(default=None, min_length=1, max_length=64)
     universe_id: str = Field(min_length=1, max_length=64)
@@ -583,6 +613,8 @@ class CrossSectionResearchRequest(BaseModel):
     min_assets: int = Field(default=5, ge=3, le=500)
     transaction_cost_bps: float = Field(default=10.0, ge=0, le=200)
     transaction_cost_profile: TradingCostProfile | None = None
+    cost_profile_id: str | None = None
+    cost_profile_version: str | None = None
     participation_rate: float = Field(default=0.1, gt=0, le=0.5)
     portfolio_mode: Literal["cohort", "non_overlapping"] = "cohort"
     neutralize_industry: bool = True

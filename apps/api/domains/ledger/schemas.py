@@ -17,6 +17,15 @@ class TradeCreate(BaseModel):
     fee: float = Field(default=0, ge=0)
     source: str = Field(default="manual")
     note: str = Field(default="")
+    strategy_id: str | None = None
+    strategy_version: str | None = None
+    factor_key: str | None = None
+    factor_version: str | None = None
+    research_run_id: str | None = None
+    signal_id: str | None = None
+    simulation_order_id: str | None = None
+    execution_id: str | None = None
+    market_regime_id: str | None = None
 
     @field_validator("direction")
     @classmethod
@@ -67,6 +76,15 @@ class TradeCorrection(BaseModel):
     fee: float = Field(default=0, ge=0)
     source: str = Field(default="manual")
     note: str = Field(default="")
+    strategy_id: str | None = None
+    strategy_version: str | None = None
+    factor_key: str | None = None
+    factor_version: str | None = None
+    research_run_id: str | None = None
+    signal_id: str | None = None
+    simulation_order_id: str | None = None
+    execution_id: str | None = None
+    market_regime_id: str | None = None
 
     @field_validator("direction")
     @classmethod

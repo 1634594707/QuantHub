@@ -30,7 +30,13 @@ from .config import (
     TradingProxySettings,
     load_settings,
 )
-from .schemas import OrderIntentRequest, ResolveDiffRequest, RiskModeRequest
+from .schemas import (
+    AmendOrderRequest,
+    ClosePositionRequest,
+    OrderIntentRequest,
+    ResolveDiffRequest,
+    RiskModeRequest,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -129,6 +135,16 @@ class TradingService:
 
     # -- 首期范围强制 --------------------------------------------------------
 
+    def _validate_instrument_scope(self, symbol: str) -> None:
+        if self.settings.environment == "demo":
+            self._validate_demo_instrument(symbol)
+        elif symbol not in FIRST_PHASE_ALLOWED_SYMBOLS:
+            raise errors.TradingError(
+                errors.TRADING_INSTRUMENT_NOT_ALLOWED,
+                detail=f"symbol={symbol}",
+                hint=f"实盘仅允许 {', '.join(FIRST_PHASE_ALLOWED_SYMBOLS)}",
+            )
+
     def _enforce_scope(self, request: OrderIntentRequest) -> None:
         if not self.settings.enforce_first_phase_scope:
             return
@@ -143,14 +159,7 @@ class TradingService:
                 errors.TRADING_REJECTED,
                 detail="限价单必须提供 price",
             )
-        if self.settings.environment == "demo":
-            self._validate_demo_instrument(request.symbol)
-        elif request.symbol not in FIRST_PHASE_ALLOWED_SYMBOLS:
-            raise errors.TradingError(
-                errors.TRADING_INSTRUMENT_NOT_ALLOWED,
-                detail=f"symbol={request.symbol}",
-                hint=f"首期仅允许 {', '.join(FIRST_PHASE_ALLOWED_SYMBOLS)}",
-            )
+        self._validate_instrument_scope(request.symbol)
 
     def _preflight_data(self, symbols: list[str]) -> dict[str, Any]:
         requested = list(
@@ -281,6 +290,30 @@ class TradingService:
     def cancel_order(self, order_id: str) -> dict:
         self._require_trading()
         return self._wrap(self.client.call("POST", f"/api/orders/{order_id}/cancel"))
+
+    def amend_order(self, order_id: str, request: AmendOrderRequest) -> dict:
+        self._require_trading()
+        return self._wrap(
+            self.client.call(
+                "POST",
+                f"/api/orders/{order_id}/amend",
+                request.model_dump(mode="json"),
+            ),
+            ttl=ORDER_TTL_SECONDS,
+        )
+
+    def close_position(self, account_id: str, symbol: str, request: ClosePositionRequest) -> dict:
+        self._require_trading()
+        if self.settings.enforce_first_phase_scope:
+            self._validate_instrument_scope(symbol)
+        return self._wrap(
+            self.client.call(
+                "POST",
+                f"/api/positions/{account_id}/{symbol}/close",
+                request.model_dump(mode="json"),
+            ),
+            ttl=ORDER_TTL_SECONDS,
+        )
 
     def recover_orders(self) -> dict:
         # 恢复是只读语义的补偿动作，shadow 下同样允许，用于验证链路。

@@ -83,10 +83,27 @@ def test_okx_catalog_search_returns_only_verified_exchange_contracts(monkeypatch
     assert result["instruments"][0]["contract_size"] == 0.001
 
 
-def test_okx_catalog_timeout_returns_sanitized_public_error(monkeypatch) -> None:
+def test_okx_catalog_timeout_uses_sanitized_local_research_fallback(monkeypatch) -> None:
     monkeypatch.setattr(service, "_OKX_MARKET_CACHE", (0.0, []))
     monkeypatch.setattr(service, "_OKX_MARKET_RETRY_AT", 0.0)
     monkeypatch.setattr(service, "_OKX_MARKET_LAST_ERROR", "")
+    monkeypatch.setattr(service, "_OKX_MARKET_SOURCE", "unavailable")
+    monkeypatch.setattr(service, "_OKX_MARKET_FETCHED_AT", 0.0)
+    local_contract = service._contract_from_row(
+        {
+            "code": "BTC-USDT-SWAP",
+            "name": "比特币 / Bitcoin 永续",
+            "available_intervals": ["1h", "1d"],
+        },
+        source="okx_local_cache",
+    )
+    assert local_contract is not None
+    monkeypatch.setattr(service, "_load_persisted_okx_catalog", lambda: ([], 0.0))
+    monkeypatch.setattr(
+        service,
+        "_load_local_okx_research_catalog",
+        lambda: ([local_contract], 1_786_800_000.0),
+    )
 
     def raise_timeout(*args, **kwargs):
         del args, kwargs
@@ -98,7 +115,12 @@ def test_okx_catalog_timeout_returns_sanitized_public_error(monkeypatch) -> None
 
     result = service.okx_swap_catalog("BTC", refresh=True)
 
-    assert result["ok"] is False
+    assert result["ok"] is True
+    assert result["source"] == "okx_local_cache"
+    assert result["degraded"] is True
+    assert result["trading_ready_count"] == 0
+    assert result["instruments"][0]["research_ready"] is True
+    assert result["instruments"][0]["trading_ready"] is False
     assert result["error"] == "OKX 公共合约目录连接超时"
     assert "HTTPSConnectionPool" not in result["error"]
     assert "www.okx.com" not in result["error"]

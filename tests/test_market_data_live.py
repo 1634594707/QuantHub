@@ -4,6 +4,7 @@ import importlib
 import json
 from datetime import UTC, datetime
 
+import pandas as pd
 import pytest
 from fastapi import HTTPException
 
@@ -166,10 +167,12 @@ def test_live_ohlcv_refetches_incomplete_bar_scoped_cache(tmp_path, monkeypatch)
 
 
 def test_factor_factory_live_snapshot_cache_key_tracks_current_bar(monkeypatch) -> None:
-    rows = _rows(240)
+    rows = _rows(241)
     frame = market_data._frame_from_rows(rows)
+    frame["datetime"] = frame["datetime"] - pd.Timedelta(hours=4)
     boundary = datetime(2026, 8, 11, 4, 0, tzinfo=UTC)
     captured: dict[str, object] = {}
+    original_current_bar_boundary = market_data.current_bar_boundary
 
     def fake_load_market_data(source: str, **kwargs):
         captured.update({"source": source, **kwargs})
@@ -182,10 +185,19 @@ def test_factor_factory_live_snapshot_cache_key_tracks_current_bar(monkeypatch) 
             provenance={"requested_end": kwargs["end"]},
         )
 
+    boundary_calls: list[datetime | None] = []
+
+    def fake_current_bar_boundary(_interval: str, *, now: datetime | None = None) -> datetime:
+        boundary_calls.append(now)
+        if now is not None:
+            assert now.tzinfo is not None
+            return original_current_bar_boundary(_interval, now=now)
+        return boundary
+
     monkeypatch.setattr(
         factor_factory_service.market_data_module,
         "current_bar_boundary",
-        lambda _interval: boundary,
+        fake_current_bar_boundary,
     )
     monkeypatch.setattr(
         factor_factory_service.market_data_module,
@@ -208,3 +220,5 @@ def test_factor_factory_live_snapshot_cache_key_tracks_current_bar(monkeypatch) 
     assert captured["use_cache"] is True
     assert captured["allow_partial"] is True
     assert provenance["requested_end"] == boundary.isoformat()
+    assert None in boundary_calls
+    assert any(value is not None for value in boundary_calls)

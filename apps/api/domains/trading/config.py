@@ -18,7 +18,7 @@ Environment = Literal["shadow", "demo", "live"]
 # P0-05 决议：首期只支持 OKX **永续（SWAP）**，只放开限价单与撤单。
 # 变更本常量必须同步更新 docs/Plan/evidence/P0-05-okx-first-scope.md 与验收台账。
 FIRST_PHASE_PRODUCT: Environment | str = "swap"
-FIRST_PHASE_ALLOWED_ORDER_TYPES: tuple[str, ...] = ("limit",)
+FIRST_PHASE_ALLOWED_ORDER_TYPES: tuple[str, ...] = ("limit", "market")
 FIRST_PHASE_ALLOWED_SYMBOLS: tuple[str, ...] = ("BTC-USDT-SWAP",)
 
 

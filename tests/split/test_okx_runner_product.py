@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import tempfile
 import unittest
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from pathlib import Path
 
@@ -20,7 +20,7 @@ from apps.okx_runner.config import RunnerSettings
 from apps.okx_runner.database import connect
 from apps.okx_runner.engine import RiskViolation, RunnerEngine
 from apps.okx_runner.main import create_app
-from apps.okx_runner.schemas import OrderRequest
+from apps.okx_runner.schemas import AmendOrderRequest, ClosePositionRequest, OrderRequest
 from packages.strategy_package import (
     RiskLimits,
     StrategyReleasePayload,
@@ -100,6 +100,21 @@ class DemoAdapter:
         )
         self.orders[current.client_order_id] = cancelled
         return cancelled
+
+    def amend_order(self, external_order_id: str, symbol: str, request: dict) -> ExternalOrder:
+        current = next(
+            order for order in self.orders.values() if order.external_order_id == external_order_id
+        )
+        amended = ExternalOrder(
+            external_order_id=current.external_order_id,
+            client_order_id=current.client_order_id,
+            status="submitted",
+            filled_quantity=current.filled_quantity,
+            average_price=current.average_price,
+            raw={"amended_quantity": request["quantity"], "symbol": symbol},
+        )
+        self.orders[current.client_order_id] = amended
+        return amended
 
     def account_snapshot(self, account_id: str) -> AccountSnapshot:
         return AccountSnapshot(
@@ -249,6 +264,47 @@ class RunnerProductTests(unittest.TestCase):
         with self.assertRaisesRegex(RiskViolation, "cancel_only"):
             self.engine.submit(self.request("risk-mode"))
 
+    def test_market_reduce_only_amend_and_quick_close(self) -> None:
+        market = self.engine.submit(self.request("market-order", order_type="market", price=None))
+        self.assertEqual(market["status"], "SUBMITTED")
+
+        amended = self.engine.amend(
+            market["order_id"],
+            AmendOrderRequest(
+                quantity=0.05,
+                price=None,
+                stop_loss={"trigger_price": 59000},
+                take_profit={"trigger_price": 62000},
+            ),
+        )
+        self.assertEqual(amended["quantity"], 0.05)
+        self.assertEqual(amended["status"], "SUBMITTED")
+
+        self.adapter.positions["BTC-USDT-SWAP"] = {
+            "quantity": 0.2,
+            "mark_price": 60000.0,
+        }
+        closed = self.engine.close_position(
+            "demo-account",
+            "BTC-USDT-SWAP",
+            ClosePositionRequest(
+                strategy_id="okx-momentum-1h",
+                strategy_version="1.0.0",
+                intent_id="quick-close",
+            ),
+        )
+        self.assertEqual(closed["side"], "sell")
+        self.assertEqual(closed["order_type"], "market")
+        self.assertTrue(json.loads(closed["request_json"])["reduce_only"])
+
+    def test_protection_geometry_and_limit_price_fail_closed(self) -> None:
+        with self.assertRaisesRegex(RiskViolation, "requires a price"):
+            self.engine.submit(self.request("missing-limit-price", price=None))
+        with self.assertRaisesRegex(RiskViolation, "stop loss"):
+            self.engine.submit(self.request("invalid-stop", stop_loss={"trigger_price": 61000}))
+        with self.assertRaisesRegex(RiskViolation, "take profit"):
+            self.engine.submit(self.request("invalid-target", take_profit={"trigger_price": 59000}))
+
     def test_browser_cannot_override_server_risk_values(self) -> None:
         with self.assertRaises(ValidationError):
             OrderRequest(
@@ -282,6 +338,21 @@ class RunnerProductTests(unittest.TestCase):
                 "SELECT COUNT(*) FROM risk_decisions WHERE outcome='rejected'"
             ).fetchone()[0]
         self.assertEqual(rejected, 3)
+
+    def test_stale_snapshot_blocks_submit_and_records_one_risk_decision(self) -> None:
+        self.adapter.observed_at = datetime.now(UTC) - timedelta(minutes=5)
+
+        with self.assertRaisesRegex(RiskViolation, "stale"):
+            self.engine.submit(self.request("stale-snapshot"))
+
+        self.assertEqual(self.adapter.submit_calls, 0)
+        with connect(self.path) as connection:
+            decisions = connection.execute(
+                "SELECT outcome, reason FROM risk_decisions WHERE intent_id='stale-snapshot'"
+            ).fetchall()
+        self.assertEqual(len(decisions), 1)
+        self.assertEqual(decisions[0]["outcome"], "rejected")
+        self.assertIn("stale", decisions[0]["reason"])
 
     def test_limit_price_cannot_reduce_server_marked_exposure(self) -> None:
         self.adapter.positions["BTC-USDT-SWAP"] = {"quantity": 1.7, "mark_price": 60000.0}

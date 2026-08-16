@@ -23,6 +23,7 @@ from .domain import (
     apply_trade,
     benchmark_excess,
     compute_positions,
+    match_closed_trades,
     max_drawdown,
     portfolio_metrics,
     time_weighted_return,
@@ -38,6 +39,24 @@ from .schemas import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _attribution_fields(req) -> dict[str, Any]:
+    values = {
+        "strategy_id": req.strategy_id,
+        "strategy_version": req.strategy_version,
+        "factor_key": req.factor_key,
+        "factor_version": req.factor_version,
+        "research_run_id": req.research_run_id,
+        "signal_id": req.signal_id,
+        "simulation_order_id": req.simulation_order_id,
+        "execution_id": req.execution_id,
+        "market_regime_id": req.market_regime_id,
+    }
+    return {
+        **values,
+        "attribution_status": "attributed" if any(values.values()) else "unknown_attribution",
+    }
 
 
 def _ledger_latest_close(code: str, market: str) -> float | None:
@@ -63,6 +82,7 @@ def record_trade(req: TradeCreate) -> dict:
         ts=time.time(),
         source=req.source,
         note=req.note,
+        **_attribution_fields(req),
     )
     repository.save_trade(trade)
     result = trade.to_dict()
@@ -101,6 +121,7 @@ def correct_trade(trade_id: str, req: TradeCorrection) -> dict:
         ts=current.ts,
         source=req.source,
         note=req.note,
+        **_attribution_fields(req),
     )
     correction = repository.correct_trade(trade, req.reason.strip())
     return {"ok": True, "trade": trade.to_dict(), "correction": correction}
@@ -445,6 +466,55 @@ def attribution(
             for item in sorted(groups.values(), key=lambda value: value["key"])
         ]
 
+    closed_rows, matching = match_closed_trades(sorted(trades, key=lambda item: (item.ts, item.id)))
+
+    def performance_aggregate(key_of) -> list[dict[str, Any]]:
+        groups: dict[str, list[dict[str, Any]]] = {}
+        for row in closed_rows:
+            key = str(key_of(row) or "unknown")
+            groups.setdefault(key, []).append(row)
+        result: list[dict[str, Any]] = []
+        for key, rows in sorted(groups.items()):
+            cumulative = 0.0
+            peak = 0.0
+            max_drawdown_value = 0.0
+            for row in rows:
+                cumulative += float(row["pnl"])
+                peak = max(peak, cumulative)
+                max_drawdown_value = min(max_drawdown_value, cumulative - peak)
+            gross_pnl = sum(float(row["gross_pnl"]) for row in rows)
+            fees = sum(float(row["fees"]) for row in rows)
+            net_pnl = sum(float(row["pnl"]) for row in rows)
+            result.append(
+                {
+                    "key": key,
+                    "trade_count": len(rows),
+                    "wins": sum(float(row["pnl"]) > 0 for row in rows),
+                    "win_rate_pct": round(
+                        sum(float(row["pnl"]) > 0 for row in rows) / len(rows) * 100, 2
+                    ),
+                    "gross_pnl": round(gross_pnl, 2),
+                    "fees": round(fees, 2),
+                    "net_pnl": round(net_pnl, 2),
+                    "fee_drag_pct": round(fees / abs(gross_pnl) * 100, 2) if gross_pnl else 0.0,
+                    "average_holding_seconds": round(
+                        sum(float(row["holding_seconds"]) for row in rows) / len(rows), 2
+                    ),
+                    "max_drawdown": round(max_drawdown_value, 2),
+                    "links": [
+                        {
+                            "research_run_id": row.get("research_run_id"),
+                            "signal_id": row.get("signal_id"),
+                            "simulation_order_id": row.get("simulation_order_id"),
+                            "execution_id": row.get("execution_id"),
+                            "ledger_trade_id": row.get("exit_trade_id"),
+                        }
+                        for row in rows[-20:]
+                    ],
+                }
+            )
+        return result
+
     def period_key(trade: Trade) -> str:
         moment = datetime.fromtimestamp(trade.ts, UTC)
         if period == "day":
@@ -460,9 +530,45 @@ def attribution(
         "end_at": end_at,
         "period": period,
         "by_instrument": sorted(by_instrument, key=lambda item: item["instrument_id"]),
-        "by_strategy": aggregate(lambda trade: trade.source or "manual"),
+        "by_strategy": aggregate(lambda trade: trade.strategy_id or "unknown"),
         "by_direction": aggregate(lambda trade: trade.direction),
         "by_period": aggregate(period_key),
+        "by_factor": performance_aggregate(lambda row: row.get("factor_key")),
+        "by_factor_version": performance_aggregate(
+            lambda row: (
+                f"{row.get('factor_key')}@{row.get('factor_version')}"
+                if row.get("factor_key") and row.get("factor_version")
+                else "unknown"
+            )
+        ),
+        "by_research_run": performance_aggregate(lambda row: row.get("research_run_id")),
+        "by_strategy_performance": performance_aggregate(lambda row: row.get("strategy_id")),
+        "by_signal": performance_aggregate(lambda row: row.get("signal_id")),
+        "by_market_regime": performance_aggregate(lambda row: row.get("market_regime_id")),
+        "unknown_attribution": performance_aggregate(
+            lambda row: (
+                "unknown" if row.get("attribution_status") == "unknown_attribution" else "known"
+            )
+        ),
+        "conservation": {
+            "closed_trade_net_pnl": round(sum(float(row["pnl"]) for row in closed_rows), 2),
+            "factor_group_net_pnl": round(
+                sum(
+                    item["net_pnl"]
+                    for item in performance_aggregate(lambda row: row.get("factor_key"))
+                ),
+                2,
+            ),
+            "balanced": round(sum(float(row["pnl"]) for row in closed_rows), 2)
+            == round(
+                sum(
+                    item["net_pnl"]
+                    for item in performance_aggregate(lambda row: row.get("factor_key"))
+                ),
+                2,
+            ),
+            "matching": matching,
+        },
     }
 
 

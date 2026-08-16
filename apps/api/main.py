@@ -45,6 +45,7 @@ from .deployment import load_settings
 from .domains.alerts import router as alerts_router
 from .domains.automation import router as automation_router
 from .domains.backups import router as backups_router
+from .domains.cost_profiles import router as cost_profiles_router
 from .domains.ensemble import router as ensemble_router
 from .domains.factor_factory import router as factor_factory_router
 from .domains.factor_research import router as factor_research_router
@@ -100,6 +101,7 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     from .domains.alerts import service as alerts_service
     from .domains.automation import service as automation_service
     from .domains.factor_factory import service as factor_factory_service
+    from .domains.market_data.public_stream import get_public_stream_manager
 
     automation_service.recover_pending_runs()
     alerts_service.start_monitor()
@@ -107,6 +109,7 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     try:
         yield
     finally:
+        get_public_stream_manager().stop_all()
         factor_factory_service.stop_monitor()
         alerts_service.stop_monitor()
 
@@ -189,6 +192,7 @@ app.include_router(strategy_lab_router)
 app.include_router(ledger_router)
 app.include_router(automation_router)
 app.include_router(backups_router)
+app.include_router(cost_profiles_router)
 app.include_router(governance_router)
 # 交易域是浏览器访问 OKX Runner 的唯一通路；前端不得直连 Runner。
 app.include_router(trading_router)

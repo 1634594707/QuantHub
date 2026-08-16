@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 
+from apps.api import store
 from apps.api.domains.instrument import service as instrument_service
 from core.signals import Signal, get_bus
 
@@ -82,6 +83,15 @@ def radar_snapshot() -> dict:
 
 
 def publish(req: PublishSignalRequest) -> dict:
+    research_run_id = req.meta.get("research_run_id")
+    if research_run_id and req.direction in {"buy", "sell"}:
+        run = store.get_research_run(str(research_run_id))
+        decision = (run.get("summary") or {}).get("research_decision") if run else None
+        expected = "long" if req.direction == "buy" else "short"
+        if not decision or decision.get("execution_eligible") is not True:
+            raise ValueError("RESEARCH_DECISION_BLOCKED: 研究结论不具备执行资格")
+        if decision.get("direction") != expected:
+            raise ValueError("RESEARCH_DIRECTION_MISMATCH: 信号方向与统一研究决策不一致")
     instrument = instrument_service.resolve_strict(req.symbol, req.market)
     signal = Signal(
         symbol=instrument.code,

@@ -41,12 +41,22 @@ from apps.api.domains.factor_research.service import (
     validate_factor_ai_search_round,
     validate_factor_candidate_data,
 )
+from apps.api.domains.market_data.public_stream import get_public_stream_manager
 from apps.api.domains.simulation import service as simulation_service
 from apps.api.domains.simulation.schemas import SimulationFillCreate, SimulationOrderCreate
 from apps.api.domains.trading import errors as trading_errors
 from core.backtest import dataset as dataset_module
 from core.backtest import market_data as market_data_module
 from core.backtest.strategies_demo import run_signal_backtest
+from core.cohort_evaluation import (
+    COHORT_ENGINE_VERSION,
+    EvaluationCohort,
+    ExecutionPolicy,
+    VirtualLedger,
+    default_benchmark_pool,
+    program_live_gate,
+    run_cohort_backtest,
+)
 from core.factor_dsl import (
     FactorDefinition,
     FactorDslError,
@@ -60,6 +70,8 @@ from core.factor_monitoring import (
     simulation_validation_report,
 )
 from core.factor_research import FACTOR_META
+from core.research_decision import ModuleOpinion, decide_research
+from packages.market_data.contracts import MarketEvent, MarketEventKind
 from packages.strategy_package import StrategyReleasePackage
 
 from .alpha_mining import (
@@ -70,6 +82,7 @@ from .alpha_mining import (
     generate_grammar_proposals,
     parse_alpha_expression,
 )
+from .cohort_review import run_cohort_ai_review
 from .okx_demo import (
     activate_demo_strategy,
     build_demo_release_package,
@@ -85,6 +98,71 @@ ARCHIVE_MINIMUM_OBSERVATION_DAYS = 7
 ARCHIVE_MINIMUM_OBSERVATION_SECONDS = ARCHIVE_MINIMUM_OBSERVATION_DAYS * 86_400
 
 
+def _interval_delta(interval: str) -> timedelta:
+    return {
+        "1h": timedelta(hours=1),
+        "4h": timedelta(hours=4),
+        "1d": timedelta(days=1),
+    }[interval]
+
+
+def _closed_market_frame(
+    frame: pd.DataFrame,
+    *,
+    req: FactorFactoryStartRequest,
+    provenance: dict[str, Any],
+    now: datetime | None = None,
+) -> tuple[pd.DataFrame, dict[str, Any]]:
+    current = now or datetime.now(UTC)
+    current = current if current.tzinfo else current.replace(tzinfo=UTC)
+    current = current.astimezone(UTC)
+    interval = _interval_delta(req.interval)
+    normalized = frame.copy().reset_index(drop=True)
+    normalized["datetime"] = pd.to_datetime(normalized["datetime"], utc=True)
+    forming_count = 0
+    if req.source == "okx_live":
+        boundary = pd.Timestamp(market_data_module.current_bar_boundary(req.interval, now=current))
+        forming = normalized["datetime"] >= boundary
+        forming_count = int(forming.sum())
+        normalized = normalized.loc[~forming].reset_index(drop=True)
+    last_open = normalized["datetime"].iloc[-1] if not normalized.empty else None
+    last_close = last_open + interval if last_open is not None else None
+    event_time = last_close.to_pydatetime() if last_close is not None else current
+    age_ms = max(0, int((current - event_time).total_seconds() * 1000))
+    stale_after = interval.total_seconds() * (3 if req.market == "crypto" else 2)
+    quality = "fresh" if age_ms <= stale_after * 1000 else "stale"
+    market_open = True
+    if req.market == "a_shares":
+        local = current.astimezone().replace(tzinfo=None)
+        market_open = local.weekday() < 5 and (
+            (local.hour == 9 and local.minute >= 30)
+            or local.hour in {10, 11, 13, 14}
+            or (local.hour == 15 and local.minute == 0)
+        )
+        if not market_open:
+            quality = "last_session_close"
+    status = {
+        "contract_version": "market-event-v2",
+        "event_time": event_time.isoformat(),
+        "bar_open_time": last_open.isoformat() if last_open is not None else None,
+        "bar_close_time": last_close.isoformat() if last_close is not None else None,
+        "fetched_at": str(provenance.get("fetched_at") or current.isoformat()),
+        "received_at": current.isoformat(),
+        "is_closed": True,
+        "age_ms": age_ms,
+        "source": provenance.get("source") or req.source,
+        "quality_status": quality,
+        "event_kind": "closed_bar_live"
+        if req.source in {"okx_live", "akshare_live"}
+        else "historical_snapshot",
+        "forming_bars_excluded": forming_count,
+        "research_signal_allowed": quality != "stale",
+        "market_open": market_open,
+        "adjustment": provenance.get("adjustment"),
+    }
+    return normalized, status
+
+
 @dataclass(frozen=True)
 class CandidateSpec:
     key: str
@@ -95,6 +173,7 @@ class CandidateSpec:
     ast: dict[str, Any]
     hypothesis: str
     invalidation: str
+    research_claims: dict[str, Any] = field(default_factory=dict)
     falsification_tests: tuple[str, ...] = (
         "rolling_validation_stability",
         "double_cost_stress",
@@ -359,6 +438,8 @@ def _load_frame(
             "requested_bars": req.n_bars,
             "offline": False,
             "adjustment": frame.attrs.get("corporate_action_adjustment", "qfq"),
+            "source_plan": frame.attrs.get("_source_plan", []),
+            "data_contract": frame.attrs.get("_data_contract", {}),
         }
     else:
         live_snapshot_end = (
@@ -387,6 +468,12 @@ def _load_frame(
     normalized["datetime"] = pd.to_datetime(normalized["datetime"], utc=True)
     normalized = normalized.dropna(subset=["datetime", "close"]).sort_values("datetime")
     normalized = normalized.drop_duplicates("datetime", keep="last").reset_index(drop=True)
+    normalized, market_data_status = _closed_market_frame(
+        normalized,
+        req=req,
+        provenance=provenance,
+    )
+    provenance = {**provenance, "market_data_status": market_data_status}
     if len(normalized) < 240:
         raise ValueError(f"自动因子研究至少需要 240 根有效 K 线，当前只有 {len(normalized)} 根")
     return normalized, provenance
@@ -804,6 +891,7 @@ def _brain_candidate_specs(
             ast=proposal.ast,
             hypothesis=proposal.hypothesis,
             invalidation=proposal.invalidation,
+            research_claims=proposal.research_claims,
             falsification_tests=proposal.falsification_tests,
             model=proposal.model,
             prompt=proposal.prompt,
@@ -1064,6 +1152,19 @@ def _staged_brain_candidate_specs(
         provider=req.ai_provider,
         seed_candidates=ai_seeds,
         prior_direction_radar=prior_radar,
+        market_context={
+            "market": req.market,
+            "symbol": req.symbol,
+            "interval": req.interval,
+            "commission_bps": req.commission_bps,
+            "spread_and_slippage_model": "shared_cohort_execution_policy",
+            "funding_rate": "included_when_available_for_perpetuals",
+            "minimum_quantity": "instrument_contract_rule",
+            "execution_delay": "next_tradable_bar_or_registered_quote",
+            "capacity_fraction": req.maximum_demo_exposure,
+            "maximum_loss": req.maximum_demo_loss,
+            "risk_budget": req.thresholds.model_dump(mode="json"),
+        },
     )
 
     retained_grammar_count = req.candidate_budget - len(ai_proposals)
@@ -1319,6 +1420,7 @@ def _candidate_universe_hash(specs: list[CandidateSpec]) -> str:
             "ast": spec.ast,
             "hypothesis": spec.hypothesis,
             "invalidation": spec.invalidation,
+            "research_claims": spec.research_claims,
             "falsification_tests": spec.falsification_tests,
             "model": spec.model,
             "prompt": spec.prompt,
@@ -1415,6 +1517,7 @@ def _backtest_partition(
     *,
     req: FactorFactoryStartRequest,
     commission_bps: float | None = None,
+    position_fraction: float = 1.0,
 ) -> dict[str, Any]:
     applied_commission_bps = (
         req.commission_bps if commission_bps is None else max(0.0, commission_bps)
@@ -1424,6 +1527,7 @@ def _backtest_partition(
         pd.Series(signal).reset_index(drop=True),
         initial_capital=req.initial_capital,
         commission=applied_commission_bps / 10_000,
+        position_fraction=position_fraction,
         periods_per_year=_periods_per_year(req.interval),
     )
     returns = _return_series(result)
@@ -1442,8 +1546,31 @@ def _backtest_partition(
     return {
         "summary": _jsonable(summary),
         "returns": returns,
-        "assumptions": {"commission_bps": applied_commission_bps},
+        "assumptions": {
+            "commission_bps": applied_commission_bps,
+            "position_fraction": position_fraction,
+        },
     }
+
+
+def _shift_ast_parameters(node: Any, multiplier: float) -> Any:
+    if isinstance(node, list):
+        return [_shift_ast_parameters(item, multiplier) for item in node]
+    if not isinstance(node, dict):
+        return node
+    shifted = {key: _shift_ast_parameters(value, multiplier) for key, value in node.items()}
+    for key in ("window", "periods"):
+        if isinstance(shifted.get(key), int):
+            shifted[key] = max(1, min(240, int(round(shifted[key] * multiplier))))
+    return shifted
+
+
+def _ast_complexity(node: Any) -> int:
+    if isinstance(node, dict):
+        return (1 if "op" in node else 0) + sum(_ast_complexity(value) for value in node.values())
+    if isinstance(node, list):
+        return sum(_ast_complexity(value) for value in node)
+    return 0
 
 
 def _preliminary_gate(metrics: dict[str, Any], req: FactorFactoryStartRequest) -> dict:
@@ -1454,6 +1581,16 @@ def _preliminary_gate(metrics: dict[str, Any], req: FactorFactoryStartRequest) -
     discovery = metrics["discovery"]["summary"]
     validation_stability = validation.get("window_stability") or {}
     cost_stress_stability = cost_stress.get("window_stability") or {}
+    delay_stress = metrics.get("rolling_validation_delay_stress", metrics["rolling_validation"])[
+        "summary"
+    ]
+    capacity_stress = metrics.get(
+        "rolling_validation_capacity_stress", metrics["rolling_validation"]
+    )["summary"]
+    perturbation_stress = metrics.get(
+        "rolling_validation_data_perturbation", metrics["rolling_validation"]
+    )["summary"]
+    parameter_plateau = metrics.get("parameter_plateau") or {}
     thresholds = req.thresholds
     checks = {
         "validation_return": validation["total_return"] >= thresholds.minimum_validation_return,
@@ -1471,8 +1608,29 @@ def _preliminary_gate(metrics: dict[str, Any], req: FactorFactoryStartRequest) -
         "cost_stress_sharpe": float(cost_stress["metrics"].get("sharpe") or 0)
         >= thresholds.minimum_validation_sharpe,
         "cost_stress_window_majority": bool(cost_stress_stability.get("passed")),
+        "delay_stress": delay_stress["total_return"] >= thresholds.minimum_validation_return,
+        "capacity_stress": capacity_stress["total_return"] >= thresholds.minimum_validation_return,
+        "data_perturbation_stress": perturbation_stress["total_return"]
+        >= thresholds.minimum_validation_return,
+        "parameter_plateau": bool(parameter_plateau.get("passed")),
     }
-    return {"passed": all(checks.values()), "checks": checks}
+    return {
+        "passed": all(checks.values()),
+        "checks": checks,
+        "pareto_dimensions": {
+            "after_cost_return": validation["total_return"],
+            "sharpe": validation["metrics"].get("sharpe"),
+            "drawdown": validation["max_drawdown"],
+            "turnover_proxy": validation["n_trades"],
+            "cost_stress_return": cost_stress["total_return"],
+            "delay_stress_return": delay_stress["total_return"],
+            "capacity_stress_return": capacity_stress["total_return"],
+            "perturbation_return": perturbation_stress["total_return"],
+            "parameter_sensitivity": parameter_plateau.get("return_dispersion"),
+            "complexity": metrics.get("complexity"),
+        },
+        "single_score_decides_winner": False,
+    }
 
 
 def _score(metrics: dict[str, Any]) -> float:
@@ -1559,7 +1717,11 @@ def _base_lifecycle_evidence(
         "data_snapshot_hash": data_hash,
         "cumulative_attempts": attempts,
         "validation_window": {"start": start, "end": end},
-        "cost_profile_version": f"factor-factory-{req.commission_bps:g}bps-v1",
+        "cost_profile_id": req.cost_profile_id,
+        "cost_profile_version": req.cost_profile_version,
+        "cost_profile_hash": req.transaction_cost_profile.content_hash
+        if req.transaction_cost_profile
+        else None,
         "gate_version": "factor-factory-locked-oos-v1",
         "live_trading_enabled": False,
     }
@@ -1624,6 +1786,12 @@ def _detail(run: dict[str, Any]) -> dict[str, Any]:
     simulation_orders = (
         store.list_simulation_orders(account_id=str(account_id), limit=10_000) if account_id else []
     )
+    cohort = run.get("result", {}).get("cohort")
+    if cohort and cohort.get("manual_approval"):
+        cohort = {
+            **cohort,
+            "manual_approval_validity": _manual_approval_validity(run, cohort),
+        }
     return {
         "ok": True,
         "run": run,
@@ -1640,6 +1808,10 @@ def _detail(run: dict[str, Any]) -> dict[str, Any]:
             ),
             "max_drawdown": min((item["drawdown"] for item in observations), default=0.0),
         },
+        "market_data_status": run.get("result", {})
+        .get("data_provenance", {})
+        .get("market_data_status"),
+        "cohort": cohort,
         "live_trading_enabled": False,
     }
 
@@ -1715,6 +1887,25 @@ def _archive_run_evidence(
         "confirmation_gate": result.get("confirmation_gate") or {},
         "research_metrics": result.get("research_metrics") or {},
         "simulation_validation": result.get("simulation_validation") or {},
+        "cohort_evidence": {
+            "definition": (result.get("cohort") or {}).get("definition"),
+            "benchmark_pool": ((result.get("cohort") or {}).get("latest_report") or {}).get(
+                "benchmark_pool"
+            ),
+            "comparison": ((result.get("cohort") or {}).get("latest_report") or {}).get(
+                "comparison"
+            ),
+            "program_gate": (result.get("cohort") or {}).get("program_gate"),
+            "ai_review": (result.get("cohort") or {}).get("ai_review"),
+            "live_request": (result.get("cohort") or {}).get("live_request"),
+            "manual_approval": (result.get("cohort") or {}).get("manual_approval"),
+            "manual_approval_validity": (
+                _manual_approval_validity(run, result.get("cohort") or {})
+                if (result.get("cohort") or {}).get("manual_approval")
+                else None
+            ),
+            "live_trading_enabled": False,
+        },
         "paper_evidence": {
             "mode": paper.get("mode"),
             "target": paper.get("target"),
@@ -2027,13 +2218,45 @@ def _execute_isolated_paper_order(
     quantity_delta: float,
     position_weight: float,
     commission_bps: float,
+    cost_profile_id: str,
+    cost_profile_version: str,
+    maximum_exposure: float,
 ) -> dict[str, Any] | None:
     quantity = abs(float(quantity_delta))
+    profile = store.get_trading_cost_profile(cost_profile_id, cost_profile_version)
+    if profile is None:
+        raise ValueError("因子工厂执行前找不到已锁定成本档案")
+    constraints = {
+        str(item.get("key")): item.get("value") for item in profile.get("execution_constraints", [])
+    }
+    step = constraints.get("quantity_step") or constraints.get("lot_size")
+    if isinstance(step, (int, float)) and not isinstance(step, bool) and step > 0:
+        quantity = round(math.floor(quantity / float(step) + 1e-9) * float(step), 12)
     if quantity <= 1e-12:
         return None
     timestamp = datetime.fromisoformat(market_time)
     side = "buy" if quantity_delta > 0 else "sell"
     cycle_id = f"{run_id}:{market_time}"
+    direction = "long" if side == "buy" else "short"
+    research_decision = decide_research(
+        [
+            ModuleOpinion(
+                module="rolling_validation",
+                direction=direction,
+                evidence_at=timestamp,
+                evidence_id=f"{run_id}:rolling-validation",
+            ),
+            ModuleOpinion(
+                module="locked_confirmation",
+                direction=direction,
+                evidence_at=timestamp,
+                evidence_id=f"{run_id}:locked-confirmation",
+            ),
+        ],
+        invalidation_conditions=["factor_factory_observation_gate_failed"],
+        reevaluate_triggers=["next_closed_bar", "cost_profile_changed"],
+        decision_version="factor-factory-locked-oos-v1",
+    ).model_dump(mode="json")
     created = simulation_service.create_order(
         SimulationOrderCreate(
             symbol=symbol,
@@ -2050,7 +2273,21 @@ def _execute_isolated_paper_order(
             tradable_time=timestamp,
             theoretical_price=price,
             capacity_used=position_weight,
-        )
+            cost_profile_id=cost_profile_id,
+            cost_profile_version=cost_profile_version,
+        ),
+        trusted_market_snapshot={
+            "price": price,
+            "observed_at": datetime.now(UTC).isoformat(),
+            "event_time": market_time,
+            "source": "factor_factory.closed_bar",
+            "quality_status": "closed_bar",
+        },
+        trusted_research_decision=research_decision,
+        trusted_limits={
+            "max_position_per_symbol": maximum_exposure,
+            "max_total_exposure": maximum_exposure,
+        },
     )
     filled = simulation_service.fill_isolated_order(
         created["id"],
@@ -2080,6 +2317,9 @@ def start_factor_factory(req: FactorFactoryStartRequest) -> dict[str, Any]:
 
 
 def _start_factor_factory_locked(req: FactorFactoryStartRequest) -> dict[str, Any]:
+    if req.transaction_cost_profile is None:
+        raise ValueError("因子工厂必须绑定完整成本档案")
+    store.save_trading_cost_profile(req.transaction_cost_profile.immutable_snapshot())
     frame, provenance = _load_frame(req)
     generation_fingerprint = _candidate_generation_fingerprint(
         req,
@@ -2259,10 +2499,15 @@ def _run_research(
                     estimated_compute_units=len(frame),
                     model=spec.model,
                     prompt=spec.prompt,
-                    applicable_regimes=["trend", "range", "high_volatility", "low_volatility"],
+                    applicable_regimes=list(
+                        spec.research_claims.get(
+                            "applicable_regimes",
+                            ["trend", "range", "high_volatility", "low_volatility"],
+                        )
+                    ),
                     invalidation_conditions=[spec.invalidation],
                     falsification_tests=list(spec.falsification_tests),
-                    ai_trace=spec.ai_trace,
+                    ai_trace={**spec.ai_trace, "research_claims": spec.research_claims},
                     pre_registration=FactorPreRegistration(
                         primary_metric="rolling_validation_after_cost_return",
                         secondary_metrics=["sharpe", "max_drawdown", "rank_ic", "p_value"],
@@ -2302,6 +2547,53 @@ def _run_research(
                 req=req,
                 commission_bps=min(200.0, req.commission_bps * 2),
             )
+            metrics["rolling_validation_delay_stress"] = _backtest_partition(
+                validation_partition,
+                validation_signal.shift(1).fillna(0),
+                req=req,
+            )
+            metrics["rolling_validation_capacity_stress"] = _backtest_partition(
+                validation_partition,
+                validation_signal,
+                req=req,
+                position_fraction=0.25,
+            )
+            perturbed = validation_partition.copy()
+            deterministic_noise = pd.Series(
+                np.sin(np.arange(len(perturbed), dtype=float)) * 0.0005,
+                index=perturbed.index,
+            )
+            for column in ("open", "high", "low", "close"):
+                perturbed[column] = perturbed[column].astype(float) * (1 + deterministic_noise)
+            perturbed_signal = evaluate_factor_ast(definition["ast"], perturbed)
+            metrics["rolling_validation_data_perturbation"] = _backtest_partition(
+                perturbed,
+                pd.Series(np.tanh(perturbed_signal.astype(float) / 2), index=perturbed.index),
+                req=req,
+            )
+            neighbor_returns: list[float] = []
+            for multiplier in (0.8, 1.2):
+                neighbor_ast = _shift_ast_parameters(definition["ast"], multiplier)
+                neighbor_signal = evaluate_factor_ast(neighbor_ast, validation_partition)
+                neighbor_result = _backtest_partition(
+                    validation_partition,
+                    pd.Series(
+                        np.tanh(neighbor_signal.astype(float) / 2), index=validation_partition.index
+                    ),
+                    req=req,
+                )
+                neighbor_returns.append(float(neighbor_result["summary"]["total_return"]))
+            metrics["parameter_plateau"] = {
+                "neighbor_returns": neighbor_returns,
+                "positive_neighbors": sum(
+                    value >= req.thresholds.minimum_validation_return for value in neighbor_returns
+                ),
+                "return_dispersion": float(np.std(neighbor_returns)) if neighbor_returns else None,
+                "passed": all(
+                    value >= req.thresholds.minimum_validation_return for value in neighbor_returns
+                ),
+            }
+            metrics["complexity"] = _ast_complexity(definition["ast"])
             gate = _preliminary_gate(metrics, req)
             score = _score(metrics)
             validation_summary = metrics["rolling_validation"]["summary"]
@@ -2619,35 +2911,68 @@ def _run_research(
     position_weight = max(0.0, min(1.0, latest_signal))
     latest_price = float(frame["close"].iloc[-1])
     market_time = frame["datetime"].iloc[-1].isoformat()
-    position_quantity = req.initial_capital * position_weight / latest_price
-    paper_order = _execute_isolated_paper_order(
-        run_id=run_id,
-        symbol=req.symbol,
-        market=req.market,
-        factor_key=definition["key"],
-        factor_version=definition["version"],
-        market_time=market_time,
-        price=latest_price,
-        quantity_delta=position_quantity,
-        position_weight=position_weight,
-        commission_bps=req.commission_bps,
-    )
-    entry_cost = float(paper_order["fee"]) / req.initial_capital if paper_order is not None else 0.0
-    initial_equity = req.initial_capital * (1 - entry_cost)
+    position_quantity = 0.0
+    paper_order = None
+    entry_cost = 0.0
+    initial_equity = req.initial_capital
     execution_record = {
         "signal_time": market_time,
-        "tradable_time": market_time,
+        "tradable_time": (frame["datetime"].iloc[-1] + _interval_delta(req.interval)).isoformat(),
+        "quote_time": None,
+        "execution_time": None,
         "theoretical_price": latest_price,
-        "simulated_price": latest_price,
+        "simulated_price": None,
         "slippage_bps": 0.0,
-        "rejection_reason": None,
+        "rejection_reason": "awaiting_next_tradable_bar",
         "capacity_used": position_weight,
-        "simulation_order_id": paper_order["simulation_order_id"] if paper_order else None,
-        "simulation_execution_id": (
-            paper_order["simulation_execution_id"] if paper_order else None
-        ),
-        "fee": paper_order["fee"] if paper_order else 0.0,
+        "simulation_order_id": None,
+        "simulation_execution_id": None,
+        "fee": 0.0,
     }
+    benchmark_pool = default_benchmark_pool(req.market, req.interval)
+    cohort_config = {
+        "candidate_key": definition["key"],
+        "candidate_version": definition["version"],
+        "benchmark_pool_hash": benchmark_pool.content_hash,
+        "observation_days": req.observation_days,
+        "initial_capital": req.initial_capital,
+        "commission_bps": req.commission_bps,
+        "cost_profile_id": req.cost_profile_id,
+        "cost_profile_version": req.cost_profile_version,
+        "cost_profile_hash": req.transaction_cost_profile.content_hash
+        if req.transaction_cost_profile
+        else None,
+        "maximum_exposure": req.maximum_demo_exposure if req.paper_target == "okx_demo" else 1.0,
+    }
+    cohort = EvaluationCohort(
+        cohort_id=f"cohort-{run_id}",
+        candidate_key=definition["key"],
+        candidate_version=definition["version"],
+        benchmark_pool_version=benchmark_pool.version,
+        benchmark_pool_hash=benchmark_pool.content_hash,
+        started_at=datetime.fromtimestamp(now, UTC).isoformat(),
+        ends_at=datetime.fromtimestamp(observation_ends_at, UTC).isoformat(),
+        config_hash=hashlib.sha256(
+            json.dumps(cohort_config, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest(),
+        market_data_fingerprint=full_hash,
+    )
+    forward_frame = frame.tail(1).reset_index(drop=True)
+    forward_signal = pd.Series([latest_signal])
+    cohort_report = run_cohort_backtest(
+        cohort_id=cohort.cohort_id,
+        frame=forward_frame,
+        candidate_signal=forward_signal,
+        candidate_key=f"{definition['key']}:{definition['version']}",
+        market=req.market,
+        interval=req.interval,
+        initial_capital=req.initial_capital,
+        policy=ExecutionPolicy(
+            commission_bps=req.commission_bps,
+            maximum_exposure=(req.maximum_demo_exposure if req.paper_target == "okx_demo" else 1.0),
+        ),
+        pool=benchmark_pool,
+    )
     demo_package: StrategyReleasePackage | None = None
     demo_activation: dict[str, Any] | None = None
     if req.paper_target == "okx_demo":
@@ -2732,7 +3057,7 @@ def _run_research(
                 "account_id": _paper_account_id(run_id),
                 "started_at": datetime.fromtimestamp(now, UTC).isoformat(),
                 "ends_at": datetime.fromtimestamp(observation_ends_at, UTC).isoformat(),
-                "completed_rebalance_cycles": 1,
+                "completed_rebalance_cycles": 0,
                 "execution_records": [execution_record],
                 "simulation_order_ids": (
                     [paper_order["simulation_order_id"]] if paper_order else []
@@ -2753,6 +3078,26 @@ def _run_research(
                 ),
                 "live_trading_enabled": False,
             },
+            "cohort": {
+                "definition": cohort.to_dict(),
+                "status": "cohort_observing",
+                "engine_version": COHORT_ENGINE_VERSION,
+                "start_market_time": market_time,
+                "latest_report": cohort_report,
+                "program_gate": program_live_gate(
+                    cohort_report,
+                    observed_days=0,
+                    rebalance_count=0,
+                    freshness_ok=provenance["market_data_status"]["quality_status"] != "stale",
+                    reconciliation_ok=False,
+                    kill_switch_ready=req.paper_target != "okx_demo",
+                    required_days=req.observation_days,
+                    required_rebalances=req.thresholds.minimum_observations,
+                ),
+                "ai_review": None,
+                "manual_approval": None,
+                "live_trading_enabled": False,
+            },
             "data_provenance": provenance,
             "live_trading_enabled": False,
         },
@@ -2763,6 +3108,149 @@ def _run_research(
 def get_factor_factory_run(run_id: str) -> dict[str, Any] | None:
     run = store.get_factor_factory_run(run_id)
     return _detail(run) if run else None
+
+
+def review_factor_factory_cohort(
+    run_id: str,
+    *,
+    provider: str | None = None,
+) -> dict[str, Any]:
+    run = store.get_factor_factory_run(run_id)
+    if run is None:
+        raise KeyError("自动因子运行不存在")
+    result = dict(run.get("result") or {})
+    cohort = dict(result.get("cohort") or {})
+    if not cohort.get("latest_report") or not cohort.get("program_gate"):
+        raise ValueError("同期评估证据尚未建立")
+    evidence = {
+        "cohort_definition": cohort.get("definition"),
+        "comparison": cohort["latest_report"].get("comparison"),
+        "ranking": cohort["latest_report"].get("ranking"),
+        "fairness": cohort["latest_report"].get("fairness"),
+        "program_gate": cohort.get("program_gate"),
+        "market_data_status": result.get("data_provenance", {}).get("market_data_status"),
+        "live_trading_enabled": False,
+    }
+    review = run_cohort_ai_review(evidence, llm=get_llm(provider) if provider else None)
+    cohort["ai_review"] = review
+    if review.get("effective_recommendation") == "retire":
+        cohort["status"] = "retired_recommended"
+    result["cohort"] = cohort
+    saved = store.update_factor_factory_run(run_id, result=result)
+    return _detail(saved)
+
+
+def request_factor_factory_small_live(run_id: str, *, actor: str, reason: str) -> dict[str, Any]:
+    run = store.get_factor_factory_run(run_id)
+    if run is None:
+        raise KeyError("自动因子运行不存在")
+    result = dict(run.get("result") or {})
+    cohort = dict(result.get("cohort") or {})
+    program_gate = cohort.get("program_gate") or {}
+    ai_review = cohort.get("ai_review") or {}
+    if not program_gate.get("passed"):
+        raise ValueError("程序门禁未通过，不能申请小额实盘")
+    if ai_review.get("effective_recommendation") != "request_small_live":
+        raise ValueError("AI 尚未形成有效的小额实盘申请建议")
+    if cohort.get("status") != "cohort_validated":
+        raise ValueError("同期 cohort 尚未进入 cohort_validated")
+    cohort["status"] = "live_requested"
+    cohort["live_request"] = {
+        "status": "submitted_for_manual_approval",
+        "actor": actor,
+        "reason": reason,
+        "submitted_at": datetime.now(UTC).isoformat(),
+        "program_gate_hash": hashlib.sha256(
+            json.dumps(program_gate, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest(),
+        "cohort_binding_hash": _cohort_binding_hash(run, cohort),
+        "live_trading_enabled": False,
+    }
+    result["cohort"] = cohort
+    saved = store.update_factor_factory_run(run_id, result=result)
+    return _detail(saved)
+
+
+def approve_factor_factory_small_live(run_id: str, approval: dict[str, Any]) -> dict[str, Any]:
+    run = store.get_factor_factory_run(run_id)
+    if run is None:
+        raise KeyError("自动因子运行不存在")
+    result = dict(run.get("result") or {})
+    cohort = dict(result.get("cohort") or {})
+    if cohort.get("status") != "live_requested":
+        raise ValueError("因子尚未进入人工审批状态")
+    config = run.get("config") or {}
+    if approval["symbol"].strip().upper() != str(config.get("symbol") or "").upper():
+        raise ValueError("审批标的与锁定 cohort 不一致")
+    if approval["interval"] != config.get("interval"):
+        raise ValueError("审批周期与锁定 cohort 不一致")
+    if approval["factor_version"] != run.get("selected_factor_version"):
+        raise ValueError("审批因子版本与锁定 cohort 不一致")
+    if not approval.get("risks_acknowledged"):
+        raise ValueError("人工审批必须确认全部剩余风险")
+    valid_until = datetime.fromisoformat(str(approval["valid_until"]))
+    if valid_until.tzinfo is None or valid_until <= datetime.now(UTC):
+        raise ValueError("人工审批有效期必须是未来的带时区时间")
+    binding_hash = _cohort_binding_hash(run, cohort)
+    cohort["status"] = "small_live_approved"
+    cohort["manual_approval"] = {
+        **approval,
+        "approved_at": datetime.now(UTC).isoformat(),
+        "configuration_hash": hashlib.sha256(
+            json.dumps(approval, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest(),
+        "cohort_binding_hash": binding_hash,
+        "program_gate_hash": cohort.get("live_request", {}).get("program_gate_hash"),
+        "approved_next_state": "small_live",
+        "activation_requires_trading_domain": True,
+        "live_trading_enabled": False,
+    }
+    result["cohort"] = cohort
+    saved = store.update_factor_factory_run(run_id, result=result)
+    return _detail(saved)
+
+
+def _cohort_binding_hash(run: dict[str, Any], cohort: dict[str, Any]) -> str:
+    report = cohort.get("latest_report") or {}
+    payload = {
+        "run_id": run.get("id"),
+        "symbol": (run.get("config") or {}).get("symbol"),
+        "interval": (run.get("config") or {}).get("interval"),
+        "candidate_key": run.get("selected_factor_key"),
+        "candidate_version": run.get("selected_factor_version"),
+        "cohort_definition": cohort.get("definition"),
+        "benchmark_pool_hash": (report.get("benchmark_pool") or {}).get("content_hash"),
+        "engine_version": cohort.get("engine_version"),
+        "execution_policy": report.get("execution_policy"),
+        "program_gate": cohort.get("program_gate"),
+    }
+    return hashlib.sha256(
+        json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+
+
+def _manual_approval_validity(run: dict[str, Any], cohort: dict[str, Any]) -> dict[str, Any]:
+    approval = cohort.get("manual_approval") or {}
+    reasons: list[str] = []
+    try:
+        valid_until = datetime.fromisoformat(str(approval.get("valid_until", "")))
+    except ValueError:
+        valid_until = None
+        reasons.append("invalid_valid_until")
+    if valid_until is None or valid_until.tzinfo is None or valid_until <= datetime.now(UTC):
+        reasons.append("approval_expired")
+    current_hash = _cohort_binding_hash(run, cohort)
+    if approval.get("cohort_binding_hash") != current_hash:
+        reasons.append("cohort_or_risk_configuration_changed")
+    if cohort.get("program_gate", {}).get("passed") is not True:
+        reasons.append("program_gate_no_longer_passed")
+    return {
+        "valid": not reasons,
+        "reasons": list(dict.fromkeys(reasons)),
+        "current_binding_hash": current_hash,
+        "approved_binding_hash": approval.get("cohort_binding_hash"),
+        "live_trading_enabled": False,
+    }
 
 
 def list_factor_factory_runs(
@@ -3171,6 +3659,109 @@ def observe_factor_factory(
         return _observe_factor_factory_locked(run_id, force_refresh=force_refresh)
 
 
+def _locked_research_evidence_hash(report: dict[str, Any]) -> str:
+    payload = {
+        "ranking": report.get("ranking"),
+        "comparison": report.get("comparison"),
+        "benchmark_pool": report.get("benchmark_pool"),
+        "execution_policy": report.get("execution_policy"),
+    }
+    return hashlib.sha256(
+        json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+
+
+def _valuation_price(event: MarketEvent) -> tuple[float, str]:
+    if event.kind == MarketEventKind.BEST_BID_ASK:
+        if event.bid is None or event.ask is None or event.bid <= 0 or event.ask < event.bid:
+            raise ValueError("BBO 估值事件缺少有效最佳买卖价")
+        return (event.bid + event.ask) / 2, "bbo_mid"
+    if event.price is None or event.price <= 0:
+        raise ValueError("ticker/trade 估值事件缺少有效价格")
+    return event.price, event.kind.value
+
+
+def _apply_cohort_valuation(
+    run: dict[str, Any],
+    event: MarketEvent,
+    *,
+    freshness: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    result = dict(run.get("result") or {})
+    cohort = dict(result.get("cohort") or {})
+    report = dict(cohort.get("latest_report") or {})
+    if not report.get("ledgers"):
+        raise ValueError("同期 cohort 尚无可估值的独立账本")
+    symbol = str((run.get("config") or {}).get("symbol") or "").strip().upper()
+    event_symbol = event.instrument_id.rsplit(":", 1)[-1].strip().upper()
+    if not symbol or event_symbol != symbol:
+        raise ValueError("估值事件标的与锁定 cohort 不一致")
+    if not event.usable_for_valuation():
+        raise ValueError("行情事件不可用于估值")
+    price, price_basis = _valuation_price(event)
+    before_hash = _locked_research_evidence_hash(report)
+    ledgers: dict[str, Any] = {}
+    valuation_rows: dict[str, Any] = {}
+    for member_key, payload in report["ledgers"].items():
+        ledger = VirtualLedger.from_dict(payload)
+        applied = ledger.mark(
+            event.event_id,
+            event.event_time.isoformat(),
+            price,
+            apply_funding=False,
+        )
+        ledgers[member_key] = ledger.to_dict()
+        valuation_rows[member_key] = {
+            "equity": ledger.equity_at(price),
+            "exposure": ledger.exposure_at(price),
+            "halted": ledger.halted,
+            "mark_applied": applied,
+            "replay": ledger.verify_replay(price=price),
+        }
+    report["ledgers"] = ledgers
+    after_hash = _locked_research_evidence_hash(report)
+    if before_hash != after_hash:
+        raise RuntimeError("实时估值不得修改锁定研究证据")
+    prior_valuation = report.get("live_valuation") or {}
+    applied_count = sum(row["mark_applied"] for row in valuation_rows.values())
+    report["live_valuation"] = {
+        "event": event.model_dump(mode="json"),
+        "price": price,
+        "price_basis": price_basis,
+        "ledger_count": len(valuation_rows),
+        "applied_ledger_count": applied_count,
+        "duplicate_event": applied_count == 0,
+        "funding_applied": False,
+        "locked_research_evidence_hash": before_hash,
+        "previous_event_id": (prior_valuation.get("event") or {}).get("event_id"),
+        "ledgers": valuation_rows,
+        "live_trading_enabled": False,
+    }
+    if freshness is not None:
+        report["live_valuation"]["freshness"] = freshness
+    cohort["latest_report"] = report
+    result["cohort"] = cohort
+    saved = store.update_factor_factory_run(run["id"], result=result)
+    if saved is None:
+        raise KeyError(run["id"])
+    return _detail(saved)
+
+
+def value_factor_factory_cohort(run_id: str, *, stream_id: str | None = None) -> dict[str, Any]:
+    run = store.get_factor_factory_run(run_id)
+    if run is None:
+        raise KeyError("自动因子运行不存在")
+    config = run.get("config") or {}
+    if config.get("source") != "okx_live":
+        raise ValueError("实时 cohort 估值当前只支持 OKX 公共行情运行")
+    resolved_stream_id = stream_id or get_public_stream_manager().stream_id(
+        str(config.get("symbol") or ""),
+        f"candle{str(config.get('interval') or '').upper()}",
+    )
+    event, freshness = get_public_stream_manager().latest_valuation_event(resolved_stream_id)
+    return _apply_cohort_valuation(run, event, freshness=freshness)
+
+
 def _observe_factor_factory_locked(
     run_id: str,
     *,
@@ -3208,6 +3799,7 @@ def _observe_factor_factory_locked(
     position_quantity = pre_cost_equity * position_weight / max(price, 1e-12)
     quantity_delta = position_quantity - previous_quantity
     new_market_bar = all(item["market_time"] != market_time for item in prior)
+    execution_price = float(frame["open"].iloc[-1]) if "open" in frame.columns else price
     paper_order = (
         _execute_isolated_paper_order(
             run_id=run_id,
@@ -3216,10 +3808,13 @@ def _observe_factor_factory_locked(
             factor_key=definition["key"],
             factor_version=definition["version"],
             market_time=market_time,
-            price=price,
+            price=execution_price,
             quantity_delta=quantity_delta,
             position_weight=position_weight,
             commission_bps=req.commission_bps,
+            cost_profile_id=req.cost_profile_id,
+            cost_profile_version=req.cost_profile_version,
+            maximum_exposure=(req.maximum_demo_exposure if req.paper_target == "okx_demo" else 1.0),
         )
         if new_market_bar
         else None
@@ -3271,10 +3866,12 @@ def _observe_factor_factory_locked(
     peak = max([item["equity"] for item in prior] + [equity])
     drawdown = equity / peak - 1
     execution_record = {
-        "signal_time": market_time,
+        "signal_time": previous["market_time"],
         "tradable_time": market_time,
-        "theoretical_price": price,
-        "simulated_price": price,
+        "quote_time": market_time,
+        "execution_time": market_time if paper_order else None,
+        "theoretical_price": execution_price,
+        "simulated_price": execution_price if paper_order else None,
         "slippage_bps": 0.0,
         "rejection_reason": None,
         "capacity_used": position_weight,
@@ -3354,6 +3951,60 @@ def _observe_factor_factory_locked(
         "okx_demo": updated_demo or None,
         "live_trading_enabled": False,
     }
+    cohort_state = dict(result.get("cohort") or {})
+    cohort_definition = dict(cohort_state.get("definition") or {})
+    start_market_time = cohort_state.get("start_market_time")
+    if cohort_definition and start_market_time:
+        start_timestamp = pd.Timestamp(start_market_time)
+        start_index = frame.index[frame["datetime"] >= start_timestamp]
+        if len(start_index):
+            forward_frame = frame.loc[start_index[0] :].reset_index(drop=True)
+            forward_signal = signals.loc[start_index[0] :].reset_index(drop=True)
+            pool = default_benchmark_pool(req.market, req.interval)
+            cohort_report = run_cohort_backtest(
+                cohort_id=str(cohort_definition["cohort_id"]),
+                frame=forward_frame,
+                candidate_signal=forward_signal,
+                candidate_key=f"{definition['key']}:{definition['version']}",
+                market=req.market,
+                interval=req.interval,
+                initial_capital=req.initial_capital,
+                policy=ExecutionPolicy(
+                    commission_bps=req.commission_bps,
+                    maximum_exposure=(
+                        req.maximum_demo_exposure if req.paper_target == "okx_demo" else 1.0
+                    ),
+                ),
+                pool=pool,
+            )
+            observed_days = max(0.0, (time.time() - float(run["observation_started_at"])) / 86_400)
+            program_gate = program_live_gate(
+                cohort_report,
+                observed_days=observed_days,
+                rebalance_count=max(0, len(forward_frame) - 1),
+                freshness_ok=provenance["market_data_status"]["quality_status"] != "stale",
+                reconciliation_ok=bool(
+                    (demo_evidence or {}).get("reconciliation", {}).get("passed", False)
+                    if req.paper_target == "okx_demo"
+                    else True
+                ),
+                kill_switch_ready=bool(
+                    (demo_evidence or {}).get("kill_switch_ready", False)
+                    if req.paper_target == "okx_demo"
+                    else True
+                ),
+                required_days=req.observation_days,
+                required_rebalances=req.thresholds.minimum_observations,
+            )
+            result["cohort"] = {
+                **cohort_state,
+                "status": "cohort_validated" if program_gate["passed"] else "cohort_observing",
+                "latest_report": cohort_report,
+                "program_gate": program_gate,
+                "latest_market_data_status": provenance["market_data_status"],
+                "live_trading_enabled": False,
+            }
+    result["data_provenance"] = provenance
     run_for_validation = {**run, "result": result}
     monitoring = _monitor_drift(run, observations, req)
     degraded = _degrade_for_drift(run, req, monitoring) if monitoring else False

@@ -4,6 +4,9 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
+from core.cost_profiles import select_reference_profile
+from core.trading_costs import TradingCostProfile
+
 
 class FactorFactoryGateThresholds(BaseModel):
     minimum_validation_return: float = -0.01
@@ -88,7 +91,10 @@ class FactorFactoryStartRequest(BaseModel):
     maximum_ai_tokens: int = Field(default=12_000, ge=0, le=100_000)
     manual_candidates: list[ManualAlphaCandidate] = Field(default_factory=list, max_length=30)
     horizon: int = Field(default=5, ge=1, le=60)
-    commission_bps: float = Field(default=3.0, ge=0, le=200)
+    commission_bps: float | None = Field(default=None, ge=0, le=200)
+    cost_profile_id: str | None = Field(default=None, max_length=120)
+    cost_profile_version: str | None = Field(default=None, max_length=40)
+    transaction_cost_profile: TradingCostProfile | None = None
     initial_capital: float = Field(default=1_000_000, gt=0, le=1e12)
     observation_days: int = Field(default=7, ge=7, le=365)
     paper_target: Literal["simulation_orders", "okx_demo"] = "simulation_orders"
@@ -118,6 +124,20 @@ class FactorFactoryStartRequest(BaseModel):
                 raise ValueError("OKX Demo 自动观察只支持 USDT 永续合约")
             if self.interval not in {"1h", "4h"}:
                 raise ValueError("OKX Demo 策略包只支持 1h 或 4h 信号频率")
+        if self.transaction_cost_profile is not None:
+            profile = self.transaction_cost_profile
+            if profile.market != self.market:
+                raise ValueError("transaction_cost_profile.market 与因子工厂市场不一致")
+        else:
+            profile = select_reference_profile(
+                self.market,
+                profile_id=self.cost_profile_id,
+                version=self.cost_profile_version,
+            )
+            self.transaction_cost_profile = profile
+        self.cost_profile_id = profile.profile_id
+        self.cost_profile_version = profile.version
+        self.commission_bps = profile.total_transaction_cost_bps
         if self.candidate_mode == "manual":
             if not self.manual_candidates:
                 raise ValueError("manual 模式至少需要一个手工 Alpha")
@@ -146,3 +166,29 @@ class FactorFactoryStartRequest(BaseModel):
 
 class FactorFactoryObserveRequest(BaseModel):
     force_refresh: bool = False
+
+
+class FactorFactoryValuationRequest(BaseModel):
+    stream_id: str | None = Field(default=None, min_length=1, max_length=120)
+
+
+class FactorFactoryCohortReviewRequest(BaseModel):
+    provider: Literal["deepseek", "openai", "custom"] | None = None
+
+
+class FactorFactoryLiveRequest(BaseModel):
+    actor: str = Field(min_length=1, max_length=120)
+    reason: str = Field(min_length=1, max_length=1_000)
+
+
+class FactorFactoryManualApproval(BaseModel):
+    actor: str = Field(min_length=1, max_length=120)
+    symbol: str = Field(min_length=1, max_length=40)
+    interval: Literal["1h", "4h", "1d"]
+    factor_version: str = Field(min_length=1, max_length=80)
+    strategy_version: str = Field(default="cohort-execution-v1", min_length=1, max_length=80)
+    maximum_capital: float = Field(gt=0)
+    maximum_exposure: float = Field(gt=0, le=1)
+    maximum_loss: float = Field(gt=0)
+    valid_until: str = Field(min_length=1, max_length=64)
+    risks_acknowledged: bool

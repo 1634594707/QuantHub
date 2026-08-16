@@ -1,4 +1,4 @@
-import { PlugZap, Save } from 'lucide-react'
+import { PlugZap, RefreshCw, Save } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { api } from '../../api/client'
 import type { OkxDemoConnectionTest, OkxDemoCredentialStatus } from '../../api/types'
@@ -17,9 +17,23 @@ export function OkxDemoCredentials() {
   const [form, setForm] = useState(EMPTY_FORM)
   const [status, setStatus] = useState<OkxDemoCredentialStatus | null>(null)
   const [testResult, setTestResult] = useState<OkxDemoConnectionTest | null>(null)
-  const [busy, setBusy] = useState<'load' | 'save' | 'test' | 'delete' | ''>('load')
+  const [busy, setBusy] = useState<'load' | 'reload' | 'save' | 'test' | 'delete' | ''>('load')
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+
+  async function loadStatus(kind: 'load' | 'reload' = 'reload') {
+    setBusy(kind)
+    setError('')
+    try {
+      const result = await api.okxDemoCredentialStatus()
+      setStatus(result)
+      if (kind === 'reload') setMessage(result.available === false ? '' : '凭据库状态已刷新')
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '读取凭据状态失败')
+    } finally {
+      setBusy('')
+    }
+  }
 
   useEffect(() => {
     let active = true
@@ -96,14 +110,26 @@ export function OkxDemoCredentials() {
           OKX Demo 凭据
           <span className="sub">本机加密保存，仅执行账户只读连接测试</span>
         </div>
-        <span className={status?.configured ? s.configured : s.unconfigured}>
-          {busy === 'load' ? '读取中' : status?.configured ? '已配置' : '未配置'}
+        <span className={status?.available === false ? s.unavailable : status?.configured ? s.configured : s.unconfigured}>
+          {busy === 'load' ? '读取中' : status?.available === false ? '凭据库异常' : status?.configured ? '已配置' : '未配置'}
         </span>
       </div>
       <div className={s.body}>
         <div className={s.securityNotice}>
           当前固定为 OKX Demo。保存内容不写入项目、数据库或浏览器，Runner 仍保持 shadow，不会下单。
         </div>
+        {status?.available === false && (
+          <div className={s.recoveryNotice} role="alert">
+            <div>
+              <strong>{status.error ?? '本机凭据库不可用'}</strong>
+              <span>{status.recovery_action ?? '请重新检测或重建凭据'}</span>
+              {status.runtime_identity && <small>当前 API 账户：{status.runtime_identity}</small>}
+            </div>
+            <Button size="sm" icon={<RefreshCw size={15} />} loading={busy === 'reload'} onClick={() => void loadStatus()}>
+              重新检测
+            </Button>
+          </div>
+        )}
         <div className={s.fields}>
           <label>
             <span>API Key</span>
@@ -141,9 +167,9 @@ export function OkxDemoCredentials() {
         </div>
         <div className={s.actions}>
           <Button size="sm" variant="primary" icon={<Save size={15} />} disabled={!complete} loading={busy === 'save'} onClick={() => void save()}>
-            {status?.configured ? '替换凭据' : '加密保存'}
+            {status?.available === false ? '重建凭据' : status?.configured ? '替换凭据' : '加密保存'}
           </Button>
-          <Button size="sm" icon={<PlugZap size={15} />} disabled={!status?.configured} loading={busy === 'test'} onClick={() => void testConnection()}>
+          <Button size="sm" icon={<PlugZap size={15} />} disabled={!status?.configured || status.available === false} loading={busy === 'test'} onClick={() => void testConnection()}>
             测试只读连接
           </Button>
           <ConfirmActionButton
@@ -151,7 +177,7 @@ export function OkxDemoCredentials() {
             title="删除 OKX Demo 凭据"
             description="将删除当前 Windows 用户下的加密凭据文件。删除后 Runner 和连接测试都无法读取该凭据。"
             confirmLabel="确认删除"
-            disabled={!status?.configured || busy === 'delete'}
+            disabled={!status?.configured || status.available === false || busy === 'delete'}
             onConfirm={remove}
           />
         </div>

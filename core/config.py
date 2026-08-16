@@ -98,24 +98,6 @@ def _apply_llm_env_overrides(cfg: dict) -> None:
     llm = cfg.setdefault("llm", {})
     provider = os.environ.get("QUANTHUB_LLM_PROVIDER", str(llm.get("provider", "deepseek")))
     llm["provider"] = provider
-    active_string_overrides = {
-        "QUANTHUB_LLM_BASE_URL": "base_url",
-        "QUANTHUB_LLM_MODEL": "model",
-    }
-    active_integer_overrides = {
-        "QUANTHUB_LLM_TIMEOUT": "timeout",
-        "QUANTHUB_LLM_MAX_RETRIES": "max_retries",
-    }
-    provider_config = llm.setdefault(provider, {})
-    for env_name, field in active_string_overrides.items():
-        if value := os.environ.get(env_name):
-            provider_config[field] = value
-    for env_name, field in active_integer_overrides.items():
-        if value := os.environ.get(env_name):
-            try:
-                provider_config[field] = int(value)
-            except ValueError:
-                pass
     for provider_id, defaults in _LLM_PROVIDER_DEFAULTS.items():
         provider_config = llm.setdefault(provider_id, {})
         for field, default in defaults.items():
@@ -130,6 +112,24 @@ def _apply_llm_env_overrides(cfg: dict) -> None:
                     provider_config[field] = int(value)
                 except ValueError:
                     pass
+    # Generic runtime settings target the active provider and therefore take
+    # precedence over provider-specific defaults loaded from a dotenv file.
+    active_provider_config = llm.setdefault(provider, {})
+    for env_name, field in {
+        "QUANTHUB_LLM_BASE_URL": "base_url",
+        "QUANTHUB_LLM_MODEL": "model",
+    }.items():
+        if value := os.environ.get(env_name):
+            active_provider_config[field] = value
+    for env_name, field in {
+        "QUANTHUB_LLM_TIMEOUT": "timeout",
+        "QUANTHUB_LLM_MAX_RETRIES": "max_retries",
+    }.items():
+        if value := os.environ.get(env_name):
+            try:
+                active_provider_config[field] = int(value)
+            except ValueError:
+                pass
 
 
 # maxsize=None：market 取值有限（None/a_shares/crypto），不会膨胀；

@@ -1,0 +1,404 @@
+{
+  "evidence_kind": "deterministic_configuration_acceptance",
+  "generated_at": "2026-08-12T12:00:00+00:00",
+  "configured_priority": [
+    "tencent",
+    "eastmoney",
+    "sina_news",
+    "akshare",
+    "local_parquet"
+  ],
+  "runtime_plans": {
+    "1m": [
+      {
+        "priority": 2,
+        "name": "eastmoney",
+        "market": "a_shares",
+        "operations": [
+          "get_kline",
+          "get_news",
+          "get_announcements"
+        ],
+        "intervals": [
+          "1d",
+          "1w",
+          "1m",
+          "5m",
+          "15m",
+          "30m",
+          "1h"
+        ],
+        "kline_semantics": "bar_snapshot",
+        "tick_by_tick": false
+      },
+      {
+        "priority": 5,
+        "name": "local_parquet",
+        "market": "a_shares",
+        "operations": [
+          "get_kline"
+        ],
+        "intervals": [
+          "1m",
+          "5m",
+          "15m",
+          "30m",
+          "1h",
+          "4h",
+          "1d",
+          "1w"
+        ],
+        "kline_semantics": "bar_snapshot",
+        "tick_by_tick": false
+      }
+    ],
+    "5m": [
+      {
+        "priority": 2,
+        "name": "eastmoney",
+        "market": "a_shares",
+        "operations": [
+          "get_kline",
+          "get_news",
+          "get_announcements"
+        ],
+        "intervals": [
+          "1d",
+          "1w",
+          "1m",
+          "5m",
+          "15m",
+          "30m",
+          "1h"
+        ],
+        "kline_semantics": "bar_snapshot",
+        "tick_by_tick": false
+      },
+      {
+        "priority": 5,
+        "name": "local_parquet",
+        "market": "a_shares",
+        "operations": [
+          "get_kline"
+        ],
+        "intervals": [
+          "1m",
+          "5m",
+          "15m",
+          "30m",
+          "1h",
+          "4h",
+          "1d",
+          "1w"
+        ],
+        "kline_semantics": "bar_snapshot",
+        "tick_by_tick": false
+      }
+    ],
+    "15m": [
+      {
+        "priority": 2,
+        "name": "eastmoney",
+        "market": "a_shares",
+        "operations": [
+          "get_kline",
+          "get_news",
+          "get_announcements"
+        ],
+        "intervals": [
+          "1d",
+          "1w",
+          "1m",
+          "5m",
+          "15m",
+          "30m",
+          "1h"
+        ],
+        "kline_semantics": "bar_snapshot",
+        "tick_by_tick": false
+      },
+      {
+        "priority": 5,
+        "name": "local_parquet",
+        "market": "a_shares",
+        "operations": [
+          "get_kline"
+        ],
+        "intervals": [
+          "1m",
+          "5m",
+          "15m",
+          "30m",
+          "1h",
+          "4h",
+          "1d",
+          "1w"
+        ],
+        "kline_semantics": "bar_snapshot",
+        "tick_by_tick": false
+      }
+    ],
+    "30m": [
+      {
+        "priority": 2,
+        "name": "eastmoney",
+        "market": "a_shares",
+        "operations": [
+          "get_kline",
+          "get_news",
+          "get_announcements"
+        ],
+        "intervals": [
+          "1d",
+          "1w",
+          "1m",
+          "5m",
+          "15m",
+          "30m",
+          "1h"
+        ],
+        "kline_semantics": "bar_snapshot",
+        "tick_by_tick": false
+      },
+      {
+        "priority": 5,
+        "name": "local_parquet",
+        "market": "a_shares",
+        "operations": [
+          "get_kline"
+        ],
+        "intervals": [
+          "1m",
+          "5m",
+          "15m",
+          "30m",
+          "1h",
+          "4h",
+          "1d",
+          "1w"
+        ],
+        "kline_semantics": "bar_snapshot",
+        "tick_by_tick": false
+      }
+    ],
+    "1h": [
+      {
+        "priority": 2,
+        "name": "eastmoney",
+        "market": "a_shares",
+        "operations": [
+          "get_kline",
+          "get_news",
+          "get_announcements"
+        ],
+        "intervals": [
+          "1d",
+          "1w",
+          "1m",
+          "5m",
+          "15m",
+          "30m",
+          "1h"
+        ],
+        "kline_semantics": "bar_snapshot",
+        "tick_by_tick": false
+      },
+      {
+        "priority": 5,
+        "name": "local_parquet",
+        "market": "a_shares",
+        "operations": [
+          "get_kline"
+        ],
+        "intervals": [
+          "1m",
+          "5m",
+          "15m",
+          "30m",
+          "1h",
+          "4h",
+          "1d",
+          "1w"
+        ],
+        "kline_semantics": "bar_snapshot",
+        "tick_by_tick": false
+      }
+    ],
+    "1d": [
+      {
+        "priority": 1,
+        "name": "tencent",
+        "market": "a_shares",
+        "operations": [
+          "get_kline"
+        ],
+        "intervals": [
+          "1d",
+          "1w"
+        ],
+        "kline_semantics": "bar_snapshot",
+        "tick_by_tick": false
+      },
+      {
+        "priority": 2,
+        "name": "eastmoney",
+        "market": "a_shares",
+        "operations": [
+          "get_kline",
+          "get_news",
+          "get_announcements"
+        ],
+        "intervals": [
+          "1d",
+          "1w",
+          "1m",
+          "5m",
+          "15m",
+          "30m",
+          "1h"
+        ],
+        "kline_semantics": "bar_snapshot",
+        "tick_by_tick": false
+      },
+      {
+        "priority": 5,
+        "name": "local_parquet",
+        "market": "a_shares",
+        "operations": [
+          "get_kline"
+        ],
+        "intervals": [
+          "1m",
+          "5m",
+          "15m",
+          "30m",
+          "1h",
+          "4h",
+          "1d",
+          "1w"
+        ],
+        "kline_semantics": "bar_snapshot",
+        "tick_by_tick": false
+      }
+    ],
+    "1w": [
+      {
+        "priority": 1,
+        "name": "tencent",
+        "market": "a_shares",
+        "operations": [
+          "get_kline"
+        ],
+        "intervals": [
+          "1d",
+          "1w"
+        ],
+        "kline_semantics": "bar_snapshot",
+        "tick_by_tick": false
+      },
+      {
+        "priority": 2,
+        "name": "eastmoney",
+        "market": "a_shares",
+        "operations": [
+          "get_kline",
+          "get_news",
+          "get_announcements"
+        ],
+        "intervals": [
+          "1d",
+          "1w",
+          "1m",
+          "5m",
+          "15m",
+          "30m",
+          "1h"
+        ],
+        "kline_semantics": "bar_snapshot",
+        "tick_by_tick": false
+      },
+      {
+        "priority": 5,
+        "name": "local_parquet",
+        "market": "a_shares",
+        "operations": [
+          "get_kline"
+        ],
+        "intervals": [
+          "1m",
+          "5m",
+          "15m",
+          "30m",
+          "1h",
+          "4h",
+          "1d",
+          "1w"
+        ],
+        "kline_semantics": "bar_snapshot",
+        "tick_by_tick": false
+      }
+    ]
+  },
+  "news_plan": [
+    {
+      "priority": 2,
+      "name": "eastmoney",
+      "market": "a_shares",
+      "operations": [
+        "get_kline",
+        "get_news",
+        "get_announcements"
+      ],
+      "intervals": [
+        "1d",
+        "1w",
+        "1m",
+        "5m",
+        "15m",
+        "30m",
+        "1h"
+      ],
+      "kline_semantics": "bar_snapshot",
+      "tick_by_tick": false
+    },
+    {
+      "priority": 3,
+      "name": "sina_news",
+      "market": "a_shares",
+      "operations": [
+        "get_news"
+      ],
+      "intervals": [],
+      "kline_semantics": null,
+      "tick_by_tick": false
+    }
+  ],
+  "announcements_plan": [
+    {
+      "priority": 2,
+      "name": "eastmoney",
+      "market": "a_shares",
+      "operations": [
+        "get_kline",
+        "get_news",
+        "get_announcements"
+      ],
+      "intervals": [
+        "1d",
+        "1w",
+        "1m",
+        "5m",
+        "15m",
+        "30m",
+        "1h"
+      ],
+      "kline_semantics": "bar_snapshot",
+      "tick_by_tick": false
+    }
+  ],
+  "assertions": {
+    "daily_sources_are_bar_snapshots": true,
+    "news_only_sources_excluded_from_daily_kline": true
+  },
+  "note": "Plans describe configured adapter capabilities; they do not claim tick-level data."
+}

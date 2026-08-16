@@ -65,6 +65,10 @@ class TradingAdapter(Protocol):
 
     def cancel_order(self, external_order_id: str) -> ExternalOrder: ...
 
+    def amend_order(
+        self, external_order_id: str, symbol: str, request: dict[str, Any]
+    ) -> ExternalOrder: ...
+
     def account_snapshot(self, account_id: str) -> AccountSnapshot: ...
 
     def mark_price(self, symbol: str) -> float: ...
@@ -90,6 +94,11 @@ class DisabledAdapter:
         return None
 
     def cancel_order(self, external_order_id: str) -> ExternalOrder:
+        raise RuntimeError("no OKX adapter configured")
+
+    def amend_order(
+        self, external_order_id: str, symbol: str, request: dict[str, Any]
+    ) -> ExternalOrder:
         raise RuntimeError("no OKX adapter configured")
 
     def account_snapshot(self, account_id: str) -> AccountSnapshot:

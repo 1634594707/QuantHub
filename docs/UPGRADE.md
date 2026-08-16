@@ -119,6 +119,17 @@ uv run python -m tools.backup_store prune backups --keep 14 --apply
 
 `DataSource` 接口新增方法时，基类提供默认空实现，现有数据源无需改动。
 
+### 3.5 研究、风控、成本与归因闭环升级
+
+2026-08-16 闭环升级由 `apps.api.store._init()` 执行幂等 SQLite 增量迁移，新增或补齐：
+
+- 版本化成本档案与内容哈希；
+- 模拟风险决定和订单意图幂等键；
+- 股票池不可变版本与批量变更记录；
+- 账本中的策略、因子版本、研究、信号、订单、执行和市场状态身份。
+
+升级前必须备份数据库。升级后启动一次 API 完成 schema 初始化，再运行全量后端测试。旧成本记录读取为 `legacy_incomplete`，旧账本身份读取为 `unknown_attribution`；迁移不会猜测或回填无法证明的研究身份。
+
 ## 4. 向后兼容策略
 
 | 变更类型 | 兼容策略 |
@@ -129,6 +140,11 @@ uv run python -m tools.backup_store prune backups --keep 14 --apply
 | 数据源新增方法 | `DataSource` 基类默认空实现 |
 | 缓存格式变更 | `CacheStore` schema 用 `CREATE TABLE IF NOT EXISTS`，旧表保留 |
 | Python 版本 | 锁定 `>=3.11,<3.13`，升级需评估 torch/solana 兼容 |
+| 旧成本 bp 字段 | 显式读取为 `legacy_incomplete`，禁止升级交易验证状态 |
+| 旧账本缺失研究身份 | 归入 `unknown_attribution`，不并入已知因子或策略 |
+| 股票池历史版本 | 读取不可变版本快照；回滚只切换当前版本指针 |
+
+闭环 API 与迁移细节见 [研究、风控、执行与归因闭环契约](RESEARCH_EXECUTION_CLOSURE.md)。
 
 ## 5. 原项目迁移状态
 

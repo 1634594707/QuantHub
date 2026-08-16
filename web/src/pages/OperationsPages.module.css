@@ -429,6 +429,46 @@
   border-top: 1px solid var(--divider);
 }
 
+.attributionList {
+  display: grid;
+  margin: var(--sp-3) 0;
+  border-top: 1px solid var(--divider);
+}
+
+.attributionList > div {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) 110px 150px minmax(140px, auto) auto;
+  gap: var(--sp-3);
+  align-items: center;
+  min-width: 0;
+  padding: var(--sp-2) 0;
+  border-bottom: 1px solid var(--divider);
+  font-size: var(--fs-12);
+}
+
+.attributionList span,
+.attributionList small,
+.attributionList strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.attributionList small {
+  color: var(--text-3);
+}
+
+.attributionList a {
+  color: var(--accent-strong);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+@media (max-width: 900px) {
+  .attributionList > div {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
 .recentList > div {
   display: grid;
   grid-template-columns: 52px minmax(120px, 1fr) minmax(120px, auto) 170px;

@@ -1,0 +1,1892 @@
+{
+  "generated_at": "2026-08-12T12:00:00+00:00",
+  "evidence_kind": "deterministic_contract_acceptance",
+  "ranking": [
+    {
+      "member_key": "grid_geometric",
+      "metrics": {
+        "absolute_return": 0.06315353720832362,
+        "after_cost_return": 0.06315353720832362,
+        "max_drawdown": 0.002030398776196929,
+        "sharpe": 59.98220039412213,
+        "sortino": 211.1327971612645,
+        "calmar": 1105.980454315241,
+        "cvar_95": 0.0012520519262305223,
+        "turnover": 1.2775341114733128,
+        "fill_rate": 1.0,
+        "capital_utilization": 0.33291351837075933,
+        "trade_count": 239,
+        "fees": 39.572012153296534,
+        "spread_cost": 13.190670717762902,
+        "slippage_cost": 13.190947623424124,
+        "funding_pnl": 0,
+        "volatility": 0.03743746221686528,
+        "rejected_order_count": 1,
+        "rejection_reasons": [
+          "below_minimum_quantity"
+        ],
+        "risk_event_count": 0,
+        "risk_halted": false,
+        "final_equity": 106315.35372083235
+      }
+    },
+    {
+      "member_key": "grid_arithmetic",
+      "metrics": {
+        "absolute_return": 0.07889570515003297,
+        "after_cost_return": 0.07889570515003297,
+        "max_drawdown": 0.0025192311976801607,
+        "sharpe": 59.2044871618297,
+        "sortino": 224.36364099142745,
+        "calmar": 1105.4485170289302,
+        "cvar_95": 0.001581000900171196,
+        "turnover": 1.3512129575450242,
+        "fill_rate": 1.0,
+        "capital_utilization": 0.41402271806139185,
+        "trade_count": 239,
+        "fees": 42.172514415984395,
+        "spread_cost": 14.05750480532529,
+        "slippage_cost": 14.057859358083059,
+        "funding_pnl": 0,
+        "volatility": 0.04703833315735596,
+        "rejected_order_count": 1,
+        "rejection_reasons": [
+          "below_minimum_quantity"
+        ],
+        "risk_event_count": 0,
+        "risk_halted": false,
+        "final_equity": 107889.57051500329
+      }
+    },
+    {
+      "member_key": "grid_trend_filtered",
+      "metrics": {
+        "absolute_return": 0.06637280903707743,
+        "after_cost_return": 0.06637280903707743,
+        "max_drawdown": 0.002089777069687604,
+        "sharpe": 57.05208096188268,
+        "sortino": 269.44124223427724,
+        "calmar": 1127.6708089297827,
+        "cvar_95": 0.0013945107785355941,
+        "turnover": 0.6928086316343414,
+        "fill_rate": 1.0,
+        "capital_utilization": 0.35286840783735723,
+        "trade_count": 239,
+        "fees": 21.493466887787374,
+        "spread_cost": 7.164488962594419,
+        "slippage_cost": 7.164795685619795,
+        "funding_pnl": 0,
+        "volatility": 0.041305778140362605,
+        "rejected_order_count": 1,
+        "rejection_reasons": [
+          "below_minimum_quantity"
+        ],
+        "risk_event_count": 0,
+        "risk_halted": false,
+        "final_equity": 106637.28090370775
+      }
+    },
+    {
+      "member_key": "limited_martingale",
+      "metrics": {
+        "absolute_return": 0.0462791295296745,
+        "after_cost_return": 0.0462791295296745,
+        "max_drawdown": 0.0014927113822348348,
+        "sharpe": 56.37850456182912,
+        "sortino": 265.5158879890319,
+        "calmar": 1111.2423520664945,
+        "cvar_95": 0.00100175533612476,
+        "turnover": 2.5466008784471743,
+        "fill_rate": 1.0,
+        "capital_utilization": 0.25379099938242916,
+        "trade_count": 239,
+        "fees": 78.20227742473725,
+        "spread_cost": 26.067425808241346,
+        "slippage_cost": 26.06763997632926,
+        "funding_pnl": 0,
+        "volatility": 0.02942192454806839,
+        "rejected_order_count": 1,
+        "rejection_reasons": [
+          "below_minimum_quantity"
+        ],
+        "risk_event_count": 0,
+        "risk_halted": false,
+        "final_equity": 104627.91295296745
+      }
+    },
+    {
+      "member_key": "fixed_exposure",
+      "metrics": {
+        "absolute_return": 0.09436111434746564,
+        "after_cost_return": 0.09436111434746564,
+        "max_drawdown": 0.002985355393729794,
+        "sharpe": 56.28863723351457,
+        "sortino": 264.7071061076458,
+        "calmar": 1107.8573927732793,
+        "cvar_95": 0.0020002156882287514,
+        "turnover": 0.5470760461189038,
+        "fill_rate": 1.0,
+        "capital_utilization": 0.49706406623529215,
+        "trade_count": 239,
+        "fees": 17.191714013731684,
+        "spread_cost": 5.7305713379088905,
+        "slippage_cost": 5.7310241229435865,
+        "funding_pnl": 0,
+        "volatility": 0.05875693933179684,
+        "rejected_order_count": 1,
+        "rejection_reasons": [
+          "below_minimum_quantity"
+        ],
+        "risk_event_count": 0,
+        "risk_halted": false,
+        "final_equity": 109436.11143474656
+      }
+    },
+    {
+      "member_key": "buy_hold",
+      "metrics": {
+        "absolute_return": 0.1962388051577102,
+        "after_cost_return": 0.1962388051577102,
+        "max_drawdown": 0.005970441421201955,
+        "sharpe": 55.96150736487972,
+        "sortino": 263.2057088594346,
+        "calmar": 1101.5736921890386,
+        "cvar_95": 0.004066664702837203,
+        "turnover": 0.9114801695486564,
+        "fill_rate": 1.0,
+        "capital_utilization": 0.9895908963457845,
+        "trade_count": 7,
+        "fees": 29.99249062930685,
+        "spread_cost": 9.997496876433116,
+        "slippage_cost": 9.998496376550039,
+        "funding_pnl": 0,
+        "volatility": 0.11752509019225102,
+        "rejected_order_count": 233,
+        "rejection_reasons": [
+          "below_minimum_quantity"
+        ],
+        "risk_event_count": 0,
+        "risk_halted": false,
+        "final_equity": 119623.88051577102
+      }
+    },
+    {
+      "member_key": "fixed_stop_time_exit",
+      "metrics": {
+        "absolute_return": 0.1831981364806452,
+        "after_cost_return": 0.1831981364806452,
+        "max_drawdown": 0.005970441421177641,
+        "sharpe": 52.26604402544239,
+        "sortino": 247.11855971857085,
+        "calmar": 1034.245440253921,
+        "cvar_95": 0.0026357576350922204,
+        "turnover": 0.9212386463160733,
+        "fill_rate": 1.0,
+        "capital_utilization": 0.9479241670891795,
+        "trade_count": 7,
+        "fees": 29.992490719854032,
+        "spread_cost": 9.997496906621972,
+        "slippage_cost": 9.998496406732743,
+        "funding_pnl": 0,
+        "volatility": 0.11814366155491429,
+        "rejected_order_count": 233,
+        "rejection_reasons": [
+          "below_minimum_quantity"
+        ],
+        "risk_event_count": 0,
+        "risk_halted": false,
+        "final_equity": 118319.81364806452
+      }
+    },
+    {
+      "member_key": "candidate_fixed_exposure",
+      "metrics": {
+        "absolute_return": 0.08718721357457437,
+        "after_cost_return": 0.08718721357457437,
+        "max_drawdown": 0.002985355393710809,
+        "sharpe": 51.8584014935066,
+        "sortino": 245.4081926012256,
+        "calmar": 1027.0871999066064,
+        "cvar_95": 0.0011924203428698736,
+        "turnover": 0.5469713257489967,
+        "fill_rate": 1.0,
+        "capital_utilization": 0.472050357491936,
+        "trade_count": 227,
+        "fees": 17.07904602703968,
+        "spread_cost": 5.6930153423487635,
+        "slippage_cost": 5.693471714555885,
+        "funding_pnl": 0,
+        "volatility": 0.05912678030456557,
+        "rejected_order_count": 13,
+        "rejection_reasons": [
+          "below_minimum_quantity"
+        ],
+        "risk_event_count": 0,
+        "risk_halted": false,
+        "final_equity": 108718.72135745744
+      }
+    },
+    {
+      "member_key": "anti_martingale",
+      "metrics": {
+        "absolute_return": 0.08436763898430177,
+        "after_cost_return": 0.08436763898430177,
+        "max_drawdown": 0.0029153892102510293,
+        "sharpe": 51.831600294004716,
+        "sortino": 243.48571239808257,
+        "calmar": 1019.0411989467922,
+        "cvar_95": 0.002007655487651916,
+        "turnover": 4.785163533437451,
+        "fill_rate": 1.0,
+        "capital_utilization": 0.4651126205369171,
+        "trade_count": 239,
+        "fees": 149.66951296889985,
+        "spread_cost": 49.88983765629208,
+        "slippage_cost": 49.89028052023391,
+        "funding_pnl": 0,
+        "volatility": 0.0573183482539394,
+        "rejected_order_count": 1,
+        "rejection_reasons": [
+          "below_minimum_quantity"
+        ],
+        "risk_event_count": 0,
+        "risk_halted": false,
+        "final_equity": 108436.76389843017
+      }
+    },
+    {
+      "member_key": "candidate:momentum-quality:v1",
+      "metrics": {
+        "absolute_return": 0.1806240473292997,
+        "after_cost_return": 0.1806240473292997,
+        "max_drawdown": 0.005970441421185968,
+        "sharpe": 51.543631707856505,
+        "sortino": 243.92219391357872,
+        "calmar": 1020.867947431579,
+        "cvar_95": 0.002384733098419906,
+        "turnover": 0.9231432337974788,
+        "fill_rate": 1.0,
+        "capital_utilization": 0.9395908214032687,
+        "trade_count": 7,
+        "fees": 29.992490737826994,
+        "spread_cost": 9.997496912610732,
+        "slippage_cost": 9.998496412721684,
+        "funding_pnl": 0,
+        "volatility": 0.11824995788912496,
+        "rejected_order_count": 233,
+        "rejection_reasons": [
+          "below_minimum_quantity"
+        ],
+        "risk_event_count": 0,
+        "risk_halted": false,
+        "final_equity": 118062.40473292998
+      }
+    },
+    {
+      "member_key": "dca",
+      "metrics": {
+        "absolute_return": 0.11515459532411265,
+        "after_cost_return": 0.11515459532411265,
+        "max_drawdown": 0.005276360176500017,
+        "sharpe": 49.04676763522085,
+        "sortino": 27.889573815548204,
+        "calmar": 757.9316671204765,
+        "cvar_95": 0.0025664287526931118,
+        "turnover": 1.0223675560724328,
+        "fill_rate": 1.0,
+        "capital_utilization": 0.6209379710449362,
+        "trade_count": 184,
+        "fees": 31.90800175279092,
+        "spread_cost": 10.636000584261982,
+        "slippage_cost": 10.637000052451839,
+        "funding_pnl": 0,
+        "volatility": 0.08153688117932059,
+        "rejected_order_count": 56,
+        "rejection_reasons": [
+          "below_minimum_quantity"
+        ],
+        "risk_event_count": 0,
+        "risk_halted": false,
+        "final_equity": 111515.45953241127
+      }
+    },
+    {
+      "member_key": "time_series_momentum",
+      "metrics": {
+        "absolute_return": 0.17043769192396585,
+        "after_cost_return": 0.17043769192396585,
+        "max_drawdown": 0.006095013274845629,
+        "sharpe": 48.59317266186256,
+        "sortino": 210.91940536942667,
+        "calmar": 947.8704953332982,
+        "cvar_95": 0.0017311712731144457,
+        "turnover": 0.9306022787530701,
+        "fill_rate": 1.0,
+        "capital_utilization": 0.9062574428629252,
+        "trade_count": 7,
+        "fees": 29.99249080832854,
+        "spread_cost": 9.997496936105868,
+        "slippage_cost": 9.998496436221048,
+        "funding_pnl": 0,
+        "volatility": 0.11889084279580589,
+        "rejected_order_count": 233,
+        "rejection_reasons": [
+          "below_minimum_quantity"
+        ],
+        "risk_event_count": 0,
+        "risk_halted": false,
+        "final_equity": 117043.76919239659
+      }
+    },
+    {
+      "member_key": "donchian_breakout",
+      "metrics": {
+        "absolute_return": 0.17043769192396585,
+        "after_cost_return": 0.17043769192396585,
+        "max_drawdown": 0.006095013274845629,
+        "sharpe": 48.59317266186256,
+        "sortino": 210.91940536942667,
+        "calmar": 947.8704953332982,
+        "cvar_95": 0.0017311712731144457,
+        "turnover": 0.9306022787530701,
+        "fill_rate": 1.0,
+        "capital_utilization": 0.9062574428629252,
+        "trade_count": 7,
+        "fees": 29.99249080832854,
+        "spread_cost": 9.997496936105868,
+        "slippage_cost": 9.998496436221048,
+        "funding_pnl": 0,
+        "volatility": 0.11889084279580589,
+        "rejected_order_count": 233,
+        "rejection_reasons": [
+          "below_minimum_quantity"
+        ],
+        "risk_event_count": 0,
+        "risk_halted": false,
+        "final_equity": 117043.76919239659
+      }
+    },
+    {
+      "member_key": "volatility_target",
+      "metrics": {
+        "absolute_return": 0.17043769192396585,
+        "after_cost_return": 0.17043769192396585,
+        "max_drawdown": 0.006095013274845629,
+        "sharpe": 48.59317266186256,
+        "sortino": 210.91940536942667,
+        "calmar": 947.8704953332982,
+        "cvar_95": 0.0017311712731144457,
+        "turnover": 0.9306022787530701,
+        "fill_rate": 1.0,
+        "capital_utilization": 0.9062574428629252,
+        "trade_count": 7,
+        "fees": 29.99249080832854,
+        "spread_cost": 9.997496936105868,
+        "slippage_cost": 9.998496436221048,
+        "funding_pnl": 0,
+        "volatility": 0.11889084279580589,
+        "rejected_order_count": 233,
+        "rejection_reasons": [
+          "below_minimum_quantity"
+        ],
+        "risk_event_count": 0,
+        "risk_halted": false,
+        "final_equity": 117043.76919239659
+      }
+    },
+    {
+      "member_key": "candidate_volatility_target",
+      "metrics": {
+        "absolute_return": 0.17043769192396585,
+        "after_cost_return": 0.17043769192396585,
+        "max_drawdown": 0.006095013274845629,
+        "sharpe": 48.59317266186256,
+        "sortino": 210.91940536942667,
+        "calmar": 947.8704953332982,
+        "cvar_95": 0.0017311712731144457,
+        "turnover": 0.9306022787530701,
+        "fill_rate": 1.0,
+        "capital_utilization": 0.9062574428629252,
+        "trade_count": 7,
+        "fees": 29.99249080832854,
+        "spread_cost": 9.997496936105868,
+        "slippage_cost": 9.998496436221048,
+        "funding_pnl": 0,
+        "volatility": 0.11889084279580589,
+        "rejected_order_count": 233,
+        "rejection_reasons": [
+          "below_minimum_quantity"
+        ],
+        "risk_event_count": 0,
+        "risk_halted": false,
+        "final_equity": 117043.76919239659
+      }
+    },
+    {
+      "member_key": "ma_trend",
+      "metrics": {
+        "absolute_return": 0.15492716001812368,
+        "after_cost_return": 0.15492716001812368,
+        "max_drawdown": 0.005860313190512945,
+        "sharpe": 47.07247285356897,
+        "sortino": 240.96791824932689,
+        "calmar": 902.2127841404799,
+        "cvar_95": 0.0009384883754360248,
+        "turnover": 0.9413280795961348,
+        "fill_rate": 1.0,
+        "capital_utilization": 0.8270906980740524,
+        "trade_count": 7,
+        "fees": 29.99249091577867,
+        "spread_cost": 9.997496971924834,
+        "slippage_cost": 9.998496472039383,
+        "funding_pnl": 0,
+        "volatility": 0.11232147280630894,
+        "rejected_order_count": 233,
+        "rejection_reasons": [
+          "below_minimum_quantity"
+        ],
+        "risk_event_count": 0,
+        "risk_halted": false,
+        "final_equity": 115492.71600181237
+      }
+    },
+    {
+      "member_key": "random_05",
+      "metrics": {
+        "absolute_return": 0.05008148507662313,
+        "after_cost_return": 0.05008148507662313,
+        "max_drawdown": 0.004157315323288779,
+        "sharpe": 30.342188751139954,
+        "sortino": 19.877901628346105,
+        "calmar": 431.30258144774706,
+        "cvar_95": 0.0016169748554723529,
+        "turnover": 44.9500799482705,
+        "fill_rate": 1.0,
+        "capital_utilization": 0.3839155396227888,
+        "trade_count": 212,
+        "fees": 1382.9857110773207,
+        "spread_cost": 460.9952370257213,
+        "slippage_cost": 460.9951657480541,
+        "funding_pnl": 0,
+        "volatility": 0.059094643617605226,
+        "rejected_order_count": 28,
+        "rejection_reasons": [
+          "below_minimum_quantity"
+        ],
+        "risk_event_count": 0,
+        "risk_halted": false,
+        "final_equity": 105008.1485076623
+      }
+    },
+    {
+      "member_key": "random_11",
+      "metrics": {
+        "absolute_return": 0.04141822755147562,
+        "after_cost_return": 0.04141822755147562,
+        "max_drawdown": 0.004172147672323434,
+        "sharpe": 27.91269306528375,
+        "sortino": 17.94430305950392,
+        "calmar": 356.9000817193024,
+        "cvar_95": 0.0012414618872857812,
+        "turnover": 45.54589665778885,
+        "fill_rate": 1.0,
+        "capital_utilization": 0.3330422652457401,
+        "trade_count": 211,
+        "fees": 1391.6781525981191,
+        "spread_cost": 463.8927175326519,
+        "slippage_cost": 463.89265291978836,
+        "funding_pnl": 0,
+        "volatility": 0.053346333931827444,
+        "rejected_order_count": 29,
+        "rejection_reasons": [
+          "below_minimum_quantity"
+        ],
+        "risk_event_count": 0,
+        "risk_halted": false,
+        "final_equity": 104141.82275514757
+      }
+    },
+    {
+      "member_key": "grid_adaptive",
+      "metrics": {
+        "absolute_return": 0.00970606821673492,
+        "after_cost_return": 0.00970606821673492,
+        "max_drawdown": 9.279044092702637e-05,
+        "sharpe": 27.698275478818502,
+        "sortino": 0.0,
+        "calmar": 3816.4159574923938,
+        "cvar_95": 4.256442244359008e-07,
+        "turnover": 1.0005287263577125,
+        "fill_rate": 1.0,
+        "capital_utilization": 0.03879545237616043,
+        "trade_count": 22,
+        "fees": 30.294299310413464,
+        "spread_cost": 10.098099770134302,
+        "slippage_cost": 10.098089559163164,
+        "funding_pnl": 0,
+        "volatility": 0.012785161290184569,
+        "rejected_order_count": 218,
+        "rejection_reasons": [
+          "below_minimum_quantity"
+        ],
+        "risk_event_count": 0,
+        "risk_halted": false,
+        "final_equity": 100970.60682167349
+      }
+    },
+    {
+      "member_key": "random_15",
+      "metrics": {
+        "absolute_return": 0.03355693039615937,
+        "after_cost_return": 0.03355693039615937,
+        "max_drawdown": 0.004377271469152344,
+        "sharpe": 27.11322088707096,
+        "sortino": 19.00687379834757,
+        "calmar": 276.6207928990709,
+        "cvar_95": 0.0010454325196517233,
+        "turnover": 48.257319602429625,
+        "fill_rate": 1.0,
+        "capital_utilization": 0.29146828202022895,
+        "trade_count": 212,
+        "fees": 1472.683807152083,
+        "spread_cost": 490.8946023839738,
+        "slippage_cost": 490.895319852797,
+        "funding_pnl": 0,
+        "volatility": 0.04465881458992568,
+        "rejected_order_count": 28,
+        "rejection_reasons": [
+          "below_minimum_quantity"
+        ],
+        "risk_event_count": 0,
+        "risk_halted": false,
+        "final_equity": 103355.69303961594
+      }
+    },
+    {
+      "member_key": "random_08",
+      "metrics": {
+        "absolute_return": 0.03972736111724884,
+        "after_cost_return": 0.03972736111724884,
+        "max_drawdown": 0.005313928816366609,
+        "sharpe": 26.785992842208163,
+        "sortino": 18.94743445941102,
+        "calmar": 269.00483815683026,
+        "cvar_95": 0.0012690695296214787,
+        "turnover": 41.002391599974196,
+        "fill_rate": 1.0,
+        "capital_utilization": 0.3233973251753754,
+        "trade_count": 197,
+        "fees": 1240.3131070081854,
+        "spread_cost": 413.43770233600947,
+        "slippage_cost": 413.4386816641621,
+        "funding_pnl": 0,
+        "volatility": 0.05336642063799545,
+        "rejected_order_count": 43,
+        "rejection_reasons": [
+          "below_minimum_quantity"
+        ],
+        "risk_event_count": 0,
+        "risk_halted": false,
+        "final_equity": 103972.7361117249
+      }
+    },
+    {
+      "member_key": "random_03",
+      "metrics": {
+        "absolute_return": 0.03865329078769841,
+        "after_cost_return": 0.03865329078769841,
+        "max_drawdown": 0.00408292306619884,
+        "sharpe": 26.17639735096314,
+        "sortino": 18.598120747458047,
+        "calmar": 340.82739107342,
+        "cvar_95": 0.0015059727791233712,
+        "turnover": 45.73881691824815,
+        "fill_rate": 1.0,
+        "capital_utilization": 0.3319970365698077,
+        "trade_count": 209,
+        "fees": 1402.6937026227845,
+        "spread_cost": 467.5645675408722,
+        "slippage_cost": 467.56476596646826,
+        "funding_pnl": 0,
+        "volatility": 0.053161326898746725,
+        "rejected_order_count": 31,
+        "rejection_reasons": [
+          "below_minimum_quantity"
+        ],
+        "risk_event_count": 0,
+        "risk_halted": false,
+        "final_equity": 103865.32907876984
+      }
+    },
+    {
+      "member_key": "random_12",
+      "metrics": {
+        "absolute_return": 0.02748018437896449,
+        "after_cost_return": 0.02748018437896449,
+        "max_drawdown": 0.0030565044711399203,
+        "sharpe": 24.823586463714847,
+        "sortino": 20.032961533926468,
+        "calmar": 325.3679920761359,
+        "cvar_95": 0.0009386240577716568,
+        "turnover": 46.016875184052104,
+        "fill_rate": 1.0,
+        "capital_utilization": 0.2570701465769455,
+        "trade_count": 208,
+        "fees": 1397.3712492615248,
+        "spread_cost": 465.79041642045706,
+        "slippage_cost": 465.79139325904066,
+        "funding_pnl": 0,
+        "volatility": 0.04006224982841188,
+        "rejected_order_count": 32,
+        "rejection_reasons": [
+          "below_minimum_quantity"
+        ],
+        "risk_event_count": 0,
+        "risk_halted": false,
+        "final_equity": 102748.01843789645
+      }
+    },
+    {
+      "member_key": "random_00",
+      "metrics": {
+        "absolute_return": 0.04714530934907746,
+        "after_cost_return": 0.04714530934907746,
+        "max_drawdown": 0.00597044145231429,
+        "sharpe": 24.260904064118545,
+        "sortino": 14.669079669927433,
+        "calmar": 283.24451239876703,
+        "cvar_95": 0.001745340863149027,
+        "turnover": 43.98513217041458,
+        "fill_rate": 1.0,
+        "capital_utilization": 0.37564904535395605,
+        "trade_count": 208,
+        "fees": 1354.699818778084,
+        "spread_cost": 451.5666062593073,
+        "slippage_cost": 451.5665365356687,
+        "funding_pnl": 0,
+        "volatility": 0.06970452434487993,
+        "rejected_order_count": 32,
+        "rejection_reasons": [
+          "below_minimum_quantity"
+        ],
+        "risk_event_count": 0,
+        "risk_halted": false,
+        "final_equity": 104714.53093490774
+      }
+    },
+    {
+      "member_key": "random_19",
+      "metrics": {
+        "absolute_return": 0.029430327347554464,
+        "after_cost_return": 0.029430327347554464,
+        "max_drawdown": 0.004367266691318594,
+        "sharpe": 24.22701752715689,
+        "sortino": 16.490305019703964,
+        "calmar": 243.66715107232864,
+        "cvar_95": 0.0009359908629750779,
+        "turnover": 38.525038764000264,
+        "fill_rate": 1.0,
+        "capital_utilization": 0.24729851419860957,
+        "trade_count": 181,
+        "fees": 1174.348832221614,
+        "spread_cost": 391.4496107404965,
+        "slippage_cost": 391.4500774773619,
+        "funding_pnl": 0,
+        "volatility": 0.04392449179738382,
+        "rejected_order_count": 59,
+        "rejection_reasons": [
+          "below_minimum_quantity"
+        ],
+        "risk_event_count": 0,
+        "risk_halted": false,
+        "final_equity": 102943.03273475546
+      }
+    },
+    {
+      "member_key": "random_14",
+      "metrics": {
+        "absolute_return": 0.0290702137800134,
+        "after_cost_return": 0.0290702137800134,
+        "max_drawdown": 0.0041490984553268495,
+        "sharpe": 23.22376299502695,
+        "sortino": 15.737388600271606,
+        "calmar": 253.4029705011836,
+        "cvar_95": 0.0010415245655179632,
+        "turnover": 43.51925651368938,
+        "fill_rate": 1.0,
+        "capital_utilization": 0.26647017244570387,
+        "trade_count": 200,
+        "fees": 1320.4167556000673,
+        "spread_cost": 440.1389185333109,
+        "slippage_cost": 440.13938256701135,
+        "funding_pnl": 0,
+        "volatility": 0.045272330487821366,
+        "rejected_order_count": 40,
+        "rejection_reasons": [
+          "below_minimum_quantity"
+        ],
+        "risk_event_count": 0,
+        "risk_halted": false,
+        "final_equity": 102907.02137800134
+      }
+    },
+    {
+      "member_key": "random_02",
+      "metrics": {
+        "absolute_return": 0.034871788186890296,
+        "after_cost_return": 0.034871788186890296,
+        "max_drawdown": 0.005860375559316178,
+        "sharpe": 22.991493745989306,
+        "sortino": 14.732103347499855,
+        "calmar": 214.65328397217368,
+        "cvar_95": 0.0011876347486122392,
+        "turnover": 40.96888456505297,
+        "fill_rate": 1.0,
+        "capital_utilization": 0.28621225665520456,
+        "trade_count": 192,
+        "fees": 1254.2203768764073,
+        "spread_cost": 418.0734589587508,
+        "slippage_cost": 418.0744380550514,
+        "funding_pnl": 0,
+        "volatility": 0.05471366380172325,
+        "rejected_order_count": 48,
+        "rejection_reasons": [
+          "below_minimum_quantity"
+        ],
+        "risk_event_count": 0,
+        "risk_halted": false,
+        "final_equity": 103487.17881868903
+      }
+    },
+    {
+      "member_key": "random_13",
+      "metrics": {
+        "absolute_return": 0.03739681896488767,
+        "after_cost_return": 0.03739681896488767,
+        "max_drawdown": 0.005970503646387293,
+        "sharpe": 22.316168593854922,
+        "sortino": 13.812975395150652,
+        "calmar": 225.71125744965812,
+        "cvar_95": 0.001417697387131961,
+        "turnover": 38.49296467964143,
+        "fill_rate": 1.0,
+        "capital_utilization": 0.3056386350582257,
+        "trade_count": 184,
+        "fees": 1179.0576850570778,
+        "spread_cost": 393.0192283523187,
+        "slippage_cost": 393.0191713045218,
+        "funding_pnl": 0,
+        "volatility": 0.06038715292753831,
+        "rejected_order_count": 56,
+        "rejection_reasons": [
+          "below_minimum_quantity"
+        ],
+        "risk_event_count": 0,
+        "risk_halted": false,
+        "final_equity": 103739.68189648876
+      }
+    },
+    {
+      "member_key": "random_16",
+      "metrics": {
+        "absolute_return": 0.031095053736642342,
+        "after_cost_return": 0.031095053736642342,
+        "max_drawdown": 0.00549033241018082,
+        "sharpe": 22.15052624125665,
+        "sortino": 14.478798302979232,
+        "calmar": 204.6712609355257,
+        "cvar_95": 0.0011628614772218326,
+        "turnover": 43.014424911853375,
+        "fill_rate": 1.0,
+        "capital_utilization": 0.2776947446562081,
+        "trade_count": 195,
+        "fees": 1310.9874322700384,
+        "spread_cost": 436.9958107566287,
+        "slippage_cost": 436.99575781178186,
+        "funding_pnl": 0,
+        "volatility": 0.05073077023578387,
+        "rejected_order_count": 45,
+        "rejection_reasons": [
+          "below_minimum_quantity"
+        ],
+        "risk_event_count": 0,
+        "risk_halted": false,
+        "final_equity": 103109.50537366423
+      }
+    },
+    {
+      "member_key": "random_04",
+      "metrics": {
+        "absolute_return": 0.04042750484842483,
+        "after_cost_return": 0.04042750484842483,
+        "max_drawdown": 0.005970503599762367,
+        "sharpe": 19.578996759336253,
+        "sortino": 12.111480287523252,
+        "calmar": 243.7799008293103,
+        "cvar_95": 0.0018322637031018736,
+        "turnover": 40.55208568091966,
+        "fill_rate": 1.0,
+        "capital_utilization": 0.35150351599365803,
+        "trade_count": 202,
+        "fees": 1240.6211121497627,
+        "spread_cost": 413.54037071655216,
+        "slippage_cost": 413.5408303429105,
+        "funding_pnl": 0,
+        "volatility": 0.07433929293425412,
+        "rejected_order_count": 38,
+        "rejection_reasons": [
+          "below_minimum_quantity"
+        ],
+        "risk_event_count": 0,
+        "risk_halted": false,
+        "final_equity": 104042.75048484247
+      }
+    },
+    {
+      "member_key": "random_18",
+      "metrics": {
+        "absolute_return": 0.03612366164288594,
+        "after_cost_return": 0.03612366164288594,
+        "max_drawdown": 0.006094321228553801,
+        "sharpe": 18.75904184397042,
+        "sortino": 11.058424116008833,
+        "calmar": 213.83560574586522,
+        "cvar_95": 0.001789473131361713,
+        "turnover": 45.27732089674084,
+        "fill_rate": 1.0,
+        "capital_utilization": 0.33928031488321164,
+        "trade_count": 209,
+        "fees": 1378.7001495515212,
+        "spread_cost": 459.566716517104,
+        "slippage_cost": 459.56691738576944,
+        "funding_pnl": 0,
+        "volatility": 0.06946958604586513,
+        "rejected_order_count": 31,
+        "rejection_reasons": [
+          "below_minimum_quantity"
+        ],
+        "risk_event_count": 0,
+        "risk_halted": false,
+        "final_equity": 103612.3661642886
+      }
+    },
+    {
+      "member_key": "random_06",
+      "metrics": {
+        "absolute_return": 0.032467478315815645,
+        "after_cost_return": 0.032467478315815645,
+        "max_drawdown": 0.005365529877876973,
+        "sharpe": 18.602727723474768,
+        "sortino": 11.609054666142379,
+        "calmar": 218.65006707060436,
+        "cvar_95": 0.0018523996973546693,
+        "turnover": 45.431415312202425,
+        "fill_rate": 1.0,
+        "capital_utilization": 0.3308234796574714,
+        "trade_count": 202,
+        "fees": 1381.3607707453864,
+        "spread_cost": 460.45359024841827,
+        "slippage_cost": 460.45456735416366,
+        "funding_pnl": 0,
+        "volatility": 0.06306459381151427,
+        "rejected_order_count": 38,
+        "rejection_reasons": [
+          "below_minimum_quantity"
+        ],
+        "risk_event_count": 0,
+        "risk_halted": false,
+        "final_equity": 103246.74783158157
+      }
+    },
+    {
+      "member_key": "random_07",
+      "metrics": {
+        "absolute_return": 0.02636165828627468,
+        "after_cost_return": 0.02636165828627468,
+        "max_drawdown": 0.006452216669737054,
+        "sharpe": 15.753564132429808,
+        "sortino": 9.644263216257336,
+        "calmar": 148.10381807937986,
+        "cvar_95": 0.001833346350320823,
+        "turnover": 40.046768702161536,
+        "fill_rate": 1.0,
+        "capital_utilization": 0.2983503376082202,
+        "trade_count": 189,
+        "fees": 1209.9274000808177,
+        "spread_cost": 403.30913336022473,
+        "slippage_cost": 403.3090868331127,
+        "funding_pnl": 0,
+        "volatility": 0.06065915724406225,
+        "rejected_order_count": 51,
+        "rejection_reasons": [
+          "below_minimum_quantity"
+        ],
+        "risk_event_count": 0,
+        "risk_halted": false,
+        "final_equity": 102636.16582862746
+      }
+    },
+    {
+      "member_key": "random_17",
+      "metrics": {
+        "absolute_return": 0.02349465270261475,
+        "after_cost_return": 0.02349465270261475,
+        "max_drawdown": 0.00548978312108217,
+        "sharpe": 14.593519638822869,
+        "sortino": 9.030419948458668,
+        "calmar": 155.36641222799676,
+        "cvar_95": 0.0018717816538383336,
+        "turnover": 43.474455013827,
+        "fill_rate": 1.0,
+        "capital_utilization": 0.28712252448412257,
+        "trade_count": 195,
+        "fees": 1321.7634797696926,
+        "spread_cost": 440.5878265898345,
+        "slippage_cost": 440.5877810657941,
+        "funding_pnl": 0,
+        "volatility": 0.05844566139914067,
+        "rejected_order_count": 45,
+        "rejection_reasons": [
+          "below_minimum_quantity"
+        ],
+        "risk_event_count": 0,
+        "risk_halted": false,
+        "final_equity": 102349.46527026148
+      }
+    },
+    {
+      "member_key": "random_10",
+      "metrics": {
+        "absolute_return": 0.028702482844850996,
+        "after_cost_return": 0.028702482844850996,
+        "max_drawdown": 0.005968858648311981,
+        "sharpe": 13.865242332307856,
+        "sortino": 7.995011995117424,
+        "calmar": 174.25091594871097,
+        "cvar_95": 0.00232417271531124,
+        "turnover": 41.308440111451034,
+        "fill_rate": 1.0,
+        "capital_utilization": 0.33497025094224536,
+        "trade_count": 197,
+        "fees": 1253.8747216384716,
+        "spread_cost": 417.9582405461058,
+        "slippage_cost": 417.958963258173,
+        "funding_pnl": 0,
+        "volatility": 0.07501340847200522,
+        "rejected_order_count": 43,
+        "rejection_reasons": [
+          "below_minimum_quantity"
+        ],
+        "risk_event_count": 0,
+        "risk_halted": false,
+        "final_equity": 102870.24828448509
+      }
+    },
+    {
+      "member_key": "random_01",
+      "metrics": {
+        "absolute_return": 0.018842962627142468,
+        "after_cost_return": 0.018842962627142468,
+        "max_drawdown": 0.007748113090569109,
+        "sharpe": 10.007148547696184,
+        "sortino": 6.050725479665428,
+        "calmar": 88.61472990817715,
+        "cvar_95": 0.0018501232284876175,
+        "turnover": 43.51947587438469,
+        "fill_rate": 1.0,
+        "capital_utilization": 0.27256540166541743,
+        "trade_count": 199,
+        "fees": 1314.1095541278173,
+        "spread_cost": 438.0365180425498,
+        "slippage_cost": 438.03647729774934,
+        "funding_pnl": 0,
+        "volatility": 0.06861064823274354,
+        "rejected_order_count": 41,
+        "rejection_reasons": [
+          "below_minimum_quantity"
+        ],
+        "risk_event_count": 0,
+        "risk_halted": false,
+        "final_equity": 101884.29626271424
+      }
+    },
+    {
+      "member_key": "random_09",
+      "metrics": {
+        "absolute_return": 0.0035528513677123286,
+        "after_cost_return": 0.0035528513677123286,
+        "max_drawdown": 0.0040949111785926195,
+        "sharpe": 2.8237580393118926,
+        "sortino": 2.0068854312803666,
+        "calmar": 32.00714227166164,
+        "cvar_95": 0.001489337088632553,
+        "turnover": 43.021034296085546,
+        "fill_rate": 1.0,
+        "capital_utilization": 0.18590317880089416,
+        "trade_count": 197,
+        "fees": 1293.2948190038464,
+        "spread_cost": 431.09827300124147,
+        "slippage_cost": 431.09824809862033,
+        "funding_pnl": 0,
+        "volatility": 0.04641559328325827,
+        "rejected_order_count": 43,
+        "rejection_reasons": [
+          "below_minimum_quantity"
+        ],
+        "risk_event_count": 0,
+        "risk_halted": false,
+        "final_equity": 100355.28513677124
+      }
+    },
+    {
+      "member_key": "cash",
+      "metrics": {
+        "absolute_return": 0.0,
+        "after_cost_return": 0.0,
+        "max_drawdown": 0.0,
+        "sharpe": 0.0,
+        "sortino": 0.0,
+        "calmar": 0.0,
+        "cvar_95": 0.0,
+        "turnover": 0.0,
+        "fill_rate": 1.0,
+        "capital_utilization": 0.0,
+        "trade_count": 0,
+        "fees": 0,
+        "spread_cost": 0,
+        "slippage_cost": 0,
+        "funding_pnl": 0,
+        "volatility": 0.0,
+        "rejected_order_count": 240,
+        "rejection_reasons": [
+          "below_minimum_quantity"
+        ],
+        "risk_event_count": 0,
+        "risk_halted": false,
+        "final_equity": 100000.0
+      }
+    },
+    {
+      "member_key": "zscore_mean_reversion",
+      "metrics": {
+        "absolute_return": 0.0,
+        "after_cost_return": 0.0,
+        "max_drawdown": 0.0,
+        "sharpe": 0.0,
+        "sortino": 0.0,
+        "calmar": 0.0,
+        "cvar_95": 0.0,
+        "turnover": 0.0,
+        "fill_rate": 1.0,
+        "capital_utilization": 0.0,
+        "trade_count": 0,
+        "fees": 0,
+        "spread_cost": 0,
+        "slippage_cost": 0,
+        "funding_pnl": 0,
+        "volatility": 0.0,
+        "rejected_order_count": 240,
+        "rejection_reasons": [
+          "below_minimum_quantity"
+        ],
+        "risk_event_count": 0,
+        "risk_halted": false,
+        "final_equity": 100000.0
+      }
+    }
+  ],
+  "comparison": {
+    "candidate_key": "candidate:momentum-quality:v1",
+    "candidate_rank": 10,
+    "random_percentile": 1.0,
+    "excess_vs_cash": 0.1806240473292997,
+    "excess_vs_buy_hold": -0.015614757828410486,
+    "excess_vs_best_simple": -0.015614757828410486,
+    "excess_vs_grid_median": 0.11586087420659918,
+    "market_tailwind": true,
+    "normalizations": {
+      "equal_capital": true,
+      "equal_maximum_exposure": 1.0,
+      "equal_risk_policy": true,
+      "equal_volatility": {
+        "target_volatility": 0.05875693933179684,
+        "candidate_return": 0.08974985175675312,
+        "benchmark_returns": {
+          "grid_geometric": 0.06315353720832362,
+          "grid_arithmetic": 0.07889570515003297,
+          "grid_trend_filtered": 0.06637280903707743,
+          "limited_martingale": 0.0462791295296745,
+          "fixed_exposure": 0.09436111434746564,
+          "buy_hold": 0.0981100422925362,
+          "fixed_stop_time_exit": 0.09111078537114937,
+          "candidate_fixed_exposure": 0.08664185318601073,
+          "anti_martingale": 0.08436763898430177,
+          "candidate:momentum-quality:v1": 0.08974985175675312,
+          "dca": 0.08298246723904043,
+          "time_series_momentum": 0.08423186251129192,
+          "donchian_breakout": 0.08423186251129192,
+          "volatility_target": 0.08423186251129192,
+          "candidate_volatility_target": 0.08423186251129192,
+          "ma_trend": 0.08104457246327319,
+          "random_05": 0.049795287697052416,
+          "random_11": 0.04141822755147562,
+          "grid_adaptive": 0.00970606821673492,
+          "random_15": 0.03355693039615937,
+          "random_08": 0.03972736111724884,
+          "random_03": 0.03865329078769841,
+          "random_12": 0.02748018437896449,
+          "random_00": 0.03974080746174713,
+          "random_19": 0.029430327347554464,
+          "random_14": 0.0290702137800134,
+          "random_02": 0.034871788186890296,
+          "random_13": 0.03638725319206183,
+          "random_16": 0.031095053736642342,
+          "random_04": 0.03195344421442948,
+          "random_18": 0.030553166017026227,
+          "random_06": 0.030249773103438356,
+          "random_07": 0.025534979828026234,
+          "random_17": 0.02349465270261475,
+          "random_10": 0.022482247874608115,
+          "random_01": 0.016136778188694478,
+          "random_09": 0.0035528513677123286,
+          "cash": 0.0,
+          "zscore_mean_reversion": 0.0
+        }
+      }
+    },
+    "attribution": {
+      "market_beta_proxy": 0.1962388051577102,
+      "signal_and_timing": -0.015614757828410486,
+      "fees": -0.00029992490737826993,
+      "spread": -9.997496912610731e-05,
+      "slippage": -9.998496412721683e-05,
+      "funding": 0.0,
+      "position_management": 0.09343683375472533,
+      "volatility_sizing": 0.010186355405333858
+    },
+    "paired_signal_controls": {
+      "candidate_raw": 0.1806240473292997,
+      "candidate_fixed_exposure": 0.08718721357457437,
+      "candidate_volatility_target": 0.17043769192396585
+    },
+    "regime_stability": {
+      "minimum_excess_return": -0.015614757828411596,
+      "positive_group_ratio": 0.0
+    }
+  },
+  "execution_policy": {
+    "commission_bps": 3.0,
+    "spread_bps": 2.0,
+    "slippage_bps": 1.0,
+    "capacity_fraction": 0.25,
+    "min_quantity": 1e-08,
+    "quantity_step": 1e-08,
+    "price_tick": 1e-08,
+    "maximum_exposure": 1.0,
+    "maximum_daily_loss": 0.05,
+    "maximum_drawdown": 0.25,
+    "instrument_type": "spot",
+    "contract_multiplier": 1.0,
+    "leverage": 1.0,
+    "maintenance_margin_rate": 0.005,
+    "funding_rate_per_period": 0.0,
+    "maximum_price_gap_bps": 500.0
+  },
+  "fairness": {
+    "shared_market_event_count": 240,
+    "identical_event_order": true,
+    "independent_ledgers": true,
+    "same_execution_policy": true,
+    "same_market_calendar": true,
+    "same_quote_and_gap_policy": true,
+    "same_rejection_model": true,
+    "same_funding_model": true,
+    "risk_limits_enforced": false,
+    "missing_results_preserved": true
+  },
+  "replay_verification": {
+    "passed": true,
+    "ledgers": {
+      "candidate:momentum-quality:v1": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": -4.271423676982522e-07,
+          "quantity": 988.3834636530523,
+          "realized_pnl": 0.02889384571171726,
+          "equity": 118062.40473292996
+        }
+      },
+      "cash": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": 100000,
+          "quantity": 0.0,
+          "realized_pnl": 0.0,
+          "equity": 100000.0
+        }
+      },
+      "buy_hold": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": -7.052585715427995e-07,
+          "quantity": 1001.4556761530035,
+          "realized_pnl": 0.029340656207480532,
+          "equity": 119623.88051577102
+        }
+      },
+      "dca": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": -9.147042874246836e-07,
+          "quantity": 933.5743786799999,
+          "realized_pnl": 117.66636667310128,
+          "equity": 111515.45953241129
+        }
+      },
+      "fixed_exposure": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": 54692.84321824682,
+          "quantity": 458.29441788614224,
+          "realized_pnl": 515.2973667168178,
+          "equity": 109436.1114347465
+        }
+      },
+      "ma_trend": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": -8.057395461946726e-08,
+          "quantity": 966.8707911418413,
+          "realized_pnl": 0.028158454083384465,
+          "equity": 115492.71600181237
+        }
+      },
+      "time_series_momentum": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": -3.3585820347070694e-08,
+          "quantity": 979.8557487855184,
+          "realized_pnl": -0.05964524992625379,
+          "equity": 117043.76919239659
+        }
+      },
+      "donchian_breakout": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": -3.3585820347070694e-08,
+          "quantity": 979.8557487855184,
+          "realized_pnl": -0.05964524992625379,
+          "equity": 117043.76919239659
+        }
+      },
+      "zscore_mean_reversion": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": 100000,
+          "quantity": 0.0,
+          "realized_pnl": 0.0,
+          "equity": 100000.0
+        }
+      },
+      "volatility_target": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": -3.3585820347070694e-08,
+          "quantity": 979.8557487855184,
+          "realized_pnl": -0.05964524992625379,
+          "equity": 117043.76919239659
+        }
+      },
+      "grid_arithmetic": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": 64474.436426152104,
+          "quantity": 363.458636156142,
+          "realized_pnl": 3024.95835703023,
+          "equity": 107889.57051500326
+        }
+      },
+      "grid_geometric": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": 72243.48036453623,
+          "quantity": 285.2396262561419,
+          "realized_pnl": 2803.6807912074682,
+          "equity": 106315.35372083238
+        }
+      },
+      "grid_adaptive": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": 100970.60682167349,
+          "quantity": 0.0,
+          "realized_pnl": 1000.9011218437868,
+          "equity": 100970.60682167349
+        }
+      },
+      "grid_trend_filtered": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": 69291.8745781457,
+          "quantity": 312.64467413614204,
+          "realized_pnl": 582.8508851379784,
+          "equity": 106637.28090370787
+        }
+      },
+      "fixed_stop_time_exit": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": -2.8511567506939173e-07,
+          "quantity": 990.5384148040991,
+          "realized_pnl": 0.028967504558611933,
+          "equity": 118319.81364806453
+        }
+      },
+      "limited_martingale": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": 78452.85424105459,
+          "quantity": 219.12983433999975,
+          "realized_pnl": 3346.105528922699,
+          "equity": 104627.91295296757
+        }
+      },
+      "anti_martingale": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": 55464.15661196167,
+          "quantity": 443.47096932999995,
+          "realized_pnl": 6684.2187847303085,
+          "equity": 108436.76389843016
+        }
+      },
+      "random_00": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": 104714.53093490776,
+          "quantity": 0.0,
+          "realized_pnl": 6069.230764862305,
+          "equity": 104714.53093490776
+        }
+      },
+      "random_01": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": 101884.2962627143,
+          "quantity": 0.0,
+          "realized_pnl": 3198.4058273231567,
+          "equity": 101884.2962627143
+        }
+      },
+      "random_02": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": -3.529086825437844e-06,
+          "quantity": 866.3639918142995,
+          "realized_pnl": 4225.66232484532,
+          "equity": 103487.17881868899
+        }
+      },
+      "random_03": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": 77819.61619671558,
+          "quantity": 218.0469893851348,
+          "realized_pnl": 5090.22327334005,
+          "equity": 103865.32907876992
+        }
+      },
+      "random_04": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": 51969.65804518601,
+          "quantity": 435.940497611188,
+          "realized_pnl": 5221.8323902443235,
+          "equity": 104042.75048484243
+        }
+      },
+      "random_05": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": 104822.7889286822,
+          "quantity": 1.5517754623705002,
+          "realized_pnl": 6390.231909609292,
+          "equity": 105008.14850766236
+        }
+      },
+      "random_06": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": -12.84581582667306,
+          "quantity": 864.4587161775491,
+          "realized_pnl": 4410.711449675199,
+          "equity": 103246.74783158158
+        }
+      },
+      "random_07": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": 102636.16582862746,
+          "quantity": 0.0,
+          "realized_pnl": 3846.093239637714,
+          "equity": 102636.16582862746
+        }
+      },
+      "random_08": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": -0.006466473147156648,
+          "quantity": 870.4289876785101,
+          "realized_pnl": 4457.197907641975,
+          "equity": 103972.7361117249
+        }
+      },
+      "random_09": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": 100334.76972822426,
+          "quantity": 0.17174892044377543,
+          "realized_pnl": 1648.546279669752,
+          "equity": 100355.28513677127
+        }
+      },
+      "random_10": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": 25638.99926835329,
+          "quantity": 646.5571286407018,
+          "realized_pnl": 3997.265752997752,
+          "equity": 102870.24828448512
+        }
+      },
+      "random_11": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": 104141.82275514759,
+          "quantity": 0.0,
+          "realized_pnl": 5533.500918727756,
+          "equity": 104141.82275514759
+        }
+      },
+      "random_12": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": -12.813474238908384,
+          "quantity": 860.2832307420291,
+          "realized_pnl": 3822.2467233179036,
+          "equity": 102748.01843789648
+        }
+      },
+      "random_13": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": 103739.68189648876,
+          "quantity": 0.0,
+          "realized_pnl": 4918.739592657743,
+          "equity": 103739.68189648876
+        }
+      },
+      "random_14": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": 51395.93300166677,
+          "quantity": 431.23556614763106,
+          "realized_pnl": 3905.3485645250967,
+          "equity": 102907.02137800131
+        }
+      },
+      "random_15": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": 25798.64492125393,
+          "quantity": 649.2846221713027,
+          "realized_pnl": 4491.083665092078,
+          "equity": 103355.69303961603
+        }
+      },
+      "random_16": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": 103109.50537366424,
+          "quantity": 0.0,
+          "realized_pnl": 4420.492817292724,
+          "equity": 103109.50537366424
+        }
+      },
+      "random_17": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": 102349.46527026157,
+          "quantity": 0.0,
+          "realized_pnl": 3671.2287639658334,
+          "equity": 102349.46527026157
+        }
+      },
+      "random_18": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": 77615.30160808197,
+          "quantity": 217.6397200184733,
+          "realized_pnl": 4936.373683206847,
+          "equity": 103612.3661642886
+        }
+      },
+      "random_19": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": 51369.06234793905,
+          "quantity": 431.7619957037785,
+          "realized_pnl": 4020.72627148195,
+          "equity": 102943.0327347554
+        }
+      },
+      "candidate_fixed_exposure": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": 54334.31345607986,
+          "quantity": 455.2901456791758,
+          "realized_pnl": 442.5641287909349,
+          "equity": 108718.7213574574
+        }
+      },
+      "candidate_volatility_target": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": -3.3585820347070694e-08,
+          "quantity": 979.8557487855184,
+          "realized_pnl": -0.05964524992625379,
+          "equity": 117043.76919239659
+        }
+      }
+    }
+  },
+  "regime_analysis": {
+    "direction": {
+      "up": {
+        "observations": 240,
+        "candidate_return": 0.1806240473292986,
+        "benchmark_return": 0.1962388051577102,
+        "excess_return": -0.015614757828411596
+      }
+    },
+    "trend": {
+      "range": {
+        "observations": 120,
+        "candidate_return": 0.07976954224513522,
+        "benchmark_return": 0.09405041340856646,
+        "excess_return": -0.014280871163431241
+      },
+      "trend": {
+        "observations": 120,
+        "candidate_return": 0.09340373212830211,
+        "benchmark_return": 0.09340373212854991,
+        "excess_return": -2.4780177909633494e-13
+      }
+    },
+    "volatility": {
+      "high_volatility": {
+        "observations": 120,
+        "candidate_return": 0.08602194987639122,
+        "benchmark_return": 0.08602194987661971,
+        "excess_return": -2.284838984678572e-13
+      },
+      "low_volatility": {
+        "observations": 120,
+        "candidate_return": 0.08710882635813677,
+        "benchmark_return": 0.10148676580027782,
+        "excess_return": -0.014377939442141052
+      }
+    },
+    "liquidity": {
+      "low_liquidity": {
+        "observations": 114,
+        "candidate_return": 0.0828534758630266,
+        "benchmark_return": 0.08887598956692866,
+        "excess_return": -0.006022513703902055
+      },
+      "normal_liquidity": {
+        "observations": 126,
+        "candidate_return": 0.09028975170287956,
+        "benchmark_return": 0.0985996721568656,
+        "excess_return": -0.008309920453986042
+      }
+    }
+  },
+  "grid_risk": {
+    "grid_arithmetic": {
+      "mode": "arithmetic",
+      "levels": 8,
+      "range": {
+        "lower": 108.18556000000001,
+        "center": 117.593,
+        "upper": 127.00044000000001
+      },
+      "inventory_quantity": 363.458636156142,
+      "inventory_notional": 43415.13408885116,
+      "inventory_risk": 0.4024034379005502,
+      "capital_utilization": 0.41402271806139185,
+      "trade_count": 239,
+      "fee_share_of_initial_capital": 0.00042172514415984397,
+      "outside_range": false,
+      "outside_range_loss": 2744.272624778784,
+      "idle_cash_ratio": 0.5975965620994498,
+      "preregistered": true,
+      "exit_rule": "return_to_center_or_cohort_end"
+    },
+    "grid_geometric": {
+      "mode": "geometric",
+      "levels": 8,
+      "range": {
+        "lower": 108.18556000000001,
+        "center": 117.593,
+        "upper": 127.00044000000001
+      },
+      "inventory_quantity": 285.2396262561419,
+      "inventory_notional": 34071.87335629615,
+      "inventory_risk": 0.32047933025519165,
+      "capital_utilization": 0.33291351837075933,
+      "trade_count": 239,
+      "fee_share_of_initial_capital": 0.00039572012153296534,
+      "outside_range": false,
+      "outside_range_loss": 2153.6846836694267,
+      "idle_cash_ratio": 0.6795206697448084,
+      "preregistered": true,
+      "exit_rule": "return_to_center_or_cohort_end"
+    },
+    "grid_adaptive": {
+      "mode": "adaptive",
+      "levels": 8,
+      "range": {
+        "lower": 108.18556000000001,
+        "center": 117.593,
+        "upper": 127.00044000000001
+      },
+      "inventory_quantity": 0.0,
+      "inventory_notional": 0.0,
+      "inventory_risk": 0.0,
+      "capital_utilization": 0.03879545237616043,
+      "trade_count": 22,
+      "fee_share_of_initial_capital": 0.00030294299310413463,
+      "outside_range": false,
+      "outside_range_loss": 0.0,
+      "idle_cash_ratio": 1.0,
+      "preregistered": true,
+      "exit_rule": "return_to_center_or_cohort_end"
+    },
+    "grid_trend_filtered": {
+      "mode": "trend_filtered",
+      "levels": 8,
+      "range": {
+        "lower": 108.18556000000001,
+        "center": 117.593,
+        "upper": 127.00044000000001
+      },
+      "inventory_quantity": 312.64467413614204,
+      "inventory_notional": 37345.406325562166,
+      "inventory_risk": 0.3502096640975368,
+      "capital_utilization": 0.35286840783735723,
+      "trade_count": 239,
+      "fee_share_of_initial_capital": 0.00021493466887787373,
+      "outside_range": false,
+      "outside_range_loss": 2360.604853384495,
+      "idle_cash_ratio": 0.6497903359024632,
+      "preregistered": true,
+      "exit_rule": "return_to_center_or_cohort_end"
+    }
+  }
+}

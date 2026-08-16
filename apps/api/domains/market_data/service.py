@@ -4,7 +4,7 @@ import time
 
 from core.config import get_config
 from core.data_feed.cache import CacheStore
-from core.data_feed.factory import get_configured_source
+from core.data_feed.factory import get_configured_source, get_data_source
 from core.data_feed.telemetry import telemetry
 
 from .schemas import DataSourceCheckRequest
@@ -14,11 +14,20 @@ def data_source_status() -> dict:
     configured = []
     for market in ("a_shares", "crypto"):
         cfg = get_config(market).get("data_sources", {})
+        proxy = get_data_source(market)
         configured.append(
             {
                 "market": market,
                 "primary": cfg.get("primary"),
                 "fallbacks": cfg.get("fallback", []),
+                "plans": {
+                    "kline": {
+                        interval: proxy.source_plan("get_kline", interval)
+                        for interval in ("1m", "5m", "15m", "30m", "1h", "1d", "1w")
+                    },
+                    "news": proxy.source_plan("get_news"),
+                    "announcements": proxy.source_plan("get_announcements"),
+                },
             }
         )
     snapshot = telemetry.snapshot().to_dict()
@@ -58,7 +67,7 @@ def check_data_source(req: DataSourceCheckRequest) -> dict:
             "latency_ms": latency_ms,
             "error": error,
         }
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - adapters expose heterogeneous failures
         latency_ms = round((time.perf_counter() - started) * 1000, 2)
         error = str(exc)
         telemetry.record_source(

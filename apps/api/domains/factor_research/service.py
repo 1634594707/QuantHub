@@ -12,6 +12,7 @@ import pandas as pd
 from apps.api import store
 from apps.api.domains.instrument import service as instrument_service
 from apps.api.domains.research.service import dataframe_snapshot, snapshot_hash
+from core.cost_profiles import select_reference_profile
 from core.cross_sectional_research import (
     MARKET_VALIDATION_THRESHOLDS,
     CrossSectionConfig,
@@ -82,10 +83,13 @@ from .schemas import (
     FactorRobustnessRequest,
     FactorSimulationAttributionRequest,
     FactorSimulationValidationRequest,
+    FactorUniverseBatchRequest,
     FactorUniverseCreate,
     FactorUniverseMemberUpsert,
+    FactorUniverseRollbackRequest,
     TokenFormulaImportRequest,
 )
+from .universe_import import parse_universe_file, template_columns
 
 logger = logging.getLogger(__name__)
 
@@ -411,6 +415,19 @@ def transition_factor_lifecycle(
         elif req.state == "retired":
             if req.rule != "retirement_review" or not evidence.get("retirement_reason"):
                 raise ValueError("retired 必须保存人工复核后的退役原因")
+            impact = evidence.get("retirement_impact")
+            if not isinstance(impact, dict):
+                raise ValueError("retired 必须保存替代关系和受影响策略证据")
+            if impact.get("factor_key") != factor_key:
+                raise ValueError("退役影响证据的因子键与当前因子不一致")
+            if impact.get("definition_deletion_allowed") is not False:
+                raise ValueError("退役后必须保留历史因子定义")
+            strategies = impact.get("impacted_strategies")
+            allocations = impact.get("impacted_portfolio_allocations")
+            if not isinstance(strategies, list) or not isinstance(allocations, list):
+                raise ValueError("退役影响证据必须包含受影响策略和组合分配明细")
+            if impact.get("impacted_strategy_count") != len(strategies):
+                raise ValueError("退役影响策略计数与明细不一致")
         event = store.append_factor_lifecycle_event(
             definition["id"],
             expected_state=current["state"],
@@ -657,6 +674,10 @@ def get_factor_lineage(factor_key: str, version: str, req: FactorLineageRequest)
         for event in lifecycle
         if event.get("evidence", {}).get("simulation_run_id")
     ]
+    retirement_event = next(
+        (event for event in reversed(lifecycle) if event["state"] == "retired"),
+        None,
+    )
     return {
         "ok": True,
         "factor_key": factor_key,
@@ -692,6 +713,15 @@ def get_factor_lineage(factor_key: str, version: str, req: FactorLineageRequest)
             "simulation": simulation_runs,
         },
         "current_state": latest_lifecycle["state"] if latest_lifecycle else "draft",
+        "retirement_record": (
+            {
+                "event_id": retirement_event["id"],
+                "reason": retirement_event["evidence"].get("retirement_reason"),
+                "impact": retirement_event["evidence"].get("retirement_impact"),
+            }
+            if retirement_event
+            else None
+        ),
         "evidence_complete": bool(validations and experiment_details and research_runs),
         "historical_definition_preserved": True,
     }
@@ -1439,7 +1469,10 @@ def create_factor_universe(req: FactorUniverseCreate) -> dict:
         universe = store.create_factor_universe(req.name, req.market, req.description)
     except sqlite3.IntegrityError:
         return {"ok": False, "error": "股票池名称已存在"}
-    return {"ok": True, "universe": universe}
+    version = store.create_factor_universe_version(
+        universe["id"], members=[], source="universe_created"
+    )
+    return {"ok": True, "universe": store.get_factor_universe(universe["id"]), "version": version}
 
 
 def list_factor_universes(market: str | None = None) -> dict:
@@ -1447,32 +1480,63 @@ def list_factor_universes(market: str | None = None) -> dict:
     return {"ok": True, "count": len(universes), "universes": universes}
 
 
+def _persist_universe_member(
+    universe: dict[str, Any], req: FactorUniverseMemberUpsert
+) -> dict[str, Any]:
+    instrument = instrument_service.resolve_strict(req.symbol, universe["market"])
+    return store.upsert_factor_universe_member(
+        universe_id=universe["id"],
+        instrument_id=instrument.instrument_id,
+        symbol=instrument.code,
+        effective_from=req.effective_from.isoformat(),
+        effective_to=req.effective_to.isoformat() if req.effective_to else None,
+        status=req.status,
+        industry=req.industry,
+        market_cap=req.market_cap,
+        beta=req.beta,
+        is_st=req.is_st,
+        listed_at=req.listed_at.isoformat() if req.listed_at else None,
+        delisted_at=req.delisted_at.isoformat() if req.delisted_at else None,
+    )
+
+
+def _merge_universe_member(
+    members: list[dict[str, Any]], member: dict[str, Any]
+) -> list[dict[str, Any]]:
+    key = (member["symbol"], member["effective_from"])
+    merged = [item for item in members if (item["symbol"], item["effective_from"]) != key]
+    merged.append(member)
+    return sorted(merged, key=lambda item: (item["symbol"], item["effective_from"]))
+
+
+def _version_universe(
+    universe_id: str, source: str, *, members: list[dict[str, Any]] | None = None
+) -> dict[str, Any]:
+    universe = store.get_factor_universe(universe_id)
+    snapshot = members if members is not None else store.list_factor_universe_members(universe_id)
+    return store.create_factor_universe_version(
+        universe_id,
+        members=snapshot,
+        source=source,
+        parent_version_id=(universe or {}).get("current_version_id"),
+    )
+
+
 def upsert_factor_universe_member(universe_id: str, req: FactorUniverseMemberUpsert) -> dict:
     universe = store.get_factor_universe(universe_id)
     if universe is None:
         return {"ok": False, "error": "股票池不存在"}
     try:
-        instrument = instrument_service.resolve_strict(req.symbol, universe["market"])
-    except instrument_service.InstrumentResolutionError as exc:
-        return {"ok": False, "error": str(exc)}
-    try:
-        member = store.upsert_factor_universe_member(
-            universe_id=universe_id,
-            instrument_id=instrument.instrument_id,
-            symbol=instrument.code,
-            effective_from=req.effective_from.isoformat(),
-            effective_to=req.effective_to.isoformat() if req.effective_to else None,
-            status=req.status,
-            industry=req.industry,
-            market_cap=req.market_cap,
-            beta=req.beta,
-            is_st=req.is_st,
-            listed_at=req.listed_at.isoformat() if req.listed_at else None,
-            delisted_at=req.delisted_at.isoformat() if req.delisted_at else None,
+        current = store.list_factor_universe_members(universe_id)
+        member = _persist_universe_member(universe, req)
+        version = _version_universe(
+            universe_id,
+            "manual_member_upsert",
+            members=_merge_universe_member(current, member),
         )
-    except ValueError as exc:
+    except (instrument_service.InstrumentResolutionError, ValueError) as exc:
         return {"ok": False, "error": str(exc)}
-    return {"ok": True, "member": member}
+    return {"ok": True, "member": member, "version": version}
 
 
 def list_factor_universe_members(universe_id: str, as_of: date | None = None) -> dict:
@@ -1488,13 +1552,171 @@ def list_factor_universe_members(universe_id: str, as_of: date | None = None) ->
         "universe": universe,
         "count": len(members),
         "members": members,
+        "versions": store.list_factor_universe_versions(universe_id),
     }
+
+
+def _raw_batch_rows(req: FactorUniverseBatchRequest) -> list[dict[str, Any]]:
+    if req.rows:
+        return [item.model_dump(mode="json") for item in req.rows]
+    assert req.filename and req.content_base64
+    return parse_universe_file(req.filename, req.content_base64)
+
+
+def _normalize_batch_rows(
+    req: FactorUniverseBatchRequest,
+) -> tuple[list[FactorUniverseMemberUpsert], list[dict[str, Any]]]:
+    rows: list[FactorUniverseMemberUpsert] = []
+    errors: list[dict[str, Any]] = []
+    for index, raw in enumerate(_raw_batch_rows(req), start=2):
+        payload = dict(raw)
+        for field in ("effective_to", "industry", "market_cap", "beta", "listed_at", "delisted_at"):
+            if payload.get(field) == "":
+                payload[field] = None if field != "industry" else ""
+        if isinstance(payload.get("is_st"), str):
+            payload["is_st"] = payload["is_st"].strip().lower() in {"1", "true", "yes", "y", "是"}
+        payload["status"] = payload.get("status") or "active"
+        try:
+            rows.append(FactorUniverseMemberUpsert.model_validate(payload))
+        except ValueError as exc:
+            errors.append({"row": index, "symbol": payload.get("symbol"), "error": str(exc)})
+    return rows, errors
+
+
+def preview_factor_universe_batch(universe_id: str, req: FactorUniverseBatchRequest) -> dict:
+    universe = store.get_factor_universe(universe_id)
+    if universe is None:
+        return {"ok": False, "error": "股票池不存在"}
+    rows, errors = _normalize_batch_rows(req)
+    current = store.list_factor_universe_members(universe_id)
+    exact = {(item["symbol"], item["effective_from"]): item for item in current}
+    additions: list[dict[str, Any]] = []
+    updates: list[dict[str, Any]] = []
+    ignored: list[dict[str, Any]] = []
+    conflicts: list[dict[str, Any]] = []
+    for item in rows:
+        payload = item.model_dump(mode="json")
+        key = (item.symbol, item.effective_from.isoformat())
+        existing = exact.get(key)
+        if existing:
+            comparable = {field: existing.get(field) for field in payload}
+            if comparable == payload:
+                ignored.append(payload)
+            else:
+                updates.append({"before": existing, "after": payload})
+            continue
+        overlap = next(
+            (
+                row
+                for row in current
+                if row["symbol"] == item.symbol
+                and row["effective_from"]
+                <= (item.effective_to.isoformat() if item.effective_to else "9999-12-31")
+                and (
+                    row["effective_to"] is None
+                    or row["effective_to"] >= item.effective_from.isoformat()
+                )
+            ),
+            None,
+        )
+        if overlap:
+            conflicts.append(
+                {"incoming": payload, "existing": overlap, "reason": "effective_range_overlap"}
+            )
+        else:
+            additions.append(payload)
+    diff = {
+        "additions": additions,
+        "updates": updates,
+        "conflicts": conflicts,
+        "ignored": ignored,
+        "counts": {
+            "additions": len(additions),
+            "updates": len(updates),
+            "conflicts": len(conflicts),
+            "ignored": len(ignored),
+            "invalid": len(errors),
+        },
+    }
+    return {"ok": True, "universe": universe, "diff": diff, "errors": errors}
+
+
+def apply_factor_universe_batch(universe_id: str, req: FactorUniverseBatchRequest) -> dict:
+    replay = store.get_factor_universe_batch(universe_id, req.idempotency_key)
+    if replay and replay["status"] == "succeeded":
+        return {"ok": True, "idempotent_replay": True, "batch": replay}
+    preview = preview_factor_universe_batch(universe_id, req)
+    if not preview.get("ok"):
+        return preview
+    universe = preview["universe"]
+    errors = list(preview["errors"])
+    applied = 0
+    next_members = store.list_factor_universe_members(universe_id)
+    for payload in [
+        *preview["diff"]["additions"],
+        *(item["after"] for item in preview["diff"]["updates"]),
+    ]:
+        try:
+            member = _persist_universe_member(
+                universe, FactorUniverseMemberUpsert.model_validate(payload)
+            )
+            next_members = _merge_universe_member(next_members, member)
+            applied += 1
+        except (instrument_service.InstrumentResolutionError, ValueError) as exc:
+            errors.append({"symbol": payload.get("symbol"), "error": str(exc)})
+    version = (
+        _version_universe(universe_id, f"batch:{req.source}", members=next_members)
+        if applied
+        else None
+    )
+    status = "succeeded" if not errors and not preview["diff"]["conflicts"] else "partial"
+    batch = store.save_factor_universe_batch(
+        universe_id,
+        idempotency_key=req.idempotency_key,
+        source=req.source,
+        status=status,
+        diff={**preview["diff"], "applied": applied},
+        errors=[*errors, *preview["diff"]["conflicts"]],
+        version_id=(version or {}).get("id"),
+    )
+    return {
+        "ok": status == "succeeded",
+        "idempotent_replay": False,
+        "batch": batch,
+        "version": version,
+    }
+
+
+def rollback_factor_universe(universe_id: str, req: FactorUniverseRollbackRequest) -> dict:
+    version = store.get_factor_universe_version(req.version_id)
+    if version is None or version["universe_id"] != universe_id:
+        return {"ok": False, "error": "股票池版本不存在"}
+    store.set_factor_universe_current_version(universe_id, req.version_id)
+    return {
+        "ok": True,
+        "universe": store.get_factor_universe(universe_id),
+        "version": version,
+        "reason": req.reason,
+    }
+
+
+def factor_universe_import_template() -> dict:
+    return {"ok": True, "columns": template_columns(), "formats": ["csv", "xlsx"]}
 
 
 def run_cross_sectional_research(req: CrossSectionResearchRequest) -> dict:
     universe = store.get_factor_universe(req.universe_id)
     if universe is None:
         return {"ok": False, "error": "股票池不存在"}
+    if req.transaction_cost_profile is None and req.cost_profile_id:
+        req.transaction_cost_profile = select_reference_profile(
+            universe["market"],
+            profile_id=req.cost_profile_id,
+            version=req.cost_profile_version,
+        )
+        req.transaction_cost_bps = req.transaction_cost_profile.total_transaction_cost_bps
+        if req.transaction_cost_profile.participation_rate is not None:
+            req.participation_rate = req.transaction_cost_profile.participation_rate
     if (
         req.transaction_cost_profile is not None
         and req.transaction_cost_profile.market != universe["market"]

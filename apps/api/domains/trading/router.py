@@ -18,7 +18,13 @@ from fastapi.responses import JSONResponse
 from apps.api.contracts import error_envelope
 
 from . import errors
-from .schemas import OrderIntentRequest, ResolveDiffRequest, RiskModeRequest
+from .schemas import (
+    AmendOrderRequest,
+    ClosePositionRequest,
+    OrderIntentRequest,
+    ResolveDiffRequest,
+    RiskModeRequest,
+)
 from .service import get_service
 
 router = APIRouter(prefix="/trading", tags=["trading"])
@@ -95,6 +101,22 @@ def trading_submit_order(request: OrderIntentRequest):
 def trading_cancel_order(order_id: str):
     try:
         return get_service().cancel_order(order_id)
+    except errors.TradingError as exc:
+        return _error_response(exc)
+
+
+@router.post("/orders/{order_id}/amend")
+def trading_amend_order(order_id: str, request: AmendOrderRequest):
+    try:
+        return get_service().amend_order(order_id, request)
+    except errors.TradingError as exc:
+        return _error_response(exc)
+
+
+@router.post("/positions/{account_id}/{symbol}/close")
+def trading_close_position(account_id: str, symbol: str, request: ClosePositionRequest):
+    try:
+        return get_service().close_position(account_id, symbol, request)
     except errors.TradingError as exc:
         return _error_response(exc)
 

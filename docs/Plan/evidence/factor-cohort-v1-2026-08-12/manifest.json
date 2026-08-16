@@ -1,0 +1,34 @@
+{
+  "generated_at": "2026-08-12T12:00:00+00:00",
+  "generator": "tools/generate_factor_cohort_evidence.py",
+  "evidence_kind": "deterministic_contract_acceptance",
+  "files": [
+    "a-share-source-contract.json",
+    "ai-candidate-blind-benchmark.json",
+    "ai-review.json",
+    "benchmark-pool.json",
+    "cohort-definition.json",
+    "data-freshness.json",
+    "fault-reconnect-evidence.json",
+    "ledger-replay-report.json",
+    "live-valuation.json",
+    "manual-approval.json",
+    "prelive-fault-drills.json",
+    "program-gate.json",
+    "real-public-reconnect.json",
+    "strategy-comparison.json",
+    "web-acceptance-report.json"
+  ],
+  "pending_real_world_items": [
+    "seven_natural_day_okx_demo_cohort",
+    "real_okx_public_ws_disconnect_reconnect_drill_blocked_by_ws_handshake",
+    "manual_small_live_approval",
+    "small_live_execution_and_attribution"
+  ],
+  "isolated_prelive_fault_evidence": "prelive-fault-drills.json",
+  "failed_real_world_evidence": [
+    "real-public-reconnect.json"
+  ],
+  "ai_candidate_blind_benchmark": "ai-candidate-blind-benchmark.json",
+  "live_trading_enabled": false
+}

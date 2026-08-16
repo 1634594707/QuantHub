@@ -1,0 +1,94 @@
+{
+  "evidence_kind": "real_exchange_read_only_fault_drill",
+  "started_at": "2026-08-12T16:33:44.965425+00:00",
+  "finished_at": "2026-08-12T16:33:58.198843+00:00",
+  "instrument": "BTC-USDT-SWAP",
+  "websocket_port": 443,
+  "tcp_connectivity": [
+    {
+      "port": 443,
+      "connected": true,
+      "error": null
+    },
+    {
+      "port": 8443,
+      "connected": true,
+      "error": null
+    }
+  ],
+  "credentials_used": false,
+  "orders_sent": 0,
+  "live_trading_enabled": false,
+  "checks": {
+    "real_public_connections_opened": false,
+    "forced_disconnect_recorded": false,
+    "gap_recorded": true,
+    "rest_compensation_completed": true,
+    "automatic_reconnect_completed": true,
+    "fresh_event_received_after_reconnect": false,
+    "duplicates_accounted_for": true
+  },
+  "passed": false,
+  "stream_evidence": {
+    "status": "stopped",
+    "inst_id": "BTC-USDT-SWAP",
+    "channels": [
+      "tickers",
+      "books5",
+      "candle1H"
+    ],
+    "messages_received": 0,
+    "connections_opened": 0,
+    "events_emitted": 15,
+    "events_after_reconnect": 0,
+    "duplicates_suppressed": 15,
+    "reconnects": 5,
+    "rest_compensations": 6,
+    "gaps": [
+      {
+        "detected_at": "2026-08-12T16:33:45.251444+00:00",
+        "cause": "ClientConnectorError",
+        "recovered": true,
+        "recovered_events": 5,
+        "method": "rest_compensation"
+      },
+      {
+        "detected_at": "2026-08-12T16:33:47.113526+00:00",
+        "cause": "ClientConnectorError",
+        "recovered": true,
+        "recovered_events": 2,
+        "method": "rest_compensation"
+      },
+      {
+        "detected_at": "2026-08-12T16:33:49.169451+00:00",
+        "cause": "ClientConnectorError",
+        "recovered": true,
+        "recovered_events": 2,
+        "method": "rest_compensation"
+      },
+      {
+        "detected_at": "2026-08-12T16:33:51.671634+00:00",
+        "cause": "ClientConnectorError",
+        "recovered": true,
+        "recovered_events": 2,
+        "method": "rest_compensation"
+      },
+      {
+        "detected_at": "2026-08-12T16:33:53.870339+00:00",
+        "cause": "ClientConnectorError",
+        "recovered": true,
+        "recovered_events": 2,
+        "method": "rest_compensation"
+      },
+      {
+        "detected_at": "2026-08-12T16:33:56.143666+00:00",
+        "cause": "ClientConnectorError",
+        "recovered": true,
+        "recovered_events": 2,
+        "method": "rest_compensation"
+      }
+    ],
+    "fault_injections": [],
+    "last_error": "ClientConnectorError: Cannot connect to host ws.okx.com:443 ssl:default [指定的网络名不再可用。]"
+  }
+}

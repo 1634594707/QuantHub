@@ -175,8 +175,60 @@ def _fingerprint(api_key: str) -> str:
     return hashlib.sha256(api_key.encode("utf-8")).hexdigest()[:12]
 
 
+def _runtime_identity() -> str | None:
+    if os.name != "nt":
+        return None
+    try:
+        completed = subprocess.run(
+            ["whoami"],
+            check=False,
+            capture_output=True,
+            text=True,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+    except OSError:
+        return None
+    identity = completed.stdout.strip()
+    return identity or None
+
+
+def _status_base() -> dict[str, Any]:
+    return {
+        "environment": "demo",
+        "source": "local_vault",
+        "protection_scope": "windows_current_user",
+        "runtime_identity": _runtime_identity(),
+    }
+
+
+def inspect_okx_demo_credentials() -> dict[str, Any]:
+    """Return a non-throwing vault status so the UI can offer recovery actions."""
+    path = _vault_path()
+    try:
+        return okx_demo_credential_status()
+    except (OSError, RuntimeError):
+        return {
+            **_status_base(),
+            "ok": False,
+            "available": False,
+            "configured": path.is_file(),
+            "fingerprint": None,
+            "updated_at": None,
+            "validated_at": None,
+            "error_code": "credential_vault_unavailable",
+            "error": "本机凭据无法由当前 API 运行账户解密",
+            "recovery_action": "请使用同一 Windows 用户重启 API，或重新填写并重建凭据",
+        }
+
+
 def save_okx_demo_credentials(credentials: OkxCredentials) -> dict[str, Any]:
-    previous = _read_payload()
+    try:
+        previous = _read_payload()
+    except (OSError, RuntimeError):
+        # A corrupt or differently encrypted file must not permanently lock the user
+        # out of replacing it. The atomic write and ACL step still fail closed when
+        # the current Windows account has no permission to replace the file.
+        previous = None
     now = _now()
     _write_payload(
         {
@@ -203,22 +255,28 @@ def okx_demo_credential_status() -> dict[str, Any]:
     payload = _read_payload()
     if payload is None:
         return {
+            **_status_base(),
             "ok": True,
+            "available": True,
             "configured": False,
-            "environment": "demo",
-            "source": "local_vault",
             "fingerprint": None,
             "updated_at": None,
             "validated_at": None,
+            "error_code": None,
+            "error": None,
+            "recovery_action": None,
         }
     return {
+        **_status_base(),
         "ok": True,
+        "available": True,
         "configured": True,
-        "environment": "demo",
-        "source": "local_vault",
         "fingerprint": _fingerprint(payload["api_key"]),
         "updated_at": payload.get("updated_at"),
         "validated_at": payload.get("validated_at"),
+        "error_code": None,
+        "error": None,
+        "recovery_action": None,
     }
 
 

@@ -10,7 +10,7 @@
 .simulation-reconcile span:first-child { margin-right: auto; font-weight: 800; }
 .simulation-reconcile.ok span:first-child { color: var(--up-ink); }
 .simulation-reconcile.warn span:first-child { color: var(--warn-ink); }
-.simulation-create { display: grid; grid-template-columns: minmax(160px, 1fr) 120px 100px 130px auto; gap: var(--sp-2); align-items: end; border: 1px solid var(--border); padding: var(--sp-3); background: var(--bg-elevated); }
+.simulation-create { display: grid; grid-template-columns: repeat(4, minmax(130px, 1fr)); gap: var(--sp-2); align-items: end; border: 1px solid var(--border); padding: var(--sp-3); background: var(--bg-elevated); }
 .simulation-create label { display: grid; gap: 5px; color: var(--text-3); font-size: var(--fs-11); }
 .simulation-create input,
 .simulation-create select,
@@ -22,6 +22,21 @@
 .simulation-actions button { min-height: 34px; border: 1px solid var(--accent); border-radius: var(--r-sm); padding: 5px 10px; background: var(--accent-weak); color: var(--accent-strong); cursor: pointer; font-weight: 700; }
 .simulation-create button:disabled,
 .simulation-actions button:disabled { cursor: wait; opacity: .55; }
+.simulation-reduce-only { display: flex !important; align-items: center; gap: var(--sp-2) !important; min-height: 34px; }
+.simulation-reduce-only input { width: 16px; min-height: 16px; accent-color: var(--accent); }
+.simulation-risk-preview { grid-column: 1 / -2; display: grid; gap: var(--sp-2); min-width: 0; min-height: 70px; padding: var(--sp-2) var(--sp-3); border-left: 3px solid var(--warn); background: var(--warn-weak); }
+.simulation-risk-preview.approved { border-left-color: var(--up); background: var(--up-weak); }
+.simulation-risk-preview > header { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-2); }
+.simulation-risk-preview > header strong { color: var(--text-1); font-size: var(--fs-12); }
+.simulation-risk-preview > header span { color: var(--text-3); font-family: var(--font-mono); font-size: var(--fs-11); }
+.simulation-risk-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--sp-2); }
+.simulation-risk-metrics span { display: grid; gap: 2px; color: var(--text-3); font-size: var(--fs-11); }
+.simulation-risk-metrics b { color: var(--text-1); font-family: var(--font-mono); font-size: var(--fs-12); overflow-wrap: anywhere; }
+.simulation-risk-checks { display: grid; gap: 4px; }
+.simulation-risk-checks > div { display: grid; grid-template-columns: minmax(180px, .7fr) minmax(120px, .5fr) minmax(180px, 1fr); gap: var(--sp-2); color: var(--down-ink); font-size: var(--fs-11); }
+.simulation-risk-checks b { font-family: var(--font-mono); overflow-wrap: anywhere; }
+.simulation-risk-preview p { margin: 0; color: var(--down-ink); font-size: var(--fs-11); }
+.simulation-create > button[type='submit'] { min-width: 160px; }
 .simulation-toolbar { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
 .simulation-toolbar input { width: min(260px, 100%); }
 .simulation-toolbar span { color: var(--down-ink); font-size: var(--fs-12); }
@@ -61,6 +76,9 @@
   .simulation-summary { display: none; }
   .simulation-create { grid-template-columns: 1fr 1fr; }
   .simulation-create button { grid-column: 1 / -1; }
+  .simulation-risk-preview { grid-column: 1 / -1; }
+  .simulation-risk-metrics { grid-template-columns: 1fr 1fr; }
+  .simulation-risk-checks > div { grid-template-columns: 1fr; }
   .simulation-table { overflow: visible; }
   .simulation-row.head { display: none; }
   .simulation-row {

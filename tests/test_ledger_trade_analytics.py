@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import patch
 
+from apps.api.domains.ledger import service as ledger_service
 from apps.api.domains.ledger.domain import Trade, match_closed_trades, trade_analytics
 
 
@@ -71,6 +73,39 @@ class LedgerTradeAnalyticsTests(unittest.TestCase):
         self.assertEqual(report["summary"]["win_rate_pct"], 0.0)
         self.assertEqual(report["cumulative_curve"], [])
         self.assertIn("无法可靠计算滑点", report["execution_quality"]["slippage_note"])
+
+    def test_attribution_separates_factor_versions_and_conserves_net_pnl(self) -> None:
+        trades = [
+            trade("v1-in", "buy", 1, 100, 0),
+            trade("v1-out", "sell", 1, 110, 10),
+            trade("v2-in", "buy", 1, 200, 20),
+            trade("v2-out", "sell", 1, 190, 30),
+            trade("unknown-in", "buy", 1, 50, 40),
+            trade("unknown-out", "sell", 1, 55, 50),
+        ]
+        for item in trades[:2]:
+            item.factor_key = "momentum"
+            item.factor_version = "1.0.0"
+            item.research_run_id = "run-v1"
+            item.attribution_status = "attributed"
+        for item in trades[2:4]:
+            item.factor_key = "momentum"
+            item.factor_version = "2.0.0"
+            item.research_run_id = "run-v2"
+            item.attribution_status = "attributed"
+
+        with patch.object(ledger_service.repository, "list_trades", return_value=trades):
+            report = ledger_service.attribution(period="month")
+
+        versions = {item["key"]: item for item in report["by_factor_version"]}
+        self.assertEqual(set(versions), {"momentum@1.0.0", "momentum@2.0.0", "unknown"})
+        self.assertTrue(report["conservation"]["balanced"])
+        self.assertEqual(
+            report["conservation"]["closed_trade_net_pnl"],
+            report["conservation"]["factor_group_net_pnl"],
+        )
+        unknown = {item["key"]: item for item in report["unknown_attribution"]}
+        self.assertGreater(unknown["unknown"]["trade_count"], 0)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,902 @@
+{
+  "evidence_kind": "deterministic_contract_acceptance",
+  "generated_at": "2026-08-12T12:00:00+00:00",
+  "connected_public_stream": false,
+  "event": {
+    "protocol_version": "2.0.0",
+    "event_id": "acceptance:bbo:20260812",
+    "instrument_id": "okx:BTC-USDT-SWAP",
+    "kind": "best_bid_ask",
+    "event_time": "2026-08-12T12:00:00Z",
+    "fetched_at": "2026-08-12T12:00:00Z",
+    "received_at": "2026-08-12T12:00:00Z",
+    "source": "deterministic_acceptance_fixture",
+    "quality_status": "fresh",
+    "bar_open_time": null,
+    "bar_close_time": null,
+    "is_closed": null,
+    "age_ms": 0,
+    "price": null,
+    "bid": 100.0,
+    "ask": 100.2,
+    "open": null,
+    "high": null,
+    "low": null,
+    "close": null,
+    "volume": null,
+    "recovery": {}
+  },
+  "price_basis": "bbo_mid",
+  "valuation_price": 100.1,
+  "ledger_count": 39,
+  "applied_ledger_count": 39,
+  "duplicate_applied_ledger_count": 0,
+  "funding_applied": false,
+  "locked_research_evidence_hash_before": "d0bd19a92c976d4aa188ecda9760cab8bb226f0c84b46208ecd91a6f23c9598f",
+  "locked_research_evidence_hash_after": "d0bd19a92c976d4aa188ecda9760cab8bb226f0c84b46208ecd91a6f23c9598f",
+  "locked_research_evidence_unchanged": true,
+  "all_order_execution_cashflow_counts_unchanged": true,
+  "all_replays_passed": true,
+  "ledgers": {
+    "candidate:momentum-quality:v1": {
+      "mark_applied": true,
+      "duplicate_mark_applied": false,
+      "equity": 98937.1847112434,
+      "orders_unchanged": true,
+      "executions_unchanged": true,
+      "cash_flows_unchanged": true,
+      "replay": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": -4.271423676982522e-07,
+          "quantity": 988.3834636530523,
+          "realized_pnl": 0.02889384571171726,
+          "equity": 98937.18471124339
+        }
+      }
+    },
+    "cash": {
+      "mark_applied": true,
+      "duplicate_mark_applied": false,
+      "equity": 100000.0,
+      "orders_unchanged": true,
+      "executions_unchanged": true,
+      "cash_flows_unchanged": true,
+      "replay": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": 100000,
+          "quantity": 0.0,
+          "realized_pnl": 0.0,
+          "equity": 100000.0
+        }
+      }
+    },
+    "buy_hold": {
+      "mark_applied": true,
+      "duplicate_mark_applied": false,
+      "equity": 100245.71318221038,
+      "orders_unchanged": true,
+      "executions_unchanged": true,
+      "cash_flows_unchanged": true,
+      "replay": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": -7.052585715427995e-07,
+          "quantity": 1001.4556761530035,
+          "realized_pnl": 0.029340656207480532,
+          "equity": 100245.71318221038
+        }
+      }
+    },
+    "dca": {
+      "mark_applied": true,
+      "duplicate_mark_applied": false,
+      "equity": 93450.79530495327,
+      "orders_unchanged": true,
+      "executions_unchanged": true,
+      "cash_flows_unchanged": true,
+      "replay": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": -9.147042874246836e-07,
+          "quantity": 933.5743786799999,
+          "realized_pnl": 117.66636667310128,
+          "equity": 93450.79530495328
+        }
+      }
+    },
+    "fixed_exposure": {
+      "mark_applied": true,
+      "duplicate_mark_applied": false,
+      "equity": 100568.1144486497,
+      "orders_unchanged": true,
+      "executions_unchanged": true,
+      "cash_flows_unchanged": true,
+      "replay": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": 54692.84321824682,
+          "quantity": 458.29441788614224,
+          "realized_pnl": 515.2973667168178,
+          "equity": 100568.11444864966
+        }
+      }
+    },
+    "ma_trend": {
+      "mark_applied": true,
+      "duplicate_mark_applied": false,
+      "equity": 96783.76619321774,
+      "orders_unchanged": true,
+      "executions_unchanged": true,
+      "cash_flows_unchanged": true,
+      "replay": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": -8.057395461946726e-08,
+          "quantity": 966.8707911418413,
+          "realized_pnl": 0.028158454083384465,
+          "equity": 96783.76619321774
+        }
+      }
+    },
+    "time_series_momentum": {
+      "mark_applied": true,
+      "duplicate_mark_applied": false,
+      "equity": 98083.5604533968,
+      "orders_unchanged": true,
+      "executions_unchanged": true,
+      "cash_flows_unchanged": true,
+      "replay": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": -3.3585820347070694e-08,
+          "quantity": 979.8557487855184,
+          "realized_pnl": -0.05964524992625379,
+          "equity": 98083.5604533968
+        }
+      }
+    },
+    "donchian_breakout": {
+      "mark_applied": true,
+      "duplicate_mark_applied": false,
+      "equity": 98083.5604533968,
+      "orders_unchanged": true,
+      "executions_unchanged": true,
+      "cash_flows_unchanged": true,
+      "replay": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": -3.3585820347070694e-08,
+          "quantity": 979.8557487855184,
+          "realized_pnl": -0.05964524992625379,
+          "equity": 98083.5604533968
+        }
+      }
+    },
+    "zscore_mean_reversion": {
+      "mark_applied": true,
+      "duplicate_mark_applied": false,
+      "equity": 100000.0,
+      "orders_unchanged": true,
+      "executions_unchanged": true,
+      "cash_flows_unchanged": true,
+      "replay": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": 100000,
+          "quantity": 0.0,
+          "realized_pnl": 0.0,
+          "equity": 100000.0
+        }
+      }
+    },
+    "volatility_target": {
+      "mark_applied": true,
+      "duplicate_mark_applied": false,
+      "equity": 98083.5604533968,
+      "orders_unchanged": true,
+      "executions_unchanged": true,
+      "cash_flows_unchanged": true,
+      "replay": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": -3.3585820347070694e-08,
+          "quantity": 979.8557487855184,
+          "realized_pnl": -0.05964524992625379,
+          "equity": 98083.5604533968
+        }
+      }
+    },
+    "grid_arithmetic": {
+      "mark_applied": true,
+      "duplicate_mark_applied": false,
+      "equity": 100856.64590538194,
+      "orders_unchanged": true,
+      "executions_unchanged": true,
+      "cash_flows_unchanged": true,
+      "replay": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": 64474.436426152104,
+          "quantity": 363.458636156142,
+          "realized_pnl": 3024.95835703023,
+          "equity": 100856.64590538191
+        }
+      }
+    },
+    "grid_geometric": {
+      "mark_applied": true,
+      "duplicate_mark_applied": false,
+      "equity": 100795.96695277601,
+      "orders_unchanged": true,
+      "executions_unchanged": true,
+      "cash_flows_unchanged": true,
+      "replay": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": 72243.48036453623,
+          "quantity": 285.2396262561419,
+          "realized_pnl": 2803.6807912074682,
+          "equity": 100795.96695277603
+        }
+      }
+    },
+    "grid_adaptive": {
+      "mark_applied": true,
+      "duplicate_mark_applied": false,
+      "equity": 100970.60682167349,
+      "orders_unchanged": true,
+      "executions_unchanged": true,
+      "cash_flows_unchanged": true,
+      "replay": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": 100970.60682167349,
+          "quantity": 0.0,
+          "realized_pnl": 1000.9011218437868,
+          "equity": 100970.60682167349
+        }
+      }
+    },
+    "grid_trend_filtered": {
+      "mark_applied": true,
+      "duplicate_mark_applied": false,
+      "equity": 100587.6064591734,
+      "orders_unchanged": true,
+      "executions_unchanged": true,
+      "cash_flows_unchanged": true,
+      "replay": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": 69291.8745781457,
+          "quantity": 312.64467413614204,
+          "realized_pnl": 582.8508851379784,
+          "equity": 100587.60645917352
+        }
+      }
+    },
+    "fixed_stop_time_exit": {
+      "mark_applied": true,
+      "duplicate_mark_applied": false,
+      "equity": 99152.89532160519,
+      "orders_unchanged": true,
+      "executions_unchanged": true,
+      "cash_flows_unchanged": true,
+      "replay": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": -2.8511567506939173e-07,
+          "quantity": 990.5384148040991,
+          "realized_pnl": 0.028967504558611933,
+          "equity": 99152.8953216052
+        }
+      }
+    },
+    "limited_martingale": {
+      "mark_applied": true,
+      "duplicate_mark_applied": false,
+      "equity": 100387.75065848847,
+      "orders_unchanged": true,
+      "executions_unchanged": true,
+      "cash_flows_unchanged": true,
+      "replay": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": 78452.85424105459,
+          "quantity": 219.12983433999975,
+          "realized_pnl": 3346.105528922699,
+          "equity": 100387.75065848857
+        }
+      }
+    },
+    "anti_martingale": {
+      "mark_applied": true,
+      "duplicate_mark_applied": false,
+      "equity": 99855.60064189468,
+      "orders_unchanged": true,
+      "executions_unchanged": true,
+      "cash_flows_unchanged": true,
+      "replay": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": 55464.15661196167,
+          "quantity": 443.47096932999995,
+          "realized_pnl": 6684.2187847303085,
+          "equity": 99855.60064189466
+        }
+      }
+    },
+    "random_00": {
+      "mark_applied": true,
+      "duplicate_mark_applied": false,
+      "equity": 104714.53093490774,
+      "orders_unchanged": true,
+      "executions_unchanged": true,
+      "cash_flows_unchanged": true,
+      "replay": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": 104714.53093490776,
+          "quantity": 0.0,
+          "realized_pnl": 6069.230764862305,
+          "equity": 104714.53093490776
+        }
+      }
+    },
+    "random_01": {
+      "mark_applied": true,
+      "duplicate_mark_applied": false,
+      "equity": 101884.29626271424,
+      "orders_unchanged": true,
+      "executions_unchanged": true,
+      "cash_flows_unchanged": true,
+      "replay": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": 101884.2962627143,
+          "quantity": 0.0,
+          "realized_pnl": 3198.4058273231567,
+          "equity": 101884.2962627143
+        }
+      }
+    },
+    "random_02": {
+      "mark_applied": true,
+      "duplicate_mark_applied": false,
+      "equity": 86723.03557708234,
+      "orders_unchanged": true,
+      "executions_unchanged": true,
+      "cash_flows_unchanged": true,
+      "replay": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": -3.529086825437844e-06,
+          "quantity": 866.3639918142995,
+          "realized_pnl": 4225.66232484532,
+          "equity": 86723.0355770823
+        }
+      }
+    },
+    "random_03": {
+      "mark_applied": true,
+      "duplicate_mark_applied": false,
+      "equity": 99646.11983416748,
+      "orders_unchanged": true,
+      "executions_unchanged": true,
+      "cash_flows_unchanged": true,
+      "replay": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": 77819.61619671558,
+          "quantity": 218.0469893851348,
+          "realized_pnl": 5090.22327334005,
+          "equity": 99646.11983416756
+        }
+      }
+    },
+    "random_04": {
+      "mark_applied": true,
+      "duplicate_mark_applied": false,
+      "equity": 95607.30185606598,
+      "orders_unchanged": true,
+      "executions_unchanged": true,
+      "cash_flows_unchanged": true,
+      "replay": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": 51969.65804518601,
+          "quantity": 435.940497611188,
+          "realized_pnl": 5221.8323902443235,
+          "equity": 95607.30185606593
+        }
+      }
+    },
+    "random_05": {
+      "mark_applied": true,
+      "duplicate_mark_applied": false,
+      "equity": 104978.12165246543,
+      "orders_unchanged": true,
+      "executions_unchanged": true,
+      "cash_flows_unchanged": true,
+      "replay": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": 104822.7889286822,
+          "quantity": 1.5517754623705002,
+          "realized_pnl": 6390.231909609292,
+          "equity": 104978.12165246549
+        }
+      }
+    },
+    "random_06": {
+      "mark_applied": true,
+      "duplicate_mark_applied": false,
+      "equity": 86519.47167354598,
+      "orders_unchanged": true,
+      "executions_unchanged": true,
+      "cash_flows_unchanged": true,
+      "replay": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": -12.84581582667306,
+          "quantity": 864.4587161775491,
+          "realized_pnl": 4410.711449675199,
+          "equity": 86519.471673546
+        }
+      }
+    },
+    "random_07": {
+      "mark_applied": true,
+      "duplicate_mark_applied": false,
+      "equity": 102636.16582862746,
+      "orders_unchanged": true,
+      "executions_unchanged": true,
+      "cash_flows_unchanged": true,
+      "replay": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": 102636.16582862746,
+          "quantity": 0.0,
+          "realized_pnl": 3846.093239637714,
+          "equity": 102636.16582862746
+        }
+      }
+    },
+    "random_08": {
+      "mark_applied": true,
+      "duplicate_mark_applied": false,
+      "equity": 87129.93520014572,
+      "orders_unchanged": true,
+      "executions_unchanged": true,
+      "cash_flows_unchanged": true,
+      "replay": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": -0.006466473147156648,
+          "quantity": 870.4289876785101,
+          "realized_pnl": 4457.197907641975,
+          "equity": 87129.93520014572
+        }
+      }
+    },
+    "random_09": {
+      "mark_applied": true,
+      "duplicate_mark_applied": false,
+      "equity": 100351.96179516065,
+      "orders_unchanged": true,
+      "executions_unchanged": true,
+      "cash_flows_unchanged": true,
+      "replay": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": 100334.76972822426,
+          "quantity": 0.17174892044377543,
+          "realized_pnl": 1648.546279669752,
+          "equity": 100351.96179516068
+        }
+      }
+    },
+    "random_10": {
+      "mark_applied": true,
+      "duplicate_mark_applied": false,
+      "equity": 90359.3678452875,
+      "orders_unchanged": true,
+      "executions_unchanged": true,
+      "cash_flows_unchanged": true,
+      "replay": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": 25638.99926835329,
+          "quantity": 646.5571286407018,
+          "realized_pnl": 3997.265752997752,
+          "equity": 90359.36784528753
+        }
+      }
+    },
+    "random_11": {
+      "mark_applied": true,
+      "duplicate_mark_applied": false,
+      "equity": 104141.82275514757,
+      "orders_unchanged": true,
+      "executions_unchanged": true,
+      "cash_flows_unchanged": true,
+      "replay": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": 104141.82275514759,
+          "quantity": 0.0,
+          "realized_pnl": 5533.500918727756,
+          "equity": 104141.82275514759
+        }
+      }
+    },
+    "random_12": {
+      "mark_applied": true,
+      "duplicate_mark_applied": false,
+      "equity": 86101.53792303817,
+      "orders_unchanged": true,
+      "executions_unchanged": true,
+      "cash_flows_unchanged": true,
+      "replay": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": -12.813474238908384,
+          "quantity": 860.2832307420291,
+          "realized_pnl": 3822.2467233179036,
+          "equity": 86101.5379230382
+        }
+      }
+    },
+    "random_13": {
+      "mark_applied": true,
+      "duplicate_mark_applied": false,
+      "equity": 103739.68189648876,
+      "orders_unchanged": true,
+      "executions_unchanged": true,
+      "cash_flows_unchanged": true,
+      "replay": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": 103739.68189648876,
+          "quantity": 0.0,
+          "realized_pnl": 4918.739592657743,
+          "equity": 103739.68189648876
+        }
+      }
+    },
+    "random_14": {
+      "mark_applied": true,
+      "duplicate_mark_applied": false,
+      "equity": 94562.61317304468,
+      "orders_unchanged": true,
+      "executions_unchanged": true,
+      "cash_flows_unchanged": true,
+      "replay": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": 51395.93300166677,
+          "quantity": 431.23556614763106,
+          "realized_pnl": 3905.3485645250967,
+          "equity": 94562.61317304464
+        }
+      }
+    },
+    "random_15": {
+      "mark_applied": true,
+      "duplicate_mark_applied": false,
+      "equity": 90792.03560060123,
+      "orders_unchanged": true,
+      "executions_unchanged": true,
+      "cash_flows_unchanged": true,
+      "replay": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": 25798.64492125393,
+          "quantity": 649.2846221713027,
+          "realized_pnl": 4491.083665092078,
+          "equity": 90792.03560060132
+        }
+      }
+    },
+    "random_16": {
+      "mark_applied": true,
+      "duplicate_mark_applied": false,
+      "equity": 103109.50537366423,
+      "orders_unchanged": true,
+      "executions_unchanged": true,
+      "cash_flows_unchanged": true,
+      "replay": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": 103109.50537366424,
+          "quantity": 0.0,
+          "realized_pnl": 4420.492817292724,
+          "equity": 103109.50537366424
+        }
+      }
+    },
+    "random_17": {
+      "mark_applied": true,
+      "duplicate_mark_applied": false,
+      "equity": 102349.46527026148,
+      "orders_unchanged": true,
+      "executions_unchanged": true,
+      "cash_flows_unchanged": true,
+      "replay": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": 102349.46527026157,
+          "quantity": 0.0,
+          "realized_pnl": 3671.2287639658334,
+          "equity": 102349.46527026157
+        }
+      }
+    },
+    "random_18": {
+      "mark_applied": true,
+      "duplicate_mark_applied": false,
+      "equity": 99401.03758193114,
+      "orders_unchanged": true,
+      "executions_unchanged": true,
+      "cash_flows_unchanged": true,
+      "replay": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": 77615.30160808197,
+          "quantity": 217.6397200184733,
+          "realized_pnl": 4936.373683206847,
+          "equity": 99401.03758193114
+        }
+      }
+    },
+    "random_19": {
+      "mark_applied": true,
+      "duplicate_mark_applied": false,
+      "equity": 94588.43811788733,
+      "orders_unchanged": true,
+      "executions_unchanged": true,
+      "cash_flows_unchanged": true,
+      "replay": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": 51369.06234793905,
+          "quantity": 431.7619957037785,
+          "realized_pnl": 4020.72627148195,
+          "equity": 94588.43811788727
+        }
+      }
+    },
+    "candidate_fixed_exposure": {
+      "mark_applied": true,
+      "duplicate_mark_applied": false,
+      "equity": 99908.85703856539,
+      "orders_unchanged": true,
+      "executions_unchanged": true,
+      "cash_flows_unchanged": true,
+      "replay": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": 54334.31345607986,
+          "quantity": 455.2901456791758,
+          "realized_pnl": 442.5641287909349,
+          "equity": 99908.85703856536
+        }
+      }
+    },
+    "candidate_volatility_target": {
+      "mark_applied": true,
+      "duplicate_mark_applied": false,
+      "equity": 98083.5604533968,
+      "orders_unchanged": true,
+      "executions_unchanged": true,
+      "cash_flows_unchanged": true,
+      "replay": {
+        "passed": true,
+        "checks": {
+          "cash": true,
+          "quantity": true,
+          "equity": true
+        },
+        "reconstructed": {
+          "cash": -3.3585820347070694e-08,
+          "quantity": 979.8557487855184,
+          "realized_pnl": -0.05964524992625379,
+          "equity": 98083.5604533968
+        }
+      }
+    }
+  },
+  "note": "The quote is deterministic and does not claim real exchange connectivity.",
+  "live_trading_enabled": false
+}

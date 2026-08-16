@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, Database, Play, Plus, RefreshCw } from 'lucide-react'
+import { AlertTriangle, Database, FileUp, Play, Plus, RefreshCw, RotateCcw } from 'lucide-react'
 import { api } from '../api/client'
-import type { CrossMarketFactorStatus, CrossSectionResearchResp, FactorStatusMatrix, FactorUniverse, FactorUniverseMember } from '../api/types'
+import type { CrossMarketFactorStatus, CrossSectionResearchResp, FactorStatusMatrix, FactorUniverse, FactorUniverseBatchDiff, FactorUniverseMember, FactorUniverseVersion } from '../api/types'
 import { Button } from '../components/ui/Button/Button'
 import { Input } from '../components/ui/Input/Input'
 import { Select } from '../components/ui/Select/Select'
@@ -46,10 +46,25 @@ function pct(value: number): string {
   return `${(value * 100).toFixed(2)}%`
 }
 
+async function fileBase64(file: File): Promise<string> {
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result ?? ''))
+    reader.onerror = () => reject(reader.error ?? new Error('文件读取失败'))
+    reader.readAsDataURL(file)
+  })
+  return dataUrl.split(',', 2)[1] ?? ''
+}
+
 export function CrossSectionResearchPanel() {
   const [universes, setUniverses] = useState<FactorUniverse[]>([])
   const [universeId, setUniverseId] = useState('')
   const [members, setMembers] = useState<FactorUniverseMember[]>([])
+  const [versions, setVersions] = useState<FactorUniverseVersion[]>([])
+  const [batchFile, setBatchFile] = useState<File | null>(null)
+  const [batchPayload, setBatchPayload] = useState<{ idempotency_key: string; source: string; filename: string; content_base64: string } | null>(null)
+  const [batchPreview, setBatchPreview] = useState<FactorUniverseBatchDiff | null>(null)
+  const [rollbackVersionId, setRollbackVersionId] = useState('')
   const [loading, setLoading] = useState('')
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
@@ -96,6 +111,7 @@ export function CrossSectionResearchPanel() {
   async function loadMembers(id: string) {
     if (!id) {
       setMembers([])
+      setVersions([])
       return
     }
     setLoading('members')
@@ -104,6 +120,8 @@ export function CrossSectionResearchPanel() {
       const response = await api.factorUniverseMembers(id)
       if (!response.ok) throw new Error('股票池成员读取失败')
       setMembers(response.members)
+      setVersions(response.versions ?? [])
+      setRollbackVersionId(response.universe.current_version_id ?? '')
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : '股票池成员读取失败')
     } finally {
@@ -165,6 +183,62 @@ export function CrossSectionResearchPanel() {
     }
   }
 
+  async function previewBatch() {
+    if (!universeId || !batchFile) return
+    setLoading('batch-preview')
+    setError('')
+    try {
+      const payload = {
+        idempotency_key: crypto.randomUUID(),
+        source: 'workbench_import',
+        filename: batchFile.name,
+        content_base64: await fileBase64(batchFile),
+      }
+      const response = await api.previewFactorUniverseBatch(universeId, payload)
+      setBatchPayload(payload)
+      setBatchPreview(response.diff)
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '批量预览失败')
+    } finally {
+      setLoading('')
+    }
+  }
+
+  async function applyBatch() {
+    if (!universeId || !batchPayload || !batchPreview) return
+    setLoading('batch-apply')
+    setError('')
+    try {
+      const response = await api.applyFactorUniverseBatch(universeId, batchPayload)
+      setMessage(response.ok ? '批次已写入新版本' : '批次部分写入，请查看失败报告')
+      setBatchPreview(null)
+      setBatchPayload(null)
+      setBatchFile(null)
+      await loadMembers(universeId)
+      await loadUniverses(universeId)
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '批量写入失败')
+    } finally {
+      setLoading('')
+    }
+  }
+
+  async function rollbackUniverse() {
+    if (!universeId || !rollbackVersionId || rollbackVersionId === selectedUniverse?.current_version_id) return
+    setLoading('rollback')
+    setError('')
+    try {
+      await api.rollbackFactorUniverse(universeId, rollbackVersionId, 'operator_selected_version')
+      setMessage('股票池当前版本已回滚')
+      await loadMembers(universeId)
+      await loadUniverses(universeId)
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '版本回滚失败')
+    } finally {
+      setLoading('')
+    }
+  }
+
   async function runResearch(event?: React.FormEvent, resumeRunId?: string) {
     event?.preventDefault()
     if (!universeId) return
@@ -188,6 +262,12 @@ export function CrossSectionResearchPanel() {
         min_assets: researchForm.min_assets,
         portfolio_mode: researchForm.portfolio_mode,
         transaction_cost_bps: researchForm.transaction_cost_bps,
+        cost_profile_id: selectedUniverse?.market === 'a_shares'
+          ? 'a-shares-reference'
+          : selectedUniverse?.market === 'us_stocks'
+            ? 'us-stocks-reference'
+            : 'okx-reference',
+        cost_profile_version: '1.0.0',
         participation_rate: researchForm.participation_rate,
         neutralize_industry: researchForm.neutralize_industry,
         neutralize_market_cap: researchForm.neutralize_market_cap,
@@ -238,6 +318,21 @@ export function CrossSectionResearchPanel() {
 
       {selectedUniverse && <section className={s.band} aria-label="股票池成员生效记录">
         <header><div><span>MEMBERSHIP LEDGER</span><h2>成员生效记录</h2><p>停牌、退市、ST、上市时间和风险暴露均作为当日可用性依据。</p></div><strong>{members.length} 条</strong></header>
+        <div className={s.batchBar}>
+          <label className={s.fileControl}><FileUp size={16} /><span>{batchFile?.name ?? 'CSV / XLSX'}</span><input type="file" accept=".csv,.xlsx" onChange={(event) => { setBatchFile(event.target.files?.[0] ?? null); setBatchPreview(null); setBatchPayload(null) }} /></label>
+          <Button type="button" variant="secondary" size="sm" onClick={() => void previewBatch()} loading={loading === 'batch-preview'} disabled={!batchFile}>差异预览</Button>
+          {batchPreview && <div className={s.diffCounts}>
+            <span><small>新增</small><b>{batchPreview.counts.additions}</b></span>
+            <span><small>更新</small><b>{batchPreview.counts.updates}</b></span>
+            <span data-alert={batchPreview.counts.conflicts > 0}><small>冲突</small><b>{batchPreview.counts.conflicts}</b></span>
+            <span><small>忽略</small><b>{batchPreview.counts.ignored}</b></span>
+            <Button type="button" variant="primary" size="sm" onClick={() => void applyBatch()} loading={loading === 'batch-apply'} disabled={batchPreview.counts.conflicts > 0}>写入版本</Button>
+          </div>}
+          <div className={s.versionControl}>
+            <Select aria-label="股票池版本" value={rollbackVersionId} options={versions.map((version) => ({ value: version.id, label: `v${version.version} · ${version.source}` }))} onChange={(event) => setRollbackVersionId(event.target.value)} />
+            <Button type="button" variant="ghost" size="sm" icon={<RotateCcw size={15} />} onClick={() => void rollbackUniverse()} loading={loading === 'rollback'} disabled={!rollbackVersionId || rollbackVersionId === selectedUniverse.current_version_id}>回滚</Button>
+          </div>
+        </div>
         <form onSubmit={saveMember} className={s.memberForm}>
           <label><span>标的</span><Input aria-label="成员标的" variant="mono" value={memberForm.symbol} onChange={(event) => setMemberForm({ ...memberForm, symbol: event.target.value })} /></label>
           <label><span>生效日期</span><Input type="date" value={memberForm.effective_from} onChange={(event) => setMemberForm({ ...memberForm, effective_from: event.target.value })} /></label>

@@ -18,6 +18,7 @@
 .autoHeader h3 { margin: 4px 0 3px; font-size: var(--fs-h3); }
 .autoHeader p { max-width: 760px; margin: 0; color: var(--text-3); font-size: var(--fs-caption); }
 .autoHeaderActions { display: flex; align-items: flex-start; gap: var(--sp-2); white-space: nowrap; }
+.controlSurface { width: min(100%, 1240px); margin-inline: auto; border-inline: 1px solid var(--border); }
 .alphaBriefBar { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: var(--sp-4); padding: var(--sp-4) var(--sp-5); border-bottom: 1px solid var(--border); }
 .alphaPolicy { display: grid; gap: 6px; padding-bottom: 2px; color: var(--text-3); font-size: var(--fs-micro); white-space: nowrap; }
 .alphaPolicy span { display: flex; align-items: center; gap: 6px; }
@@ -59,7 +60,7 @@
 .alphaDslOperators code { overflow-wrap: anywhere; color: var(--text-1); font-family: var(--font-mono); font-size: var(--fs-caption); font-weight: var(--fw-semibold); line-height: 1.35; }
 .alphaDslOperators span { color: var(--text-3); font-size: var(--fs-caption); line-height: 1.5; }
 .alphaDslOperators p { margin: 0; padding: var(--sp-3); color: var(--text-3); font-size: var(--fs-micro); }
-.autoControls { display: grid; grid-template-columns: repeat(5, minmax(120px, 1fr)); align-items: end; gap: var(--sp-3); padding: var(--sp-4) var(--sp-5); border-bottom: 1px solid var(--border); background: var(--bg-subtle); }
+.autoControls { display: grid; grid-template-columns: repeat(4, minmax(150px, 1fr)); align-items: end; gap: var(--sp-3); padding: var(--sp-4) var(--sp-5); border-bottom: 1px solid var(--border); background: var(--bg-subtle); }
 .marketDataBar { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-4); min-height: 48px; padding: 7px var(--sp-5); border-bottom: 1px solid var(--border); background: var(--bg-elevated); }
 .marketVerified, .marketUnverified { display: grid; min-width: 0; grid-template-columns: auto auto minmax(0, 1fr); align-items: center; gap: 4px 8px; }
 .marketVerified { color: var(--up-ink); }
@@ -81,6 +82,7 @@
 .okxCatalogSearch span, .okxCatalogSearch small { color: var(--text-3); font-size: var(--fs-micro); white-space: nowrap; }
 .okxCatalogSearch b { color: var(--accent-strong); font-family: var(--font-mono); }
 .okxCatalogError { display: flex; align-items: center; gap: 7px; padding: var(--sp-3) var(--sp-5); border-bottom: 1px solid var(--down); color: var(--down-ink); background: var(--down-weak); font-size: var(--fs-caption); }
+.okxCatalogWarning { display: flex; align-items: center; gap: 7px; padding: var(--sp-3) var(--sp-5); border-bottom: 1px solid var(--warn); color: var(--warn-ink); background: var(--warn-weak); font-size: var(--fs-caption); }
 .okxContractList { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); max-height: 430px; overflow-y: auto; }
 .okxContract, .okxContractActive { display: grid; min-width: 0; min-height: 66px; grid-template-columns: minmax(160px, 1.2fr) repeat(3, minmax(72px, .55fr)) auto; align-items: center; gap: var(--sp-3); padding: 9px var(--sp-4); border: 0; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); color: var(--text-2); background: transparent; cursor: pointer; text-align: left; }
 .okxContract:nth-child(2n), .okxContractActive:nth-child(2n) { border-right: 0; }
@@ -91,6 +93,8 @@
 .okxContract code, .okxContractActive code { overflow: hidden; color: var(--accent-strong); font-family: var(--font-mono); font-size: var(--fs-micro); text-overflow: ellipsis; white-space: nowrap; }
 .okxContract small, .okxContractActive small { color: var(--text-3); font-size: var(--fs-micro); }
 .okxContract b, .okxContractActive b { overflow: hidden; font-family: var(--font-mono); font-size: var(--fs-micro); text-overflow: ellipsis; white-space: nowrap; }
+.contractTrading, .contractResearch { display: inline-flex !important; min-height: 24px; align-items: center; justify-content: center; padding: 0 7px; border: 1px solid var(--up); color: var(--up-ink); background: var(--up-weak); font-size: var(--fs-micro); white-space: nowrap; }
+.contractResearch { border-color: var(--warn); color: var(--warn-ink); background: var(--warn-weak); }
 .okxContractList > p { grid-column: 1 / -1; margin: 0; padding: var(--sp-5); color: var(--text-3); font-size: var(--fs-caption); }
 .okxKlinePanel { border-bottom: 1px solid var(--border); background: var(--bg-subtle); }
 .okxKlinePanel > :global(.card) { margin: 0; border: 0; background: var(--bg-elevated); box-shadow: none; }
@@ -220,6 +224,79 @@
 .autoAudit { display: flex; flex-wrap: wrap; gap: var(--sp-4); padding: var(--sp-3) var(--sp-5); border-top: 1px solid var(--border); color: var(--text-3); font-family: var(--font-mono); font-size: var(--fs-micro); }
 .autoAudit a { color: var(--accent-strong); text-decoration: none; }
 .autoAudit a:hover { text-decoration: underline; }
+.resultTabs { display: flex; min-height: 48px; align-items: center; justify-content: space-between; gap: var(--sp-3); padding: var(--sp-2) var(--sp-5); border-bottom: 1px solid var(--border); background: var(--bg-elevated); }
+.resultTabs > span { color: var(--text-3); font-size: var(--fs-micro); }
+.cohortEmpty { margin: 0; padding: var(--sp-5); color: var(--text-3); font-size: var(--fs-caption); }
+.cohortPanel { display: grid; min-width: 0; }
+.cohortHeader { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--sp-4); padding: var(--sp-4) var(--sp-5); border-bottom: 1px solid var(--border); background: var(--bg-elevated); }
+.cohortHeader > div { display: grid; min-width: 0; gap: 3px; }
+.cohortHeader span { overflow: hidden; color: var(--accent-strong); font-family: var(--font-mono); font-size: var(--fs-micro); text-overflow: ellipsis; white-space: nowrap; }
+.cohortHeader h4 { margin: 0; color: var(--text-1); font-size: var(--fs-h3); }
+.cohortHeader p { margin: 0; color: var(--text-3); font-size: var(--fs-caption); text-wrap: pretty; }
+.freshnessBar { display: grid; grid-template-columns: 1.25fr repeat(4, minmax(0, .7fr)); border-bottom: 1px solid var(--border); background: var(--accent-weak); }
+.freshnessBar > span, .cohortSummary > span { display: grid; min-width: 0; gap: 3px; padding: var(--sp-3) var(--sp-4); border-right: 1px solid var(--border); }
+.freshnessBar > span:last-child, .cohortSummary > span:last-child { border-right: 0; }
+.freshnessBar small, .cohortSummary small { color: var(--text-3); font-size: var(--fs-micro); }
+.freshnessBar strong, .cohortSummary strong { overflow: hidden; font-family: var(--font-mono); font-size: var(--fs-micro); text-overflow: ellipsis; white-space: nowrap; }
+.cohortSummary { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border-bottom: 1px solid var(--border); background: var(--bg-subtle); }
+.cohortWorkspace { display: grid; min-width: 0; border-bottom: 1px solid var(--border); }
+.cohortWorkspaceTabs { display: flex; gap: 2px; min-height: 42px; padding: 4px var(--sp-4); border-bottom: 1px solid var(--border); background: var(--bg-subtle); }
+.cohortWorkspaceTabs button { display: inline-flex; min-height: 34px; align-items: center; gap: 6px; padding: 0 var(--sp-3); border: 1px solid transparent; color: var(--text-3); background: transparent; font: inherit; font-size: var(--fs-caption); cursor: pointer; }
+.cohortWorkspaceTabs button:hover { color: var(--text-1); background: var(--surface-hover); }
+.cohortWorkspaceTabs button[aria-selected='true'] { border-color: var(--border-strong); color: var(--text-1); background: var(--bg-elevated); }
+.benchmarkRanking { min-width: 0; }
+.benchmarkRanking > header, .ledgerDetail > header, .admissionPanel > header { display: flex; min-height: 42px; align-items: center; justify-content: space-between; gap: var(--sp-2); padding: 0 var(--sp-4); border-bottom: 1px solid var(--border); background: var(--bg-subtle); }
+.benchmarkRanking > header strong, .ledgerDetail > header strong, .admissionPanel > header strong { color: var(--text-2); font-size: var(--fs-caption); }
+.benchmarkRanking > header span { color: var(--text-3); font-size: var(--fs-micro); }
+.benchmarkHead, .benchmarkRanking > button { display: grid; min-width: 0; grid-template-columns: minmax(170px, 1fr) repeat(3, minmax(78px, .45fr)); align-items: center; gap: var(--sp-2); padding: 0 var(--sp-4); border: 0; border-bottom: 1px solid var(--border); }
+.benchmarkHead { min-height: 34px; color: var(--text-3); background: var(--bg-elevated); font-size: var(--fs-micro); font-weight: var(--fw-semibold); }
+.benchmarkRanking > button { width: 100%; min-height: 56px; color: var(--text-2); background: transparent; cursor: pointer; font: inherit; text-align: left; }
+.benchmarkRanking > button:hover { background: var(--surface-hover); }
+.benchmarkRanking > button[aria-pressed='true'] { box-shadow: inset 3px 0 var(--accent); background: var(--accent-weak); }
+.benchmarkRanking > button > span { min-width: 0; font-family: var(--font-mono); font-size: var(--fs-micro); }
+.benchmarkRanking > button > span:first-child { display: grid; gap: 2px; font-family: inherit; }
+.benchmarkRanking > button strong, .benchmarkRanking > button small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.benchmarkRanking > button strong { color: var(--text-1); font-size: var(--fs-caption); }
+.benchmarkRanking > button small { color: var(--text-3); font-family: var(--font-mono); font-size: var(--fs-micro); }
+.ledgerDetail { min-width: 0; }
+.ledgerDetail > header { justify-content: flex-start; }
+.equityOverlay { display: grid; min-height: 180px; padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--border); background: var(--bg-elevated); }
+.equityOverlay > div { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-3); color: var(--text-3); font-size: var(--fs-micro); }
+.equityOverlay > div strong { margin-right: auto; color: var(--text-2); font-size: var(--fs-caption); }
+.equityOverlay > div span { display: inline-flex; align-items: center; gap: 5px; }
+.equityOverlay > div i { width: 16px; height: 2px; background: var(--accent); }
+.equityOverlay > div span:nth-last-child(2) i { background: var(--text-3); }
+.equityOverlay > div span:last-child i { background: var(--warn-ink); }
+.equityOverlay svg { width: 100%; height: 132px; overflow: visible; }
+.equityOverlay path { fill: none; stroke-width: 1.6; vector-effect: non-scaling-stroke; }
+.equityCandidate { stroke: var(--accent); }
+.equityBenchmark { stroke: var(--text-3); }
+.equitySelected { stroke: var(--warn-ink); stroke-dasharray: 4 3; }
+.ledgerDetail dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0; }
+.ledgerDetail dl > div { display: grid; min-width: 0; gap: 3px; padding: var(--sp-3) var(--sp-4); border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.ledgerDetail dl > div:nth-child(2n) { border-right: 0; }
+.ledgerDetail dt { color: var(--text-3); font-size: var(--fs-micro); }
+.ledgerDetail dd { overflow: hidden; margin: 0; color: var(--text-1); font-family: var(--font-mono); font-size: var(--fs-caption); text-overflow: ellipsis; white-space: nowrap; }
+.ledgerDetail > p { margin: 0; padding: var(--sp-3) var(--sp-4); color: var(--text-3); font-family: var(--font-mono); font-size: var(--fs-micro); }
+.gridRiskDetail { border-top: 1px solid var(--border); }
+.gridRiskDetail > header { display: flex; min-height: 40px; align-items: center; gap: var(--sp-2); padding: 0 var(--sp-4); border-bottom: 1px solid var(--border); background: var(--bg-subtle); }
+.gridRiskDetail > header strong { margin-right: auto; color: var(--text-2); font-size: var(--fs-caption); }
+.gridRiskDetail dl { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.admissionPanel { display: grid; }
+.admissionPanel > header { justify-content: flex-start; }
+.admissionPanel > header :last-child { margin-left: auto; }
+.gateMatrix { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border-bottom: 1px solid var(--border); }
+.gateMatrix > span { display: flex; min-height: 42px; align-items: center; gap: 6px; padding: var(--sp-2) var(--sp-3); border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); font-size: var(--fs-micro); }
+.gateMatrix > span:nth-child(5n) { border-right: 0; }
+.gateMatrix b { color: var(--text-2); font-weight: var(--fw-regular); }
+.admissionEvidence { display: grid; grid-template-columns: .65fr 1.2fr 1.5fr 1fr; border-bottom: 1px solid var(--border); background: var(--bg-elevated); }
+.admissionEvidence > span { display: grid; min-width: 0; gap: 4px; padding: var(--sp-3) var(--sp-4); border-right: 1px solid var(--border); }
+.admissionEvidence > span:last-child { border-right: 0; }
+.admissionEvidence small { color: var(--text-3); font-size: var(--fs-micro); }
+.admissionEvidence strong { overflow-wrap: anywhere; color: var(--text-2); font-size: var(--fs-micro); font-weight: var(--fw-regular); line-height: 1.5; }
+.cohortActions { display: flex; min-height: 54px; align-items: center; flex-wrap: wrap; gap: var(--sp-2); padding: var(--sp-2) var(--sp-4); }
+.cohortActions > span { margin-left: auto; color: var(--text-3); font-size: var(--fs-micro); }
+.approvalForm { display: grid; grid-template-columns: repeat(5, minmax(130px, 1fr)) auto; align-items: end; gap: var(--sp-3); padding: var(--sp-4); border-top: 1px solid var(--border); background: var(--bg-subtle); }
 .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-5); }
 .grid > :first-child, .grid > :last-child { grid-column: 1 / -1; }
 .templateGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-2); margin-bottom: var(--sp-4); }
@@ -328,6 +405,15 @@
   .directionRadarSummary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .directionRadarSummary > p { grid-column: 1 / -1; border-top: 1px solid var(--border); }
   .autoBody { grid-template-columns: 1fr; }
+  .freshnessBar, .cohortSummary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .freshnessBar > span:nth-child(2n), .cohortSummary > span:nth-child(2n) { border-right: 0; }
+  .cohortWorkspace { grid-template-columns: 1fr; }
+  .admissionEvidence { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .admissionEvidence > span:nth-child(2n) { border-right: 0; }
+  .gateMatrix { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .gateMatrix > span:nth-child(5n) { border-right: 1px solid var(--border); }
+  .gateMatrix > span:nth-child(2n) { border-right: 0; }
+  .approvalForm { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .candidateTable { border-right: 0; border-bottom: 1px solid var(--border); overflow-x: auto; }
   .candidateToolbar { min-width: 680px; }
   .candidateHead, .candidateRow { min-width: 680px; }
@@ -351,6 +437,21 @@
   .autoHeader { display: grid; }
   .autoHeaderActions { justify-content: space-between; }
   .alphaPolicy, .autoControls, .researchContextBar, .autoKpis, .demoStatusBar, .researchEvidenceBar { grid-template-columns: 1fr; }
+  .controlSurface { border-inline: 0; }
+  .resultTabs { align-items: flex-start; flex-direction: column; }
+  .cohortHeader { display: grid; }
+  .freshnessBar, .cohortSummary, .gateMatrix, .approvalForm { grid-template-columns: 1fr; }
+  .freshnessBar > span, .cohortSummary > span, .gateMatrix > span { border-right: 0; }
+  .benchmarkHead, .benchmarkRanking > button { grid-template-columns: minmax(0, 1fr) repeat(2, 72px); }
+  .benchmarkHead > :last-child, .benchmarkRanking > button > :last-child { display: none; }
+  .ledgerDetail dl { grid-template-columns: 1fr; }
+  .ledgerDetail dl > div { border-right: 0; }
+  .gridRiskDetail dl { grid-template-columns: 1fr; }
+  .admissionEvidence { grid-template-columns: 1fr; }
+  .admissionEvidence > span { border-right: 0; }
+  .cohortActions { align-items: stretch; flex-direction: column; }
+  .cohortActions > span { margin-left: 0; }
+  .cohortActions button, .approvalForm button { min-height: 44px; width: 100%; }
   .directionRadarSummary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .directionRadarSummary > p { grid-column: 1 / -1; }
   .researchContextBar > span { border-right: 0; }

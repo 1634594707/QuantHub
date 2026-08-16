@@ -23,6 +23,16 @@ class Trade:
     ts: float = 0.0
     source: str = "manual"
     note: str = ""
+    strategy_id: str | None = None
+    strategy_version: str | None = None
+    factor_key: str | None = None
+    factor_version: str | None = None
+    research_run_id: str | None = None
+    signal_id: str | None = None
+    simulation_order_id: str | None = None
+    execution_id: str | None = None
+    market_regime_id: str | None = None
+    attribution_status: str = "unknown_attribution"
 
     def signed_quantity(self) -> float:
         """带符号数量：buy 正、sell 负。"""
@@ -212,6 +222,16 @@ def match_closed_trades(trades: list[Trade]) -> tuple[list[dict[str, Any]], dict
                     if entry_notional > 0
                     else 0.0,
                     "source": lot["source"],
+                    "strategy_id": lot["strategy_id"],
+                    "strategy_version": lot["strategy_version"],
+                    "factor_key": lot["factor_key"],
+                    "factor_version": lot["factor_version"],
+                    "research_run_id": lot["research_run_id"],
+                    "signal_id": lot["signal_id"],
+                    "simulation_order_id": lot["simulation_order_id"],
+                    "execution_id": lot["execution_id"],
+                    "market_regime_id": lot["market_regime_id"],
+                    "attribution_status": lot["attribution_status"],
                     "entry_trade_id": lot["trade_id"],
                     "exit_trade_id": trade.id,
                     "entry_notional": round(entry_notional, 2),
@@ -233,6 +253,16 @@ def match_closed_trades(trades: list[Trade]) -> tuple[list[dict[str, Any]], dict
                     "ts": trade.ts,
                     "source": trade.source or "manual",
                     "trade_id": trade.id,
+                    "strategy_id": trade.strategy_id,
+                    "strategy_version": trade.strategy_version,
+                    "factor_key": trade.factor_key,
+                    "factor_version": trade.factor_version,
+                    "research_run_id": trade.research_run_id,
+                    "signal_id": trade.signal_id,
+                    "simulation_order_id": trade.simulation_order_id,
+                    "execution_id": trade.execution_id,
+                    "market_regime_id": trade.market_regime_id,
+                    "attribution_status": trade.attribution_status,
                 }
             )
 

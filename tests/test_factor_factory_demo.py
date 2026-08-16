@@ -102,6 +102,7 @@ def test_isolated_factor_account_fill_does_not_write_shared_ledger(tmp_path, mon
     database.dispose_engines()
     monkeypatch.setattr(store, "_DB", tmp_path / "store.db")
     store._init()
+    monkeypatch.setattr(simulation_service.portfolio_service, "latest_close", lambda *_: 60_000)
     order = simulation_service.create_order(
         SimulationOrderCreate(
             symbol="BTCUSDT",
@@ -111,7 +112,6 @@ def test_isolated_factor_account_fill_does_not_write_shared_ledger(tmp_path, mon
             account_id="factor-factory:test-run",
             factor_key="volatility_adjusted_momentum",
             factor_version="1.0.0",
-            research_run_id="test-run",
             theoretical_price=60_000,
         )
     )

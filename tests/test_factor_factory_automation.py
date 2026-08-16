@@ -12,11 +12,15 @@ from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import Mock, patch
 
+import pandas as pd
+
 from apps.api import database, store
+from apps.api.domains.factor_factory import service as factor_factory_service
 from apps.api.domains.factor_factory.alpha_mining import (
     _ai_messages,
     generate_ai_proposals,
     generate_alpha_batch,
+    generate_grammar_proposals,
     parse_alpha_expression,
 )
 from apps.api.domains.factor_factory.schemas import (
@@ -24,6 +28,7 @@ from apps.api.domains.factor_factory.schemas import (
     FactorFactoryStartRequest,
 )
 from apps.api.domains.factor_factory.service import (
+    _apply_cohort_valuation,
     _archive_admission_gate,
     _auto_discovery_attempted_dates,
     _candidate_preflight,
@@ -34,14 +39,20 @@ from apps.api.domains.factor_factory.service import (
     _run_auto_discovery_cycle,
     _score,
     _window_stability,
+    approve_factor_factory_small_live,
+    get_factor_factory_run,
     list_factor_factory_archive,
     list_factor_factory_runs,
     observe_factor_factory,
+    request_factor_factory_small_live,
     start_factor_factory,
+    value_factor_factory_cohort,
 )
 from core.backtest.dataset import generate_dataset
+from core.cost_profiles import select_reference_profile
 from core.factor_dsl import FactorDefinition, evaluate_factor_ast
 from core.llm import LLMResponse
+from packages.market_data.contracts import MarketEvent, MarketEventKind, MarketEventQuality
 
 
 class FakeAlphaLlm:
@@ -106,6 +117,16 @@ class FactorFactoryAutomationTests(unittest.TestCase):
 
     @staticmethod
     def request() -> FactorFactoryStartRequest:
+        profile = select_reference_profile("crypto").model_copy(deep=True)
+        test_costs = {
+            "fee_tier": 1.0,
+            "funding_rate": 0.0,
+            "spread": 1.0,
+            "slippage": 1.0,
+        }
+        for component in profile.components:
+            component.value = test_costs[component.key]
+            component.normalized_bps = test_costs[component.key]
         return FactorFactoryStartRequest(
             source="synthetic",
             dataset="uptrend",
@@ -114,6 +135,7 @@ class FactorFactoryAutomationTests(unittest.TestCase):
             candidate_mode="library",
             use_ai=False,
             observation_days=7,
+            transaction_cost_profile=profile,
             thresholds=FactorFactoryGateThresholds(
                 minimum_validation_return=-1,
                 minimum_confirmation_return=-1,
@@ -139,7 +161,7 @@ class FactorFactoryAutomationTests(unittest.TestCase):
         self.assertTrue(ranked_candidate["definition"]["label"])
         self.assertTrue(ranked_candidate["definition"]["ast"])
         self.assertEqual(len(response["observations"]), 1)
-        self.assertEqual(len(response["simulation_orders"]), 1)
+        self.assertEqual(len(response["simulation_orders"]), 0)
         self.assertFalse(response["live_trading_enabled"])
         selected = response["run"]["selected_factor_key"]
         self.assertTrue(selected)
@@ -152,10 +174,11 @@ class FactorFactoryAutomationTests(unittest.TestCase):
         lifecycle = store.get_latest_factor_lifecycle_event(definition["id"], "crypto")
         self.assertEqual(lifecycle["state"], "research_passed")
         self.assertTrue(lifecycle["evidence"]["locked_out_of_sample"])
-        order = response["simulation_orders"][0]
-        self.assertEqual(order["account_id"], f"factor-factory:{response['run']['id']}")
-        self.assertEqual(order["audit"]["factor_key"], selected)
-        self.assertEqual(order["executions"][0]["ledger_sync_status"], "isolated")
+        execution = response["run"]["result"]["paper"]["execution_records"][0]
+        self.assertEqual(execution["rejection_reason"], "awaiting_next_tradable_bar")
+        self.assertIsNone(execution["execution_time"])
+        self.assertEqual(response["cohort"]["status"], "cohort_observing")
+        self.assertTrue(response["cohort"]["latest_report"]["fairness"]["independent_ledgers"])
         self.assertFalse(response["run"]["result"]["paper"]["shared_ledger_mutated"])
 
         archive = list_factor_factory_archive(eligible_only=False, limit=100)
@@ -177,13 +200,115 @@ class FactorFactoryAutomationTests(unittest.TestCase):
         self.assertIn(response["run"]["id"], record["evidence_chain"]["run_ids"])
         self.assertFalse(record["live_trading_enabled"])
 
+    def test_live_bbo_marks_all_cohort_ledgers_without_recomputing_research(self) -> None:
+        response = start_factor_factory(self.request())
+        run_id = response["run"]["id"]
+        before = store.get_factor_factory_run(run_id)
+        report_before = before["result"]["cohort"]["latest_report"]
+        locked_before = factor_factory_service._locked_research_evidence_hash(report_before)
+        order_counts = {
+            key: len(value["orders"]) for key, value in report_before["ledgers"].items()
+        }
+        execution_counts = {
+            key: len(value["executions"]) for key, value in report_before["ledgers"].items()
+        }
+        cash_flow_counts = {
+            key: len(value["cash_flows"]) for key, value in report_before["ledgers"].items()
+        }
+        curve_counts = {
+            key: len(value["equity_curve"]) for key, value in report_before["ledgers"].items()
+        }
+        now = datetime.now(UTC)
+        event = MarketEvent(
+            event_id="bbo:valuation:1",
+            instrument_id=f"okx:{before['config']['symbol']}",
+            kind=MarketEventKind.BEST_BID_ASK,
+            event_time=now,
+            fetched_at=now,
+            received_at=now,
+            source="test_public_stream",
+            quality_status=MarketEventQuality.FRESH,
+            bid=99.0,
+            ask=101.0,
+        )
+
+        valued = _apply_cohort_valuation(before, event)
+        report_after = valued["cohort"]["latest_report"]
+        valuation = report_after["live_valuation"]
+
+        self.assertEqual(valuation["price"], 100.0)
+        self.assertEqual(valuation["price_basis"], "bbo_mid")
+        self.assertEqual(valuation["applied_ledger_count"], len(report_after["ledgers"]))
+        self.assertFalse(valuation["funding_applied"])
+        self.assertEqual(valuation["locked_research_evidence_hash"], locked_before)
+        self.assertEqual(
+            factor_factory_service._locked_research_evidence_hash(report_after), locked_before
+        )
+        self.assertEqual(report_after["ranking"], report_before["ranking"])
+        self.assertEqual(report_after["comparison"], report_before["comparison"])
+        for key, ledger in report_after["ledgers"].items():
+            self.assertEqual(len(ledger["orders"]), order_counts[key])
+            self.assertEqual(len(ledger["executions"]), execution_counts[key])
+            self.assertEqual(len(ledger["cash_flows"]), cash_flow_counts[key])
+            self.assertEqual(len(ledger["equity_curve"]), curve_counts[key] + 1)
+            self.assertTrue(valuation["ledgers"][key]["replay"]["passed"])
+
+        duplicate = _apply_cohort_valuation(store.get_factor_factory_run(run_id), event)
+        duplicate_report = duplicate["cohort"]["latest_report"]
+        self.assertTrue(duplicate_report["live_valuation"]["duplicate_event"])
+        self.assertEqual(duplicate_report["live_valuation"]["applied_ledger_count"], 0)
+        for key, ledger in duplicate_report["ledgers"].items():
+            self.assertEqual(len(ledger["equity_curve"]), curve_counts[key] + 1)
+
+    def test_live_valuation_rejects_non_okx_research_run(self) -> None:
+        response = start_factor_factory(self.request())
+
+        with self.assertRaisesRegex(ValueError, "只支持 OKX 公共行情"):
+            value_factor_factory_cohort(response["run"]["id"])
+
+    def test_live_valuation_persists_event_and_freshness_once(self) -> None:
+        response = start_factor_factory(self.request())
+        run_id = response["run"]["id"]
+        stored = store.get_factor_factory_run(run_id)
+        okx_run = {**stored, "config": {**stored["config"], "source": "okx_live"}}
+        now = datetime.now(UTC)
+        event = MarketEvent(
+            event_id="ticker:valuation:single-write",
+            instrument_id=f"okx:{stored['config']['symbol']}",
+            kind=MarketEventKind.TICKER,
+            event_time=now,
+            fetched_at=now,
+            received_at=now,
+            source="test_public_stream",
+            quality_status=MarketEventQuality.FRESH,
+            price=100.5,
+        )
+        freshness = {"quality_status": "fresh", "usable_for_valuation": True}
+        manager = Mock()
+        manager.stream_id.return_value = "test-stream"
+        manager.latest_valuation_event.return_value = (event, freshness)
+        real_update = store.update_factor_factory_run
+
+        with (
+            patch.object(store, "get_factor_factory_run", return_value=okx_run),
+            patch.object(store, "update_factor_factory_run", wraps=real_update) as update,
+            patch.object(factor_factory_service, "get_public_stream_manager", return_value=manager),
+        ):
+            valued = value_factor_factory_cohort(run_id)
+
+        self.assertEqual(update.call_count, 1)
+        self.assertEqual(
+            valued["cohort"]["latest_report"]["live_valuation"]["freshness"],
+            freshness,
+        )
+
     def test_duplicate_poll_does_not_create_observation_and_due_gate_uses_history(self) -> None:
         response = start_factor_factory(self.request())
         run_id = response["run"]["id"]
 
         duplicate = observe_factor_factory(run_id)
         self.assertEqual(len(duplicate["observations"]), 1)
-        self.assertEqual(len(duplicate["simulation_orders"]), 1)
+        self.assertEqual(len(duplicate["simulation_orders"]), 0)
         self.assertFalse(duplicate["run"]["result"]["paper"]["last_poll_inserted"])
 
         first = duplicate["observations"][0]
@@ -241,6 +366,99 @@ class FactorFactoryAutomationTests(unittest.TestCase):
             "aggregate_research_confirmation_vs_forward_simulation",
         )
         self.assertAlmostEqual(attribution["unexplained_residual"], 0.0, places=7)
+
+    def test_next_closed_bar_executes_prior_signal_at_next_open(self) -> None:
+        request = self.request()
+        response = start_factor_factory(request)
+        frame, provenance = factor_factory_service._load_frame(request)
+        next_row = frame.iloc[-1].copy()
+        next_row["datetime"] = pd.Timestamp(next_row["datetime"]) + pd.Timedelta(days=1)
+        next_row["open"] = float(next_row["close"]) * 1.01
+        next_row["high"] = float(next_row["open"]) * 1.01
+        next_row["low"] = float(next_row["open"]) * 0.99
+        next_row["close"] = float(next_row["open"]) * 1.002
+        expanded = pd.concat([frame, pd.DataFrame([next_row])], ignore_index=True)
+        provenance = {
+            **provenance,
+            "fingerprint": factor_factory_service.market_data_module.fingerprint_frame(expanded),
+        }
+
+        with patch(
+            "apps.api.domains.factor_factory.service._load_frame",
+            return_value=(expanded, provenance),
+        ):
+            observed = observe_factor_factory(response["run"]["id"])
+
+        self.assertEqual(len(observed["simulation_orders"]), 1)
+        order = observed["simulation_orders"][0]
+        execution = observed["run"]["result"]["paper"]["execution_records"][-1]
+        self.assertEqual(order["account_id"], f"factor-factory:{response['run']['id']}")
+        self.assertEqual(order["audit"]["factor_key"], response["run"]["selected_factor_key"])
+        self.assertEqual(order["executions"][0]["ledger_sync_status"], "isolated")
+        self.assertLess(
+            pd.Timestamp(execution["signal_time"]), pd.Timestamp(execution["execution_time"])
+        )
+        self.assertAlmostEqual(execution["theoretical_price"], float(next_row["open"]))
+
+    def test_live_request_requires_program_gate_and_ai_then_manual_approval_stays_off(self) -> None:
+        response = start_factor_factory(self.request())
+        run_id = response["run"]["id"]
+        with self.assertRaisesRegex(ValueError, "程序门禁未通过"):
+            request_factor_factory_small_live(run_id, actor="researcher", reason="test")
+
+        run = store.get_factor_factory_run(run_id)
+        result = dict(run["result"])
+        result["cohort"] = {
+            **result["cohort"],
+            "status": "cohort_validated",
+            "program_gate": {"passed": True, "violations": []},
+            "ai_review": {"effective_recommendation": "request_small_live"},
+        }
+        store.update_factor_factory_run(run_id, result=result)
+        requested = request_factor_factory_small_live(
+            run_id,
+            actor="researcher",
+            reason="Program and AI evidence aligned.",
+        )
+        self.assertEqual(requested["cohort"]["status"], "live_requested")
+        self.assertFalse(requested["live_trading_enabled"])
+
+        approved = approve_factor_factory_small_live(
+            run_id,
+            {
+                "actor": "risk-owner",
+                "symbol": response["run"]["config"]["symbol"],
+                "interval": response["run"]["config"]["interval"],
+                "factor_version": response["run"]["selected_factor_version"],
+                "strategy_version": "cohort-execution-v1",
+                "maximum_capital": 1000.0,
+                "maximum_exposure": 0.05,
+                "maximum_loss": 25.0,
+                "valid_until": "2026-09-12T00:00:00+00:00",
+                "risks_acknowledged": True,
+            },
+        )
+        self.assertEqual(approved["cohort"]["status"], "small_live_approved")
+        self.assertTrue(approved["cohort"]["manual_approval"]["activation_requires_trading_domain"])
+        self.assertFalse(approved["cohort"]["manual_approval"]["live_trading_enabled"])
+        self.assertTrue(approved["cohort"]["manual_approval_validity"]["valid"])
+
+        stored = store.get_factor_factory_run(run_id)
+        changed_result = dict(stored["result"])
+        changed_cohort = dict(changed_result["cohort"])
+        changed_cohort["program_gate"] = {"passed": False, "violations": ["freshness"]}
+        changed_result["cohort"] = changed_cohort
+        store.update_factor_factory_run(run_id, result=changed_result)
+        invalidated = get_factor_factory_run(run_id)
+        self.assertFalse(invalidated["cohort"]["manual_approval_validity"]["valid"])
+        self.assertIn(
+            "cohort_or_risk_configuration_changed",
+            invalidated["cohort"]["manual_approval_validity"]["reasons"],
+        )
+        self.assertIn(
+            "program_gate_no_longer_passed",
+            invalidated["cohort"]["manual_approval_validity"]["reasons"],
+        )
 
     def test_duplicate_start_reuses_research_fingerprint(self) -> None:
         first = start_factor_factory(self.request())
@@ -719,6 +937,13 @@ class FactorFactoryAutomationTests(unittest.TestCase):
         frame["market"] = "a_shares"
         frame["interval"] = "1d"
         payload = self.request().model_dump()
+        for key in (
+            "commission_bps",
+            "cost_profile_id",
+            "cost_profile_version",
+            "transaction_cost_profile",
+        ):
+            payload.pop(key, None)
         payload.update(
             market="a_shares",
             source="akshare_live",
@@ -840,7 +1065,12 @@ class FactorFactoryAutomationTests(unittest.TestCase):
         ai_experiment = next(item for item in experiments if item["source"] == "ai")
         detail = store.get_factor_experiment(ai_experiment["id"])
         self.assertEqual(detail["model"]["provider"], "test-provider")
-        self.assertEqual(detail["prompt"]["version"], "brain-alpha-refinement-json-v7")
+        self.assertEqual(detail["prompt"]["version"], "brain-alpha-refinement-json-v8")
+        self.assertIn("research_claims", detail["ai_trace"])
+        self.assertIn(
+            "substantive_difference",
+            detail["ai_trace"]["research_claims"],
+        )
         self.assertTrue(detail["prompt"]["seed_candidate_id"])
         self.assertEqual(detail["proposal"]["ai_trace"]["token_usage"]["total_tokens"], 200)
         self.assertTrue(detail["proposal"]["ai_trace"]["output_raw"])
@@ -885,6 +1115,46 @@ class FactorFactoryAutomationTests(unittest.TestCase):
         for spec in one_hour:
             signal = evaluate_factor_ast(spec.ast, frame)
             self.assertGreater(signal.notna().sum(), 300)
+
+    def test_grammar_source_modes_are_distinct_and_reproducible(self) -> None:
+        random_first = generate_grammar_proposals(
+            seed=20260812,
+            count=12,
+            interval="4h",
+            source_mode="random_dsl",
+        )
+        random_replay = generate_grammar_proposals(
+            seed=20260812,
+            count=12,
+            interval="4h",
+            source_mode="random_dsl",
+        )
+        symbolic = generate_grammar_proposals(
+            seed=20260812,
+            count=12,
+            interval="4h",
+            source_mode="symbolic_regression",
+        )
+
+        self.assertEqual({item.source for item in random_first}, {"random_dsl"})
+        self.assertEqual({item.source for item in symbolic}, {"symbolic_regression"})
+        self.assertEqual(
+            [item.ast for item in random_first],
+            [item.ast for item in random_replay],
+        )
+        self.assertNotEqual(
+            {json.dumps(item.ast, sort_keys=True) for item in random_first},
+            {json.dumps(item.ast, sort_keys=True) for item in symbolic},
+        )
+
+    def test_grammar_source_mode_rejects_unknown_algorithm(self) -> None:
+        with self.assertRaisesRegex(ValueError, "unsupported grammar source mode"):
+            generate_grammar_proposals(
+                seed=1,
+                count=1,
+                interval="4h",
+                source_mode="renamed_fixture",
+            )
 
     def test_validation_window_stability_requires_a_positive_majority(self) -> None:
         stable = _window_stability([0.01] * 9)

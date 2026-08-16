@@ -33,6 +33,7 @@ okx_grid_master/venv/
 
 # ===== 测试与覆盖率 =====
 .pytest_cache/
+.pytest-tmp-*/
 .npm-cache/
 .npm-skill-cache/
 .uv-cache/
@@ -68,6 +69,10 @@ data/*.sqlite3
 data/*.sqlite3*
 data/*.db
 data/okx_runner/*.db*
+data/demo_runs/
+data/fault_drill_evidence.json
+data/market_cache/okx/
+data/market_cache/okx_swap_catalog.json
 
 # API 运行时 SQLite 持久化（策略预设/运行历史/组合配置）
 apps/api/store.db

@@ -6,6 +6,7 @@ import type { AlphaDslCatalog, DemoRunResult, FactorDefinitionRecord, FactorFact
 import KlineCard from '../components/KlineCard'
 import { Badge, Button, Field, Input, Panel, SegmentedControl, Select, Textarea } from '../components/ui'
 import { useLocalStorage } from '../hooks/useLocalStorage'
+import { FactorCohortPanel } from './FactorCohortPanel'
 import s from './FactorFactoryWorkflow.module.css'
 
 type TemplateKey = 'volatility_adjusted_momentum' | 'liquidity_shock_reversal' | 'volume_confirmed_breakout'
@@ -103,6 +104,14 @@ const COMMON_INSTRUMENTS: Record<'crypto' | 'a_shares', InstrumentSuggestion[]> 
 }
 
 const FAVORITE_INSTRUMENTS_KEY = 'quanthub.factor-factory.favorite-instruments.v1'
+
+function okxTradingReady(item: Pick<OkxSwapInstrument, 'trading_ready' | 'verified'>): boolean {
+  return item.trading_ready ?? item.verified === true
+}
+
+function okxAvailableIntervals(item: Pick<OkxSwapInstrument, 'available_intervals'>): string[] {
+  return item.available_intervals?.length ? item.available_intervals : ['1h', '4h', '1d']
+}
 
 const ALPHA_PRESET_OPTIONS = [
   { value: 'momentum', label: '趋势动量' },
@@ -518,6 +527,7 @@ export function FactorFactoryWorkflow() {
   const [autoPaperTarget, setAutoPaperTarget] = useState<'simulation_orders' | 'okx_demo'>('okx_demo')
   const [autoMarket, setAutoMarket] = useState<'crypto' | 'a_shares'>('crypto')
   const [autoSymbol, setAutoSymbol] = useState('BTC-USDT-SWAP')
+  const [autoInstrumentTradingReady, setAutoInstrumentTradingReady] = useState(true)
   const [instrumentQuery, setInstrumentQuery] = useState('BTC-USDT-SWAP')
   const [instrumentOptions, setInstrumentOptions] = useState<InstrumentSuggestion[]>(COMMON_INSTRUMENTS.crypto)
   const [instrumentSearchOpen, setInstrumentSearchOpen] = useState(false)
@@ -551,7 +561,8 @@ export function FactorFactoryWorkflow() {
   const [selectedAutoCandidateId, setSelectedAutoCandidateId] = useState('')
   const [candidateQuery, setCandidateQuery] = useState('')
   const [candidateFamilyFilter, setCandidateFamilyFilter] = useState('')
-  const [autoBusy, setAutoBusy] = useState<'load' | 'start' | 'observe' | ''>('load')
+  const [autoBusy, setAutoBusy] = useState<'load' | 'start' | 'observe' | 'cohort-review' | 'live-request' | 'manual-approval' | ''>('load')
+  const [autoView, setAutoView] = useState<'candidates' | 'cohort'>('candidates')
   const [error, setError] = useState('')
   const [selectedStage, setSelectedStage] = useState<number | null>(null)
   const [workflowMode, setWorkflowMode] = useState<'auto' | 'manual'>('auto')
@@ -608,24 +619,36 @@ export function FactorFactoryWorkflow() {
     const timer = window.setTimeout(async () => {
       setInstrumentSearchBusy(true)
       try {
-        const response = autoMarket === 'crypto'
-          ? await api.okxSwapCatalog(instrumentQuery.trim(), 20)
-          : await api.instruments(instrumentQuery.trim(), 12, autoMarket)
+        const remote = autoMarket === 'crypto'
+          ? (await api.okxSwapCatalog(instrumentQuery.trim(), 20)).instruments
+            .flatMap<InstrumentSuggestion>((item) => {
+              const code = normalizedDirectSymbol(item.code, 'crypto')
+              return code ? [{
+                code,
+                market: item.market,
+                name: item.name,
+                exchange: item.exchange,
+                verified: okxTradingReady(item),
+              }] : []
+            })
+          : (await api.instruments(instrumentQuery.trim(), 12, autoMarket)).instruments
+            .flatMap<InstrumentSuggestion>((item) => item.code ? [{
+              code: item.code,
+              market: item.market,
+              name: item.name,
+              exchange: item.exchange,
+              verified: true,
+            }] : [])
         if (cancelled) return
-        const remote = response.instruments
-          .flatMap<InstrumentSuggestion>((item) => {
-            const code = autoMarket === 'crypto'
-              ? normalizedDirectSymbol(item.code, 'crypto')
-              : item.code
-            return code ? [{ code, market: item.market, name: item.name, exchange: item.exchange, verified: autoMarket === 'crypto' }] : []
-          })
         const merged = [...remote, ...(autoMarket === 'crypto' ? [] : common)].filter(
           (item, index, rows) => rows.findIndex((candidate) => candidate.code === item.code) === index,
         )
         setInstrumentOptions(merged.slice(0, 12))
         if (autoMarket === 'crypto') {
           const direct = normalizedDirectSymbol(instrumentQuery, 'crypto')
-          setAutoSymbol(remote.some((item) => item.code === direct) ? direct : '')
+          const matched = remote.find((item) => item.code === direct)
+          setAutoSymbol(matched ? direct : '')
+          setAutoInstrumentTradingReady(Boolean(matched?.verified))
         }
       } catch {
         if (!cancelled) setInstrumentOptions(autoMarket === 'crypto' ? [] : common)
@@ -674,10 +697,11 @@ export function FactorFactoryWorkflow() {
     const market = item.market === 'a_shares' ? 'a_shares' : 'crypto'
     if (market !== autoMarket) setAutoMarket(market)
     setAutoSymbol(item.code)
+    setAutoInstrumentTradingReady(market !== 'crypto' || Boolean(item.verified))
     setInstrumentQuery(item.code)
-    setAutoSource(market === 'crypto' ? 'okx_live' : 'akshare_live')
+    setAutoSource(market === 'crypto' ? item.verified ? 'okx_live' : 'okx_local' : 'akshare_live')
     setAutoInterval(market === 'crypto' ? '4h' : '1d')
-    setAutoPaperTarget(market === 'crypto' ? 'okx_demo' : 'simulation_orders')
+    setAutoPaperTarget(market === 'crypto' && item.verified ? 'okx_demo' : 'simulation_orders')
     setInstrumentSearchOpen(false)
   }, [autoMarket])
   const toggleFavoriteInstrument = useCallback(() => {
@@ -829,7 +853,9 @@ export function FactorFactoryWorkflow() {
         source: liveSource,
         symbol: autoSymbol,
         dataset: 'uptrend', seed: 12, interval: autoInterval, n_bars: autoBars,
-        candidate_budget: autoCandidateMode === 'manual' ? Math.max(autoBudget, manualCandidates.length) : autoBudget, horizon, commission_bps: 3,
+        candidate_budget: autoCandidateMode === 'manual' ? Math.max(autoBudget, manualCandidates.length) : autoBudget, horizon,
+        cost_profile_id: autoMarket === 'a_shares' ? 'a-shares-reference' : 'okx-reference',
+        cost_profile_version: '1.0.0',
         candidate_mode: autoCandidateMode, alpha_brief: autoAlphaBrief,
         use_ai: autoCandidateMode === 'brain' && autoUseAi,
         ...(autoCandidateMode === 'brain' && autoUseAi && autoAiProvider
@@ -860,6 +886,66 @@ export function FactorFactoryWorkflow() {
       setAutoRun(response)
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : '模拟观察刷新失败')
+    } finally {
+      setAutoBusy('')
+    }
+  }, [autoRun])
+
+  const reviewAutoCohort = useCallback(async () => {
+    if (!autoRun) return
+    setAutoBusy('cohort-review')
+    setError('')
+    try {
+      const response = await api.reviewFactorFactoryCohort(
+        autoRun.run.id,
+        autoAiProvider || undefined,
+      )
+      setAutoRun(response)
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'AI 同期证据评审失败')
+    } finally {
+      setAutoBusy('')
+    }
+  }, [autoAiProvider, autoRun])
+
+  const requestAutoSmallLive = useCallback(async () => {
+    if (!autoRun) return
+    setAutoBusy('live-request')
+    setError('')
+    try {
+      setAutoRun(await api.requestFactorFactorySmallLive(
+        autoRun.run.id,
+        'factor-factory-user',
+        '程序门禁和 AI 证据评审已对齐，提交人工审批。',
+      ))
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '小额实盘申请失败')
+    } finally {
+      setAutoBusy('')
+    }
+  }, [autoRun])
+
+  const approveAutoSmallLive = useCallback(async (approval: {
+    actor: string
+    maximum_capital: number
+    maximum_exposure: number
+    maximum_loss: number
+    valid_until: string
+  }) => {
+    if (!autoRun?.run.selected_factor_version) return
+    setAutoBusy('manual-approval')
+    setError('')
+    try {
+      setAutoRun(await api.approveFactorFactorySmallLive(autoRun.run.id, {
+        ...approval,
+        symbol: String(autoRun.run.config.symbol),
+        interval: autoRun.run.config.interval as '1h' | '4h' | '1d',
+        factor_version: autoRun.run.selected_factor_version,
+        strategy_version: 'cohort-execution-v1',
+        risks_acknowledged: true,
+      }))
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '人工审批写入失败')
     } finally {
       setAutoBusy('')
     }
@@ -1192,7 +1278,7 @@ export function FactorFactoryWorkflow() {
             <Button variant="ghost" size="sm" loading={autoBusy === 'observe' || autoBusy === 'load'} disabled={!autoRun} onClick={() => void refreshAutoObservation()} icon={<RefreshCw size={15} />}>刷新观察</Button>
           </div>
         </header>
-        <div className={s.alphaBriefBar}>
+        <div className={s.controlSurface}><div className={s.alphaBriefBar}>
           <Field label="Alpha 研究方向"><Textarea rows={2} value={autoAlphaBrief} onChange={(event) => setAutoAlphaBrief(event.target.value)} /></Field>
           <div className={s.alphaPolicy}>
             <span><ShieldCheck size={15} />仅安全 DSL AST</span>
@@ -1260,6 +1346,7 @@ export function FactorFactoryWorkflow() {
               setOkxCatalogOpen(false)
               setOkxKlineOpen(false)
               setAutoSymbol('600519')
+              setAutoInstrumentTradingReady(true)
               setInstrumentQuery('600519')
               setAutoSource('akshare_live')
               setAutoInterval('1d')
@@ -1267,6 +1354,7 @@ export function FactorFactoryWorkflow() {
               setAutoBars(720)
             } else {
               setAutoSymbol('BTC-USDT-SWAP')
+              setAutoInstrumentTradingReady(true)
               setInstrumentQuery('BTC-USDT-SWAP')
               setAutoSource('okx_live')
               setAutoInterval('4h')
@@ -1290,6 +1378,7 @@ export function FactorFactoryWorkflow() {
                   const next = event.target.value.slice(0, 64)
                   setInstrumentQuery(next)
                   setAutoSymbol(autoMarket === 'a_shares' ? normalizedDirectSymbol(next, autoMarket) : '')
+                  if (autoMarket === 'crypto') setAutoInstrumentTradingReady(false)
                   setInstrumentSearchOpen(true)
                 }}
               />
@@ -1349,21 +1438,21 @@ export function FactorFactoryWorkflow() {
           <Field label="候选预算"><Input type="number" min={1} max={30} value={autoBudget} onChange={(event) => setAutoBudget(Number(event.target.value))} /></Field>
           <Field label="观察天数"><Input type="number" min={7} max={365} value={autoDays} onChange={(event) => setAutoDays(Math.max(7, Number(event.target.value)))} /></Field>
           <Button variant="primary" loading={autoBusy === 'start'} disabled={!autoSymbol} onClick={() => void startAutoResearch()} icon={<ScanSearch size={16} />}>{autoRun ? '启动新实验' : '启动自动研究'}</Button>
-        </div>
+        </div></div>
         {autoMarket === 'crypto' && <div className={s.marketDataBar}>
-          <span className={autoSymbol ? s.marketVerified : s.marketUnverified}>
-            {autoSymbol ? <ShieldCheck size={15} /> : <ShieldAlert size={15} />}
+          <span className={autoSymbol && autoInstrumentTradingReady ? s.marketVerified : s.marketUnverified}>
+            {autoSymbol && autoInstrumentTradingReady ? <ShieldCheck size={15} /> : <ShieldAlert size={15} />}
             <strong>{autoSymbol || '尚未选择已验证合约'}</strong>
-            <small>{autoSymbol ? 'OKX 公共目录已验证' : '输入代码后从目录结果中选择'}</small>
+            <small>{autoSymbol ? autoInstrumentTradingReady ? 'OKX 公共目录已验证，可使用实时行情' : '本地历史目录，仅用于研究与独立模拟' : '输入代码后从目录结果中选择'}</small>
           </span>
           <div>
             <button type="button" onClick={() => setOkxCatalogOpen((current) => !current)}><ListFilter size={15} />合约目录</button>
-            <button type="button" disabled={!autoSymbol} onClick={() => setOkxKlineOpen((current) => !current)}><CandlestickChart size={15} />实时 K 线</button>
+            <button type="button" disabled={!autoSymbol || !autoInstrumentTradingReady} onClick={() => setOkxKlineOpen((current) => !current)}><CandlestickChart size={15} />实时 K 线</button>
           </div>
         </div>}
         {autoMarket === 'crypto' && okxCatalogOpen && <section className={s.okxCatalog} aria-label="OKX 永续合约目录">
           <header>
-            <div><span className={s.eyebrow}>OKX PUBLIC INSTRUMENTS</span><h4>当前可交易 USDT 永续</h4><p>代码、中文关键词和基础币均可搜索；结果来自 OKX 公共市场目录。</p></div>
+            <div><span className={s.eyebrow}>OKX INSTRUMENT RESEARCH CATALOG</span><h4>{okxCatalog?.source === 'okx_public' ? '当前可交易 USDT 永续' : '可用于研究的 USDT 永续'}</h4><p>{okxCatalog?.source === 'okx_public' ? '代码、中文关键词和基础币均可搜索；结果来自 OKX 公共市场目录。' : '公共目录不可用时使用最近公共快照或本地历史数据，仅开放研究。'}</p></div>
             <div className={s.okxCatalogActions}>
               <button type="button" aria-label="刷新 OKX 合约目录" title="强制刷新 OKX 合约目录" onClick={() => void loadOkxCatalog(true)}><RefreshCw size={15} /></button>
               <button type="button" aria-label="关闭 OKX 合约目录" title="关闭" onClick={() => setOkxCatalogOpen(false)}><X size={16} /></button>
@@ -1372,22 +1461,34 @@ export function FactorFactoryWorkflow() {
           <div className={s.okxCatalogSearch}>
             <Input value={okxCatalogQuery} placeholder="搜索代码或名称，如 BTC、黄金、石油、博通" prefix={<Search size={15} />} onChange={(event) => setOkxCatalogQuery(event.target.value.slice(0, 64))} />
             <span><b>{okxCatalog?.count ?? 0}</b> 个匹配 / {okxCatalog?.total ?? 0} 个合约</span>
-            <small>{okxCatalog?.cache_age_seconds === null || okxCatalog?.cache_age_seconds === undefined ? '等待公共目录' : `缓存 ${okxCatalog.cache_age_seconds}s / ${okxCatalog.cache_ttl_seconds}s`}</small>
+            <small>{okxCatalog?.source === 'okx_public' ? `实时目录 · ${okxCatalog.trading_ready_count ?? okxCatalog.instruments.filter(okxTradingReady).length} 个可交易` : okxCatalog?.source === 'okx_public_cache' ? '公共快照 · 仅研究' : okxCatalog?.source === 'okx_local_cache' ? '本地历史库 · 仅研究' : '等待公共目录'}</small>
           </div>
           {okxCatalogError && <div className={s.okxCatalogError}><CircleAlert size={15} />{okxCatalogError}</div>}
+          {okxCatalog?.degraded && <div className={s.okxCatalogWarning}><CircleAlert size={15} /><span>{okxCatalog.warning || 'OKX 公共目录暂不可用，已切换到研究数据。'} 当前列表不可作为实时可交易证明。</span></div>}
           <div className={s.okxContractList}>
-            {okxCatalog?.instruments.map((item: OkxSwapInstrument) => <button type="button" key={item.code} className={item.code === autoSymbol ? s.okxContractActive : s.okxContract} onClick={() => {
+            {okxCatalog?.instruments.map((item: OkxSwapInstrument) => {
+              const tradingReady = okxTradingReady(item)
+              return <button type="button" key={item.code} className={item.code === autoSymbol ? s.okxContractActive : s.okxContract} onClick={() => {
               setAutoSymbol(item.code)
+              setAutoInstrumentTradingReady(tradingReady)
               setInstrumentQuery(item.code)
+              setAutoSource(tradingReady ? 'okx_live' : 'okx_local')
+              setAutoPaperTarget(tradingReady ? 'okx_demo' : 'simulation_orders')
+              if (!tradingReady) {
+                const intervals = okxAvailableIntervals(item)
+                const available = intervals.includes('4h') ? '4h' : intervals.includes('1h') ? '1h' : intervals.includes('1d') ? '1d' : autoInterval
+                setAutoInterval(available)
+              }
               setOkxCatalogOpen(false)
-              setOkxKlineOpen(true)
+              setOkxKlineOpen(tradingReady)
             }}>
               <span><strong>{item.name || item.code}</strong><code>{item.code}</code></span>
               <span><small>面值</small><b>{num(item.contract_size, 6)}</b></span>
               <span><small>价格精度</small><b>{item.price_precision ?? '—'}</b></span>
               <span><small>最小数量</small><b>{item.minimum_amount ?? '—'}</b></span>
-              <ShieldCheck size={15} />
-            </button>)}
+              <span className={tradingReady ? s.contractTrading : s.contractResearch}>{tradingReady ? '当前可交易' : '仅研究'}</span>
+            </button>
+            })}
             {!okxCatalogBusy && okxCatalog?.ok && okxCatalog.instruments.length === 0 && <p>OKX 当前目录没有匹配合约。</p>}
             {okxCatalogBusy && <p>正在读取 OKX 公共合约目录…</p>}
           </div>
@@ -1397,6 +1498,11 @@ export function FactorFactoryWorkflow() {
           <KlineCard key={`${autoSymbol}:${autoInterval}`} symbol={autoSymbol} market="crypto" defaultPeriod={autoInterval === '4h' ? '4H' : '1H'} showInstrumentControls={false} />
         </section>}
         {autoRun && <>
+          <div className={s.resultTabs}>
+            <SegmentedControl value={autoView} onChange={(value) => setAutoView(value as 'candidates' | 'cohort')} options={[{ value: 'candidates', label: '候选研究' }, { value: 'cohort', label: '同期评估' }]} size="sm" />
+            <span>{autoView === 'cohort' ? '基准池、独立账本与准入门禁' : '候选排序、研究门禁与前向观察'}</span>
+          </div>
+          {autoView === 'cohort' ? <FactorCohortPanel run={autoRun} busy={autoBusy} onReview={reviewAutoCohort} onRequest={requestAutoSmallLive} onApprove={approveAutoSmallLive} /> : <>
           <div className={s.researchContextBar}>
             <span><small>研究标的</small><strong>{autoRunSymbol}</strong></span>
             <span><small>市场 / 周期</small><strong>{autoRunMarket} / {autoRunInterval}</strong></span>
@@ -1510,6 +1616,7 @@ export function FactorFactoryWorkflow() {
             </div>
           </div>
           <footer className={s.autoAudit}><span>运行 {autoRun.run.id.slice(0, 12)}</span><span>计划 {autoRun.run.research_plan_id}</span><span>样本 {autoDataBars ?? '—'} / 请求 {autoRequestedBars ?? '—'}</span><span>实盘开关关闭</span>{autoBest && <span>首位 {autoBest.definition?.label ?? autoBest.factor_key}</span>}{autoRun.simulation_orders.length > 0 && <Link to={`/simulation?q=${encodeURIComponent(`factor-factory:${autoRun.run.id}`)}`}>查看模拟订单</Link>}</footer>
+          </>}
         </>}
       </section> : null}
 

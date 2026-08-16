@@ -78,6 +78,14 @@ describe('TradingWorkspacePage order and cancel flow (M2-08)', () => {
       order_id: 'order-demo-1',
       status: 'CANCELLED',
     }) as never)
+    vi.spyOn(api, 'tradingClosePosition').mockResolvedValue(envelope({
+      order_id: 'close-demo-1',
+      status: 'SUBMITTED',
+    }) as never)
+    vi.spyOn(api, 'tradingAmendOrder').mockResolvedValue(envelope({
+      order_id: 'order-demo-1',
+      status: 'SUBMITTED',
+    }) as never)
   })
 
   it('submits and cancels through confirmed page interactions', async () => {
@@ -155,5 +163,31 @@ describe('TradingWorkspacePage order and cancel flow (M2-08)', () => {
     expect(screen.getAllByText('BTC-USDT-SWAP').length).toBeGreaterThan(0)
     expect(screen.getByText('64,000.0000')).not.toBeNull()
     expect(screen.getAllByText('USDT').length).toBeGreaterThan(0)
+  })
+
+  it('supports market orders without a client price and quick reduce-only close', async () => {
+    render(
+      <MemoryRouter initialEntries={['/trading']}>
+        <TradingWorkspacePage />
+      </MemoryRouter>,
+    )
+
+    fireEvent.click(await screen.findByRole('tab', { name: '市价' }))
+    const submit = screen.getByRole('button', { name: '提交 Demo 订单' }) as HTMLButtonElement
+    await waitFor(() => expect(submit.disabled).toBe(false))
+    fireEvent.click(submit)
+    fireEvent.click(screen.getByRole('button', { name: '确认提交' }))
+    await waitFor(() => expect(api.tradingSubmitOrder).toHaveBeenCalledWith(expect.objectContaining({
+      order_type: 'market',
+      price: null,
+    })))
+
+    fireEvent.click(screen.getByRole('button', { name: '平仓' }))
+    fireEvent.click(screen.getByRole('button', { name: '确认平仓' }))
+    await waitFor(() => expect(api.tradingClosePosition).toHaveBeenCalledWith(
+      'okx-demo-account',
+      'BTC-USDT-SWAP',
+      expect.objectContaining({ order_type: 'market', quantity: 0.01 }),
+    ))
   })
 })

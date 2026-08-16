@@ -7,13 +7,24 @@ from fastapi import APIRouter, HTTPException, Query
 from core.backtest.market_data import MarketDataError
 
 from .alpha_mining import alpha_expression_catalog
-from .schemas import FactorFactoryObserveRequest, FactorFactoryStartRequest
+from .schemas import (
+    FactorFactoryCohortReviewRequest,
+    FactorFactoryLiveRequest,
+    FactorFactoryManualApproval,
+    FactorFactoryObserveRequest,
+    FactorFactoryStartRequest,
+    FactorFactoryValuationRequest,
+)
 from .service import (
+    approve_factor_factory_small_live,
     get_factor_factory_run,
     list_factor_factory_archive,
     list_factor_factory_runs,
     observe_factor_factory,
+    request_factor_factory_small_live,
+    review_factor_factory_cohort,
     start_factor_factory,
+    value_factor_factory_cohort,
 )
 
 router = APIRouter(prefix="/factor-factory", tags=["factor-factory"])
@@ -94,6 +105,46 @@ def get_run(run_id: str) -> dict:
 def observe_run(run_id: str, req: FactorFactoryObserveRequest) -> dict:
     try:
         return observe_factor_factory(run_id, force_refresh=req.force_refresh)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.post("/runs/{run_id}/cohort/valuation")
+def value_cohort(run_id: str, req: FactorFactoryValuationRequest) -> dict:
+    try:
+        return value_factor_factory_cohort(run_id, stream_id=req.stream_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.post("/runs/{run_id}/cohort/review")
+def review_cohort(run_id: str, req: FactorFactoryCohortReviewRequest) -> dict:
+    try:
+        return review_factor_factory_cohort(run_id, provider=req.provider)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.post("/runs/{run_id}/cohort/live-request")
+def request_small_live(run_id: str, req: FactorFactoryLiveRequest) -> dict:
+    try:
+        return request_factor_factory_small_live(run_id, actor=req.actor, reason=req.reason)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.post("/runs/{run_id}/cohort/manual-approval")
+def approve_small_live(run_id: str, req: FactorFactoryManualApproval) -> dict:
+    try:
+        return approve_factor_factory_small_live(run_id, req.model_dump(mode="json"))
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:

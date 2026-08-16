@@ -11,7 +11,13 @@ from .engine import RunnerEngine
 from .okx_adapter import create_okx_adapter_from_env
 from .reconcile_scheduler import get_scheduler
 from .runner_errors import map_exception
-from .schemas import OrderRequest, PackageImport, RiskModeRequest
+from .schemas import (
+    AmendOrderRequest,
+    ClosePositionRequest,
+    OrderRequest,
+    PackageImport,
+    RiskModeRequest,
+)
 from .ws_manager import get_ws_manager
 
 
@@ -89,6 +95,14 @@ def create_app(
     @product.post("/api/orders/{order_id}/cancel")
     def cancel_order(order_id: str) -> dict:
         return _call(engine.cancel, order_id)
+
+    @product.post("/api/orders/{order_id}/amend")
+    def amend_order(order_id: str, request: AmendOrderRequest) -> dict:
+        return _call(engine.amend, order_id, request)
+
+    @product.post("/api/positions/{account_id}/{symbol}/close")
+    def close_position(account_id: str, symbol: str, request: ClosePositionRequest) -> dict:
+        return _call(engine.close_position, account_id, symbol, request)
 
     @product.post("/api/recovery/orders")
     def recover_orders() -> list[dict]:
