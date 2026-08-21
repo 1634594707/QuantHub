@@ -17,7 +17,13 @@ _submit_lock = threading.Lock()
 
 def _event_time(value: Any) -> datetime:
     if isinstance(value, (int, float)):
-        seconds = float(value) / 1000 if float(value) > 10_000_000_000 else float(value)
+        numeric = float(value)
+        # Offline A-share parquet files preserve an ordinal bar sequence
+        # (typically ~1-2 million), not Unix time. Treat it as a captured-now
+        # price point instead of fabricating a 1970 timestamp for valuation.
+        if 0 < numeric < 100_000_000:
+            return datetime.now(UTC)
+        seconds = numeric / 1000 if numeric > 10_000_000_000 else numeric
         return datetime.fromtimestamp(seconds, UTC)
     if isinstance(value, str):
         try:

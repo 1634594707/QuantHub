@@ -19,5 +19,5 @@ data_sources:
         subdir: "MT5_K线数据"
         pattern: "{symbol}_{TF}.parquet"
         symbol_norm: "symbol"
-        tf_map: { "5m": "M5", "15m": "M15", "1h": "H1", "1d": "D1" }
+        tf_map: { "5m": "M5", "15m": "M15", "1h": "H1", "1d": "D1", "1w": "D1" }
         time_mode: "unix_seconds"

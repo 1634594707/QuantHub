@@ -24,6 +24,12 @@ data_sources:
         # 注意：{tf} 捕获的是裸 token（"15"），故映射到 5/15/60，不是 5min/15min/60min
         tf_map: { "5m": "5", "15m": "15", "1h": "60" }
         time_mode: "ordinal"               # time 为非 unix 顺序整数，datetime 置 NaT 保序
+      a_stocks_eod:                         # 个股日线；周线由连续五个交易日聚合
+        subdir: "parquet/stocks"
+        pattern: "{code}_{tf}.parquet"
+        symbol_norm: "code"
+        tf_map: { "1d": "daily", "1w": "daily" }
+        time_mode: "ordinal"
       a_indices:                           # 指数：data/parquet/indices/idx_{code}_{N}min.parquet
         subdir: "parquet/indices"
         pattern: "idx_{code}_{tf}min.parquet"

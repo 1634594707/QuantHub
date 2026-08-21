@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { api } from '../api/client'
@@ -123,7 +123,7 @@ describe('ResearchWorkspacePage', () => {
     } as never)
     renderPage()
 
-    fireEvent.click(screen.getByRole('button', { name: '一键评估' }))
+    fireEvent.click(screen.getByRole('button', { name: '运行全面评估' }))
 
     await waitFor(() => expect(createTask).toHaveBeenCalledWith(expect.objectContaining({
       kind: 'evaluation',
@@ -131,8 +131,8 @@ describe('ResearchWorkspacePage', () => {
       market: 'us_stocks',
       timeframe: '1d',
       payload: expect.objectContaining({
-        modules: ['market', 'pa', 'ensemble'],
-        evaluation_profile: 'balanced',
+        modules: ['market', 'pa', 'ensemble', 'fundamentals', 'valuation'],
+        evaluation_profile: 'comprehensive',
         evaluation_horizon: 'swing',
       }),
     })))
@@ -143,7 +143,7 @@ describe('ResearchWorkspacePage', () => {
     vi.spyOn(api, 'createAnalysisTask').mockRejectedValue(new Error('分析服务不可用'))
     renderPage()
 
-    fireEvent.click(screen.getByRole('button', { name: '一键评估' }))
+    fireEvent.click(screen.getByRole('button', { name: '运行全面评估' }))
 
     expect((await screen.findByRole('alert')).textContent).toContain('分析服务不可用')
     expect(screen.getByText('行情图')).toBeTruthy()
@@ -155,7 +155,7 @@ describe('ResearchWorkspacePage', () => {
     } as never)
     renderPage('/research/600519?market=a_shares&tf=1d&view=overview')
 
-    fireEvent.click(screen.getByRole('button', { name: '一键评估' }))
+    fireEvent.click(screen.getByRole('button', { name: '运行全面评估' }))
 
     await waitFor(() => expect(createTask).toHaveBeenCalledWith(expect.objectContaining({
       payload: expect.objectContaining({
@@ -208,6 +208,11 @@ describe('ResearchWorkspacePage', () => {
     })
     renderPage('/research/600519?market=a_shares&tf=1d&view=history&run_id=run-report&mode=investor', [reportRun])
 
+    const moduleRail = screen.getByRole('region', { name: '财务、估值与事件状态' })
+    expect(await within(moduleRail).findByText('质量稳健 · 盈利改善')).toBeTruthy()
+    expect(within(moduleRail).getByText('合理区间 · 历史分位 42%')).toBeTruthy()
+    expect(within(moduleRail).getByText('1 条已核实事件')).toBeTruthy()
+    expect(within(moduleRail).getByText('1 条可靠传导')).toBeTruthy()
     expect(await screen.findByText('值得深入研究')).toBeTruthy()
     expect(screen.getByText('盈利与现金流趋势改善')).toBeTruthy()
     expect(screen.getByText('strong')).toBeTruthy()
@@ -219,6 +224,29 @@ describe('ResearchWorkspacePage', () => {
     expect(screen.getByText('rates → 600519')).toBeTruthy()
     expect(screen.getByText('公司事件 · 已覆盖')).toBeTruthy()
     expect(screen.getByText('宏观传导 · 已覆盖')).toBeTruthy()
+  })
+
+  it('shows the latest completed research modules on the default overview', async () => {
+    renderPage('/research/600519?market=a_shares&tf=1d&view=overview', [reportRun])
+
+    const moduleRail = screen.getByRole('region', { name: '财务、估值与事件状态' })
+    expect(await within(moduleRail).findByText('质量稳健 · 盈利改善')).toBeTruthy()
+    expect(within(moduleRail).getByText('合理区间 · 历史分位 42%')).toBeTruthy()
+    expect(within(moduleRail).getAllByText('已覆盖')).toHaveLength(4)
+  })
+
+  it('does not treat an unrelated factor run as missing deep-research data', async () => {
+    const factorRun = {
+      ...reportRun,
+      id: 'factor-run',
+      modules: ['factor_research'],
+      summary: { factor_research: { ok: true } },
+    }
+    renderPage('/research/600519?market=a_shares&tf=1d&view=overview', [factorRun])
+
+    const moduleRail = screen.getByRole('region', { name: '财务、估值与事件状态' })
+    await waitFor(() => expect(within(moduleRail).getAllByText('待评估')).toHaveLength(4))
+    expect(within(moduleRail).queryByText('数据缺口')).toBeNull()
   })
 
   it('keeps the selected run while switching modes and hides raw detail in quick mode', async () => {

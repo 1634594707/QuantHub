@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Building2, FileSpreadsheet, Landmark, Scale } from 'lucide-react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { api } from '../api/client'
 import type { AnalysisTask, ResearchRun, ResearchStatus } from '../api/types'
@@ -78,6 +79,18 @@ const RESEARCH_MODE_LABELS: Record<string, string> = {
   investor: '投资研究',
   professional: '专业验证',
   quant: '量化实验',
+}
+
+const FINANCIAL_QUALITY_LABELS: Record<string, string> = {
+  strong: '质量稳健', healthy: '质量健康', mixed: '表现分化', weak: '质量偏弱', insufficient: '数据不足',
+}
+
+const EARNINGS_TREND_LABELS: Record<string, string> = {
+  improving: '盈利改善', stable: '盈利稳定', deteriorating: '盈利走弱', insufficient: '趋势不足',
+}
+
+const VALUATION_RANGE_LABELS: Record<string, string> = {
+  cheap: '相对偏低', fair: '合理区间', expensive: '相对偏高', unavailable: '暂不可用',
 }
 
 const GUIDANCE_LABELS: Record<string, string> = {
@@ -560,6 +573,81 @@ export default function ResearchWorkspacePage() {
     () => detailedRun ? buildReadableReport(detailedRun) : null,
     [detailedRun],
   )
+  const latestResearchRun = useMemo(
+    () => {
+      const hasDeepResearch = (run: ResearchRun) => {
+        const summary = asRecord(run.summary)
+        return run.modules.some((module) => ['fundamentals', 'valuation', 'announcements', 'macro'].includes(module))
+          || Boolean(summary?.fundamentals || summary?.valuation || summary?.announcements || summary?.macro)
+      }
+      if (detailedRun && hasDeepResearch(detailedRun)) return detailedRun
+      return runs.find((run) => (
+        (run.status === 'succeeded' || run.status === 'partial') && hasDeepResearch(run)
+      )) ?? null
+    },
+    [detailedRun, runs],
+  )
+  const latestResearchReport = useMemo(
+    () => latestResearchRun ? buildReadableReport(latestResearchRun) : null,
+    [latestResearchRun],
+  )
+  const researchModuleStates = useMemo(() => {
+    const unsupported = (detail: string) => ({ status: 'unsupported', statusLabel: '不适用', value: detail })
+    const pending = { status: 'pending', statusLabel: '待评估', value: '运行全面评估后显示' }
+    const missing = { status: 'missing', statusLabel: '数据缺口', value: '最近评估未形成有效证据' }
+    if (market === 'crypto') {
+      return [
+        { key: 'fundamentals', label: '财报质量', icon: FileSpreadsheet, ...unsupported('数字资产不适用公司财报') },
+        { key: 'valuation', label: '估值位置', icon: Scale, ...unsupported('数字资产不使用公司估值口径') },
+        { key: 'announcements', label: '公司事件', icon: Building2, ...unsupported('数字资产不适用公司公告域') },
+        { key: 'macro', label: '宏观传导', icon: Landmark, ...unsupported('当前版本未建立可靠传导') },
+      ]
+    }
+    const report = latestResearchReport
+    const financialQuality = typeof report?.fundamental?.financial_quality === 'string'
+      ? FINANCIAL_QUALITY_LABELS[report.fundamental.financial_quality] ?? report.fundamental.financial_quality
+      : null
+    const earningsTrend = typeof report?.fundamental?.earnings_trend === 'string'
+      ? EARNINGS_TREND_LABELS[report.fundamental.earnings_trend] ?? report.fundamental.earnings_trend
+      : null
+    const valuationRange = typeof report?.valuation?.valuation_range === 'string'
+      ? VALUATION_RANGE_LABELS[report.valuation.valuation_range] ?? report.valuation.valuation_range
+      : null
+    const valuationPercentile = asNumber(report?.valuation?.valuation_percentile)
+    const verifiedEventCount = asNumber(report?.companyEventSummary?.verified_count) ?? report?.companyEvents.length ?? 0
+    const reliableTransmissionCount = asNumber(report?.macroSummary?.reliable_transmission_count) ?? report?.macroTransmissions.length ?? 0
+    const supportedCompanyModules = market === 'a_shares'
+    return [
+      {
+        key: 'fundamentals', label: '财报质量', icon: FileSpreadsheet,
+        ...(report?.fundamental
+          ? { status: 'covered', statusLabel: '已覆盖', value: [financialQuality, earningsTrend].filter(Boolean).join(' · ') || '已生成财务快照' }
+          : latestResearchRun ? missing : pending),
+      },
+      {
+        key: 'valuation', label: '估值位置', icon: Scale,
+        ...(report?.valuation
+          ? { status: 'covered', statusLabel: '已覆盖', value: `${valuationRange ?? '已生成估值快照'}${valuationPercentile === null ? '' : ` · 历史分位 ${Math.round(valuationPercentile * 100)}%`}` }
+          : latestResearchRun ? missing : pending),
+      },
+      {
+        key: 'announcements', label: '公司事件', icon: Building2,
+        ...(supportedCompanyModules
+          ? report?.companyEventSummary
+            ? { status: 'covered', statusLabel: '已覆盖', value: `${verifiedEventCount} 条已核实事件` }
+            : latestResearchRun ? missing : pending
+          : unsupported('当前美股版本暂未接入')),
+      },
+      {
+        key: 'macro', label: '宏观传导', icon: Landmark,
+        ...(supportedCompanyModules
+          ? report?.macroSummary
+            ? { status: 'covered', statusLabel: '已覆盖', value: `${reliableTransmissionCount} 条可靠传导` }
+            : latestResearchRun ? missing : pending
+          : unsupported('当前美股版本暂未接入')),
+      },
+    ]
+  }, [latestResearchReport, latestResearchRun, market])
   const verification = useApi(
     () => api.researchVerify(activeRunId || ''),
     [activeRunId],
@@ -693,7 +781,9 @@ export default function ResearchWorkspacePage() {
     try {
       const modules = market === 'a_shares'
         ? ['market', 'news', 'pa', 'ensemble', 'fundamentals', 'valuation', 'announcements', 'macro']
-        : ['market', 'pa', 'ensemble']
+        : market === 'us_stocks'
+          ? ['market', 'pa', 'ensemble', 'fundamentals', 'valuation']
+          : ['market', 'pa', 'ensemble']
       const response = await api.createAnalysisTask({
         kind: 'evaluation',
         symbol,
@@ -702,10 +792,10 @@ export default function ResearchWorkspacePage() {
         payload: {
           modules,
           evaluation_horizon: EVALUATION_HORIZONS[timeframe],
-          evaluation_profile: market === 'a_shares' ? 'comprehensive' : 'balanced',
+          evaluation_profile: market === 'crypto' ? 'balanced' : 'comprehensive',
           market_methods: WORKSPACE_EVALUATION_METHODS,
           strategy_lenses: WORKSPACE_STRATEGY_LENSES,
-          market_limit: market === 'a_shares' ? 480 : 240,
+          market_limit: market === 'crypto' ? 240 : 480,
           research_mode: researchMode,
           holding_status: preference.data?.preference.holding_status ?? 'not_held',
         },
@@ -928,7 +1018,7 @@ export default function ResearchWorkspacePage() {
             disabled={evaluation?.status === 'queued' || evaluation?.status === 'running'}
             onClick={() => void startEvaluation()}
           >
-            {evaluation?.status === 'queued' || evaluation?.status === 'running' ? '评估进行中' : '一键评估'}
+            {evaluation?.status === 'queued' || evaluation?.status === 'running' ? '全面评估进行中' : '运行全面评估'}
           </Button>
         </form>
       </ContextBar>
@@ -938,6 +1028,31 @@ export default function ResearchWorkspacePage() {
           <span>{evaluationStartError}。当前工作台数据未受影响，请检查分析服务后重试。</span>
         </div>
       )}
+
+      <section className="research-module-rail" aria-labelledby="research-module-title">
+        <header>
+          <div>
+            <span>最新研究覆盖</span>
+            <h2 id="research-module-title">财务、估值与事件状态</h2>
+          </div>
+          <p>{latestResearchRun ? `读取最近评估 · ${formatTime(latestResearchRun.updated_at)}` : '全面评估会在这里直接给出结果摘要'}</p>
+        </header>
+        <div className="research-module-grid">
+          {researchModuleStates.map((module) => {
+            const ModuleIcon = module.icon
+            return (
+              <div className={`research-module ${module.status}`} key={module.key}>
+                <ModuleIcon size={18} aria-hidden="true" />
+                <div>
+                  <span>{module.label}</span>
+                  <strong>{module.value}</strong>
+                </div>
+                <small><i aria-hidden="true" />{module.statusLabel}</small>
+              </div>
+            )
+          })}
+        </div>
+      </section>
 
       <nav className="research-tabs" aria-label="综合评估视图">
         {VIEWS.map((item) => (

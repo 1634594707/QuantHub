@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Building2, FileSpreadsheet, Landmark, Scale } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
 import type { AnalysisTask, Instrument, WatchlistItem } from '../api/types'
@@ -128,6 +129,33 @@ const MODULE_LABELS: Record<string, string> = {
   macro: '宏观传导',
 }
 
+const DEEP_RESEARCH_MODULES = [
+  {
+    key: 'fundamentals',
+    label: '财报质量',
+    description: '盈利、现金流与偿债压力趋势',
+    icon: FileSpreadsheet,
+  },
+  {
+    key: 'valuation',
+    label: '估值位置',
+    description: '历史分位、行业与可比公司参照',
+    icon: Scale,
+  },
+  {
+    key: 'announcements',
+    label: '公司事件',
+    description: '公告、财报与重大公司行为',
+    icon: Building2,
+  },
+  {
+    key: 'macro',
+    label: '宏观传导',
+    description: '央行、经济数据与标的暴露路径',
+    icon: Landmark,
+  },
+] as const
+
 const SAMPLE_INSTRUMENTS: Record<EvaluationMarket, Instrument> = {
   a_shares: { instrument_id: 'a_shares:600519', code: '600519', market: 'a_shares', exchange: 'sse', name: '贵州茅台', currency: 'CNY', asset_class: 'stock' },
   us_stocks: { instrument_id: 'us_stocks:NVDA', code: 'NVDA', market: 'us_stocks', exchange: 'nasdaq', name: '英伟达', currency: 'USD', asset_class: 'stock' },
@@ -224,6 +252,25 @@ export default function StockEvaluationStartPage() {
     : market === 'us_stocks' && profile === 'comprehensive'
       ? '读取更长量价样本，并加入 SEC 点时财报与估值；历史估值参照不足时明确降级。'
     : profileConfig.description
+  const deepResearchModules = useMemo(() => DEEP_RESEARCH_MODULES.map((module) => {
+    if (market === 'crypto') {
+      return { ...module, status: 'unsupported' as const, statusLabel: '不适用', detail: '数字资产不套用上市公司研究模块' }
+    }
+    const marketSupported = market === 'a_shares' || module.key === 'fundamentals' || module.key === 'valuation'
+    if (!marketSupported) {
+      return { ...module, status: 'unsupported' as const, statusLabel: '暂未接入', detail: '当前美股版本保持明确降级' }
+    }
+    if (profile !== 'comprehensive') {
+      return { ...module, status: 'pending' as const, statusLabel: '待启用', detail: '选择全面评估后纳入本次研究' }
+    }
+    const detail = market === 'us_stocks'
+      ? module.key === 'fundamentals' ? 'SEC Companyfacts 点时财报' : 'SEC 财务口径与估值快照'
+      : module.key === 'fundamentals' ? 'AkShare 点时财报与修订版本'
+        : module.key === 'valuation' ? '历史、行业与可比组分位'
+          : module.key === 'announcements' ? '可信来源、去重与实体核验'
+            : '经济日历、事件意外与暴露关系'
+    return { ...module, status: 'active' as const, statusLabel: '本次启用', detail }
+  }), [market, profile])
 
   useEffect(() => {
     if (!preference.data || preferenceHydrated.current) return
@@ -400,6 +447,42 @@ export default function StockEvaluationStartPage() {
         <div><span>2</span><strong>选择周期</strong></div>
         <div><span>3</span><strong>查看评估</strong></div>
       </div>
+
+      <section className={s.deepResearchBand} aria-labelledby="deep-research-title">
+        <header>
+          <div>
+            <span>新增研究能力</span>
+            <h2 id="deep-research-title">深度研究覆盖</h2>
+            <p>财报、估值、公司事件与宏观传导会进入同一份统一决策，不再藏在历史报告里。</p>
+          </div>
+          {market !== 'crypto' && profile !== 'comprehensive' && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                setProfile('comprehensive')
+                setStrategyLenses(EVALUATION_PROFILES.comprehensive.defaultLenses)
+                setRecentTask(null)
+              }}
+            >选择全面评估</Button>
+          )}
+        </header>
+        <div className={s.deepResearchGrid}>
+          {deepResearchModules.map((module) => {
+            const ModuleIcon = module.icon
+            return (
+              <div className={s.deepResearchModule} key={module.key} data-status={module.status}>
+                <ModuleIcon size={19} aria-hidden="true" />
+                <div>
+                  <strong>{module.label}</strong>
+                  <p>{module.description}</p>
+                  <span><i aria-hidden="true" />{module.statusLabel} · {module.detail}</span>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </section>
 
       <div className={s.workspace}>
         <section className={s.searchSection}>

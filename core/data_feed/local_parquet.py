@@ -62,7 +62,12 @@ def _normalize_symbol(symbol: str, mode: str) -> str:
     """
     if mode == "code":
         return symbol.split(".")[0].strip()
-    return symbol.upper().replace("/", "").replace("-", "").strip()
+    normalized = symbol.upper().replace("/", "").replace("-", "").strip()
+    # OKX 的标准合约代码带 ``-SWAP``，而离线文件使用现货样式的
+    # ``BTCUSDT`` 文件名。两者代表同一研究标的，统一到文件命名规范。
+    if mode == "symbol" and normalized.endswith("SWAP"):
+        normalized = normalized[: -len("SWAP")]
+    return normalized
 
 
 class LocalParquetSource(DataSource):
@@ -163,15 +168,55 @@ class LocalParquetSource(DataSource):
             path = self._index.get((gname, key, file_tf))
             if path is None or not path.exists():
                 continue
-            df = self._read(path, symbol, interval, cfg, gname)
+            read_interval = (
+                "1d"
+                if interval == "1w" and file_tf in {"daily", "D1"}
+                else interval
+            )
+            df = self._read(path, symbol, read_interval, cfg, gname)
             if df is None or df.empty:
                 continue
+            if interval == "1w" and read_interval == "1d":
+                df = self._aggregate_weekly(df)
+                df["interval"] = interval
             # 区间裁剪（优先用真实 datetime；ordinal 模式按 bar_time 裁剪）
             df = self._clip(df, start, end, limit)
             return df[cols]
 
         logger.debug("[LocalParquet] 未找到本地文件: %s %s", symbol, interval)
         return pd.DataFrame(columns=cols)
+
+    @staticmethod
+    def _aggregate_weekly(df: pd.DataFrame) -> pd.DataFrame:
+        """Aggregate ordinal daily bars into deterministic five-session weeks.
+
+        Some bundled A-share files intentionally retain ordinal ``bar_time``
+        values rather than guessing a calendar date. Grouping consecutive
+        sessions keeps OHLCV valid without fabricating timestamps.
+        """
+        if len(df) < 2:
+            return df
+        work = df.reset_index(drop=True).copy()
+        groups = work.index // 5
+        rows: list[dict[str, Any]] = []
+        for _, group in work.groupby(groups, sort=True):
+            rows.append(
+                {
+                    "symbol": group["symbol"].iloc[-1],
+                    "market": group["market"].iloc[-1],
+                    "interval": "1w",
+                    "datetime": group["datetime"].iloc[-1],
+                    "open": group["open"].iloc[0],
+                    "high": group["high"].max(),
+                    "low": group["low"].min(),
+                    "close": group["close"].iloc[-1],
+                    "volume": group["volume"].sum(),
+                    "amount": group["amount"].iloc[-1],
+                    "turnover": group["turnover"].iloc[-1],
+                    "bar_time": group["bar_time"].iloc[-1],
+                }
+            )
+        return pd.DataFrame(rows)
 
     # ── 内部 ───────────────────────────────────────────────────
     def _read(

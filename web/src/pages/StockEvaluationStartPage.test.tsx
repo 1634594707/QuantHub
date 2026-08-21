@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import { api } from '../api/client'
@@ -43,6 +43,20 @@ afterEach(() => {
 })
 
 describe('StockEvaluationStartPage', () => {
+  it('makes the four deep-research modules visible before a task is started', async () => {
+    renderPage()
+
+    const coverage = screen.getByRole('region', { name: '深度研究覆盖' })
+    expect(within(coverage).getByText('财报质量')).toBeTruthy()
+    expect(within(coverage).getByText('估值位置')).toBeTruthy()
+    expect(within(coverage).getByText('公司事件')).toBeTruthy()
+    expect(within(coverage).getByText('宏观传导')).toBeTruthy()
+    expect(within(coverage).getAllByText(/待启用/)).toHaveLength(4)
+
+    fireEvent.click(within(coverage).getByRole('button', { name: '选择全面评估' }))
+    await waitFor(() => expect(within(coverage).getAllByText(/本次启用/)).toHaveLength(4))
+  })
+
   it('opens the workspace without creating or looking up an evaluation task', async () => {
     const recentTask = vi.spyOn(api, 'recentAnalysisTask')
     const createTask = vi.spyOn(api, 'createAnalysisTask')

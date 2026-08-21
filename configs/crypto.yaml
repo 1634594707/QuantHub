@@ -18,13 +18,13 @@ data_sources:
         subdir: "OKX_K线数据"
         pattern: "{symbol}_{TF}.parquet"
         symbol_norm: "symbol"            # ADA/USDT → ADAUSDT
-        tf_map: { "1m": "M1", "5m": "M5", "15m": "M15", "30m": "M30", "1h": "H1", "4h": "H4", "1d": "D1", "1w": "W1" }
+        tf_map: { "1m": "M1", "5m": "M5", "15m": "M15", "30m": "M30", "1h": "H1", "4h": "H4", "1d": "D1", "1w": "D1" }
         time_mode: "unix_seconds"
       mt5:                               # data/MT5_K线数据/{symbol}_{TF}.parquet（供 AlphaMaster 因子引擎离线读取）
         subdir: "MT5_K线数据"
         pattern: "{symbol}_{TF}.parquet"
         symbol_norm: "symbol"
-        tf_map: { "1m": "M1", "5m": "M5", "15m": "M15", "30m": "M30", "1h": "H1", "4h": "H4", "1d": "D1", "1w": "W1" }
+        tf_map: { "1m": "M1", "5m": "M5", "15m": "M15", "30m": "M30", "1h": "H1", "4h": "H4", "1d": "D1", "1w": "D1" }
         time_mode: "unix_seconds"
 
 # ===== 加密策略模块开关（默认关闭实盘）=====
