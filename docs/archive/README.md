@@ -7,7 +7,6 @@
 - `roadmaps/`：已完成或明确归档的专项路线图与阶段需求。
 - `reports/`：阶段完成报告和验证汇报。
 - `releases/`：旧版本因子治理和研究基线材料。
-- `notes/`：过程性研究笔记。
 - `VIDEO_FEATURE_GAP_REQUIREMENTS_2026-08-22.md`：上一版视频功能差距文档；当前产品改进要求以 `../PRODUCT_USABILITY_AND_REPORT_REQUIREMENTS.md` 为准。
 
 当前启动、部署、安全和运行入口以根目录 `README.md`、`docs/README.md`、源码、测试和配置为准。

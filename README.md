@@ -351,7 +351,6 @@ uv run python tools/scaffold_strategy.py \
 - [文档索引](docs/README.md)
 - [用户体验、分类与分析报告改进需求](docs/PRODUCT_USABILITY_AND_REPORT_REQUIREMENTS.md)
 - [历史归档说明](docs/archive/README.md)
-- [视频与宣传素材](docs/media/)
 - [v0.4.0 发布说明](docs/releases/v0.4.0.md)
 - [v0.3.0 发布说明](docs/releases/v0.3.0.md)
 - [AI 因子发现路线图](AI_FACTOR_DISCOVERY_ROADMAP.md)

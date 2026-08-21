@@ -37,11 +37,6 @@
 
 - [用户体验、分类与分析报告改进需求](PRODUCT_USABILITY_AND_REPORT_REQUIREMENTS.md)：基于当前源码的高频用户审查、市场能力矩阵、报告改进、多用户隔离和后续验收要求。
 
-## 视频与宣传素材
-
-- [QuantHub 视频脚本](media/QuantHub_视频脚本.md)：主线分镜、配音全文和素材清单。
-- [QuantHub 宣传视频脚本（合规版）](media/QuantHub_宣传视频脚本_合规版.md)：短视频脚本与发布前自查。
-
 ## 历史归档
 
 - `releases/`：各版本发布时的能力与验证记录。
