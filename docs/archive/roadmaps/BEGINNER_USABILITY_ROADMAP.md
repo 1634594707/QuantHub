@@ -3,7 +3,7 @@
 > 建立日期：2026-07-30
 > **归档说明：** 本文记录专项实施过程，不作为当前页面、启动或运维说明。
 > 需求基线：`BEGINNER_USABILITY_REQUIREMENTS.md`
-> 功能归属真值源：`docs/FUNCTION_BOUNDARIES.md`
+> 功能归属真值源：`../../FUNCTION_BOUNDARIES.md`
 > 状态规则：`[x]` 表示源码、测试、真实数据和目标视口均已验收。
 
 ## 目标
@@ -89,4 +89,4 @@
 
 ## 完成定义
 
-本路线图 Phase 0–4 已全部完成。后续新功能仍需遵守 `docs/FUNCTION_BOUNDARIES.md`：优先扩展现有一级能力，不建立输入、计算和输出重复的页面或记录系统。
+本路线图 Phase 0–4 已全部完成。后续新功能仍需遵守 `../../FUNCTION_BOUNDARIES.md`：优先扩展现有一级能力，不建立输入、计算和输出重复的页面或记录系统。

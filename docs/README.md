@@ -33,13 +33,28 @@
 - [运营控制台](OPERATIONS_CONTROL.md)：自动化、备份、故障状态和相关验收边界。
 - [Web UI 控制文档](../design/UI_CONTROL_PANEL.md)：当前路由、样式真值源和组件入口。
 
+## 产品需求与用户体验
+
+- [用户体验、分类与分析报告改进需求](PRODUCT_USABILITY_AND_REPORT_REQUIREMENTS.md)：基于当前源码的高频用户审查、市场能力矩阵、报告改进、多用户隔离和后续验收要求。
+
+## 视频与宣传素材
+
+- [QuantHub 视频脚本](media/QuantHub_视频脚本.md)：主线分镜、配音全文和素材清单。
+- [QuantHub 宣传视频脚本（合规版）](media/QuantHub_宣传视频脚本_合规版.md)：短视频脚本与发布前自查。
+
 ## 历史归档
 
 - `releases/`：各版本发布时的能力与验证记录。
 - `posts/`：历史社区发布材料。
 - `Plan/`：阶段路线图、任务状态和验收证据，只反映对应日期的上下文。
-- 根目录 `*ROADMAP.md` 与 `M4_COMPLETION_REPORT.md`：专项实施记录；阅读时以文首日期和
-  归档声明为准。
+- `archive/`：已被新需求文档替代但保留原始内容的历史文档。
+- [历史归档说明](archive/README.md)：归档目录结构和当前文档真值源。
+- `archive/roadmaps/`：已完成或明确归档的专项路线图与阶段需求。
+- `archive/reports/`：阶段完成报告与验证汇报。
+- `archive/releases/`：旧版本因子治理与研究基线材料。
+- `archive/notes/`：个人研究笔记和过程性材料。
+- 根目录 `AI_FACTOR_DISCOVERY_ROADMAP.md`：当前仍在维护的因子发现路线图。
+- `archive/roadmaps/` 与 `archive/reports/`：专项实施记录；阅读时以文首日期和归档声明为准。
 
 ## 维护规则
 

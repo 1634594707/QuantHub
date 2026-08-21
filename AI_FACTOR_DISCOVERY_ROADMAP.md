@@ -6,7 +6,7 @@
 > 当前启动、Runner 模式和端口以 [README](README.md) 与
 > [OKX Runner 运维](docs/okx_runner/OPERATIONS.md) 为准。
 >
-> 前置基础：[FACTOR_RESEARCH_ROADMAP.md](FACTOR_RESEARCH_ROADMAP.md) 已完成因子复验、持久化、成本、执行约束和研究治理能力。
+> 前置基础：[FACTOR_RESEARCH_ROADMAP.md](docs/archive/roadmaps/FACTOR_RESEARCH_ROADMAP.md) 已完成因子复验、持久化、成本、执行约束和研究治理能力。
 >
 > 本路线图目标：把固定的 14 个技术因子筛选器升级为可扩展、可审计、能够借助 AI 生成研究假设，但由确定性统计程序决定结论的因子发现系统。
 >

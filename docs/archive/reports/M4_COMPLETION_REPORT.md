@@ -31,7 +31,7 @@
 - `tools/okx_ws_probe.py`：私有 WS 实测探针
 - `tools/okx_ws_mock_server.py` + `tests/test_private_ws_mock.py`：协议仿真服务端 + 端到端测试
 - `tools/run_fault_drills.py`：M4-07 故障演练
-- `tools/observe_daily.py` + `docs/m4_observation_template.md`：M4-08 七日观察脚本与模板
+- `tools/observe_daily.py` + `../../m4_observation_template.md`：M4-08 七日观察脚本与模板
 - `tests/test_reconcile_scheduler.py`：M4-05 调度器测试
 
 ---
@@ -47,7 +47,7 @@
 | M4-05 | 四类定时对账调度 | ✅ 完成 | `test_reconcile_scheduler.py` PASS（3 次运行，含 1 次错误捕获脱敏） |
 | M4-06 | 错误映射脱敏 | 🟡 代码已修正，旧泄露证据已清理，待凭据轮换 | `runner_errors.py` + `main._call` 已接入；此前 WS 错误回显曾落盘凭据材料 |
 | M4-07 | 故障演练 | ✅ 完成 | `run_fault_drills.py` PASS（network/rate_limit/bad_creds/clock_drift 全部映射为编码脱敏错误） |
-| M4-08 | 连续 7 天观察 | 🟡 脚本+模板就绪，旧首日失败证据已清理，需重新开始 7 日观察 | `docs/m4_observation_template.md` |
+| M4-08 | 连续 7 天观察 | 🟡 脚本+模板就绪，旧首日失败证据已清理，需重新开始 7 日观察 | `../../m4_observation_template.md` |
 
 ---
 
