@@ -14,11 +14,9 @@ QuantHub 将综合评估、因子验证、AI 研究证据、策略回测、信�
 
 ## 🎬 项目介绍视频
 
-<video src="docs/quanthub-intro.mp4" controls="controls" preload="metadata" style="max-width:100%;border-radius:8px;"></video>
+[![点击观看 QuantHub 项目介绍视频（B 站）](https://i0.hdslb.com/bfs/archive/1ac43b7f015f871fdfd6adab439daf5ca635a4e4.jpg)](https://www.bilibili.com/video/BV1uW8B6KEBW)
 
-[![点击播放 QuantHub 项目介绍视频](design/screenshots/quanthub-overview.png)](docs/quanthub-intro.mp4)
-
-> 视频约 53 MB，位于 `docs/quanthub-intro.mp4`。GitHub 网页不内联播放仓库内视频：点击上方截图即可在新标签页打开并播放；使用 Typora、VS Code 等本地 Markdown 预览器时，可直接在上方播放器中观看。
+> 完整项目演示（B 站）：研究结论追溯、工作台画像、报告流式生成与审计、因子研究安全检查与 7 天门禁、财报/估值/新闻宏观接入、信号审核与模拟账本、本地运行方式与安全边界。▶ [在 B 站观看](https://www.bilibili.com/video/BV1uW8B6KEBW)
 
 > [!WARNING]
 > QuantHub 当前定位为研究与模拟执行工具，实盘交易默认关闭。项目输出不构成任何投资建议；在接入真实账户前，请自行完成数据、策略、风控和合规验证。
