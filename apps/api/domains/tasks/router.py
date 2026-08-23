@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import json
 import time
 
 from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi.responses import StreamingResponse
 
 from apps.api import store
 
@@ -90,6 +92,35 @@ def get_recent_task(
 def get_task(task_id: str, request: Request) -> dict:
     task = _owned_task(task_id, request)
     return {"ok": True, "task": service.refresh_timeout(task)}
+
+
+@router.get("/{task_id}/stream")
+def stream_task(task_id: str, request: Request) -> StreamingResponse:
+    """以 SSE 推送分析任务状态，直到任务进入终态。"""
+    _owned_task(task_id, request)
+    owner_id = _owner_id(request)
+
+    def events():
+        last_updated = None
+        while True:
+            task = store.get_analysis_task(task_id)
+            if task is None or task.get("owner_id") != owner_id:
+                return
+            task = service.refresh_timeout(task)
+            updated = task.get("updated_at")
+            if updated != last_updated:
+                last_updated = updated
+                yield f"event: task\ndata: {json.dumps(task, ensure_ascii=False)}\n\n"
+            if task["status"] not in {"queued", "running"}:
+                yield "event: done\ndata: {}\n\n"
+                return
+            time.sleep(0.5)
+
+    return StreamingResponse(
+        events(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @router.post("/{task_id}/cancel")

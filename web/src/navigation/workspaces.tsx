@@ -134,10 +134,21 @@ export const WORKSPACES: WorkspaceDefinition[] = [
   },
 ]
 
-export function workspacesForMode(mode: InterfaceMode): WorkspaceDefinition[] {
-  if (mode === 'advanced') return WORKSPACES
+export type WorkspaceProfile = 'stock_investor' | 'active_trader' | 'quant_research' | 'operations' | 'custom'
+
+const PROFILE_WORKSPACES: Record<WorkspaceProfile, WorkspaceKey[]> = {
+  stock_investor: ['overview', 'market', 'risk', 'settings'],
+  active_trader: ['overview', 'market', 'trading', 'risk'],
+  quant_research: ['overview', 'market', 'strategy', 'trading'],
+  operations: ['overview', 'settings', 'risk'],
+  custom: ['overview', 'market', 'strategy', 'trading', 'risk', 'settings'],
+}
+
+export function workspacesForMode(mode: InterfaceMode, profile?: WorkspaceProfile | null): WorkspaceDefinition[] {
+  const scoped = profile ? WORKSPACES.filter((workspace) => PROFILE_WORKSPACES[profile].includes(workspace.key)) : WORKSPACES
+  if (mode === 'advanced') return scoped
   // 新手模式只暴露读多写少的最小闭环：总览 / 自选 / 标的研究 / 模拟交易 / 设置。
-  return WORKSPACES
+  return scoped
     .filter((workspace) => workspace.key !== 'strategy')
     .map((workspace) => {
       if (workspace.key === 'overview') {
@@ -181,9 +192,9 @@ export function routeIdForPath(pathname: string): string | null {
   return null
 }
 
-export function isPathVisibleInMode(mode: InterfaceMode, pathname: string): boolean {
-  if (mode === 'advanced') return true
-  return workspacesForMode(mode).some((workspace) => workspace.items.some((item) => (
+export function isPathVisibleInMode(mode: InterfaceMode, pathname: string, profile?: WorkspaceProfile | null): boolean {
+  if (mode === 'advanced' && !profile) return true
+  return workspacesForMode(mode, profile).some((workspace) => workspace.items.some((item) => (
     isWorkspaceItemActive(item, pathname)
     || (item.to.includes('#') && pathname === item.to.split('#')[0])
   )))

@@ -108,6 +108,82 @@ export interface UserResearchPreference {
   updated_at: string
 }
 
+export type WorkspaceProfile = 'stock_investor' | 'active_trader' | 'quant_research' | 'operations' | 'custom'
+
+export interface WorkspacePreference {
+  user_id: string
+  profile: WorkspaceProfile
+  hidden_workspaces: string[]
+  hidden_modules: string[]
+  pinned_routes: string[]
+  default_home: string
+  default_market: string
+  recent_routes: string[]
+  version: number
+  updated_at: number | null
+}
+
+export interface WorkspaceConfigResp {
+  ok: boolean
+  profile: WorkspaceProfile
+  profile_label: string
+  available_profiles: Array<{ id: WorkspaceProfile; label: string; default_workspaces: string[] }>
+  permissions: string[]
+  visible_workspaces: string[]
+  config: WorkspacePreference
+  effective: {
+    workspaces: string[]
+    hidden_modules: string[]
+    pinned_routes: string[]
+    default_home: string
+    default_market: string
+  }
+}
+
+export type ReportEventType = 'report_started' | 'section_started' | 'delta' | 'section_completed' | 'report_completed' | 'report_error' | 'heartbeat'
+
+export interface ResearchReportSection {
+  id: string
+  report_id: string
+  section_key: string
+  position: number
+  status: 'pending' | 'generating' | 'completed' | 'failed' | 'skipped'
+  title: string
+  body: string
+  evidence_ids: string[]
+  error: string | null
+  updated_at: number
+}
+
+export interface ResearchReport {
+  id: string
+  owner_id: string
+  research_run_id: string
+  task_id: string | null
+  mode: 'quick' | 'investor' | 'professional' | 'quant'
+  version: number
+  status: 'queued' | 'running' | 'completed' | 'partial' | 'failed' | 'cancelled'
+  data_cutoff: string | null
+  model_version: string | null
+  prompt_version: string | null
+  snapshot: Record<string, unknown> | null
+  content_hash: string | null
+  created_at: number
+  updated_at: number
+  sections: ResearchReportSection[]
+}
+
+export interface ResearchReportEvent {
+  id: string
+  report_id: string
+  section_id: string | null
+  event_type: ReportEventType
+  sequence: number
+  event_version: string
+  payload: Record<string, unknown>
+  server_time: number
+}
+
 export interface AnalysisTask {
   id: string
   kind: AnalysisTaskKind

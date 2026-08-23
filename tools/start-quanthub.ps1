@@ -93,21 +93,26 @@ function Get-PortOwnerPid {
     # Resolve the PID that currently listens on a local TCP port.
     # Used so a re-run can adopt processes started by an earlier run.
     param([int]$Port)
+    $connection = $null
     try {
         $connection = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction Stop |
             Select-Object -First 1
-        if ($connection) { return [int]$connection.OwningProcess }
     } catch {
         # Get-NetTCPConnection is missing on some SKUs; fall back to netstat.
-        $line = netstat -ano -p TCP |
-            Select-String -Pattern 'LISTENING' |
-            Select-String -Pattern ":$Port\s" |
-            Select-Object -First 1
-        if ($line) {
-            $fields = ($line.ToString().Trim() -split '\s+')
-            $candidate = $fields[-1]
-            if ($candidate -match '^\d+$') { return [int]$candidate }
-        }
+    }
+    if ($connection) { return [int]$connection.OwningProcess }
+
+    # Some Windows environments return an empty collection even when a port is
+    # listening (for example, when the connection view is restricted). In that
+    # case use netstat as the fallback as well.
+    $line = netstat -ano -p TCP |
+        Select-String -Pattern 'LISTENING' |
+        Select-String -Pattern ":$Port\s" |
+        Select-Object -First 1
+    if ($line) {
+        $fields = ($line.ToString().Trim() -split '\s+')
+        $candidate = $fields[-1]
+        if ($candidate -match '^\d+$') { return [int]$candidate }
     }
     return $null
 }
@@ -157,7 +162,14 @@ function Test-QuantHubWebMarker {
 function Test-QuantHubProcess {
     param([int]$ProcessId, [string]$Kind, [int]$Port = 0)
     $cmd = Get-ProcessCommandLine -ProcessId $ProcessId
-    if ([string]::IsNullOrWhiteSpace($cmd)) { return $false }
+    # WMI process command lines may be inaccessible under a restricted token.
+    # For the web server, the page marker is a sufficient identity signal.
+    if ([string]::IsNullOrWhiteSpace($cmd)) {
+        if ($Kind -eq 'web' -and $Port -gt 0) {
+            return (Test-QuantHubWebMarker -Port $Port)
+        }
+        return $false
+    }
     # Normalize to forward slashes so Windows backslash paths match reliably.
     $norm = $cmd.Replace('\', '/')
     $webRoot = $WebRoot.Replace('\', '/')

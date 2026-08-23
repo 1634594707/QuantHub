@@ -505,6 +505,32 @@ def _init() -> None:
             )"""
         )
         c.execute(
+            """CREATE TABLE IF NOT EXISTS user_workspace_preferences (
+                user_id TEXT PRIMARY KEY,
+                profile TEXT NOT NULL DEFAULT 'stock_investor',
+                hidden_workspaces_json TEXT NOT NULL DEFAULT '[]',
+                hidden_modules_json TEXT NOT NULL DEFAULT '[]',
+                pinned_routes_json TEXT NOT NULL DEFAULT '[]',
+                default_home TEXT NOT NULL DEFAULT '/',
+                default_market TEXT NOT NULL DEFAULT 'a_shares',
+                recent_routes_json TEXT NOT NULL DEFAULT '[]',
+                version INTEGER NOT NULL DEFAULT 1,
+                updated_at REAL NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            )"""
+        )
+        c.execute(
+            """CREATE TABLE IF NOT EXISTS workspace_preference_audit (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                version INTEGER NOT NULL,
+                before_json TEXT,
+                after_json TEXT NOT NULL,
+                created_at REAL NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            )"""
+        )
+        c.execute(
             """CREATE TABLE IF NOT EXISTS financial_statements (
                 statement_id TEXT PRIMARY KEY,
                 instrument_id TEXT NOT NULL,
@@ -767,6 +793,57 @@ def _init() -> None:
                 started_at REAL,
                 finished_at REAL,
                 duration_ms INTEGER
+            )"""
+        )
+        c.execute(
+            """CREATE TABLE IF NOT EXISTS research_reports (
+                id TEXT PRIMARY KEY,
+                owner_id TEXT NOT NULL DEFAULT 'local-user',
+                research_run_id TEXT NOT NULL,
+                task_id TEXT,
+                mode TEXT NOT NULL,
+                version INTEGER NOT NULL DEFAULT 1,
+                status TEXT NOT NULL DEFAULT 'queued',
+                data_cutoff TEXT,
+                model_version TEXT,
+                prompt_version TEXT,
+                snapshot_json TEXT,
+                content_hash TEXT,
+                created_at REAL NOT NULL,
+                updated_at REAL NOT NULL,
+                UNIQUE (research_run_id, mode, version),
+                FOREIGN KEY (research_run_id) REFERENCES research_runs(id)
+            )"""
+        )
+        c.execute(
+            """CREATE TABLE IF NOT EXISTS research_report_sections (
+                id TEXT PRIMARY KEY,
+                report_id TEXT NOT NULL,
+                section_key TEXT NOT NULL,
+                position INTEGER NOT NULL,
+                status TEXT NOT NULL DEFAULT 'pending',
+                title TEXT NOT NULL,
+                body TEXT NOT NULL DEFAULT '',
+                evidence_ids_json TEXT NOT NULL DEFAULT '[]',
+                error TEXT,
+                updated_at REAL NOT NULL,
+                UNIQUE (report_id, section_key),
+                FOREIGN KEY (report_id) REFERENCES research_reports(id) ON DELETE CASCADE
+            )"""
+        )
+        c.execute(
+            """CREATE TABLE IF NOT EXISTS research_report_events (
+                id TEXT PRIMARY KEY,
+                report_id TEXT NOT NULL,
+                section_id TEXT,
+                event_type TEXT NOT NULL,
+                sequence INTEGER NOT NULL,
+                event_version TEXT NOT NULL DEFAULT 'report-stream-v1',
+                payload_json TEXT NOT NULL DEFAULT '{}',
+                created_at REAL NOT NULL,
+                UNIQUE (report_id, sequence),
+                FOREIGN KEY (report_id) REFERENCES research_reports(id) ON DELETE CASCADE,
+                FOREIGN KEY (section_id) REFERENCES research_report_sections(id) ON DELETE SET NULL
             )"""
         )
         _ensure_column(c, "analysis_tasks", "owner_id", "TEXT NOT NULL DEFAULT 'local-user'")
@@ -2554,6 +2631,129 @@ def save_user_research_preference(user_id: str, payload: dict[str, Any]) -> dict
     return payload
 
 
+def _workspace_preference_dict(row) -> dict[str, Any]:
+    return {
+        "user_id": row["user_id"],
+        "profile": row["profile"],
+        "hidden_workspaces": json.loads(row["hidden_workspaces_json"] or "[]"),
+        "hidden_modules": json.loads(row["hidden_modules_json"] or "[]"),
+        "pinned_routes": json.loads(row["pinned_routes_json"] or "[]"),
+        "default_home": row["default_home"],
+        "default_market": row["default_market"],
+        "recent_routes": json.loads(row["recent_routes_json"] or "[]"),
+        "version": int(row["version"]),
+        "updated_at": float(row["updated_at"]),
+    }
+
+
+def get_workspace_preference(user_id: str) -> dict[str, Any] | None:
+    with _lock, _conn() as c:
+        row = c.execute(
+            "SELECT * FROM user_workspace_preferences WHERE user_id=?", (user_id,)
+        ).fetchone()
+    return _workspace_preference_dict(row) if row is not None else None
+
+
+def save_workspace_preference(
+    user_id: str, payload: dict[str, Any], *, expected_version: int | None = None
+) -> dict[str, Any]:
+    now = _now()
+    current = get_workspace_preference(user_id)
+    if (
+        expected_version is not None
+        and current is not None
+        and current["version"] != expected_version
+    ):
+        raise ValueError(f"工作台配置版本冲突，当前版本为 {current['version']}")
+    version = int(current["version"] + 1) if current else 1
+    normalized = {
+        "user_id": user_id,
+        "profile": str(payload.get("profile") or "stock_investor"),
+        "hidden_workspaces": list(
+            dict.fromkeys(str(v) for v in payload.get("hidden_workspaces", []) if str(v))
+        ),
+        "hidden_modules": list(
+            dict.fromkeys(str(v) for v in payload.get("hidden_modules", []) if str(v))
+        ),
+        "pinned_routes": list(
+            dict.fromkeys(str(v) for v in payload.get("pinned_routes", []) if str(v))
+        ),
+        "default_home": str(payload.get("default_home") or "/"),
+        "default_market": str(payload.get("default_market") or "a_shares"),
+        "recent_routes": list(
+            dict.fromkeys(str(v) for v in payload.get("recent_routes", []) if str(v))
+        )[:20],
+        "version": version,
+        "updated_at": now,
+    }
+    serialized = {**normalized}
+    with _lock, _conn() as c:
+        c.execute(
+            """INSERT INTO user_workspace_preferences
+               (user_id, profile, hidden_workspaces_json, hidden_modules_json,
+                pinned_routes_json, default_home, default_market, recent_routes_json,
+                version, updated_at)
+               VALUES (?,?,?,?,?,?,?,?,?,?)
+               ON CONFLICT(user_id) DO UPDATE SET
+                 profile=excluded.profile,
+                 hidden_workspaces_json=excluded.hidden_workspaces_json,
+                 hidden_modules_json=excluded.hidden_modules_json,
+                 pinned_routes_json=excluded.pinned_routes_json,
+                 default_home=excluded.default_home,
+                 default_market=excluded.default_market,
+                 recent_routes_json=excluded.recent_routes_json,
+                 version=excluded.version,
+                 updated_at=excluded.updated_at""",
+            (
+                user_id,
+                normalized["profile"],
+                json.dumps(normalized["hidden_workspaces"], ensure_ascii=False),
+                json.dumps(normalized["hidden_modules"], ensure_ascii=False),
+                json.dumps(normalized["pinned_routes"], ensure_ascii=False),
+                normalized["default_home"],
+                normalized["default_market"],
+                json.dumps(normalized["recent_routes"], ensure_ascii=False),
+                version,
+                now,
+            ),
+        )
+        c.execute(
+            """INSERT INTO workspace_preference_audit
+               (id, user_id, version, before_json, after_json, created_at)
+               VALUES (?,?,?,?,?,?)""",
+            (
+                uuid.uuid4().hex,
+                user_id,
+                version,
+                json.dumps(current, ensure_ascii=False, default=str) if current else None,
+                json.dumps(serialized, ensure_ascii=False, default=str),
+                now,
+            ),
+        )
+    return serialized
+
+
+def list_workspace_preference_audit(user_id: str, *, limit: int = 100) -> list[dict[str, Any]]:
+    with _lock, _conn() as c:
+        rows = c.execute(
+            """SELECT id, user_id, version, before_json, after_json, created_at
+               FROM workspace_preference_audit WHERE user_id=?
+               ORDER BY version DESC LIMIT ?""",
+            (user_id, max(1, min(limit, 500))),
+        ).fetchall()
+    return [
+        {
+            "id": row["id"],
+            "user_id": row["user_id"],
+            "version": int(row["version"]),
+            "before": json.loads(row["before_json"]) if row["before_json"] else None,
+            "after": json.loads(row["after_json"]),
+            "created_at": float(row["created_at"]),
+        }
+        for row in rows
+    ]
+
+
 def add_research_evidence(
     run_id: str,
     kind: str,
@@ -3068,6 +3268,272 @@ def update_analysis_task(task_id: str, patch: dict) -> dict | None:
             params,
         )
     return get_analysis_task(task_id) if cursor.rowcount else None
+
+
+# ---------------------------------------------------------------------------
+# 不可变研究报告与章节事件 research_reports/*
+# ---------------------------------------------------------------------------
+def _research_report_dict(row) -> dict[str, Any]:
+    report_id = row["id"]
+    return {
+        "id": report_id,
+        "owner_id": row["owner_id"],
+        "research_run_id": row["research_run_id"],
+        "task_id": row["task_id"],
+        "mode": row["mode"],
+        "version": int(row["version"]),
+        "status": row["status"],
+        "data_cutoff": row["data_cutoff"],
+        "model_version": row["model_version"],
+        "prompt_version": row["prompt_version"],
+        "snapshot": json.loads(row["snapshot_json"]) if row["snapshot_json"] else None,
+        "content_hash": row["content_hash"],
+        "created_at": float(row["created_at"]),
+        "updated_at": float(row["updated_at"]),
+        "sections": list_research_report_sections(report_id),
+    }
+
+
+def create_research_report(
+    *, research_run_id: str, mode: str, owner_id: str, task_id: str | None = None
+) -> dict:
+    now = _now()
+    with _lock, _conn() as c:
+        latest = c.execute(
+            "SELECT COALESCE(MAX(version),0) AS version FROM research_reports WHERE research_run_id=? AND mode=?",
+            (research_run_id, mode),
+        ).fetchone()
+        version = int(latest["version"]) + 1
+        report_id = uuid.uuid4().hex
+        c.execute(
+            """INSERT INTO research_reports
+               (id, owner_id, research_run_id, task_id, mode, version, status, created_at, updated_at)
+               VALUES (?,?,?,?,?,?, 'queued', ?, ?)""",
+            (report_id, owner_id, research_run_id, task_id, mode, version, now, now),
+        )
+        row = c.execute("SELECT * FROM research_reports WHERE id=?", (report_id,)).fetchone()
+    return _research_report_dict(row)
+
+
+def get_research_report(report_id: str, *, owner_id: str | None = None) -> dict | None:
+    with _lock, _conn() as c:
+        sql = "SELECT * FROM research_reports WHERE id=?"
+        params: list[Any] = [report_id]
+        if owner_id:
+            sql += " AND owner_id=?"
+            params.append(owner_id)
+        row = c.execute(sql, params).fetchone()
+    return _research_report_dict(row) if row is not None else None
+
+
+def list_research_report_sections(report_id: str) -> list[dict[str, Any]]:
+    with _lock, _conn() as c:
+        rows = c.execute(
+            "SELECT * FROM research_report_sections WHERE report_id=? ORDER BY position ASC",
+            (report_id,),
+        ).fetchall()
+    return [
+        {
+            "id": row["id"],
+            "report_id": row["report_id"],
+            "section_key": row["section_key"],
+            "position": int(row["position"]),
+            "status": row["status"],
+            "title": row["title"],
+            "body": row["body"],
+            "evidence_ids": json.loads(row["evidence_ids_json"] or "[]"),
+            "error": row["error"],
+            "updated_at": float(row["updated_at"]),
+        }
+        for row in rows
+    ]
+
+
+def create_research_report_section(
+    report_id: str, *, section_key: str, position: int, title: str
+) -> dict[str, Any]:
+    now = _now()
+    section_id = uuid.uuid4().hex
+    with _lock, _conn() as c:
+        c.execute(
+            """INSERT INTO research_report_sections
+               (id, report_id, section_key, position, title, updated_at)
+               VALUES (?,?,?,?,?,?)
+               ON CONFLICT(report_id, section_key) DO UPDATE SET position=excluded.position, title=excluded.title""",
+            (section_id, report_id, section_key, position, title, now),
+        )
+        row = c.execute(
+            "SELECT * FROM research_report_sections WHERE report_id=? AND section_key=?",
+            (report_id, section_key),
+        ).fetchone()
+    return {
+        "id": row["id"],
+        "report_id": row["report_id"],
+        "section_key": row["section_key"],
+        "position": int(row["position"]),
+        "status": row["status"],
+        "title": row["title"],
+        "body": row["body"],
+        "evidence_ids": json.loads(row["evidence_ids_json"] or "[]"),
+        "error": row["error"],
+        "updated_at": float(row["updated_at"]),
+    }
+
+
+def update_research_report_section(section_id: str, patch: dict[str, Any]) -> dict | None:
+    with _lock, _conn() as c:
+        report_row = c.execute(
+            """SELECT r.status FROM research_report_sections s
+               JOIN research_reports r ON r.id=s.report_id WHERE s.id=?""",
+            (section_id,),
+        ).fetchone()
+    if report_row is None:
+        return None
+    if report_row["status"] == "completed":
+        raise ValueError("已完成研究报告章节不可变")
+    mapping = {
+        "status": "status",
+        "body": "body",
+        "evidence_ids": "evidence_ids_json",
+        "error": "error",
+    }
+    sets, params = [], []
+    for key, column in mapping.items():
+        if key not in patch:
+            continue
+        value = patch[key]
+        if key == "evidence_ids":
+            value = json.dumps(value or [], ensure_ascii=False)
+        sets.append(f"{column}=?")
+        params.append(value)
+    if not sets:
+        return None
+    sets.append("updated_at=?")
+    params.extend([_now(), section_id])
+    with _lock, _conn() as c:
+        cur = c.execute(f"UPDATE research_report_sections SET {', '.join(sets)} WHERE id=?", params)
+        row = c.execute(
+            "SELECT * FROM research_report_sections WHERE id=?", (section_id,)
+        ).fetchone()
+    if not cur.rowcount or row is None:
+        return None
+    return {
+        "id": row["id"],
+        "report_id": row["report_id"],
+        "section_key": row["section_key"],
+        "position": int(row["position"]),
+        "status": row["status"],
+        "title": row["title"],
+        "body": row["body"],
+        "evidence_ids": json.loads(row["evidence_ids_json"] or "[]"),
+        "error": row["error"],
+        "updated_at": float(row["updated_at"]),
+    }
+
+
+def append_research_report_event(
+    report_id: str, *, event_type: str, payload: dict[str, Any], section_id: str | None = None
+) -> dict[str, Any]:
+    now = _now()
+    with _lock, _conn() as c:
+        report_row = c.execute(
+            "SELECT research_run_id, task_id FROM research_reports WHERE id=?", (report_id,)
+        ).fetchone()
+        current = c.execute(
+            "SELECT COALESCE(MAX(sequence),0) AS sequence FROM research_report_events WHERE report_id=?",
+            (report_id,),
+        ).fetchone()
+        sequence = int(current["sequence"]) + 1
+        event_id = uuid.uuid4().hex
+        event = {
+            "id": event_id,
+            "report_id": report_id,
+            "section_id": section_id,
+            "task_id": report_row["task_id"] if report_row else None,
+            "research_run_id": report_row["research_run_id"] if report_row else None,
+            "event_type": event_type,
+            "sequence": sequence,
+            "event_version": "report-stream-v1",
+            "payload": payload,
+            "server_time": now,
+        }
+        c.execute(
+            """INSERT INTO research_report_events
+               (id, report_id, section_id, event_type, sequence, event_version, payload_json, created_at)
+               VALUES (?,?,?,?,?,?,?,?)""",
+            (
+                event_id,
+                report_id,
+                section_id,
+                event_type,
+                sequence,
+                "report-stream-v1",
+                json.dumps(payload, ensure_ascii=False, default=str),
+                now,
+            ),
+        )
+    return event
+
+
+def list_research_report_events(
+    report_id: str, *, after_sequence: int = 0, limit: int = 1000
+) -> list[dict[str, Any]]:
+    with _lock, _conn() as c:
+        rows = c.execute(
+            """SELECT e.*, r.task_id, r.research_run_id
+               FROM research_report_events e JOIN research_reports r ON r.id=e.report_id
+               WHERE e.report_id=? AND e.sequence>? ORDER BY e.sequence ASC LIMIT ?""",
+            (report_id, max(0, after_sequence), max(1, min(limit, 5000))),
+        ).fetchall()
+    return [
+        {
+            "id": row["id"],
+            "report_id": row["report_id"],
+            "section_id": row["section_id"],
+            "task_id": row["task_id"],
+            "research_run_id": row["research_run_id"],
+            "event_type": row["event_type"],
+            "sequence": int(row["sequence"]),
+            "event_version": row["event_version"],
+            "payload": json.loads(row["payload_json"] or "{}"),
+            "server_time": float(row["created_at"]),
+        }
+        for row in rows
+    ]
+
+
+def update_research_report(report_id: str, patch: dict[str, Any]) -> dict | None:
+    existing = get_research_report(report_id)
+    if existing is None:
+        return None
+    if existing.get("status") == "completed" and any(
+        key in patch for key in ("snapshot", "content_hash", "data_cutoff")
+    ):
+        raise ValueError("已完成研究报告快照不可变")
+    mapping = {
+        "status": "status",
+        "data_cutoff": "data_cutoff",
+        "model_version": "model_version",
+        "prompt_version": "prompt_version",
+        "snapshot": "snapshot_json",
+        "content_hash": "content_hash",
+    }
+    sets, params = [], []
+    for key, column in mapping.items():
+        if key not in patch:
+            continue
+        value = patch[key]
+        if key == "snapshot":
+            value = json.dumps(value, ensure_ascii=False, default=str)
+        sets.append(f"{column}=?")
+        params.append(value)
+    if not sets:
+        return get_research_report(report_id)
+    sets.append("updated_at=?")
+    params.extend([_now(), report_id])
+    with _lock, _conn() as c:
+        cur = c.execute(f"UPDATE research_reports SET {', '.join(sets)} WHERE id=?", params)
+    return get_research_report(report_id) if cur.rowcount else None
 
 
 # ---------------------------------------------------------------------------

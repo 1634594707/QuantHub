@@ -116,6 +116,19 @@
   background: var(--bg-elevated);
 }
 
+.research-report-stream {
+  margin: 18px 0;
+  padding: 18px 20px;
+  border: 1px solid var(--line, #d9e2ec);
+  border-radius: 14px;
+  background: var(--surface, #fff);
+}
+.research-report-stream > header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.research-report-stream h2 { margin: 4px 0 0; }
+.research-report-stream h3 { margin: 14px 0 4px; font-size: 14px; }
+.research-report-stream article p { margin: 0; line-height: 1.65; color: var(--text-secondary, #536273); }
+.research-report-disclaimer { color: var(--text-secondary, #536273); font-size: 12px; }
+
 .research-module-rail > header {
   display: flex;
   align-items: end;

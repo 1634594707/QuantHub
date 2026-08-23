@@ -16,6 +16,7 @@ import { ContextBar } from '../components/ContextBar/ContextBar'
 import { EvidenceRail } from '../components/EvidenceRail/EvidenceRail'
 import { useRecordNavigation } from '../hooks/useRecordNavigation'
 import { shouldAdoptEvaluationRun } from '../lib/researchRunNavigation'
+import { ResearchReportStream } from '../components/ResearchReportStream'
 import EnsemblePage from './EnsemblePage'
 import NewsPage from './NewsPage'
 import '../styles/research.css'
@@ -487,6 +488,7 @@ export default function ResearchWorkspacePage() {
   const requestedCompareRunId = searchParams.get('compare_run_id') || ''
   const requestedFavoritesOnly = searchParams.get('favorite') === 'true'
   const evaluationTaskId = searchParams.get('evaluation_task_id') || ''
+  const requestedReportId = searchParams.get('report_id') || ''
   const rawView = searchParams.get('view') || 'overview'
   const view: View = VIEWS.some((item) => item.key === rawView) ? rawView as View : 'overview'
   const rawResearchMode = searchParams.get('mode') || 'investor'
@@ -1053,6 +1055,7 @@ export default function ResearchWorkspacePage() {
           })}
         </div>
       </section>
+      {detailedRun ? <ResearchReportStream runId={detailedRun.id} reportId={requestedReportId || undefined} mode={researchMode as 'quick' | 'investor' | 'professional' | 'quant'} /> : null}
 
       <nav className="research-tabs" aria-label="综合评估视图">
         {VIEWS.map((item) => (

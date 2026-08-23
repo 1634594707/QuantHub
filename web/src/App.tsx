@@ -15,16 +15,20 @@ import { ApiRestartNotice } from './components/ApiRestartNotice'
 import { InterfaceModeSetup } from './components/InterfaceModeSetup/InterfaceModeSetup'
 
 export default function App() {
-  const [interfaceMode, setInterfaceMode] = useInterfaceMode()
+  const [interfaceMode, setInterfaceMode, workspaceProfile, setWorkspaceProfile] = useInterfaceMode()
   if (!interfaceMode) return <InterfaceModeSetup onSelect={setInterfaceMode} />
-  return <AppShell interfaceMode={interfaceMode} onInterfaceModeChange={setInterfaceMode} />
+  return <AppShell interfaceMode={interfaceMode} workspaceProfile={workspaceProfile} onWorkspaceProfileChange={setWorkspaceProfile} onInterfaceModeChange={setInterfaceMode} />
 }
 
 export function AppShell({
   interfaceMode,
+  workspaceProfile,
+  onWorkspaceProfileChange,
   onInterfaceModeChange,
 }: {
   interfaceMode: InterfaceMode
+  workspaceProfile?: import('./api/types').WorkspaceProfile | null
+  onWorkspaceProfileChange?: (profile: import('./api/types').WorkspaceProfile) => Promise<void>
   onInterfaceModeChange: (mode: InterfaceMode) => void
 }) {
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('quanthub.sidebar.collapsed') === 'true')
@@ -110,6 +114,7 @@ export function AppShell({
         strategyCount={strategyCount}
         strategyList={strategies.data?.strategies ?? []}
         interfaceMode={interfaceMode}
+        workspaceProfile={workspaceProfile}
       />
       <div className="main">
         <Topbar
@@ -122,10 +127,12 @@ export function AppShell({
           pageLabel={presentation.label}
           interfaceMode={interfaceMode}
           onInterfaceModeChange={onInterfaceModeChange}
+          workspaceProfile={workspaceProfile}
+          onWorkspaceProfileChange={onWorkspaceProfileChange}
         />
         <ApiRestartNotice health={health.data} checking={health.loading} onCheck={health.refetch} />
         <main id="main-content" className="content" tabIndex={-1}>
-          {!isPathVisibleInMode(interfaceMode, pathname) ? (
+          {!isPathVisibleInMode(interfaceMode, pathname, workspaceProfile) ? (
             <div className="mode-scope-notice" role="status">
               <div>
                 <strong>此页面不在精简界面导航中</strong>

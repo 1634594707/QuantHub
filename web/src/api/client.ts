@@ -142,6 +142,10 @@ import type {
   StrategyVersion,
   WatchlistCRUDResp,
   WatchlistResp,
+  WorkspaceConfigResp,
+  WorkspaceProfile,
+  ResearchReport,
+  ResearchReportEvent,
 } from './types'
 
 const LS_KEY = 'quanthub:api-base'
@@ -444,6 +448,30 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ run_ids: runIds, ...patch }),
     }),
+
+  workspaceConfig: () => getJSON<WorkspaceConfigResp>('/workspace/config'),
+  updateWorkspaceConfig: (payload: {
+    profile: WorkspaceProfile
+    hidden_workspaces?: string[]
+    hidden_modules?: string[]
+    pinned_routes?: string[]
+    default_home?: string
+    default_market?: string
+    recent_routes?: string[]
+    version?: number
+  }) => getJSON<WorkspaceConfigResp>('/workspace/config', {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+  }),
+  workspaceConfigAudit: (limit = 100) => getJSON<{ ok: boolean; count: number; audit: Array<Record<string, unknown>> }>(`/workspace/config/audit?limit=${limit}`),
+  createResearchReport: (runId: string, mode: ResearchReport['mode'], taskId?: string) => getJSON<{ ok: boolean; report: ResearchReport }>(`/workspace/research-runs/${encodeURIComponent(runId)}/reports`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode, task_id: taskId }),
+  }),
+  researchReport: (reportId: string) => getJSON<{ ok: boolean; report: ResearchReport }>(`/workspace/reports/${encodeURIComponent(reportId)}`),
+  researchReportEvents: (reportId: string, afterSequence = 0) => getJSON<{ ok: boolean; events: ResearchReportEvent[]; next_sequence: number }>(`/workspace/reports/${encodeURIComponent(reportId)}/events?after_sequence=${afterSequence}`),
+  cancelResearchReport: (reportId: string) => getJSON<{ ok: boolean; report: ResearchReport }>(`/workspace/reports/${encodeURIComponent(reportId)}/cancel`, { method: 'POST' }),
+  regenerateResearchReportSection: (reportId: string, sectionKey: string) => getJSON<{ ok: boolean; report: ResearchReport }>(`/workspace/reports/${encodeURIComponent(reportId)}/sections/regenerate`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ section_key: sectionKey }),
+  }),
 
   addResearchEvidence: (
     id: string,

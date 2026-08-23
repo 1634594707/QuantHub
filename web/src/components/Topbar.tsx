@@ -1,7 +1,7 @@
 import { useTheme } from '../theme/ThemeContext'
 import { IconMenu, IconSearch, IconSun, IconMoon, IconBell } from './icons'
 import { IconButton } from './ui/IconButton/IconButton'
-import type { HealthResp } from '../api/types'
+import type { HealthResp, WorkspaceProfile } from '../api/types'
 import { CONNECTION_LABELS, type ConnectionState } from '../api/connection'
 import type { InterfaceMode } from '../hooks/useInterfaceMode'
 import { useState } from 'react'
@@ -17,6 +17,8 @@ interface Props {
   pageLabel: string
   interfaceMode: InterfaceMode
   onInterfaceModeChange: (mode: InterfaceMode) => void
+  workspaceProfile?: WorkspaceProfile | null
+  onWorkspaceProfileChange?: (profile: WorkspaceProfile) => Promise<void>
 }
 
 export default function Topbar({
@@ -29,6 +31,8 @@ export default function Topbar({
   pageLabel,
   interfaceMode,
   onInterfaceModeChange,
+  workspaceProfile,
+  onWorkspaceProfileChange,
 }: Props) {
   const { theme, toggle } = useTheme()
   const [userMenuOpen, setUserMenuOpen] = useState(false)
@@ -102,7 +106,19 @@ export default function Topbar({
           a
         </button>
         {userMenuOpen ? (
-          <div className="topbar-user-popover" role="menu" aria-label="界面范围">
+          <div className="topbar-user-popover" role="menu" aria-label="界面与工作台画像">
+            {onWorkspaceProfileChange ? <div className="profile-picker" role="group" aria-label="工作台画像">
+              {([
+                ['stock_investor', '股票投资'],
+                ['active_trader', '主动交易'],
+                ['quant_research', '量化研究'],
+                ['operations', '运营管理'],
+                ['custom', '自定义'],
+              ] as Array<[WorkspaceProfile, string]>).map(([id, label]) => (
+                <button key={id} type="button" role="menuitemradio" aria-checked={workspaceProfile === id}
+                  onClick={() => { void onWorkspaceProfileChange(id); setUserMenuOpen(false) }}>{label}</button>
+              ))}
+            </div> : null}
             <button
               type="button"
               role="menuitemradio"

@@ -474,10 +474,29 @@ def _run_evaluation(task: dict, request: dict[str, Any]) -> dict[str, Any]:
 
     persist_research_decision(run_id)
     store.update_research_run(run_id, {"status": final_status, "error": error_text})
+    # 确定性模块完成后立即固化一份章节报告快照；流式接口随后可按 sequence 续传。
+    report_id = None
+    try:
+        from apps.api.domains.workspace.report_service import generate_report
+
+        report_mode = str(request.get("research_mode", "investor"))
+        if report_mode not in {"quick", "investor", "professional", "quant"}:
+            report_mode = "investor"
+        report = store.create_research_report(
+            research_run_id=run_id,
+            mode=report_mode,
+            owner_id=str(task.get("owner_id") or "local-user"),
+            task_id=task["id"],
+        )
+        generate_report(report, store.get_research_run(run_id) or {})
+        report_id = report["id"]
+    except Exception as exc:  # noqa: BLE001 - 报告失败不覆盖确定性任务结果
+        store.update_analysis_task(task["id"], {"error": f"报告生成降级: {exc}"})
     return {
         "ok": bool(successful_modules),
         "partial": final_status == "partial",
         "research_run_id": run_id,
+        "report_id": report_id,
         "steps": steps,
         "error": error_text,
     }

@@ -262,6 +262,26 @@ def build_valuation_snapshot(
         if central <= 0.9
         else "very_high"
     )
+    # 可复核的关键假设敏感度：只使用已保存的盈利、利润率/贴现率代理值，
+    # 不让模型生成任何未经确定性计算的数字。
+    base_pe = next(
+        (item.value for item in metrics if item.key == "pe_ttm" and item.applicable), None
+    )
+    sensitivity: dict[str, Decimal | None] = {}
+    if base_pe is not None and base_pe > 0:
+        for shock in (-Decimal("0.20"), Decimal(0), Decimal("0.20")):
+            sensitivity[f"earnings_{int(shock * 100):+d}pct"] = (
+                base_pe / (Decimal(1) + shock)
+            ).quantize(Decimal("0.0001"))
+    else:
+        sensitivity.update(
+            {"earnings_-20pct": None, "earnings_0pct": None, "earnings_+20pct": None}
+        )
+    # 贴现率冲击使用估值分位的单调代理，便于前端展示场景而不伪造绝对目标价。
+    if central is not None:
+        sensitivity["discount_rate_-2pct"] = Decimal(str(round(max(0.0, central - 0.10), 4)))
+        sensitivity["discount_rate_base"] = Decimal(str(round(central, 4)))
+        sensitivity["discount_rate_+2pct"] = Decimal(str(round(min(1.0, central + 0.10), 4)))
     return ValuationSnapshot(
         snapshot_id=snapshot_id,
         instrument_id=instrument_id,
@@ -275,7 +295,7 @@ def build_valuation_snapshot(
         comparable_group=comparable_group,
         valuation_range=valuation_range,
         valuation_percentile=central,
-        sensitivity={},
+        sensitivity=sensitivity,
         invalidation_conditions=("财务分母修订后需重新估值", "股本或价格时点过期后需重新估值"),
         confidence=round(len([item for item in metrics if item.applicable]) / len(metrics), 4),
         provenance=provenance,

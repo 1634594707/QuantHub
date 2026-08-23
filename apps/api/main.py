@@ -39,6 +39,7 @@ from fastapi.responses import JSONResponse
 from core.config import get_config
 from strategies import discover_and_register, list_strategies
 
+from . import store
 from .deployment import load_settings
 
 # Domain routers (modularized routes)
@@ -69,6 +70,8 @@ from .domains.strategies import router as strategies_router
 from .domains.strategy_lab import router as strategy_lab_router
 from .domains.tasks import router as tasks_router
 from .domains.trading import router as trading_router
+from .domains.workspace import research_router as research_report_router
+from .domains.workspace import router as workspace_router
 
 logger = logging.getLogger(__name__)
 
@@ -132,6 +135,67 @@ async def governance_middleware(request: Request, call_next):
             status_code=403,
             content={"detail": f"缺少权限: {permission}"},
         )
+    # 画像过滤与权限过滤独立执行；深链接也必须遵守最终可见工作区。
+    if request.method in {"GET", "HEAD"} and request.url.path not in {
+        "/auth/session",
+        "/workspace/config",
+        "/workspace/profiles",
+    }:
+        workspace_prefixes = {
+            "market": (
+                "/research",
+                "/research-data",
+                "/news",
+                "/pa",
+                "/ensemble",
+                "/data",
+                "/predict",
+                "/factor-research",
+                "/factor-factory",
+                "/instruments",
+                "/market-data",
+            ),
+            "strategy": ("/strategies", "/strategy-lab", "/portfolio"),
+            "trading": ("/trading", "/signals", "/simulation"),
+            "risk": ("/account-risk", "/ledger", "/alerts"),
+            "settings": (
+                "/config",
+                "/governance",
+                "/automation",
+                "/incidents",
+                "/backups",
+                "/cost-profiles",
+            ),
+        }
+        matched_workspace = next(
+            (
+                key
+                for key, prefixes in workspace_prefixes.items()
+                if any(request.url.path.startswith(prefix) for prefix in prefixes)
+            ),
+            None,
+        )
+        if matched_workspace:
+            saved = store.get_workspace_preference(str(principal["id"]))
+            if saved is None:
+                matched_workspace = None
+        if matched_workspace:
+            profile = (saved or {}).get("profile", "stock_investor")
+            defaults = {
+                "stock_investor": {"overview", "market", "risk", "settings"},
+                "active_trader": {"overview", "market", "trading", "risk"},
+                "quant_research": {"overview", "market", "strategy", "trading"},
+                "operations": {"overview", "settings", "risk"},
+                "custom": {"overview", "market", "strategy", "trading", "risk", "settings"},
+            }
+            hidden = set((saved or {}).get("hidden_workspaces", []))
+            if (
+                matched_workspace not in defaults.get(profile, defaults["custom"])
+                or matched_workspace in hidden
+            ):
+                return JSONResponse(
+                    status_code=403, content={"detail": "当前工作台画像未启用该工作区"}
+                )
     request.state.principal = principal
     if request.method in {"GET", "HEAD"}:
         return await call_next(request)
@@ -198,6 +262,8 @@ app.include_router(cost_profiles_router)
 app.include_router(governance_router)
 # 交易域是浏览器访问 OKX Runner 的唯一通路；前端不得直连 Runner。
 app.include_router(trading_router)
+app.include_router(workspace_router)
+app.include_router(research_report_router)
 
 
 # ---------------------------------------------------------------------------

@@ -8,6 +8,7 @@ import {
   workspaceForPath,
 } from '../navigation/workspaces'
 import type { InterfaceMode } from '../hooks/useInterfaceMode'
+import type { WorkspaceProfile } from '../api/types'
 import { strategyRouteId, useNavigationPreferences } from '../navigation/navigationPreferences'
 import { IconChevron } from './icons'
 import { Star } from 'lucide-react'
@@ -20,6 +21,7 @@ interface Props {
   strategyCount?: number
   strategyList?: StrategyInfo[]
   interfaceMode: InterfaceMode
+  workspaceProfile?: WorkspaceProfile | null
 }
 
 export default function Sidebar({
@@ -30,6 +32,7 @@ export default function Sidebar({
   strategyCount,
   strategyList = [],
   interfaceMode,
+  workspaceProfile,
 }: Props) {
   const location = useLocation()
   const activeWorkspace = workspaceForPath(location.pathname)
@@ -39,7 +42,7 @@ export default function Sidebar({
     recentRouteIds,
     togglePinnedRoute,
   } = useNavigationPreferences()
-  const modeWorkspaces = workspacesForMode(interfaceMode)
+  const modeWorkspaces = workspacesForMode(interfaceMode, workspaceProfile)
   const visibleWorkspaces = modeWorkspaces.filter((workspace) => !hiddenWorkspaceIds.includes(workspace.key))
   const activeWorkspaceItems = modeWorkspaces.find((workspace) => workspace.key === activeWorkspace.key)?.items ?? []
   const pinnedItems = pinnedRouteIds
