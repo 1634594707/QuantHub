@@ -13,6 +13,7 @@ import {
 } from '../components/StrategyShared'
 import { DirectionDonut, ScoreHistogram } from '../components/SignalViz'
 import EquityCurve from '../components/EquityCurve'
+import { Table } from '../components/ui/Table'
 import { useStrategyRuns } from '../hooks/useStrategyRuns'
 import { useStrategyPresets } from '../hooks/useStrategyPresets'
 import { useSignals } from '../hooks/useSignals'
@@ -603,44 +604,33 @@ export default function StrategyDetailPage() {
                       成交明细
                     </div>
                     {btResult.trades.length > 0 ? (
-                      <div className="table-wrap">
-                        <table className="tbl">
-                          <thead>
-                            <tr>
-                              <th>#</th>
-                              <th>开仓</th>
-                              <th>平仓</th>
-                              <th>盈亏</th>
-                              <th>收益%</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {btResult.trades.slice(0, 50).map((t, i) => {
+                      <Table
+                        rows={btResult.trades.slice(0, 50)}
+                        rowKey={(_, i) => String(i)}
+                        columns={[
+                          { key: 'idx', header: '#', render: (_, i) => <span className="mono">{(i ?? 0) + 1}</span> },
+                          { key: 'entry', header: '开仓', render: (t) => <span className="mono">{String(t.entry_time ?? t.entry ?? '—')}</span> },
+                          { key: 'exit', header: '平仓', render: (t) => <span className="mono">{String(t.exit_time ?? t.exit ?? '—')}</span> },
+                          {
+                            key: 'pnl',
+                            header: '盈亏',
+                            align: 'right',
+                            render: (t) => {
                               const pnl = Number(t.pnl ?? 0)
+                              return <span className={s.pnlCell} data-positive={pnl >= 0}><span className="mono">{pnl.toFixed(2)}</span></span>
+                            },
+                          },
+                          {
+                            key: 'ret',
+                            header: '收益%',
+                            align: 'right',
+                            render: (t) => {
                               const ret = Number(t.return_pct ?? t.ret_pct ?? 0)
-                              return (
-                                <tr key={i}>
-                                  <td className="mono">{i + 1}</td>
-                                  <td className="mono">{String(t.entry_time ?? t.entry ?? '—')}</td>
-                                  <td className="mono">{String(t.exit_time ?? t.exit ?? '—')}</td>
-                                  <td
-                                    className={`mono ${s.pnlCell}`}
-                                    data-positive={pnl >= 0}
-                                  >
-                                    {pnl.toFixed(2)}
-                                  </td>
-                                  <td
-                                    className={`mono ${s.pnlCell}`}
-                                    data-positive={ret >= 0}
-                                  >
-                                    {ret.toFixed(2)}%
-                                  </td>
-                                </tr>
-                              )
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
+                              return <span className={s.pnlCell} data-positive={ret >= 0}><span className="mono">{ret.toFixed(2)}%</span></span>
+                            },
+                          },
+                        ]}
+                      />
                     ) : (
                       <div className={`muted ${s.mutedSmall}`}>
                         该回测未返回逐笔成交（策略 backtest() 未产出 trades）。

@@ -43,6 +43,7 @@ import { Button } from '../components/ui/Button/Button'
 import { EmptyState } from '../components/ui/EmptyState/EmptyState'
 import { Input } from '../components/ui/Input/Input'
 import { SegmentedControl } from '../components/ui/SegmentedControl/SegmentedControl'
+import { Table } from '../components/ui/Table'
 import { Select } from '../components/ui/Select/Select'
 import { classifyResearchError, recordUsabilityEvent } from '../lib/usabilityMetrics'
 import { buildFactorResearchExport, type FactorResearchExportFormat } from '../lib/factorResearchExport'
@@ -401,55 +402,62 @@ function DrawdownChart({ points, showMultifactor = true }: { points: FactorCurve
   )
 }
 
-function FactorRow({ factor }: { factor: FactorEvaluation }) {
+function factorIdentityCell(factor: FactorEvaluation) {
+  return (
+    <div className={s.factorName}>
+      <strong>{factor.label}{factor.selected && <em>组合权重 {(factor.weight * 100).toFixed(0)}%</em>}</strong>
+      <span>{factor.category} · {factor.description}{factor.is_redundant_alias ? ` · 等价变体，归入 ${factor.canonical_factor_key}` : ''}</span>
+    </div>
+  )
+}
+
+function factorEvidenceOpen(factor: FactorEvaluation) {
+  return (
+    <details className={s.statusEvidence}>
+      <summary><span className={`${s.status} ${s[factor.status]}`}>{STATUS_LABEL[factor.status]}</span></summary>
+      <div>
+        <strong>计算规则</strong>
+        <p>可用要求有效样本充足、多数窗口通过、窗口 IC 中位数至少 0.03、命中率至少 50%，且 Benjamini-Hochberg 校正显著性通过；样本不足或窗口 IC 中位数不大于 0 时淘汰，其余进入观察。</p>
+        <dl>
+          <div><dt>窗口通过</dt><dd>{factor.passed_windows ?? 0} / {factor.window_count ?? 0}</dd></div>
+          <div><dt>IC 中位数</dt><dd>{signed(factor.test_ic)}</dd></div>
+          <div><dt>命中率</dt><dd>{pct(factor.hit_rate)}</dd></div>
+          <div><dt>校正显著性</dt><dd>{(factor.adjusted_p_value ?? factor.p_value).toFixed(4)}</dd></div>
+        </dl>
+      </div>
+    </details>
+  )
+}
+
+function factorWindowPassCell(factor: FactorEvaluation) {
+  return (
+    <span
+      className={factor.multi_window_consistent === true ? s.positive : s.negative}
+      title={factor.window_count === undefined ? '旧记录没有多窗口验证结果' : `最差窗口 IC ${signed(factor.worst_window_ic ?? 0)}`}
+    >{factor.window_count === undefined ? '—' : `${factor.passed_windows}/${factor.window_count}`}</span>
+  )
+}
+
+function factorSignificanceCell(factor: FactorEvaluation) {
   const adjustedPValue = factor.adjusted_p_value ?? factor.p_value
   return (
-    <tr>
-      <td>
-        <div className={s.factorName}>
-          <strong>{factor.label}{factor.selected && <em>组合权重 {(factor.weight * 100).toFixed(0)}%</em>}</strong>
-          <span>{factor.category} · {factor.description}{factor.is_redundant_alias ? ` · 等价变体，归入 ${factor.canonical_factor_key}` : ''}</span>
-        </div>
-      </td>
-      <td>
-        <details className={s.statusEvidence}>
-          <summary><span className={`${s.status} ${s[factor.status]}`}>{STATUS_LABEL[factor.status]}</span></summary>
-          <div>
-            <strong>计算规则</strong>
-            <p>可用要求有效样本充足、多数窗口通过、窗口 IC 中位数至少 0.03、命中率至少 50%，且 Benjamini-Hochberg 校正显著性通过；样本不足或窗口 IC 中位数不大于 0 时淘汰，其余进入观察。</p>
-            <dl>
-              <div><dt>窗口通过</dt><dd>{factor.passed_windows ?? 0} / {factor.window_count ?? 0}</dd></div>
-              <div><dt>IC 中位数</dt><dd>{signed(factor.test_ic)}</dd></div>
-              <div><dt>命中率</dt><dd>{pct(factor.hit_rate)}</dd></div>
-              <div><dt>校正显著性</dt><dd>{adjustedPValue.toFixed(4)}</dd></div>
-            </dl>
-          </div>
-        </details>
-      </td>
-      <td className={s.numeric}>{factor.score.toFixed(1)}</td>
-      <td className={`${s.numeric} ${factor.test_ic > 0 ? s.positive : s.negative}`}>{signed(factor.test_ic)}</td>
-      <td
-        className={`${s.numeric} ${factor.multi_window_consistent === true ? s.positive : s.negative}`}
-        title={factor.window_count === undefined ? '旧记录没有多窗口验证结果' : `最差窗口 IC ${signed(factor.worst_window_ic ?? 0)}`}
-      >{factor.window_count === undefined ? '—' : `${factor.passed_windows}/${factor.window_count}`}</td>
-      <td
-        className={`${s.numeric} ${factor.statistically_significant === true ? s.positive : s.negative}`}
-        title={factor.adjusted_p_value === undefined ? '旧记录仅保存原始显著性' : 'Benjamini-Hochberg 校正结果'}
-      >{adjustedPValue.toFixed(4)}</td>
-      <td className={`${s.numeric} ${factor.icir > 0 ? s.positive : s.negative}`}>{signed(factor.icir, 2)}</td>
-      <td className={s.numeric}>{pct(factor.positive_ic_ratio, 0)}</td>
-      <td className={s.numeric}>{pct(factor.hit_rate)}</td>
-      <td>
-        <div className={s.decay} aria-label={`${factor.label} IC 衰减`}>
-          {factor.decay.map((point) => (
-            <span key={point.horizon} className={point.ic >= 0 ? s.decayPositive : s.decayNegative} title={`${point.horizon} 周期 IC ${signed(point.ic)}`}>
-              <i style={{ height: `${Math.max(3, Math.min(22, Math.abs(point.ic) * 100))}px` }} />
-              <small>{point.horizon}</small>
-            </span>
-          ))}
-        </div>
-      </td>
-    </tr>
+    <span
+      className={factor.statistically_significant === true ? s.positive : s.negative}
+      title={factor.adjusted_p_value === undefined ? '旧记录仅保存原始显著性' : 'Benjamini-Hochberg 校正结果'}
+    >{adjustedPValue.toFixed(4)}</span>
+  )
+}
+
+function factorDecayCell(factor: FactorEvaluation) {
+  return (
+    <div className={s.decay} aria-label={`${factor.label} IC 衰减`}>
+      {factor.decay.map((point) => (
+        <span key={point.horizon} className={point.ic >= 0 ? s.decayPositive : s.decayNegative} title={`${point.horizon} 周期 IC ${signed(point.ic)}`}>
+          <i style={{ height: `${Math.max(3, Math.min(22, Math.abs(point.ic) * 100))}px` }} />
+          <small>{point.horizon}</small>
+        </span>
+      ))}
+    </div>
   )
 }
 
@@ -828,7 +836,10 @@ export default function FactorResearchPage() {
   }
 
   async function runAiReview() {
-    if (!result || !lastRequest) return
+    if (!result || !lastRequest || !result.run_id) {
+      setAiError('当前研究结果没有可复核的已保存运行记录。')
+      return
+    }
     setAiLoading(true)
     setAiError('')
     try {
@@ -1346,10 +1357,22 @@ export default function FactorResearchPage() {
           <section className={s.panel}>
             <div className={s.sectionHead}><div><span>03 / FACTOR SCREEN</span><h2>因子有效性与衰减</h2></div><small>方向由训练段确定 · 按样本外结果排序</small></div>
             <div className={s.tableScroll}>
-              <table className={s.table}>
-                <thead><tr><th>因子</th><th>结论</th><th className={s.numeric}>评分</th><th className={s.numeric}>窗口 IC 中位数</th><th className={s.numeric}>窗口通过</th><th className={s.numeric}>校正显著性</th><th className={s.numeric}>ICIR</th><th className={s.numeric}>滚动 IC 正值</th><th className={s.numeric}>命中率</th><th>IC 衰减 1/3/5/10/20</th></tr></thead>
-                <tbody>{result.factors.map((factor) => <FactorRow key={factor.key} factor={factor} />)}</tbody>
-              </table>
+              <Table
+                rows={result.factors}
+                rowKey={(f) => f.key}
+                columns={[
+                  { key: 'name', header: '因子', render: (f) => factorIdentityCell(f) },
+                  { key: 'evidence', header: '结论', render: (f) => factorEvidenceOpen(f) },
+                  { key: 'score', header: '评分', align: 'right', render: (f) => f.score.toFixed(1) },
+                  { key: 'test_ic', header: '窗口 IC 中位数', align: 'right', render: (f) => <span className={f.test_ic > 0 ? s.positive : s.negative}>{signed(f.test_ic)}</span> },
+                  { key: 'windows', header: '窗口通过', align: 'right', render: (f) => factorWindowPassCell(f) },
+                  { key: 'significance', header: '校正显著性', align: 'right', render: (f) => factorSignificanceCell(f) },
+                  { key: 'icir', header: 'ICIR', align: 'right', render: (f) => <span className={f.icir > 0 ? s.positive : s.negative}>{signed(f.icir, 2)}</span> },
+                  { key: 'positive_ratio', header: '滚动 IC 正值', align: 'right', render: (f) => pct(f.positive_ic_ratio, 0) },
+                  { key: 'hit_rate', header: '命中率', align: 'right', render: (f) => pct(f.hit_rate) },
+                  { key: 'decay', header: 'IC 衰减 1/3/5/10/20', render: (f) => factorDecayCell(f) },
+                ]}
+              />
             </div>
           </section>
 
@@ -1403,25 +1426,24 @@ export default function FactorResearchPage() {
           <section className={s.panel}>
             <div className={s.sectionHead}><div><span>04 / METHOD BENCHMARK</span><h2>量化方法对比</h2></div><small>仅样本外 · 信号延迟一周期 · 已计成本{result.reality_check?.available ? ` · Reality Check p=${result.reality_check.p_value?.toFixed(3)}` : ''}</small></div>
             <div className={s.tableScroll}>
-              <table className={s.table}>
-                <thead><tr><th>方法</th><th className={s.numeric}>总收益</th><th className={s.numeric}>年化</th><th className={s.numeric}>夏普</th><th className={s.numeric}>DSR</th><th className={s.numeric}>Sortino</th><th className={s.numeric}>Calmar</th><th className={s.numeric}>最大回撤</th><th className={s.numeric}>CVaR</th><th className={s.numeric}>闭合交易胜率</th><th className={s.numeric}>闭合交易</th><th className={s.numeric}>敞口</th></tr></thead>
-                <tbody>{result.methods.map((method, index) => (
-                  <tr key={method.key}>
-                    <td><div className={s.methodName}><strong>{method.label}</strong>{index === 0 && <span>风险调整后最优</span>}</div></td>
-                    <td className={`${s.numeric} ${method.total_return >= 0 ? s.positive : s.negative}`}>{pct(method.total_return)}</td>
-                    <td className={s.numeric}>{pct(method.annual_return)}</td>
-                    <td className={s.numeric}>{method.sharpe.toFixed(2)}</td>
-                    <td className={s.numeric}>{method.deflated_sharpe_ratio !== undefined ? pct(method.deflated_sharpe_ratio) : '—'}</td>
-                    <td className={s.numeric}>{method.sortino.toFixed(2)}</td>
-                    <td className={s.numeric}>{method.calmar.toFixed(2)}</td>
-                    <td className={`${s.numeric} ${s.negative}`}>{pct(method.max_drawdown)}</td>
-                    <td className={`${s.numeric} ${s.negative}`}>{pct(method.cvar_95, 2)}</td>
-                    <td className={s.numeric}>{pct(method.win_rate)}</td>
-                    <td className={s.numeric}>{method.closed_trades ?? method.trades}</td>
-                    <td className={s.numeric}>{pct(method.exposure)}</td>
-                  </tr>
-                ))}</tbody>
-              </table>
+              <Table
+                rows={result.methods}
+                rowKey={(m) => m.key}
+                columns={[
+                  { key: 'name', header: '方法', render: (m, i) => (<span className={s.methodName}><strong>{m.label}</strong>{i === 0 && <span>风险调整后最优</span>}</span>) },
+                  { key: 'total_return', header: '总收益', align: 'right', render: (m) => <span className={m.total_return >= 0 ? s.positive : s.negative}>{pct(m.total_return)}</span> },
+                  { key: 'annual', header: '年化', align: 'right', render: (m) => pct(m.annual_return) },
+                  { key: 'sharpe', header: '夏普', align: 'right', render: (m) => m.sharpe.toFixed(2) },
+                  { key: 'dsr', header: 'DSR', align: 'right', render: (m) => (m.deflated_sharpe_ratio !== undefined ? pct(m.deflated_sharpe_ratio) : '—') },
+                  { key: 'sortino', header: 'Sortino', align: 'right', render: (m) => m.sortino.toFixed(2) },
+                  { key: 'calmar', header: 'Calmar', align: 'right', render: (m) => m.calmar.toFixed(2) },
+                  { key: 'maxdd', header: '最大回撤', align: 'right', render: (m) => <span className={s.negative}>{pct(m.max_drawdown)}</span> },
+                  { key: 'cvar', header: 'CVaR', align: 'right', render: (m) => <span className={s.negative}>{pct(m.cvar_95, 2)}</span> },
+                  { key: 'win_rate', header: '闭合交易胜率', align: 'right', render: (m) => pct(m.win_rate) },
+                  { key: 'closed_trades', header: '闭合交易', align: 'right', render: (m) => (m.closed_trades ?? m.trades) },
+                  { key: 'exposure', header: '敞口', align: 'right', render: (m) => pct(m.exposure) },
+                ]}
+              />
             </div>
           </section>
 

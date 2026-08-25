@@ -5,6 +5,7 @@ import type { CrossMarketFactorStatus, CrossSectionResearchResp, FactorStatusMat
 import { Button } from '../components/ui/Button/Button'
 import { Input } from '../components/ui/Input/Input'
 import { Select } from '../components/ui/Select/Select'
+import { Table } from '../components/ui/Table'
 import s from './CrossSectionResearchPanel.module.css'
 
 const MARKETS = [
@@ -347,9 +348,19 @@ export function CrossSectionResearchPanel() {
           <Button type="submit" variant="primary" loading={loading === 'member'}>保存成员</Button>
         </form>
         <div className={s.tableWrap}>
-          <table><thead><tr><th>标的</th><th>生效区间</th><th>状态</th><th>行业</th><th>市值</th><th>Beta</th><th>上市 / 退市</th></tr></thead><tbody>
-            {members.map((item) => <tr key={item.id}><td><b>{item.symbol}</b>{item.is_st && <small>ST</small>}</td><td>{item.effective_from} → {item.effective_to || '持续'}</td><td>{MEMBER_STATUSES.find((status) => status.value === item.status)?.label}</td><td>{item.industry || '—'}</td><td>{item.market_cap?.toLocaleString('zh-CN') || '—'}</td><td>{item.beta?.toFixed(2) || '—'}</td><td>{item.listed_at || '—'} / {item.delisted_at || '—'}</td></tr>)}
-          </tbody></table>
+          <Table
+            rows={members}
+            rowKey={(item) => item.id}
+            columns={[
+              { key: 'symbol', header: '标的', render: (item) => (<span><b>{item.symbol}</b>{item.is_st ? <small>ST</small> : null}</span>) },
+              { key: 'range', header: '生效区间', render: (item) => `${item.effective_from} → ${item.effective_to || '持续'}` },
+              { key: 'status', header: '状态', render: (item) => MEMBER_STATUSES.find((status) => status.value === item.status)?.label },
+              { key: 'industry', header: '行业', render: (item) => item.industry || '—' },
+              { key: 'market_cap', header: '市值', align: 'right', render: (item) => item.market_cap?.toLocaleString('zh-CN') || '—' },
+              { key: 'beta', header: 'Beta', align: 'right', render: (item) => item.beta?.toFixed(2) || '—' },
+              { key: 'dates', header: '上市 / 退市', render: (item) => `${item.listed_at || '—'} / ${item.delisted_at || '—'}` },
+            ]}
+          />
         </div>
       </section>}
 

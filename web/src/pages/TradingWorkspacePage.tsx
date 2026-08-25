@@ -23,6 +23,7 @@ import { Select } from '../components/ui/Select/Select'
 import { SegmentedControl } from '../components/ui/SegmentedControl/SegmentedControl'
 import { Toggle } from '../components/ui/Toggle/Toggle'
 import { ConfirmActionButton } from '../components/ui/ConfirmActionButton/ConfirmActionButton'
+import { Table } from '../components/ui/Table'
 import s from './TradingWorkspacePage.module.css'
 
 const ENVIRONMENT_LABELS: Record<string, string> = {
@@ -410,11 +411,49 @@ export default function TradingWorkspacePage() {
             <div className={s.accountTables}>
               <div>
                 <h3>余额</h3>
-                {accountBalances.length ? <div className={s.tableWrap}><table className={s.ordersTable}><thead><tr><th>币种</th><th>总额</th><th>可用</th><th>时间</th></tr></thead><tbody>{accountBalances.map((balance) => <tr key={`${balance.account_id}-${balance.currency}-${balance.observed_at}`}><td>{balance.currency}</td><td>{formatNumber(balance.total, 6)}</td><td>{formatNumber(balance.available, 6)}</td><td>{formatTime(balance.observed_at)}</td></tr>)}</tbody></table></div> : <EmptyState variant="no-data" title="暂无余额快照" desc="点击同步账户从 OKX 读取余额。" />}
+                {accountBalances.length ? (
+            <Table
+              rows={accountBalances}
+              rowKey={(balance) => `${balance.account_id}-${balance.currency}-${balance.observed_at}`}
+              columns={[
+                { key: 'currency', header: '币种' },
+                { key: 'total', header: '总额', align: 'right', render: (b) => formatNumber(b.total, 6) },
+                { key: 'available', header: '可用', align: 'right', render: (b) => formatNumber(b.available, 6) },
+                { key: 'observed', header: '时间', render: (b) => formatTime(b.observed_at) },
+              ]}
+            />
+          ) : <EmptyState variant="no-data" title="暂无余额快照" desc="点击同步账户从 OKX 读取余额。" />}
               </div>
               <div>
                 <h3>持仓</h3>
-                {accountPositions.length ? <div className={s.tableWrap}><table className={s.ordersTable}><thead><tr><th>品种</th><th>方向</th><th>数量</th><th>开仓价</th><th>标记价</th><th>未实现盈亏</th><th><span className="sr-only">操作</span></th></tr></thead><tbody>{accountPositions.map((position) => <tr key={`${position.account_id}-${position.symbol}-${position.observed_at}`}><td>{position.symbol}</td><td>{position.position_side === 'short' || position.quantity < 0 ? '空' : '多'}</td><td>{formatNumber(Math.abs(position.quantity), 4)}</td><td>{formatNumber(position.entry_price, 4)}</td><td>{formatNumber(position.mark_price, 4)}</td><td className={pnlClass(position.unrealized_pnl)}>{formatNumber(position.unrealized_pnl)} USD</td><td><ConfirmActionButton label="平仓" title={`确认平仓 ${position.symbol}`} description={`数量：${Math.abs(position.quantity)}\nRunner 将以只减仓市价单重新风控。`} confirmLabel="确认平仓" disabled={Boolean(disabledReason) || operationLoading || !form.strategyId} onConfirm={() => closePosition(position.symbol, position.quantity)} /></td></tr>)}</tbody></table></div> : <EmptyState variant="no-data" title="暂无持仓" desc="当前账户没有持仓，或尚未完成账户同步。" />}
+                {accountPositions.length ? (
+            <Table
+              rows={accountPositions}
+              rowKey={(p) => `${p.account_id}-${p.symbol}-${p.observed_at}`}
+              columns={[
+                { key: 'symbol', header: '品种' },
+                { key: 'side', header: '方向', render: (p) => (p.position_side === 'short' || p.quantity < 0 ? '空' : '多') },
+                { key: 'qty', header: '数量', align: 'right', render: (p) => formatNumber(Math.abs(p.quantity), 4) },
+                { key: 'entry', header: '开仓价', align: 'right', render: (p) => formatNumber(p.entry_price, 4) },
+                { key: 'mark', header: '标记价', align: 'right', render: (p) => formatNumber(p.mark_price, 4) },
+                { key: 'upnl', header: '未实现盈亏', align: 'right', render: (p) => <span className={pnlClass(p.unrealized_pnl)}>{formatNumber(p.unrealized_pnl)} USD</span> },
+                {
+                  key: 'action',
+                  header: '',
+                  render: (p) => (
+                    <ConfirmActionButton
+                      label="平仓"
+                      title={`确认平仓 ${p.symbol}`}
+                      description={`数量：${Math.abs(p.quantity)}\nRunner 将以只减仓市价单重新风控。`}
+                      confirmLabel="确认平仓"
+                      disabled={Boolean(disabledReason) || operationLoading || !form.strategyId}
+                      onConfirm={() => closePosition(p.symbol, p.quantity)}
+                    />
+                  ),
+                },
+              ]}
+            />
+          ) : <EmptyState variant="no-data" title="暂无持仓" desc="当前账户没有持仓，或尚未完成账户同步。" />}
               </div>
             </div>
           </>
@@ -536,24 +575,27 @@ export default function TradingWorkspacePage() {
         {operationError ? <p className={s.formError} role="alert">{operationError}</p> : null}
 
         {recentOrders.length ? (
-          <div className={s.tableWrap}>
-            <table className={s.ordersTable}>
-              <thead><tr><th>状态</th><th>策略</th><th>方向</th><th>数量 / 限价</th><th>更新时间</th><th><span className="sr-only">操作</span></th></tr></thead>
-              <tbody>{recentOrders.map((order) => (
-                <tr key={order.order_id}>
-                  <td><Badge variant={statusVariant(order.status)} dot>{order.status}</Badge></td>
-                  <td><strong>{order.strategy_id}</strong><small>v{order.strategy_version}</small></td>
-                  <td>{order.side === 'buy' ? '买入' : '卖出'}</td>
-                  <td>{order.quantity} / {order.price ?? '市价'}</td>
-                  <td>{formatTime(order.updated_at)}</td>
-                  <td className={s.rowActions}>
-                    <Button variant="ghost" size="sm" icon={<Search size={15} />} title="查询订单" aria-label={`查询订单 ${order.order_id}`} onClick={() => { setOrderLookupId(order.order_id); void api.tradingOrder(order.order_id).then(setLookup) }} />
-                    {OPEN_ORDER_STATUSES.has(order.status) ? <><Button variant="ghost" size="sm" icon={<Pencil size={14} />} onClick={() => beginAmend(order as TradingOrderDetail)}>修改</Button><ConfirmActionButton label="撤单" title="确认撤销 Demo 订单" description={`订单：${order.order_id}\n当前状态：${order.status}`} confirmLabel="确认撤单" onConfirm={() => cancelOrder(order.order_id)} /></> : null}
-                  </td>
-                </tr>
-              ))}</tbody>
-            </table>
-          </div>
+          <Table
+            rows={recentOrders}
+            rowKey={(order) => order.order_id}
+            columns={[
+              { key: 'status', header: '状态', render: (o) => <Badge variant={statusVariant(o.status)} dot>{o.status}</Badge> },
+              { key: 'strategy', header: '策略', render: (o) => (<span><strong>{o.strategy_id}</strong><small>v{o.strategy_version}</small></span>) },
+              { key: 'side', header: '方向', render: (o) => (o.side === 'buy' ? '买入' : '卖出') },
+              { key: 'qtypx', header: '数量 / 限价', render: (o) => `${o.quantity} / ${o.price ?? '市价'}` },
+              { key: 'updated', header: '更新时间', render: (o) => formatTime(o.updated_at) },
+              {
+                key: 'actions',
+                header: '',
+                render: (o) => (
+                  <span className={s.rowActions}>
+                    <Button variant="ghost" size="sm" icon={<Search size={15} />} title="查询订单" aria-label={`查询订单 ${o.order_id}`} onClick={() => { setOrderLookupId(o.order_id); void api.tradingOrder(o.order_id).then(setLookup) }} />
+                    {OPEN_ORDER_STATUSES.has(o.status) ? <><Button variant="ghost" size="sm" icon={<Pencil size={14} />} onClick={() => beginAmend(o as TradingOrderDetail)}>修改</Button><ConfirmActionButton label="撤单" title="确认撤销 Demo 订单" description={`订单：${o.order_id}\n当前状态：${o.status}`} confirmLabel="确认撤单" onConfirm={() => cancelOrder(o.order_id)} /></> : null}
+                  </span>
+                ),
+              },
+            ]}
+          />
         ) : <EmptyState variant="no-data" title="暂无 Runner 订单" desc="选择策略版本并创建第一笔 Demo 订单。" />}
 
         {amendTarget ? <section className={s.amendPanel} aria-label="修改开放订单"><header><div><strong>修改 {amendTarget.order_id}</strong><small>提交时 Runner 会重新读取账户、行情与交易规则。</small></div><Button variant="ghost" size="sm" onClick={() => setAmendTarget(null)}>关闭</Button></header><div className={s.formGrid}><Field label="新数量"><Input type="number" min="0" step={instrument?.quantity_step ?? 'any'} value={amendForm.quantity} onChange={(event) => setAmendForm((previous) => ({ ...previous, quantity: event.target.value }))} /></Field>{amendTarget.order_type === 'limit' ? <Field label="新限价"><Input type="number" min="0" step={instrument?.price_tick ?? 'any'} value={amendForm.price} onChange={(event) => setAmendForm((previous) => ({ ...previous, price: event.target.value }))} /></Field> : null}<Field label="止损触发价"><Input type="number" min="0" value={amendForm.stopLoss} onChange={(event) => setAmendForm((previous) => ({ ...previous, stopLoss: event.target.value }))} /></Field><Field label="止盈触发价"><Input type="number" min="0" value={amendForm.takeProfit} onChange={(event) => setAmendForm((previous) => ({ ...previous, takeProfit: event.target.value }))} /></Field></div><div className={s.actions}><Button variant="primary" loading={operationLoading} onClick={() => void amendOrder()}>重新风控并修改</Button></div></section> : null}

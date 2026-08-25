@@ -3,6 +3,7 @@ import { Button } from './ui/Button/Button'
 import { Input } from './ui/Input/Input'
 import { Select } from './ui/Select/Select'
 import { IconButton } from './ui/IconButton/IconButton'
+import { Table } from './ui/Table'
 import s from './HoldingsTable.module.css'
 
 const fmt = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 2 })
@@ -150,56 +151,77 @@ export default function HoldingsTable({
           {saveError && <div className="edit-save-error" role="alert">{saveError}</div>}
         </div>
       ) : (
-        <div className="table-wrap">
-          <table className="tbl holdings-tbl">
-            <thead>
-              <tr>
-                <th className="col-name">标的</th>
-                <th className="col-num">最新价</th>
-                <th className="col-num">涨跌幅</th>
-                <th className="col-num">持仓</th>
-                <th className="col-num">市值</th>
-                <th className="col-num">浮动盈亏</th>
-                <th className="col-win">收益率</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => {
-                const up = r.chgPct >= 0
-                const pnlUp = r.pnl >= 0
-                return (
-                  <tr key={r.id}>
-                    <td className="col-name">
-                      <div className="sym">
-                        <div className="sym-badge">{r.name.slice(0, 1)}</div>
-                        <div>
-                          <div className="sym-name">{r.name}</div>
-                          <div className="sym-code mono">{r.code}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="col-num mono">
-                      {r.available ? fmt(r.price) : <span className="watch-unavail">无行情</span>}
-                    </td>
-                    <td className={`col-num mono chg ${up ? 'up' : 'down'}`}>
-                      {up ? '+' : ''}
-                      {r.chgPct.toFixed(2)}%
-                    </td>
-                    <td className="col-num mono">{fmtInt(r.shares)}</td>
-                    <td className="col-num mono">{fmtInt(r.marketValue)}</td>
-                    <td className={`col-num mono pnl ${pnlUp ? 'up' : 'down'}`}>
-                      {pnlUp ? '+' : '-'}
-                      {fmt(Math.abs(r.pnl))}
-                    </td>
-                    <td className="col-win">
-                      <ReturnBar ret={(r.price - r.cost) / r.cost * 100} />
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+        <Table
+          rows={rows}
+          rowKey={(r) => r.id}
+          columns={[
+            {
+              key: 'name',
+              header: '标的',
+              render: (r) => (
+                <div className="sym">
+                  <div className="sym-badge">{r.name.slice(0, 1)}</div>
+                  <div>
+                    <div className="sym-name">{r.name}</div>
+                    <div className="sym-code mono">{r.code}</div>
+                  </div>
+                </div>
+              ),
+            },
+            {
+              key: 'price',
+              header: '最新价',
+              align: 'right',
+              render: (r) =>
+                r.available && r.price != null ? <span className="mono">{fmt(r.price)}</span> : <span className="watch-unavail">无行情</span>,
+            },
+            {
+              key: 'chg',
+              header: '涨跌幅',
+              align: 'right',
+              render: (r) => {
+                const up = (r.chgPct ?? 0) >= 0
+                return r.chgPct == null
+                  ? <span className="watch-unavail">—</span>
+                  : <span className={`mono ${up ? 'up' : 'down'}`}>{up ? '+' : ''}{r.chgPct.toFixed(2)}%</span>
+              },
+            },
+            {
+              key: 'shares',
+              header: '持仓',
+              align: 'right',
+              render: (r) => <span className="mono">{fmtInt(r.shares)}</span>,
+            },
+            {
+              key: 'marketValue',
+              header: '市值',
+              align: 'right',
+              render: (r) =>
+                r.marketValue == null ? <span className="watch-unavail">—</span> : <span className="mono">{fmtInt(r.marketValue)}</span>,
+            },
+            {
+              key: 'pnl',
+              header: '浮动盈亏',
+              align: 'right',
+              render: (r) => {
+                const pnlUp = (r.pnl ?? 0) >= 0
+                return r.pnl == null
+                  ? <span className="watch-unavail">—</span>
+                  : <span className={`mono ${pnlUp ? 'up' : 'down'}`}>{pnlUp ? '+' : '-'}{fmt(Math.abs(r.pnl))}</span>
+              },
+            },
+            {
+              key: 'return',
+              header: '收益率',
+              render: (r) => {
+                const hasValuation = r.available && r.price != null && r.marketValue != null && r.pnl != null
+                return hasValuation && r.price != null
+                  ? <ReturnBar ret={(r.price - r.cost) / r.cost * 100} />
+                  : <span className="watch-unavail">无行情</span>
+              },
+            },
+          ]}
+        />
       )}
     </div>
   )

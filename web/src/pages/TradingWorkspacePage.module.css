@@ -468,49 +468,6 @@
   gap: var(--sp-2);
 }
 
-.tableWrap {
-  width: 100%;
-  overflow-x: auto;
-  border-top: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
-}
-
-.ordersTable {
-  width: 100%;
-  min-width: 760px;
-  border-collapse: collapse;
-  font-size: var(--fs-caption);
-}
-
-.ordersTable th,
-.ordersTable td {
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--border);
-  text-align: left;
-  vertical-align: middle;
-}
-
-.ordersTable th {
-  color: var(--text-3, var(--text-2));
-  font-size: var(--fs-micro);
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.ordersTable tbody tr:last-child td {
-  border-bottom: 0;
-}
-
-.ordersTable td strong,
-.ordersTable td small {
-  display: block;
-}
-
-.ordersTable td small {
-  margin-top: 2px;
-  color: var(--text-3, var(--text-2));
-}
-
 .rowActions {
   display: flex;
   justify-content: flex-end;
