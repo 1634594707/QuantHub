@@ -119,10 +119,10 @@
   --ma-10: #d97706;
   --ma-20: #0891b2;
 
-  /* 亮色下文本用更深的语义色以满足 AA 对比度 */
-  --up-ink: #0ca678;
-  --down-ink: #e03131;
-  --warn-ink: #b7791f;
+  /* 亮色下文本用更深的语义色以满足 AA 对比度（对 --bg 与 --bg-elevated 均 ≥4.5:1） */
+  --up-ink: #087f5b;
+  --down-ink: #c92a2a;
+  --warn-ink: #9c6615;
   --info-ink: #196674;
 
   --grid-line: rgba(11, 16, 24, 0.06);

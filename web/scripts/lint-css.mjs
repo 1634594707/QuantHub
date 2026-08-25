@@ -51,6 +51,48 @@ for (const [name, sites] of used) {
 }
 // 反向豁免说明：TSX 注入但 CSS 未消费属运行时动态样式，不检查。
 
+// ---- 校验 2：语义文字色对比度（tokens.css 双主题 *-ink 对 --bg / --bg-elevated ≥ 4.5:1）----
+function relLuminance(hex) {
+  const c = hex.replace('#', '');
+  const rgb = [0, 2, 4].map((i) => parseInt(c.slice(i, i + 2), 16) / 255)
+    .map((v) => (v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)));
+  return 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2];
+}
+function contrast(a, b) {
+  const [l1, l2] = [relLuminance(a), relLuminance(b)].sort((x, y) => y - x);
+  return (l1 + 0.05) / (l2 + 0.05);
+}
+
+const tokensFile = cssFiles.find((f) => f.endsWith('tokens.css'));
+if (!tokensFile) {
+  errors.push('[contrast] 未找到 tokens.css');
+} else {
+  const src = fs.readFileSync(tokensFile, 'utf8');
+  // 按主题块切分：暗色 = :root 与 [data-theme='dark']；亮色 = [data-theme='light']
+  const lightIdx = src.indexOf("[data-theme='light']");
+  if (lightIdx < 0) {
+    errors.push('[contrast] tokens.css 缺少亮色主题块');
+  } else {
+    const blocks = [
+      { name: 'dark', text: src.slice(0, lightIdx) },
+      { name: 'light', text: src.slice(lightIdx) },
+    ];
+    for (const block of blocks) {
+      const vars = {};
+      for (const m of block.text.matchAll(/(--[A-Za-z0-9-]+)\s*:\s*(#[0-9a-fA-F]{6})\s*;/g)) vars[m[1]] = m[2];
+      for (const ink of ['--up-ink', '--down-ink', '--warn-ink', '--info-ink']) {
+        for (const bg of ['--bg', '--bg-elevated']) {
+          if (!vars[ink] || !vars[bg]) continue; // 非字面量色值交由人工评审，不在静态门禁范围
+          const r = contrast(vars[ink], vars[bg]);
+          if (r < 4.5) {
+            errors.push('[contrast] ' + block.name + ' ' + ink + '(' + vars[ink] + ') 对 ' + bg + '(' + vars[bg] + ') = ' + r.toFixed(2) + ':1 < 4.5:1');
+          }
+        }
+      }
+    }
+  }
+}
+
 if (errors.length) {
   console.error('CSS 门禁未通过：');
   for (const e of errors) console.error('  ' + e);
