@@ -82,7 +82,7 @@
   border-radius: var(--r-pill);
   font-weight: var(--fw-bold);
   color: #fff;
-  background: var(--dir-color, var(--text-2));
+  background: var(--dir-color);
 }
 
 .score {
@@ -116,7 +116,7 @@
   height: 100%;
   width: var(--w, 0%);
   border-radius: var(--r-pill);
-  background: var(--dir-color, var(--text-2));
+  background: var(--dir-color);
 }
 
 .confValue {

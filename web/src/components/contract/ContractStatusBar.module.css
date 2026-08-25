@@ -29,7 +29,7 @@
 }
 
 .code {
-  font-family: var(--font-mono, ui-monospace, monospace);
+  font-family: var(--font-mono);
   color: var(--down-ink);
   overflow-wrap: anywhere;
 }

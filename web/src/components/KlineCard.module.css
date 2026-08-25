@@ -10,7 +10,7 @@
 
 /* MA 指示点：颜色由 --c 注入 */
 .maDot {
-  background: var(--c, var(--text-3));
+  background: var(--c);
 }
 
 /* 错误覆盖层 */
@@ -38,7 +38,7 @@
 
 /* tooltip MA 行的标签颜色 */
 .tooltipMaLabel {
-  color: var(--c, var(--text-3));
+  color: var(--c);
 }
 
 /* meta 区错误提示行 */
