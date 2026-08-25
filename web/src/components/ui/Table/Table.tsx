@@ -1,4 +1,7 @@
-// 通用表格：columns/rows API + render prop，替代 .tbl / .data-source-row / .simulation-row / .tasks-row 4 套。
+// 通用表格：columns/rows API + render prop。
+// 已替代：.tbl（2026-08-25 随五处裸 <table> 迁移删除）。
+// 登记例外（2026-08-25 裁决保留）：.data-source-row / .simulation-row / .tasks-row 三套 div 网格
+// 因依赖键盘选择与展开行能力仍在服役；迁移前须先为本组件扩展相应 API，禁止先迁后补。
 import type { ReactNode } from 'react'
 import { EmptyState } from '../EmptyState/EmptyState'
 import s from './Table.module.css'
