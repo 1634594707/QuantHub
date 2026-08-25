@@ -103,6 +103,7 @@ def _init() -> None:
         c.execute(
             """CREATE TABLE IF NOT EXISTS portfolio_allocs (
                 id TEXT PRIMARY KEY,
+                owner_id TEXT NOT NULL DEFAULT 'local-user',
                 strategy TEXT NOT NULL,
                 weight REAL NOT NULL,
                 symbol TEXT,
@@ -115,6 +116,7 @@ def _init() -> None:
         c.execute(
             """CREATE TABLE IF NOT EXISTS holdings (
                 id TEXT PRIMARY KEY,
+                owner_id TEXT NOT NULL DEFAULT 'local-user',
                 instrument_id TEXT,
                 code TEXT NOT NULL,
                 name TEXT NOT NULL,
@@ -146,6 +148,7 @@ def _init() -> None:
         c.execute(
             """CREATE TABLE IF NOT EXISTS signals (
                 id TEXT PRIMARY KEY,
+                owner_id TEXT NOT NULL DEFAULT 'local-user',
                 instrument_id TEXT,
                 symbol TEXT NOT NULL,
                 market TEXT NOT NULL,
@@ -242,6 +245,7 @@ def _init() -> None:
         c.execute(
             """CREATE TABLE IF NOT EXISTS ledger_trades (
                 id TEXT PRIMARY KEY,
+                owner_id TEXT NOT NULL DEFAULT 'local-user',
                 instrument_id TEXT NOT NULL,
                 code TEXT NOT NULL,
                 market TEXT NOT NULL,
@@ -483,6 +487,11 @@ def _init() -> None:
         _ensure_column(c, "research_runs", "tags_json", "TEXT NOT NULL DEFAULT '[]'")
         _ensure_column(c, "research_runs", "archived_at", "REAL")
         _ensure_column(c, "research_runs", "owner_id", "TEXT NOT NULL DEFAULT 'local-user'")
+        _ensure_column(c, "portfolio_allocs", "owner_id", "TEXT NOT NULL DEFAULT 'local-user'")
+        _ensure_column(c, "holdings", "owner_id", "TEXT NOT NULL DEFAULT 'local-user'")
+        _ensure_column(c, "signals", "owner_id", "TEXT NOT NULL DEFAULT 'local-user'")
+        _ensure_column(c, "ledger_trades", "owner_id", "TEXT NOT NULL DEFAULT 'local-user'")
+        _ensure_column(c, "simulation_orders", "owner_id", "TEXT NOT NULL DEFAULT 'local-user'")
         c.execute(
             """CREATE TABLE IF NOT EXISTS user_research_preferences (
                 user_id TEXT PRIMARY KEY,
@@ -850,6 +859,7 @@ def _init() -> None:
         c.execute(
             """CREATE TABLE IF NOT EXISTS simulation_orders (
                 id TEXT PRIMARY KEY,
+                owner_id TEXT NOT NULL DEFAULT 'local-user',
                 intent_id TEXT UNIQUE,
                 signal_id TEXT UNIQUE,
                 account_id TEXT NOT NULL DEFAULT 'paper',
@@ -1110,6 +1120,11 @@ def _init() -> None:
         _ensure_column(c, "watchlist", "instrument_id", "TEXT")
         _ensure_column(c, "watchlist", "owner_id", "TEXT NOT NULL DEFAULT 'local-user'")
         c.execute("CREATE INDEX IF NOT EXISTS idx_watchlist_owner_ts ON watchlist(owner_id, ts)")
+        c.execute("CREATE INDEX IF NOT EXISTS idx_allocs_owner ON portfolio_allocs(owner_id)")
+        c.execute("CREATE INDEX IF NOT EXISTS idx_holdings_owner ON holdings(owner_id)")
+        c.execute("CREATE INDEX IF NOT EXISTS idx_signals_owner ON signals(owner_id)")
+        c.execute("CREATE INDEX IF NOT EXISTS idx_ledger_owner ON ledger_trades(owner_id)")
+        c.execute("CREATE INDEX IF NOT EXISTS idx_simorders_owner ON simulation_orders(owner_id)")
         _ensure_column(c, "signals", "instrument_id", "TEXT")
         _ensure_column(c, "research_runs", "instrument_id", "TEXT")
         _ensure_column(c, "experiments", "instrument_id", "TEXT")
