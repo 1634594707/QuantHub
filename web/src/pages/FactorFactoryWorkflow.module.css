@@ -103,7 +103,7 @@
 .favoriteButton, .favoriteActive { display: grid; width: 36px; height: 36px; padding: 0; place-items: center; border: 1px solid var(--border); color: var(--text-3); background: var(--bg-elevated); cursor: pointer; }
 .favoriteButton:hover:not(:disabled), .favoriteActive { border-color: var(--accent); color: var(--accent-strong); background: var(--accent-weak); }
 .favoriteButton:disabled, .favoriteActive:disabled { opacity: .45; cursor: not-allowed; }
-.instrumentOptions { position: absolute; z-index: 30; top: calc(100% + 5px); right: 0; left: 0; max-height: 260px; overflow-y: auto; border: 1px solid var(--border-strong); background: var(--bg-elevated); box-shadow: var(--shadow-pop); }
+.instrumentOptions { position: absolute; z-index: var(--z-dropdown); top: calc(100% + 5px); right: 0; left: 0; max-height: 260px; overflow-y: auto; border: 1px solid var(--border-strong); background: var(--bg-elevated); box-shadow: var(--shadow-pop); }
 .instrumentOptions button { display: grid; width: 100%; min-height: 48px; padding: 8px 10px; border: 0; border-bottom: 1px solid var(--border); color: var(--text-1); background: transparent; cursor: pointer; grid-template-columns: minmax(0, 1fr) auto; gap: var(--sp-2); text-align: left; }
 .instrumentOptions button:last-of-type { border-bottom: 0; }
 .instrumentOptions button:hover, .instrumentOptions button[aria-selected='true'] { background: var(--accent-weak); }

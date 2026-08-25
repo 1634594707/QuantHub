@@ -964,7 +964,7 @@
   inset: 0;
   display: grid;
   place-items: center;
-  z-index: 2;
+  z-index: 2; /* 局部堆叠：覆盖同容器内的图表，非全局层级 */
   background: var(--bg-elevated);
 }
 .kline-overlay-err {
@@ -1715,7 +1715,6 @@ select.edit-input {
     position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, 0.5);
-    z-index: 35;
     display: none;
   }
   .app-shell.mobile-open .scrim {

@@ -227,10 +227,6 @@ textarea {
   backdrop-filter: blur(14px) saturate(140%);
   -webkit-backdrop-filter: blur(14px) saturate(140%);
 }
-.density-tight {
-  --row-pad: 8px;
-}
-
 /* 焦点环（无障碍） */
 .focus-ring:focus-visible {
   outline: none;

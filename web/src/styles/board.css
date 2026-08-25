@@ -8,7 +8,6 @@
 
 [data-board] {
   --board: var(--accent);
-  --board-ink: var(--accent-strong);
   --board-weak: var(--accent-weak);
 }
 
