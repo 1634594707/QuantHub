@@ -236,6 +236,7 @@
   --sidebar-w-collapsed: 56px;
   --topbar-h: 60px;
   --statusbar-h: 41px; /* StatusBar 单行高度：28px 控件(min-height) + 2×6px padding + 1px border-top */
+  --page-max-w: 1720px; /* 路由页内容最大行宽（.page-shell），数据密集页可页内自行收窄 */
 
   /* z-index 层级（新增，统一管理） */
   --z-base: 0;

@@ -144,7 +144,9 @@ export function AppShell({
               </div>
             </div>
           ) : null}
-          <Outlet />
+          <div className="page-shell">
+            <Outlet />
+          </div>
         </main>
         {showContextStatus ? <StatusBar
           connectionState={connectionState}

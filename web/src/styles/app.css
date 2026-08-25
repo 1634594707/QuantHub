@@ -37,6 +37,15 @@
 .content:focus {
   outline: none;
 }
+/* 页面内容限宽居中：超宽屏下行宽不超过 --page-max-w；保留与 .content 相同的纵向节奏 */
+.page-shell {
+  display: flex;
+  width: 100%;
+  max-width: var(--page-max-w);
+  margin: 0 auto;
+  flex-direction: column;
+  gap: var(--gap-page);
+}
 .mode-scope-notice {
   display: flex;
   align-items: center;
