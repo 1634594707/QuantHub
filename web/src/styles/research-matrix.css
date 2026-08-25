@@ -259,7 +259,7 @@
 .rm-toolbar.rm-toolbar-warn { padding: var(--sp-2) var(--sp-3); border-radius: var(--r-sm); background: var(--accent-weak); }
 .rm-source-tag.rm-source-ok { color: var(--up-ink); border-color: color-mix(in srgb, var(--up) 40%, var(--border)); }
 .rm-source-tag.rm-source-pending { color: var(--accent-strong); border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); }
-.rm-note-error { color: var(--down-ink, var(--down)); }
+.rm-note-error { color: var(--down-ink); }
 
 /* 暂无数据（诚实空态，不回填伪造数值） */
 .rm-empty {

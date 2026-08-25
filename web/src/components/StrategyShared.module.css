@@ -114,7 +114,7 @@
 
 .confFill {
   height: 100%;
-  width: var(--w, 0%);
+  width: var(--w);
   border-radius: var(--r-pill);
   background: var(--dir-color);
 }

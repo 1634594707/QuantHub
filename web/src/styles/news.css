@@ -201,7 +201,7 @@
   top: 0;
   bottom: 0;
   width: 3px;
-  background: var(--kpi-color, var(--accent));
+  background: var(--kpi-color);
   opacity: 0.85;
 }
 .news-kpi .kpi-key {

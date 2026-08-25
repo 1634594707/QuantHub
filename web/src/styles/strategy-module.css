@@ -670,7 +670,7 @@
 }
 .local-hint.ok {
   color: var(--up-ink);
-  border-color: var(--up-weak, transparent);
+  border-color: var(--up-weak);
   background: color-mix(in srgb, var(--up) 12%, transparent);
 }
 
@@ -678,8 +678,8 @@
 .bus-hint {
   font-size: var(--fs-12);
   color: var(--text-3);
-  background: var(--accent-weak, transparent);
-  border: 1px solid var(--accent-weak, transparent);
+  background: var(--accent-weak);
+  border: 1px solid var(--accent-weak);
   border-radius: var(--r-md);
   padding: var(--sp-2) var(--sp-3);
   margin-bottom: var(--sp-2);

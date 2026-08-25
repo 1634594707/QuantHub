@@ -1402,8 +1402,8 @@ select.edit-input {
 }
 .d-prob-fill {
   height: 100%;
-  width: var(--w, 0%);
-  background: var(--c, var(--text-3));
+  width: var(--w);
+  background: var(--c);
   border-radius: var(--r-pill);
   transition: width 400ms var(--ease-out);
 }
