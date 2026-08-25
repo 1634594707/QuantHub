@@ -38,7 +38,7 @@
 
 .winrateValue {
   font-variant-numeric: tabular-nums;
-  font-size: var(--fs-sm);
+  font-size: var(--fs-small);
   font-weight: 600;
   flex-shrink: 0;
   min-width: 48px;
@@ -56,14 +56,14 @@
   position: relative;
   flex: 1;
   height: 6px;
-  background: var(--surface-2);
-  border-radius: var(--radius-pill);
+  background: var(--bg-subtle);
+  border-radius: var(--r-pill);
   overflow: hidden;
 }
 
 .winrateFill {
   height: 100%;
-  border-radius: var(--radius-pill);
+  border-radius: var(--r-pill);
   /* width 和 background 由内联 style 注入（动态计算值） */
   transition: width 0.2s ease;
 }

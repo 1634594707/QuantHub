@@ -16,7 +16,7 @@
   justify-content: flex-end;
   padding: var(--sp-3);
   border: 1px solid var(--border);
-  background: var(--surface-1);
+  background: var(--bg-elevated);
 }
 
 .contextBar label {

@@ -1,4 +1,4 @@
-.queue { border-top: 1px solid var(--border-strong); border-bottom: 1px solid var(--border-strong); background: var(--surface-1); }
+.queue { border-top: 1px solid var(--border-strong); border-bottom: 1px solid var(--border-strong); background: var(--bg-elevated); }
 .queue header {
   display: flex;
   min-height: 42px;
@@ -11,7 +11,7 @@
 .queue header > div { display: flex; min-width: 0; align-items: baseline; gap: var(--sp-3); }
 .queue header strong { font-size: var(--fs-small); }
 .queue header span, .item small { color: var(--text-3); font-size: var(--fs-micro); }
-.queue header > b { color: var(--warn-ink); font-family: var(--font-mono); font-size: var(--fs-title); }
+.queue header > b { color: var(--warn-ink); font-family: var(--font-mono); font-size: var(--fs-h3); }
 .items { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
 .item {
   display: grid;
@@ -28,7 +28,7 @@
 .item:last-child { border-right: 0; }
 .item:hover, .item:focus-visible { background: var(--surface-hover); outline: none; box-shadow: inset 0 -2px var(--accent); }
 .item > span { overflow: hidden; font-size: var(--fs-caption); font-weight: var(--fw-semibold); text-overflow: ellipsis; white-space: nowrap; }
-.item > b { color: var(--accent-strong); font-family: var(--font-mono); font-size: var(--fs-title); font-variant-numeric: tabular-nums; }
+.item > b { color: var(--accent-strong); font-family: var(--font-mono); font-size: var(--fs-h3); font-variant-numeric: tabular-nums; }
 .item small { grid-column: 1 / -1; }
 .warning > b { color: var(--warn-ink); }
 .danger > b { color: var(--down-ink); }

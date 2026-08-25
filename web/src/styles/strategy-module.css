@@ -782,7 +782,7 @@
   grid-template-columns: 1fr auto;
   gap: 4px 12px;
   padding: 11px 12px;
-  background: var(--bg-card);
+  background: var(--bg-elevated);
 }
 
 .d-quality-row span { color: var(--text-1); font-size: 12px; font-weight: 600; }

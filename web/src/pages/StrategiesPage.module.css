@@ -144,7 +144,7 @@
 }
 .stratName {
   font-weight: 800;
-  font-size: var(--fs-16);
+  font-size: var(--fs-h4);
   letter-spacing: 0;
   color: var(--text-1);
   overflow: hidden;

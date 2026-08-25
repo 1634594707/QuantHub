@@ -30,9 +30,9 @@
 .bar {
   display: flex;
   height: 8px;
-  border-radius: var(--radius-pill);
+  border-radius: var(--r-pill);
   overflow: hidden;
-  background: var(--surface-2);
+  background: var(--bg-subtle);
 }
 
 .barSeg {

@@ -1007,7 +1007,7 @@
 .statusEvidence > summary { width: max-content; cursor: pointer; list-style: none; }
 .statusEvidence > summary::-webkit-details-marker { display: none; }
 .statusEvidence[open] > summary { margin-bottom: var(--sp-2); }
-.statusEvidence > div { padding: var(--sp-3); border-left: 2px solid var(--accent); background: var(--surface-2); }
+.statusEvidence > div { padding: var(--sp-3); border-left: 2px solid var(--accent); background: var(--bg-subtle); }
 .statusEvidence > div > strong { color: var(--text-1); font-size: var(--fs-caption); }
 .statusEvidence p { max-width: 520px; margin: var(--sp-1) 0 var(--sp-2); color: var(--text-3); font-size: var(--fs-micro); line-height: 1.6; }
 .statusEvidence dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-1) var(--sp-3); margin: 0; }
@@ -1065,8 +1065,8 @@
 .methodology strong { color: var(--warn-ink); font-weight: var(--fw-medium); }
 
 .metricDefinitions {
-  border: 1px solid var(--line);
-  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  background: var(--bg-subtle);
 }
 .metricDefinitions > summary {
   display: flex;
@@ -1079,24 +1079,24 @@
 }
 .metricDefinitions > summary::-webkit-details-marker { display: none; }
 .metricDefinitions > summary span { font-weight: var(--fw-semibold); }
-.metricDefinitions > summary small { color: var(--text-muted); flex: 1; }
+.metricDefinitions > summary small { color: var(--text-3); flex: 1; }
 .metricDefinitions > summary svg { color: var(--accent-strong); }
 .metricDefinitionGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1px;
-  border-top: 1px solid var(--line);
-  background: var(--line);
+  border-top: 1px solid var(--border);
+  background: var(--border);
 }
 .metricDefinitionGrid article {
   display: grid;
   gap: 5px;
   padding: 13px 16px;
-  background: var(--surface);
+  background: var(--bg-elevated);
 }
-.metricDefinitionGrid strong { color: var(--text-strong); }
-.metricDefinitionGrid span { color: var(--text); font-size: 0.9rem; line-height: 1.5; }
-.metricDefinitionGrid small { color: var(--text-muted); font-family: var(--font-mono); font-size: 0.75rem; line-height: 1.45; }
+.metricDefinitionGrid strong { color: var(--text-1); }
+.metricDefinitionGrid span { color: var(--text-2); font-size: 0.9rem; line-height: 1.5; }
+.metricDefinitionGrid small { color: var(--text-3); font-family: var(--font-mono); font-size: 0.75rem; line-height: 1.45; }
 
 @media (max-width: 760px) {
   .metricDefinitionGrid { grid-template-columns: 1fr; }

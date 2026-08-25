@@ -8,7 +8,7 @@
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   border: 1px solid var(--border);
-  background: var(--surface-1);
+  background: var(--bg-elevated);
 }
 
 .flow > div {
@@ -50,7 +50,7 @@
 .deepResearchBand {
   border: 1px solid var(--border);
   border-left: 3px solid var(--accent);
-  background: var(--surface-1);
+  background: var(--bg-elevated);
 }
 
 .deepResearchBand > header {
@@ -73,7 +73,7 @@
 .deepResearchBand h2 {
   margin: 2px 0 0;
   color: var(--text-1);
-  font-size: var(--fs-title);
+  font-size: var(--fs-h4);
   letter-spacing: 0;
 }
 
@@ -160,7 +160,7 @@
 .setupSection {
   min-width: 0;
   border: 1px solid var(--border);
-  background: var(--surface-1);
+  background: var(--bg-elevated);
   padding: var(--sp-5);
 }
 
@@ -177,7 +177,7 @@
 .sectionTitle h2 {
   margin: 3px 0 0;
   color: var(--text-1);
-  font-size: var(--fs-title);
+  font-size: var(--fs-h4);
   letter-spacing: 0;
 }
 
@@ -339,7 +339,7 @@
   height: 34px;
   place-items: center;
   border-radius: 50%;
-  background: var(--surface-3);
+  background: var(--bg-subtle);
   color: var(--text-1);
   font-weight: var(--fw-semibold);
 }
@@ -520,7 +520,7 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   border: 1px solid var(--border);
-  background: var(--surface-1);
+  background: var(--bg-elevated);
 }
 
 .secondaryActions button {

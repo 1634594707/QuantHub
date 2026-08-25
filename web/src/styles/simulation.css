@@ -5,7 +5,7 @@
 .simulation-head p { margin: 4px 0 0; color: var(--text-3); font-size: var(--fs-12); }
 .simulation-summary { display: flex; gap: var(--sp-5); }
 .simulation-summary span { display: grid; gap: 3px; color: var(--text-3); font-size: var(--fs-11); }
-.simulation-summary b { color: var(--text-1); font-size: var(--fs-16); }
+.simulation-summary b { color: var(--text-1); font-size: var(--fs-h4); }
 .simulation-reconcile { display: flex; align-items: center; gap: var(--sp-4); flex-wrap: wrap; min-height: 34px; border: 1px solid var(--border); padding: 5px var(--sp-3); background: var(--bg-subtle); color: var(--text-3); font-size: var(--fs-11); }
 .simulation-reconcile span:first-child { margin-right: auto; font-weight: 800; }
 .simulation-reconcile.ok span:first-child { color: var(--up-ink); }

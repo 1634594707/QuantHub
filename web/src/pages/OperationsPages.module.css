@@ -14,7 +14,7 @@
 .section,
 .splitSection {
   border: 1px solid var(--border);
-  background: var(--surface-1);
+  background: var(--bg-elevated);
 }
 
 .toolbar,
@@ -65,7 +65,7 @@
 .sectionHead h2,
 .sectionHead h3 {
   margin: 0;
-  font-size: var(--fs-subtitle);
+  font-size: var(--fs-h4);
   letter-spacing: 0;
 }
 
@@ -81,7 +81,7 @@
 .success {
   padding: var(--sp-2) var(--sp-3);
   border-left: 3px solid var(--border-strong);
-  background: var(--surface-2);
+  background: var(--bg-subtle);
   color: var(--text-2);
 }
 
@@ -131,7 +131,7 @@
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   border: 1px solid var(--border);
-  background: var(--surface-1);
+  background: var(--bg-elevated);
 }
 
 .metric {
@@ -155,7 +155,7 @@
   margin-top: var(--sp-1);
   overflow-wrap: anywhere;
   font-family: var(--font-mono);
-  font-size: var(--fs-title);
+  font-size: var(--fs-h3);
   font-weight: 600;
 }
 
@@ -268,7 +268,7 @@
   resize: vertical;
   border: 1px solid var(--border);
   border-radius: var(--r-sm);
-  background: var(--surface-2);
+  background: var(--bg-subtle);
   padding: var(--sp-2);
   color: var(--text-1);
   font-family: var(--font-mono);
@@ -295,7 +295,7 @@
   padding: var(--sp-3) var(--sp-4);
   border: 1px solid var(--border);
   border-left: 3px solid var(--accent);
-  background: var(--surface-1);
+  background: var(--bg-elevated);
 }
 
 .controlNotice > div {
@@ -496,7 +496,7 @@
   min-height: 42px;
   padding: var(--sp-1) var(--sp-3);
   border: 1px solid var(--border);
-  background: var(--surface-1);
+  background: var(--bg-elevated);
 }
 
 .entryLauncher > span {
@@ -546,13 +546,13 @@
   min-height: 46px;
   padding: var(--sp-2) var(--sp-3);
   border-left: 3px solid var(--accent);
-  background: var(--surface-2);
+  background: var(--bg-subtle);
 }
 
 .workflowStep > span {
   color: var(--accent-strong);
   font-family: var(--font-mono);
-  font-size: var(--fs-title);
+  font-size: var(--fs-h3);
   font-weight: var(--fw-semibold);
 }
 
@@ -901,7 +901,7 @@
     gap: var(--sp-2);
     margin-top: var(--sp-2);
     padding: var(--sp-2);
-    background: var(--surface-2);
+    background: var(--bg-subtle);
   }
 
   .instrumentMobileRecords details > div > span {
@@ -940,7 +940,7 @@
     gap: var(--sp-2);
     margin-top: var(--sp-2);
     padding: var(--sp-2);
-    background: var(--surface-2);
+    background: var(--bg-subtle);
     color: var(--text-2);
     font-size: var(--fs-caption);
   }

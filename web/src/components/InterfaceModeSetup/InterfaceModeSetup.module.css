@@ -3,7 +3,7 @@
   display: grid;
   place-items: center;
   padding: var(--sp-5);
-  background: var(--bg-canvas);
+  background: var(--bg);
   color: var(--text-1);
 }
 

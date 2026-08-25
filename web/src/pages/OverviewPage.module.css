@@ -19,7 +19,7 @@
 
 .layoutPanel {
   border-bottom: 1px solid var(--border-strong);
-  background: var(--surface-1);
+  background: var(--bg-elevated);
 }
 
 .layoutPanel > header {

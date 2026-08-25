@@ -121,7 +121,7 @@
     linear-gradient(135deg, color-mix(in srgb, var(--warn) 9%, transparent), transparent 55%),
     var(--bg-elevated);
 }
-.partitionTimeline b { color: var(--text-4); font-family: var(--font-mono); font-size: var(--fs-h3); }
+.partitionTimeline b { color: var(--text-2); font-family: var(--font-mono); font-size: var(--fs-h3); }
 .partitionTimeline article > div { display: grid; min-width: 0; gap: 4px; }
 .partitionTimeline strong { font-size: var(--fs-body); }
 .partitionTimeline span { color: var(--text-3); font-size: var(--fs-micro); }

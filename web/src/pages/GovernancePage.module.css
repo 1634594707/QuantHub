@@ -6,7 +6,7 @@
   padding: var(--sp-3) var(--sp-4);
   border: 1px solid var(--border);
   border-left: 3px solid var(--up);
-  background: var(--surface-1);
+  background: var(--bg-elevated);
 }
 
 .accessState,
@@ -139,7 +139,7 @@
 .permissionList span {
   padding: 2px 6px;
   border: 1px solid var(--border);
-  background: var(--surface-2);
+  background: var(--bg-subtle);
   color: var(--text-2);
   font-size: var(--fs-micro);
 }
@@ -200,7 +200,7 @@
   padding: var(--sp-2);
   border: 1px solid var(--border);
   border-radius: var(--r-sm);
-  background: var(--surface-2);
+  background: var(--bg-subtle);
   cursor: pointer;
 }
 
@@ -236,7 +236,7 @@
 
 .advancedPanel {
   border: 1px solid var(--border);
-  background: var(--surface-1);
+  background: var(--bg-elevated);
 }
 
 .advancedPanel summary {
@@ -320,7 +320,7 @@
 .auditHead h2 {
   margin: 0;
   color: var(--text-1);
-  font-size: var(--fs-subtitle);
+  font-size: var(--fs-h4);
 }
 
 .roleGuideHeader p,
@@ -352,7 +352,7 @@
   border: 1px solid var(--border);
   border-top: 3px solid var(--accent);
   border-radius: var(--r-sm);
-  background: var(--surface-1);
+  background: var(--bg-elevated);
 }
 
 .roleGuideTitle {
@@ -364,7 +364,7 @@
 
 .roleGuideTitle strong {
   color: var(--text-1);
-  font-size: var(--fs-subtitle);
+  font-size: var(--fs-h4);
 }
 
 .roleGuideTitle code {

@@ -21,8 +21,6 @@
   padding: 0 var(--sp-3);
   border: 1px solid var(--border);
   border-radius: 6px;
-  background: var(--surface-2, transparent);
-  color: var(--ink-2, inherit);
   font-size: 12px;
   text-decoration: none;
 }
@@ -37,7 +35,7 @@
   grid-template-columns: repeat(4, minmax(0, 1fr));
   border: 1px solid var(--border);
   border-radius: 6px;
-  background: var(--surface-1, var(--bg-subtle));
+  background: var(--bg-subtle);
   overflow: hidden;
 }
 
@@ -67,8 +65,7 @@
 
 .crossLinks a:hover,
 .crossLinks a:focus-visible {
-  color: var(--ink-1, inherit);
-  border-color: var(--accent, var(--border));
+  border-color: var(--accent);
 }
 
 .blocked {
@@ -269,7 +266,7 @@
   min-height: 68px;
   padding: var(--sp-2) var(--sp-3);
   border-left: 3px solid var(--accent);
-  background: var(--surface-2, var(--bg-subtle));
+  background: var(--bg-subtle);
 }
 
 .marketPriceNote span,
@@ -398,7 +395,7 @@
   padding: var(--sp-3);
   border: 1px solid var(--accent);
   border-radius: 6px;
-  background: var(--surface-2, var(--bg-subtle));
+  background: var(--bg-subtle);
 }
 
 .amendPanel > header {

@@ -116,7 +116,7 @@
 }
 
 .iconButton:hover {
-  background: var(--bg-hover);
+  background: var(--surface-hover);
   color: var(--text-1);
 }
 

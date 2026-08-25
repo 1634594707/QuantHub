@@ -139,7 +139,7 @@
   margin: 0 var(--sp-3) var(--sp-3);
   padding: var(--sp-2) var(--sp-3);
   border: 1px solid var(--down);
-  border-radius: var(--radius-2, 6px);
+  border-radius: var(--r-md);
   background: var(--down-weak);
   color: var(--down-ink);
   font-size: var(--fs-small);
@@ -174,7 +174,7 @@
 .kpiCard {
   padding: var(--sp-3);
   border: 1px solid var(--border);
-  border-radius: var(--radius-2, 6px);
+  border-radius: var(--r-md);
   background: var(--bg-elevated);
   display: flex;
   flex-direction: column;

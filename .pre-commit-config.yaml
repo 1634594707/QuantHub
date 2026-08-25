@@ -20,6 +20,16 @@ repos:
         language: system
         types: [python]
 
+  # --- 前端 CSS 设计令牌门禁（web/scripts/lint-css.mjs，Fail-Fast）---
+  - repo: local
+    hooks:
+      - id: lint-css
+        name: css design-token gate (undefined var check)
+        entry: node web/scripts/lint-css.mjs
+        language: system
+        pass_filenames: false
+        always_run: true
+
   # --- 密钥 / 敏感文件拦截（源自 PA_Agent 上游实践，已强化）---
   - repo: local
     hooks:

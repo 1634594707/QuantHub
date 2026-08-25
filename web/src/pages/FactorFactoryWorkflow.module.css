@@ -40,7 +40,7 @@
 .alphaDslLimits { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border: 1px solid var(--border); background: var(--bg-elevated); }
 .alphaDslLimits span { display: grid; gap: 2px; min-width: 0; padding: 7px 8px; border-right: 1px solid var(--border); color: var(--text-2); font-family: var(--font-mono); font-size: var(--fs-micro); }
 .alphaDslLimits span:last-child { border-right: 0; }
-.alphaDslLimits b { color: var(--text-3); font-family: var(--font-ui); font-weight: var(--fw-medium); }
+.alphaDslLimits b { color: var(--text-3); font-family: var(--font-sans); font-weight: var(--fw-medium); }
 .alphaDslFields { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border: 1px solid var(--border); background: var(--bg-elevated); }
 .alphaDslFields button { display: grid; min-width: 0; gap: 1px; padding: 7px 8px; border: 0; border-right: 1px solid var(--border); color: var(--text-2); background: transparent; cursor: pointer; text-align: left; }
 .alphaDslFields button:last-child { border-right: 0; }

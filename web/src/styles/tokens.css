@@ -189,6 +189,7 @@
   --fs-small: 13px;
   --fs-caption: 12px;
   --fs-micro: 11px; /* 新增 */
+  --fs-h4: 16px; /* 新增：卡片内节标题 / 强调数值（原 --fs-16、--fs-title、--fs-subtitle 的归宿） */
   --fs-mono-num: 13px; /* 行情数字专用 */
 
   /* 字重 */
@@ -231,6 +232,7 @@
   --sidebar-w: 280px;
   --sidebar-w-collapsed: 56px;
   --topbar-h: 60px;
+  --statusbar-h: 41px; /* StatusBar 单行高度：28px 控件(min-height) + 2×6px padding + 1px border-top */
 
   /* z-index 层级（新增，统一管理） */
   --z-base: 0;
