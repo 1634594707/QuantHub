@@ -49,6 +49,23 @@
   background: var(--accent-weak);
 }
 
+/* 键盘激活行的聚焦态（roving tabindex） */
+.rowActivate:focus {
+  outline: none;
+  background: var(--surface-hover);
+}
+
+.rowActivate:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* 展开行：整行 colspan，弱化内边距以贴合上方数据行 */
+.expandedRow > td {
+  padding: 0 var(--sp-3) var(--sp-2);
+  border-bottom: 1px solid var(--divider);
+}
+
 /* 密度 */
 .comfortable th,
 .comfortable td {
