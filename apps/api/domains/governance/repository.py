@@ -284,7 +284,9 @@ def list_audit_page(*, limit: int = 200, cursor: str | None = None) -> dict:
     sql += " ORDER BY created_at DESC, id DESC LIMIT ?"
     params.append(limit + 1)
     with store._lock, store._conn() as connection:
-        total = int(connection.execute("SELECT COUNT(*) AS total FROM audit_logs").fetchone()["total"])
+        total = int(
+            connection.execute("SELECT COUNT(*) AS total FROM audit_logs").fetchone()["total"]
+        )
         rows = connection.execute(sql, params).fetchall()
     has_more = len(rows) > limit
     page_rows = rows[:limit]

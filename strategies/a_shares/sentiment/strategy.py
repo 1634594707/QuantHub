@@ -4,7 +4,7 @@
 
     - 行情/新闻统一走 ``core.data_feed``（不直接 import akshare）
     - 情绪推理走本模块 ``analyzer.SentimentAnalyzer``（FinBERT2 懒加载）
-    - 按情绪分数产出 ``Signal`` 并推入信号总线
+    - 仅在配置的 FinBERT2 成功推理后产出 ``Signal`` 并推入信号总线
     - 回测走 ``core.backtest.EventEngine``
 """
 
@@ -68,7 +68,6 @@ class SentimentStrategy(StrategyBase):
         symbols: list[str] | None = None,
         news_limit: int = 50,
         timeframe: str = "daily",
-        **kwargs: Any,
     ) -> list[Signal]:
         """对给定股票列表抓取新闻并产出情绪信号。
 
@@ -76,11 +75,10 @@ class SentimentStrategy(StrategyBase):
             symbols: 股票代码列表（如 ["000001", "600519"]）；为空时返回空列表
             news_limit: 每只股票最大新闻条数（默认 50）
             timeframe: 信号周期（默认 "daily"）
-            **kwargs: 兼容旧调用（symbol_list 等）
         Returns:
             信号列表（已推入总线）
         """
-        symbols = symbols or kwargs.get("symbol_list") or []
+        symbols = list(symbols) if symbols else []
         if not symbols:
             logger.debug("sentiment.produce 未提供 symbols，跳过")
             return []
@@ -114,15 +112,19 @@ class SentimentStrategy(StrategyBase):
         for n in news_list:
             text = (n.title or "") + "。" + (n.content or "")
             score, certainty, engine = analyzer.analyze(text)
+            if score is None or engine != "transformers":
+                self._record_unavailable(
+                    symbol, len(news_list), getattr(analyzer, "unavailable_reason", None)
+                )
+                return None
             scores.append(score)
             certainties.append(certainty)
             engines.add(engine)
         if not scores:
             return None
-
         pos_prob = sum(scores) / len(scores)
         certainty = sum(certainties) / len(certainties) if certainties else 0.0
-        engine = sorted(engines)[0] if engines else "unknown"
+        engine = min(engines) if engines else "unknown"
         direction, score_field = self._map_direction(pos_prob)
 
         try:
@@ -145,6 +147,29 @@ class SentimentStrategy(StrategyBase):
         except ValueError as e:
             logger.warning("信号构造失败 %s: %s", symbol, e)
             return None
+
+    def _record_unavailable(
+        self,
+        symbol: str,
+        news_count: int,
+        reason: str | None,
+    ) -> None:
+        """保留展示级诊断，但不让缺失模型的结果成为信号。"""
+        self.last_report = {
+            "kind": "news_sentiment",
+            "symbol": symbol,
+            "news_count": news_count,
+            "status": "unavailable",
+            "degraded": True,
+            "display_only": True,
+            "execution_eligible": False,
+            "reason": reason or "FinBERT2 不可用或未返回有效推理结果",
+        }
+        self.last_signal_rejection = {
+            "code": "sentiment_model_unavailable",
+            "message": "FinBERT2 不可用或推理失败，未发布新闻情绪信号。",
+            "details": {"source": _SOURCE, "symbol": symbol, "reason": self.last_report["reason"]},
+        }
 
     @staticmethod
     def _map_direction(pos_prob: float) -> tuple[str, float]:
@@ -200,7 +225,16 @@ class SentimentStrategy(StrategyBase):
         sentiment_score = kwargs.get("sentiment_score")
         if sentiment_score is None:
             sentiment_score = self._fetch_symbol_score(symbol, int(kwargs.get("news_limit", 50)))
-        sentiment_score = float(sentiment_score)
+        if sentiment_score is None:
+            self._record_unavailable(
+                str(symbol), 0, getattr(self.analyzer, "unavailable_reason", None)
+            )
+            return BacktestResult.empty(engine="event")
+        try:
+            sentiment_score = float(sentiment_score)
+        except (TypeError, ValueError):
+            logger.warning("无效的 sentiment_score，拒绝使用替代中性分数")
+            return BacktestResult.empty(engine="event")
         direction, _ = self._map_direction(sentiment_score)
 
         initial_capital = float(kwargs.get("initial_capital", 100000))
@@ -222,18 +256,21 @@ class SentimentStrategy(StrategyBase):
         # 直接返回类型化 BacktestResult（含逐根 equity_curve），由 API 负责序列化。
         return result
 
-    def _fetch_symbol_score(self, symbol: str, news_limit: int) -> float:
+    def _fetch_symbol_score(self, symbol: str, news_limit: int) -> float | None:
         """抓取新闻并聚合出正向概率（回测用）。"""
         try:
             ds = get_data_source(_MARKET)
             news_list = ds.get_news(symbol=symbol, limit=news_limit)
         except Exception:
             logger.exception("回测取新闻失败: %s", symbol)
-            return 0.5
+            return None
         if not news_list:
-            return 0.5
+            return None
         analyzer = self.analyzer
-        scores = [
-            analyzer.analyze((n.title or "") + "。" + (n.content or ""))[0] for n in news_list
-        ]
-        return sum(scores) / len(scores) if scores else 0.5
+        scores: list[float] = []
+        for news in news_list:
+            score, _, engine = analyzer.analyze((news.title or "") + "。" + (news.content or ""))
+            if score is None or engine != "transformers":
+                return None
+            scores.append(score)
+        return sum(scores) / len(scores) if scores else None

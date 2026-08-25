@@ -11,6 +11,8 @@
 
 数据约束:
     - 行情数据优先用 core.data_feed.get_data_source("a_shares")
+      选股扫描要求同一 primary 覆盖候选池中的每个标的；任一标的缺失或不足
+      都会使整次扫描不可用，不会以部分候选池生成信号。
     - 指数成分股（universe）core.data_feed 暂不提供，经 akshare 获取
     - 资金流向 / 股票名称 core.data_feed 暂不提供，已标注 TODO
 """
@@ -24,6 +26,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from core.config import get_config
 from core.data_feed import Interval, get_data_source
 from core.signals import Signal
 from strategies.a_shares.selector import indicators as ind
@@ -71,8 +74,10 @@ def _get_gem_star_stocks(ak) -> list[str]:
             for c in df["品种代码"].astype(str).str.zfill(6).tolist():
                 if c.startswith(prefix):
                     codes.add(c)
-        except Exception:
-            logger.warning("%s成分股获取失败", label, exc_info=True)
+        except Exception as exc:
+            message = f"指数成分股主源获取失败: {symbol} ({label})"
+            logger.exception(message)
+            raise RuntimeError(message) from exc
     return sorted(codes)
 
 
@@ -96,28 +101,18 @@ def _get_index_constituents(universe: str) -> list[str]:
     def _filter(codes: list[str]) -> list[str]:
         return [c for c in codes if not c.startswith("3") and not c.startswith("688")]
 
-    # 方案1: 东方财富成分股接口（稳定）
+    # 东方财富成分股接口是此策略的唯一指数成分股来源。指数构成变化会影响
+    # 回测与实盘可比性，因此主源故障必须向调用方暴露，而不能切换到另一端点。
     try:
         df = ak.index_stock_cons(symbol=index_code)
         codes = df["品种代码"].astype(str).str.zfill(6).tolist()
         result = _filter(codes)
         logger.debug("选股域 %s 成分股 %d 只", index_code, len(result))
         return result
-    except Exception:
-        logger.warning("东方财富成分股获取失败: %s", index_code, exc_info=True)
-
-    # 方案2: 中证指数官网（fallback）
-    try:
-        df = ak.index_stock_cons_weight_csindex(symbol=index_code)
-        codes = df["成分券代码"].astype(str).str.zfill(6).tolist()
-        result = _filter(codes)
-        logger.debug("选股域 %s 成分股(csindex) %d 只", index_code, len(result))
-        return result
-    except Exception:
-        logger.warning("中证官网成分股获取失败: %s", index_code, exc_info=True)
-
-    logger.error("所有成分股数据源均失败: %s", index_code)
-    return []
+    except Exception as exc:
+        message = f"指数成分股主源获取失败: {index_code}"
+        logger.exception(message)
+        raise RuntimeError(message) from exc
 
 
 def _rating_short(score: float) -> str:
@@ -567,9 +562,58 @@ def _score_long(df: pd.DataFrame, fund_flow: dict | None = None) -> dict | None:
 class SelectorStrategy(StrategyBase):
     """A股多因子选股策略（短线 / 长线）。"""
 
+    def _reject_incomplete_market_data(
+        self,
+        *,
+        source: Any,
+        universe: str,
+        term: str,
+        failed_symbols: list[str],
+        reason: str,
+    ) -> list[Signal]:
+        """记录行情覆盖缺口并阻断整次扫描。
+
+        选股结果是可执行方向性信号，不能把一个不完整的候选池当成完整
+        宇宙来排序。因此，任一标的的 primary K 线不可用或无法评分时，
+        整次扫描都 fail-closed；调用方得到空列表和可观测的拒绝原因，且
+        不会发布已经计算出的部分结果。
+        """
+        source_name = str(getattr(source, "name", "unknown"))
+        symbols = list(dict.fromkeys(str(symbol) for symbol in failed_symbols))
+        details = {
+            "source": source_name,
+            "market": "a_shares",
+            "universe": universe,
+            "term": term,
+            "failed_symbols": symbols,
+            "reason": reason,
+        }
+        self.last_report = {
+            "kind": "selector",
+            "status": "unavailable",
+            "degraded": True,
+            "display_only": True,
+            "execution_eligible": False,
+            **details,
+        }
+        self.last_signal_rejection = {
+            "code": "market_data_incomplete",
+            "message": "选股主源未能提供全部候选标的的可用 K 线，未发布选股信号。",
+            "details": details,
+        }
+        logger.warning(
+            "选股因 primary 行情不完整而终止: universe=%s term=%s source=%s symbols=%s reason=%s",
+            universe,
+            term,
+            source_name,
+            symbols,
+            reason,
+        )
+        return []
+
     def produce(
         self,
-        universe: str = "hs300",
+        universe: str | None = None,
         term: str = "short",
         top_n: int = 20,
         **kwargs: Any,
@@ -581,9 +625,32 @@ class SelectorStrategy(StrategyBase):
             term     : 选股周期 "short"（短线，30日）| "long"（长线，120日）
             top_n    : 返回评分最高的前 N 只
         """
+        if universe is None:
+            configured_universe = self.config.get("universe")
+            if not isinstance(configured_universe, str) or not configured_universe.strip():
+                self.last_report = {
+                    "kind": "selector",
+                    "status": "unavailable",
+                    "degraded": True,
+                    "display_only": True,
+                    "execution_eligible": False,
+                    "reason": "未配置明确选股域",
+                }
+                self.last_signal_rejection = {
+                    "code": "universe_required",
+                    "message": "选股策略未配置明确 universe，未启动扫描。",
+                    "details": {"market": "a_shares", "universe": None},
+                }
+                logger.warning("selector 配置不完整，跳过选股扫描")
+                return []
+            universe = configured_universe.strip()
         term = str(term).lower()
         if term not in ("short", "long"):
             raise ValueError(f"term 仅支持 short/long，得到 {term}")
+
+        # 不让上一次被拒绝的状态污染新的成功运行。
+        self.last_report = None
+        self.last_signal_rejection = None
 
         source = get_data_source("a_shares")
         codes = _get_index_constituents(universe)
@@ -604,16 +671,72 @@ class SelectorStrategy(StrategyBase):
         for i, code in enumerate(codes, 1):
             try:
                 df = source.get_kline(code, Interval.DAILY, limit=limit)
-            except Exception:
+            except Exception as exc:
                 logger.exception("获取 K 线失败: %s", code)
-                continue
-            if df is None or df.empty or len(df) < min_len:
-                continue
+                return self._reject_incomplete_market_data(
+                    source=source,
+                    universe=universe,
+                    term=term,
+                    failed_symbols=[code],
+                    reason=f"primary K 线请求失败: {exc}",
+                )
+
+            actual_len = len(df) if isinstance(df, pd.DataFrame) else 0
+            if df is None or not isinstance(df, pd.DataFrame) or df.empty or actual_len < min_len:
+                return self._reject_incomplete_market_data(
+                    source=source,
+                    universe=universe,
+                    term=term,
+                    failed_symbols=[code],
+                    reason=f"K 线数据不足（需要至少 {min_len} 根，实际 {actual_len} 根）",
+                )
 
             # TODO: 资金流向数据 core.data_feed 暂不提供，传 None
-            result = scorer(df, fund_flow=None)
+            try:
+                result = scorer(df, fund_flow=None)
+            except Exception as exc:
+                logger.exception("选股评分失败: %s", code)
+                return self._reject_incomplete_market_data(
+                    source=source,
+                    universe=universe,
+                    term=term,
+                    failed_symbols=[code],
+                    reason=f"评分计算失败: {exc}",
+                )
             if result is None:
-                continue
+                return self._reject_incomplete_market_data(
+                    source=source,
+                    universe=universe,
+                    term=term,
+                    failed_symbols=[code],
+                    reason="评分器返回不可用结果",
+                )
+            if not isinstance(result, dict):
+                return self._reject_incomplete_market_data(
+                    source=source,
+                    universe=universe,
+                    term=term,
+                    failed_symbols=[code],
+                    reason="评分器返回无效结果",
+                )
+            try:
+                score = float(result["score"])
+            except (KeyError, TypeError, ValueError) as exc:
+                return self._reject_incomplete_market_data(
+                    source=source,
+                    universe=universe,
+                    term=term,
+                    failed_symbols=[code],
+                    reason=f"评分器返回不可用结果: {exc}",
+                )
+            if not math.isfinite(score):
+                return self._reject_incomplete_market_data(
+                    source=source,
+                    universe=universe,
+                    term=term,
+                    failed_symbols=[code],
+                    reason="评分器返回非有限分数",
+                )
             result["code"] = code
             # TODO: 股票名称 core.data_feed 暂不提供，暂以代码占位
             result["name"] = code
@@ -628,7 +751,10 @@ class SelectorStrategy(StrategyBase):
             sig = self._to_signal(r, term, universe)
             if sig is not None:
                 signals.append(sig)
-                self.publish(sig)
+        # 只有整批结果完成构造后才发布，避免单个 malformed 结果导致已发布
+        # 的部分信号与本次扫描的拒绝状态不一致。
+        for sig in signals:
+            self.publish(sig)
         return signals
 
     @staticmethod
@@ -672,7 +798,7 @@ class SelectorStrategy(StrategyBase):
 
     def run_daily_select(
         self,
-        universe: str = "hs300",
+        universe: str | None = None,
         term: str = "short",
         top_n: int = 20,
         **kwargs: Any,
@@ -682,11 +808,21 @@ class SelectorStrategy(StrategyBase):
 
 
 def run_daily_select(
-    universe: str = "hs300",
+    universe: str | None = None,
     term: str = "short",
     top_n: int = 20,
     **kwargs: Any,
 ) -> list[Signal]:
     """便捷选股入口：实例化 SelectorStrategy 并产出信号。"""
-    strategy = SelectorStrategy(config={"enabled": True})
+    try:
+        market_config = get_config("a_shares")
+        module_config = market_config.get("modules", {}).get("selector", {})
+        cfg = dict(module_config) if isinstance(module_config, dict) else {}
+    except Exception as exc:  # noqa: BLE001 - missing scheduler config is fail-closed
+        logger.warning("读取 selector 模块配置失败，跳过选股扫描: %s", exc)
+        cfg = {}
+    strategy = SelectorStrategy(config=cfg)
+    if universe is None:
+        configured = cfg.get("universe")
+        universe = configured.strip() if isinstance(configured, str) else None
     return strategy.run_daily_select(universe=universe, term=term, top_n=top_n, **kwargs)

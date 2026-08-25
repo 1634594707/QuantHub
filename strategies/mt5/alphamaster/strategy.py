@@ -16,10 +16,9 @@
 K 线数据：经 core.data_feed 的 LocalParquetSource 零拷贝读取
 ``data/MT5_K线数据/{SYMBOL}_{TF}.parquet``（与 AlphaMaster 同源）。
 
-因子公式来源（优先级）：
-    1. 模块目录下的 ``best_mt5_strategy.json``（由 AlphaMaster 训练产出，
-       token 列表，vocab 版本需匹配 model_core.vocab.FORMULA_VOCAB）。
-    2. 缺省/无效时回退为内置启发式 MT5 公式（纯特征 token，见 run_factor_search）。
+因子公式必须由调用方显式提供，或由模块目录中的
+``best_mt5_strategy.json`` 训练产物提供；产物缺失、无效或词表不匹配时 fail-closed，
+不使用内置启发式公式替代。
 """
 
 from __future__ import annotations
@@ -34,6 +33,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from core.data_feed.quality import ohlcv_rejection_reason
 from core.signals import Signal
 from strategies.base import StrategyBase, StrategyInfo, register_strategy
 
@@ -42,33 +42,18 @@ logger = logging.getLogger(__name__)
 # AlphaMaster 最小运行时随策略内置，避免依赖庞大的 vendored 归档。
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 ALPHAMASTER_ROOT = Path(__file__).resolve().parent / "_upstream"
-
-# 默认扫描品种（与 AlphaMaster TRAINABLE_SYMBOLS 对齐的子集，仅取已有本地数据的）
-DEFAULT_SYMBOLS: list[str] = [
-    "EURUSD",
-    "USDJPY",
-    "XAUUSD",
-    "XAGUSD",
-    "US30.cash",
-    "US100.cash",
-    "US500.cash",
-    "US2000.cash",
-    "JP225.cash",
-]
+_TRAINED_ARTIFACT_PATH = Path(__file__).resolve().parent / "best_mt5_strategy.json"
 
 # 连续仓位阈值：|tanh(factor)| 小于该值的信号被视为空仓（与 AlphaMaster 一致）
 MIN_TRADE_EXPOSURE: float = 0.05
 
-# 内置启发式 fallback 公式（纯特征 token，无需算子）：
-#   RET20       (idx 2)  : 20 周期收益 — 趋势动量
-#   DEV         (idx 9)  : 偏离/反转 — 均值回复
-#   MACD_HIST  (idx 23) : MACD 柱 — 动量加速
-# 三者取均值作为综合因子分，方向由 tanh 决定。
-_FALLBACK_FORMULAS: list[list[int]] = [[2], [9], [23]]
-
 
 class FormulaValidationError(ValueError):
     """AlphaMaster 公式 token 与当前引擎不兼容。"""
+
+
+class FormulaEvaluationError(RuntimeError):
+    """AlphaMaster 公式执行或结果校验失败，禁止用剩余公式替代。"""
 
 
 def _inject_alpha_master_root() -> None:
@@ -138,7 +123,7 @@ def describe_formulas(formulas: Any) -> list[dict[str, Any]]:
 
 
 def engine_info() -> dict[str, Any]:
-    """AlphaMaster 引擎能力与当前 fallback 公式的可观测信息。"""
+    """AlphaMaster 引擎能力与训练产物要求的可观测信息。"""
     from strategies.mt5.alphamaster.formula_adapter import vocab_manifest
 
     manifest = vocab_manifest()
@@ -152,7 +137,9 @@ def engine_info() -> dict[str, Any]:
             "vocab_schema": manifest["schema"],
             "feature_count": len(manifest["feature_names"]),
             "operator_count": len(manifest["operators"]),
-            "fallback_formulas": describe_formulas(_FALLBACK_FORMULAS),
+            "requires_trained_artifact": True,
+            "artifact_path": str(_TRAINED_ARTIFACT_PATH),
+            "artifact_present": _TRAINED_ARTIFACT_PATH.exists(),
             "reason": "缺少可选依赖 torch",
             "install_command": "uv sync --extra heavy-torch",
         }
@@ -167,7 +154,9 @@ def engine_info() -> dict[str, Any]:
         "vocab_schema": VOCAB_SCHEMA_TAG,
         "feature_count": FORMULA_VOCAB.feature_count,
         "operator_count": len(FORMULA_VOCAB.operator_names),
-        "fallback_formulas": describe_formulas(_FALLBACK_FORMULAS),
+        "requires_trained_artifact": True,
+        "artifact_path": str(_TRAINED_ARTIFACT_PATH),
+        "artifact_present": _TRAINED_ARTIFACT_PATH.exists(),
     }
 
 
@@ -182,6 +171,70 @@ def engine_info() -> dict[str, Any]:
 class AlphaMasterStrategy(StrategyBase):
     """AlphaMaster MT5 因子引擎适配器（实盘默认关闭）。"""
 
+    _REQUIRED_OHLCV = ("open", "high", "low", "close", "volume")
+
+    @classmethod
+    def _ohlcv_rejection_reason(cls, df: pd.DataFrame) -> str | None:
+        """Reject malformed bars before feature construction or execution."""
+        return ohlcv_rejection_reason(df, require_volume=True)
+
+    def _reject_incomplete_market_data(
+        self,
+        *,
+        source: str,
+        symbols: list[str],
+        failed_symbols: list[str],
+        timeframe: str,
+        reason: str,
+    ) -> list[Signal]:
+        """记录 MT5 primary 行情缺口并阻断整批因子信号。"""
+        failed = list(dict.fromkeys(str(symbol) for symbol in failed_symbols))
+        details = {
+            "source": source,
+            "market": "mt5",
+            "symbols": [str(symbol) for symbol in symbols],
+            "failed_symbols": failed,
+            "timeframe": timeframe,
+            "reason": reason,
+        }
+        self.last_report = {
+            "kind": "alphamaster",
+            "status": "unavailable",
+            "degraded": True,
+            "display_only": True,
+            "execution_eligible": False,
+            **details,
+        }
+        self.last_signal_rejection = {
+            "code": "market_data_incomplete",
+            "message": "MT5 primary 行情不完整，未发布 AlphaMaster 信号。",
+            "details": details,
+        }
+        logger.warning(
+            "alphamaster 因 primary 行情不完整而终止: source=%s failed_symbols=%s reason=%s",
+            source,
+            failed,
+            reason,
+        )
+        return []
+
+    def _reject_missing_symbols(self) -> list[Signal]:
+        self.last_report = {
+            "kind": "alphamaster",
+            "status": "unavailable",
+            "degraded": True,
+            "display_only": True,
+            "execution_eligible": False,
+            "market": "mt5",
+            "reason": "未提供显式 symbols 配置",
+        }
+        self.last_signal_rejection = {
+            "code": "symbols_required",
+            "message": "AlphaMaster 需要调用方显式提供 symbols，未使用示例标的回退。",
+            "details": {"source": "alphamaster"},
+        }
+        return []
+
     def produce(
         self,
         symbols: list[str] | None = None,
@@ -193,25 +246,70 @@ class AlphaMasterStrategy(StrategyBase):
         """用 StackVM 评估因子公式，对 MT5 品种产出 Signal。
 
         Args:
-            symbols:     候选品种列表（缺省用 DEFAULT_SYMBOLS）
+            symbols:     候选品种列表；必须由调用方或显式策略配置提供
             timeframe:   K 线周期（对齐 LocalParquetSource 的 tf_map，默认 1h）
             formulas:    因子公式 token 列表；缺省时加载 best_mt5_strategy.json，
-                        失败则回退到内置启发式公式
+                        产物缺失或无效时拒绝运行
             klines_map:  各品种 K 线数据 ``{symbol: DataFrame}``；缺省时通过
                         ``get_data_source('mt5')`` 从本地 parquet 读取
         """
-        symbols = symbols or self.config.get("symbols") or DEFAULT_SYMBOLS
+        if symbols is None:
+            symbols = self.config.get("symbols")
+        if not symbols:
+            logger.warning("alphamaster.produce 未提供显式 symbols，拒绝使用示例标的")
+            return self._reject_missing_symbols()
+        symbols = list(symbols)
         timeframe = self.config.get("timeframe", timeframe)
-        if not klines_map:
-            klines_map = self._load_klines(symbols, timeframe)
-            if not klines_map:
-                logger.warning("alphamaster.produce 未能加载任何 K 线，无信号产出")
-                return []
-
+        self.last_report = None
+        self.last_signal_rejection = None
         if formulas is None:
             formulas = self._load_formulas()
         else:
             formulas = validate_formulas(formulas)
+        data_source = "provided"
+        if not klines_map:
+            data_source = getattr(self, "_last_data_source_name", "mt5_primary")
+            klines_map = self._load_klines(symbols, timeframe)
+            data_source = getattr(self, "_last_data_source_name", data_source)
+            if not klines_map:
+                logger.warning("alphamaster.produce 未能加载任何 K 线，无信号产出")
+                failure = getattr(self, "_last_data_failure", None) or {
+                    "failed_symbols": symbols,
+                    "reason": "primary K 线为空",
+                }
+                return self._reject_incomplete_market_data(
+                    source=data_source,
+                    symbols=symbols,
+                    failed_symbols=failure["failed_symbols"],
+                    timeframe=timeframe,
+                    reason=failure["reason"],
+                )
+
+        missing = [
+            symbol
+            for symbol in symbols
+            if not isinstance(klines_map.get(symbol), pd.DataFrame)
+            or klines_map[symbol].empty
+            or len(klines_map[symbol]) < 50
+        ]
+        if missing:
+            return self._reject_incomplete_market_data(
+                source=data_source,
+                symbols=symbols,
+                failed_symbols=missing,
+                timeframe=timeframe,
+                reason="K 线为空或不足 50 根",
+            )
+        for symbol in symbols:
+            quality_reason = self._ohlcv_rejection_reason(klines_map[symbol])
+            if quality_reason is not None:
+                return self._reject_incomplete_market_data(
+                    source=data_source,
+                    symbols=symbols,
+                    failed_symbols=[symbol],
+                    timeframe=timeframe,
+                    reason=quality_reason,
+                )
 
         min_trade_exposure = float(
             kwargs.get(
@@ -230,32 +328,67 @@ class AlphaMasterStrategy(StrategyBase):
         signals: list[Signal] = []
         for symbol in symbols:
             df = klines_map.get(symbol)
-            if df is None or df.empty or len(df) < 50:
-                continue  # 数据不足，跳过（特征在短序列上会退化）
             try:
                 raw_dict = self._df_to_raw_dict(df)
                 feat = MT5FeatureEngineer.compute_features(raw_dict)  # [1, 65, T]
-            except Exception:
+            except Exception as exc:
                 logger.exception("alphamaster 特征构建失败: %s", symbol)
-                continue
+                return self._reject_incomplete_market_data(
+                    source=data_source,
+                    symbols=symbols,
+                    failed_symbols=[symbol],
+                    timeframe=timeframe,
+                    reason=f"特征构建失败: {exc}",
+                )
 
             # 评估每条公式，取最新时点标量，再取均值作为综合因子分
             scores: list[float] = []
             for formula in formulas:
                 try:
                     res = vm.execute(formula, feat)
-                except Exception as exc:  # noqa: BLE001 - third-party VM errors skip one formula
-                    logger.debug("alphamaster 公式执行失败: %s", exc, exc_info=True)
-                    continue
+                except Exception as exc:  # noqa: BLE001 - preserve the primary formula failure
+                    return self._reject_incomplete_market_data(
+                        source=data_source,
+                        symbols=symbols,
+                        failed_symbols=[symbol],
+                        timeframe=timeframe,
+                        reason=f"公式执行失败: {exc}",
+                    )
                 if res is None:
-                    continue
+                    return self._reject_incomplete_market_data(
+                        source=data_source,
+                        symbols=symbols,
+                        failed_symbols=[symbol],
+                        timeframe=timeframe,
+                        reason="公式未返回评分",
+                    )
                 try:
-                    scores.append(float(res[0, -1].item()))
-                except Exception as exc:  # noqa: BLE001 - malformed VM output skips one formula
-                    logger.debug("alphamaster 公式结果无效: %s", exc, exc_info=True)
-                    continue
+                    score_value = float(res[0, -1].item())
+                except Exception as exc:  # noqa: BLE001 - preserve malformed formula output
+                    return self._reject_incomplete_market_data(
+                        source=data_source,
+                        symbols=symbols,
+                        failed_symbols=[symbol],
+                        timeframe=timeframe,
+                        reason=f"公式结果无效: {exc}",
+                    )
+                if not math.isfinite(score_value):
+                    return self._reject_incomplete_market_data(
+                        source=data_source,
+                        symbols=symbols,
+                        failed_symbols=[symbol],
+                        timeframe=timeframe,
+                        reason="公式返回非有限评分",
+                    )
+                scores.append(score_value)
             if not scores:
-                continue
+                return self._reject_incomplete_market_data(
+                    source=data_source,
+                    symbols=symbols,
+                    failed_symbols=[symbol],
+                    timeframe=timeframe,
+                    reason="没有可用公式评分",
+                )
 
             raw = sum(scores) / len(scores)
             # 连续仓位：tanh 压缩到 (-1, +1)，低于阈值置零
@@ -272,23 +405,34 @@ class AlphaMasterStrategy(StrategyBase):
                 direction = "hold"
             strength = abs(pos)  # 已在 [0,1]
 
-            sig = Signal(
-                symbol=symbol,
-                market="mt5",
-                timeframe=timeframe,
-                direction=direction,
-                score=strength,
-                confidence=strength,
-                source="alphamaster",
-                tags=[f"formulas={len(formulas)}", f"bars={len(df)}"],
-                meta={
-                    "raw_factor": raw,
-                    "target_position": pos,
-                    "formula_tokens": formulas,
-                    "engine": "AlphaMaster-StackVM",
-                },
-            )
+            try:
+                sig = Signal(
+                    symbol=symbol,
+                    market="mt5",
+                    timeframe=timeframe,
+                    direction=direction,
+                    score=strength,
+                    confidence=strength,
+                    source="alphamaster",
+                    tags=[f"formulas={len(formulas)}", f"bars={len(df)}"],
+                    meta={
+                        "raw_factor": raw,
+                        "target_position": pos,
+                        "formula_tokens": formulas,
+                        "engine": "AlphaMaster-StackVM",
+                    },
+                )
+            except Exception as exc:
+                logger.exception("alphamaster 信号构造失败: %s", symbol)
+                return self._reject_incomplete_market_data(
+                    source=data_source,
+                    symbols=symbols,
+                    failed_symbols=[symbol],
+                    timeframe=timeframe,
+                    reason=f"信号构造失败: {exc}",
+                )
             signals.append(sig)
+        for sig in signals:
             self.publish(sig)
         return signals
 
@@ -298,20 +442,36 @@ class AlphaMasterStrategy(StrategyBase):
         """经 core.data_feed 的 LocalParquetSource 读取本地 MT5 K 线。"""
         from core.data_feed.factory import get_data_source
 
+        self._last_data_failure: dict[str, Any] | None = None
+        self._last_data_source_name = "mt5_primary"
         try:
             src = get_data_source("mt5")
-        except Exception:
+        except Exception as exc:
             logger.exception("alphamaster 无法构建 mt5 数据源")
+            self._last_data_failure = {
+                "failed_symbols": list(symbols),
+                "reason": f"primary 数据源初始化失败: {exc}",
+            }
             return {}
+        self._last_data_source_name = str(getattr(src, "name", "mt5_primary"))
         out: dict[str, pd.DataFrame] = {}
         for sym in symbols:
             try:
                 df = src.get_kline(sym, timeframe, limit=5000)
-            except Exception:  # noqa: BLE001 - data-source failures skip one symbol
+            except Exception as exc:  # noqa: BLE001 - preserve primary failure details
                 logger.warning("alphamaster 读取 %s %s 失败", sym, timeframe, exc_info=True)
-                continue
-            if df is not None and not df.empty:
-                out[sym] = df
+                self._last_data_failure = {
+                    "failed_symbols": [sym],
+                    "reason": f"primary K 线请求失败: {exc}",
+                }
+                return {}
+            if df is None or not isinstance(df, pd.DataFrame) or df.empty:
+                self._last_data_failure = {
+                    "failed_symbols": [sym],
+                    "reason": "primary K 线为空",
+                }
+                return {}
+            out[sym] = df
         return out
 
     @staticmethod
@@ -324,11 +484,11 @@ class AlphaMasterStrategy(StrategyBase):
         import torch  # 懒加载
 
         def _t1d(col: str) -> Any:
-            arr = (
-                df[col].astype(float).to_numpy()
-                if col in df.columns
-                else np.zeros(len(df), dtype=float)
-            )
+            if col not in df.columns:
+                raise ValueError(f"K线缺少必需列: {col}")
+            arr = df[col].astype(float).to_numpy()
+            if not np.isfinite(arr).all():
+                raise ValueError(f"K线列 {col} 含非有限值")
             return torch.tensor(arr, dtype=torch.float32).unsqueeze(0)
 
         return {
@@ -342,35 +502,52 @@ class AlphaMasterStrategy(StrategyBase):
     # ---------- 公式加载 ----------
 
     def _load_formulas(self) -> list[list[int]]:
-        """加载因子公式；无效/缺失时回退到内置启发式。"""
-        json_path = Path(__file__).resolve().parent / "best_mt5_strategy.json"
-        if json_path.exists():
-            try:
-                with json_path.open("r", encoding="utf-8") as f:
-                    data = json.load(f)
-                formula = data.get("formula") or data.get("formula_tokens")
-                _inject_alpha_master_root()
-                from model_core.vocab import FORMULA_VOCAB
+        """加载并校验训练产物中的公式，缺失或无效时拒绝运行。"""
+        if not _TRAINED_ARTIFACT_PATH.exists():
+            raise FormulaValidationError(f"训练产物不存在: {_TRAINED_ARTIFACT_PATH}")
 
-                artifact_version = data.get("vocab_version")
-                if artifact_version:
-                    FORMULA_VOCAB.verify(str(artifact_version))
-                else:
-                    logger.warning("alphamaster 策略产物缺少 vocab_version，按 legacy 校验")
-                normalized = validate_formulas(formula)
-                logger.info(
-                    "alphamaster 加载训练公式 %d 条（来自 %s）",
-                    len(normalized),
-                    json_path.name,
-                )
-                return normalized
-            except Exception as exc:  # noqa: BLE001 - invalid artifacts use safe built-in formulas
-                logger.warning(
-                    "alphamaster 读取 %s 失败，回退启发式公式: %s",
-                    json_path.name,
-                    exc,
-                )
-        return run_factor_search()
+        try:
+            with _TRAINED_ARTIFACT_PATH.open("r", encoding="utf-8") as f:
+                data = json.load(f)
+        except (OSError, json.JSONDecodeError) as exc:
+            raise FormulaValidationError(
+                f"无法读取训练产物 {_TRAINED_ARTIFACT_PATH.name}: {exc}"
+            ) from exc
+
+        if not isinstance(data, dict):
+            raise FormulaValidationError("训练产物必须是 JSON 对象")
+        formula = data.get("formula")
+        if formula is None:
+            formula = data.get("formula_tokens")
+        artifact_version = data.get("vocab_version")
+        if not isinstance(artifact_version, str) or not artifact_version:
+            raise FormulaValidationError("训练产物缺少 vocab_version")
+
+        from strategies.mt5.alphamaster.formula_adapter import vocab_manifest
+
+        manifest = vocab_manifest()
+        if artifact_version != manifest["version"]:
+            raise FormulaValidationError(
+                "词表版本不匹配："
+                f"产物版本 {artifact_version!r} != 当前派生版本 {manifest['version']!r}"
+            )
+        artifact_schema = data.get("vocab_schema")
+        if artifact_schema is not None and artifact_schema != manifest["schema"]:
+            raise FormulaValidationError(
+                "词表 schema 不匹配："
+                f"产物 schema {artifact_schema!r} != 当前 schema {manifest['schema']!r}"
+            )
+
+        try:
+            normalized = validate_formulas(formula)
+        except FormulaValidationError as exc:
+            raise FormulaValidationError(f"训练产物公式无效: {exc}") from exc
+        logger.info(
+            "alphamaster 加载训练公式 %d 条（来自 %s）",
+            len(normalized),
+            _TRAINED_ARTIFACT_PATH.name,
+        )
+        return normalized
 
     # ---------- 回测 / 实盘 ----------
 
@@ -386,6 +563,10 @@ class AlphaMasterStrategy(StrategyBase):
             from core.backtest.engine import BacktestResult
 
             return BacktestResult.empty(engine="event")
+
+        quality_reason = self._ohlcv_rejection_reason(klines)
+        if quality_reason is not None:
+            raise ValueError(f"K线质量不合格: {quality_reason}")
 
         _inject_alpha_master_root()
         from model_core.features import MT5FeatureEngineer
@@ -403,18 +584,30 @@ class AlphaMasterStrategy(StrategyBase):
             if sort_column
             else klines.reset_index(drop=True)
         )
-        formulas = validate_formulas(formulas or self._load_formulas())
+        formulas = self._load_formulas() if formulas is None else validate_formulas(formulas)
         vm = StackVM()
         feat = MT5FeatureEngineer.compute_features(self._df_to_raw_dict(df))
 
-        factor_tensors = [vm.execute(formula, feat) for formula in formulas]
-        valid_factors = [factor for factor in factor_tensors if factor is not None]
-        if not valid_factors:
-            raise FormulaValidationError("没有公式能被 StackVM 执行")
+        factor_tensors = []
+        for formula in formulas:
+            try:
+                factor = vm.execute(formula, feat)
+            except Exception as exc:
+                raise FormulaEvaluationError(f"公式执行失败: {exc}") from exc
+            if factor is None:
+                raise FormulaEvaluationError("公式未返回结果")
+            factor_tensors.append(factor)
+        if not factor_tensors:
+            raise FormulaEvaluationError("没有可用公式评分")
 
         import torch
 
-        factor = torch.stack(valid_factors).mean(dim=0)[0]
+        try:
+            factor = torch.stack(factor_tensors).mean(dim=0)[0]
+        except Exception as exc:
+            raise FormulaEvaluationError(f"公式结果无法聚合: {exc}") from exc
+        if not bool(torch.isfinite(factor).all()):
+            raise FormulaEvaluationError("公式聚合结果含非有限值")
         min_trade_exposure = float(
             kwargs.get(
                 "min_trade_exposure",
@@ -619,10 +812,5 @@ def run_factor_search(
     klines_map: dict[str, pd.DataFrame] | None = None,
     **kwargs: Any,
 ) -> list[list[int]]:
-    """MT5 因子搜索便捷入口。
-
-    AlphaMaster 用 Transformer（AlphaGPT）自动写因子（需 torch + 训练权重）。
-    迁移版在无 ``best_mt5_strategy.json`` 时**回退为一组内置启发式公式**
-    （纯特征 token，覆盖趋势 / 反转 / 动量），无需算子即可被 StackVM 评估。
-    """
-    return validate_formulas([list(f) for f in _FALLBACK_FORMULAS])
+    """返回已验证训练产物中的公式，不在运行时生成启发式公式。"""
+    return AlphaMasterStrategy(config={})._load_formulas()

@@ -48,8 +48,8 @@ jobs:
       - name: Import FastAPI application
         run: uv run python -c "from apps.api.main import app; assert app.title"
 
-      - name: Product workflow tests
-        run: uv run --frozen python -B tools/run_backend_tests.py
+      - name: Backend test suite
+        run: uv run --frozen python -m pytest -q
 
   container:
     needs: [frontend, backend]

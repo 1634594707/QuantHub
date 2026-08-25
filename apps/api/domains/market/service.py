@@ -67,7 +67,10 @@ def fetch_kline(
         )
     return {
         "ok": True,
-        "source": df.attrs.get("_source", "local"),
+        # A frame without adapter provenance must never be relabelled as a
+        # trusted local source. Downstream risk gates treat ``unknown`` as
+        # non-executable until the adapter supplies its source contract.
+        "source": df.attrs.get("_source", "unknown"),
         "symbol": symbol,
         "interval": interval,
         "count": len(candles),

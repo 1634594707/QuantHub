@@ -149,7 +149,7 @@ class NewsAnalysis:
     sentiment: NewsSentiment
     topic: str  # NewsTopic 枚举值（str 形式，序列化友好）
     summary: str
-    engine: str  # "semantic" | "semantic+api" | "keyword"
+    engine: str  # "semantic+api" | "semantic" (display-only) | "unavailable"
     model: str | None
     latency_ms: int
     event_impact: NewsEventImpact = field(
@@ -213,11 +213,12 @@ class NewsBatchResult:
     """批量分析聚合结果。"""
 
     items: list[NewsAnalysis]
-    engine: str  # 批次实际引擎（semantic / semantic+api / keyword）
+    engine: str  # 批次实际引擎（semantic+api / display_only / unavailable）
     model: str | None
     total: int
-    ok: bool  # 是否走 LLM 路径（True）；降级为 False
+    ok: bool  # 仅完整通过配置模型与 LLM 路径时为 True
     degraded_reason: str | None = None
+    display_only: bool = False
 
     def to_dict(self) -> dict:
         return {
@@ -227,6 +228,7 @@ class NewsBatchResult:
             "total": self.total,
             "ok": self.ok,
             "degraded_reason": self.degraded_reason,
+            "display_only": self.display_only,
         }
 
 

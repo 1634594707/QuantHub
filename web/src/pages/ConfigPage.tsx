@@ -103,12 +103,8 @@ export default function ConfigPage() {
   }
 
   function resetLocalData() {
-    localStorage.removeItem('qh.holdings.v1')
-    localStorage.removeItem('qh.watchlist.v1')
-    localStorage.removeItem('qh.portfolio.cash.v1')
     setResetting(true)
-    // 清除后 useEditableHoldings/Watchlist 的 seeded state 仍为 true，
-    // 需刷新页面让 hooks 重新挂载并从后端 /portfolio、/market/watchlist 播种
+    // 业务数据只由后端持久化；刷新仅重新读取服务端真源与仍允许保存的 UI 偏好。
     setTimeout(() => window.location.reload(), 1200)
   }
 
@@ -721,7 +717,6 @@ export default function ConfigPage() {
                 <span key={item.market}>
                   <b>{item.market === 'a_shares' ? 'A股' : '加密'}</b>
                   {item.primary || '未配置'}
-                  {item.fallbacks.length > 0 ? ` → ${item.fallbacks.join(' → ')}` : ''}
                 </span>
               ))}
             </div>
@@ -760,27 +755,27 @@ export default function ConfigPage() {
       <div className="card">
         <div className="card-head">
           <div className="card-title">
-            本地数据
-            <span className="sub">持仓与关注列表</span>
+            业务数据
+            <span className="sub">后端真源</span>
           </div>
         </div>
         <div className={s.localBody}>
           <div>
-            <div className={s.localTitle}>重置为后端种子</div>
-            <p className={`muted ${s.localHint}`}>本地缓存：持仓、关注列表、组合现金</p>
+            <div className={s.localTitle}>刷新后端数据</div>
+            <p className={`muted ${s.localHint}`}>持仓、关注列表与组合现金仅由后端保存；浏览器不保留业务缓存。</p>
           </div>
           <div className={s.submitRow}>
             <ConfirmActionButton
-              label={resetting ? '重置中…' : '重置本地数据'}
-              title="确认重置本地数据"
-              description="将清除浏览器中的持仓、关注列表和本地组合现金缓存，页面刷新后重新从后端数据播种。"
-              confirmLabel="确认重置"
+              label={resetting ? '刷新中…' : '刷新后端数据'}
+              title="确认刷新后端数据"
+              description="将刷新页面并重新从后端读取持仓、关注列表和组合现金。"
+              confirmLabel="确认刷新"
               disabled={resetting}
               onConfirm={resetLocalData}
             />
             {resetting && (
               <span className={s.resettingHint}>
-                已清除，正在刷新…
+                正在刷新后端数据…
               </span>
             )}
           </div>

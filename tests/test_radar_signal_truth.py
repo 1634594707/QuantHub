@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from datetime import UTC, datetime
 from unittest.mock import patch
 
 from pydantic import ValidationError
@@ -43,6 +44,20 @@ def signal(
     }
 
 
+def trusted_quote(symbol: str, market: str, source: str = "tencent") -> dict:
+    return {
+        "code": symbol,
+        "name": symbol,
+        "last": 100.0,
+        "pct": 0.5,
+        "prev_close": 99.5,
+        "source": source,
+        "market": market,
+        "observed_at": datetime.now(UTC).isoformat(),
+        "verified": True,
+    }
+
+
 class PublishSignalContractTests(unittest.TestCase):
     def test_confidence_is_required(self) -> None:
         with self.assertRaises(ValidationError):
@@ -68,7 +83,10 @@ class NarrativeStrategyTruthTests(unittest.TestCase):
         strategy = RealtimeAnalyzerStrategy(config={"enabled": True})
         with (
             patch.object(strategy, "_build_report", return_value=None),
-            patch("strategies.a_shares.realtime_analyzer.strategy.fetch_quotes", return_value=[]),
+            patch(
+                "strategies.a_shares.realtime_analyzer.strategy.fetch_quotes",
+                return_value=[trusted_quote("600519", "a_shares")],
+            ),
             patch(
                 "strategies.a_shares.realtime_analyzer.strategy.fetch_index_baseline",
                 return_value={},
@@ -78,13 +96,19 @@ class NarrativeStrategyTruthTests(unittest.TestCase):
 
         self.assertEqual(produced, [])
         self.assertEqual(strategy.last_report["kind"], "market_snapshot")
+        self.assertTrue(strategy.last_report["display_only"])
+        self.assertFalse(strategy.last_report["execution_eligible"])
+        self.assertFalse(strategy.last_report["market_data"]["execution_eligible"])
         self.assertEqual(strategy.last_signal_rejection["code"], "model_unavailable")
 
     def test_us_report_without_structured_values_is_not_published(self) -> None:
         strategy = RealtimeAnalyzerUsStrategy(config={"enabled": True})
         with (
             patch.object(strategy, "_build_report", return_value="只有叙事结论"),
-            patch("strategies.us_stocks.realtime_analyzer.strategy.fetch_quotes", return_value=[]),
+            patch(
+                "strategies.us_stocks.realtime_analyzer.strategy.fetch_quotes",
+                return_value=[trusted_quote("NVDA", "us_stocks")],
+            ),
         ):
             produced = strategy.produce(codes=["NVDA"], with_kline=False)
 
@@ -97,7 +121,10 @@ class NarrativeStrategyTruthTests(unittest.TestCase):
         with (
             patch.object(strategy, "_build_report", return_value=report),
             patch.object(strategy, "publish") as publish,
-            patch("strategies.a_shares.realtime_analyzer.strategy.fetch_quotes", return_value=[]),
+            patch(
+                "strategies.a_shares.realtime_analyzer.strategy.fetch_quotes",
+                return_value=[trusted_quote("600519", "a_shares")],
+            ),
             patch(
                 "strategies.a_shares.realtime_analyzer.strategy.fetch_index_baseline",
                 return_value={},

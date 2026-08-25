@@ -247,14 +247,14 @@ def _execute_job(func_name: str):
             "factor_research_job_id": job_id,
         }
     if func_name.startswith("__run_strategy__:"):
-        from strategies import get_strategy
+        from strategies import configured_strategy_config, get_strategy
 
         strategy_name = func_name.split(":", 1)[1]
-        strategy = get_strategy(strategy_name)
-        try:
-            return strategy.produce()
-        except TypeError:
-            return strategy.produce(timeframe="1h")
+        strategy = get_strategy(
+            strategy_name,
+            config=configured_strategy_config(strategy_name),
+        )
+        return strategy.produce()
 
     module_path, separator, function_name = func_name.rpartition(".")
     if not separator or not module_path or not function_name:

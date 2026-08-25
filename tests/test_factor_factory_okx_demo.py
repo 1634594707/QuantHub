@@ -143,7 +143,7 @@ def _package(monkeypatch, symbol: str = "BTC-USDT-SWAP"):
 
 
 def test_demo_request_rejects_non_live_or_daily_context() -> None:
-    with pytest.raises(ValueError, match="okx_live"):
+    with pytest.raises(ValueError, match="本地独立模拟"):
         FactorFactoryStartRequest(source="okx_local", paper_target="okx_demo")
     with pytest.raises(ValueError, match="1h 或 4h"):
         FactorFactoryStartRequest(
@@ -160,6 +160,23 @@ def test_demo_request_rejects_non_live_or_daily_context() -> None:
             paper_target="okx_demo",
             observation_days=6,
         )
+
+
+def test_factor_factory_source_is_explicit_and_research_only_sources_stay_local() -> None:
+    with pytest.raises(ValueError, match="source"):
+        FactorFactoryStartRequest()
+
+    for source in ("okx_local", "synthetic"):
+        with pytest.raises(ValueError, match="本地独立模拟"):
+            FactorFactoryStartRequest(source=source, paper_target="okx_demo")
+
+    request = FactorFactoryStartRequest(
+        source="okx_live",
+        symbol="BTC-USDT-SWAP",
+        interval="4h",
+        paper_target="okx_demo",
+    )
+    assert request.source == "okx_live"
 
 
 def test_demo_request_normalizes_screenshot_style_nvda_symbol() -> None:

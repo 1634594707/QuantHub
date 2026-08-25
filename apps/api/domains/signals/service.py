@@ -24,7 +24,7 @@ _RADAR_STATUSES = frozenset({"new", "accepted", "expired"})
 
 
 def radar_snapshot() -> dict:
-    """Return one current signal, or the newest expired fallback, per instrument.
+    """Return one current signal, or the newest expired record, per instrument.
 
     The list endpoint is intentionally paginated. Radar selection is a server-side
     operation so a growing ledger cannot make the browser select an older record.
@@ -83,7 +83,25 @@ def radar_snapshot() -> dict:
 
 
 def publish(req: PublishSignalRequest) -> dict:
+    # Ensemble and other research producers may explicitly annotate a result
+    # as degraded/display-only or not execution eligible.  Those annotations
+    # are an execution gate, not presentation hints: reject buy/sell signals
+    # before instrument resolution or persistence.  Missing annotations remain
+    # valid for legacy/manual signal producers; explicit values fail closed.
+    if req.direction in {"buy", "sell"}:
+        meta = req.meta
+        if "execution_eligible" in meta and meta["execution_eligible"] is not True:
+            raise ValueError("SIGNAL_EXECUTION_BLOCKED: 信号未获得执行资格")
+        for key in ("degraded", "display_only"):
+            if key in meta and meta[key] is not False:
+                raise ValueError(f"SIGNAL_EXECUTION_BLOCKED: {key} 信号不可执行")
+
     research_run_id = req.meta.get("research_run_id")
+    # An ensemble signal must stay attached to the persisted ResearchRun that
+    # produced it; otherwise callers can bypass the ensemble publication path
+    # by resubmitting the direction with ``source=ensemble`` and no run id.
+    if req.source.strip().lower() == "ensemble" and not research_run_id:
+        raise ValueError("ENSEMBLE_RESEARCH_CONTEXT_REQUIRED: 协同预测必须关联已持久化研究运行")
     if research_run_id and req.direction in {"buy", "sell"}:
         run = store.get_research_run(str(research_run_id))
         decision = (run.get("summary") or {}).get("research_decision") if run else None

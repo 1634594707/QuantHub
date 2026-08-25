@@ -1,7 +1,7 @@
 """数据源工厂。
 
-按 market + name 创建对应 DataSource，支持 fallback 链。
-所有 source 调用经 CacheStore 透明缓存。
+按 market + name 创建唯一的 configured primary DataSource。
+所有 source 调用经 CacheStore 透明缓存；primary 失败或返回空结果时不切换供应商。
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ from typing import Any
 import pandas as pd
 
 from core.config import get_config
-from core.data_feed.base import Announcement, DataSource, Interval, News
+from core.data_feed.base import Announcement, DataSource, Interval, News, RealtimeQuote
 from core.data_feed.cache import CacheStore, cache_key_date
 from core.data_feed.telemetry import telemetry
 
@@ -36,6 +36,7 @@ def _source_contract(source: DataSource) -> dict:
         "operations": ["get_kline"],
         "intervals": [item.value for item in Interval],
         "kline_semantics": "bar_snapshot",
+        "realtime_quote_semantics": None,
         "tick_by_tick": False,
     }
 
@@ -62,7 +63,14 @@ def _cached(fn):
             hit = (
                 None
                 if bounded_request
-                else cache.get_kline(symbol, self.market, interval, date, limit)
+                else cache.get_kline(
+                    symbol,
+                    self.market,
+                    interval,
+                    date,
+                    source=self.name,
+                    limit=limit,
+                )
             )
             if (
                 hit is not None
@@ -84,13 +92,27 @@ def _cached(fn):
             telemetry.record_cache(hit=False)
             df = fn(self, *args, **kwargs)
             if df is not None and not df.empty and not bounded_request:
-                cache.set_kline(symbol, self.market, interval, date, df, limit)
+                cache.set_kline(
+                    symbol,
+                    self.market,
+                    interval,
+                    date,
+                    df,
+                    source=self.name,
+                    limit=limit,
+                )
             return df
 
         if kind in ("get_news", "get_announcements"):
             symbol = args[0] if args else kwargs.get("symbol")
             limit = args[1] if len(args) > 1 else kwargs.get("limit", 50)
-            docs = cache.get_docs(kind, symbol, limit)
+            docs = cache.get_docs(
+                kind,
+                symbol,
+                market=self.market,
+                source=self.name,
+                limit=limit,
+            )
             if docs:
                 telemetry.record_cache(hit=True)
                 # 重建对象
@@ -99,12 +121,19 @@ def _cached(fn):
                 return [Announcement(**d) for d in docs]
             telemetry.record_cache(hit=False)
             result = fn(self, *args, **kwargs)
-            # 空结果不入缓存：避免 primary 离线/失败时把空列表永久固化，导致 fallback 源无法被使用
+            # 空结果不入缓存：避免将 primary 的短暂不可用永久固化为无数据。
             if not result:
                 return result
             try:
                 payload = [{**d.__dict__, "ts": d.ts.isoformat()} for d in result]
-                cache.set_docs(kind, symbol, payload, limit)
+                cache.set_docs(
+                    kind,
+                    symbol,
+                    payload,
+                    market=self.market,
+                    source=self.name,
+                    limit=limit,
+                )
             except Exception:
                 logger.debug("缓存写入失败 %s", kind, exc_info=True)
             return result
@@ -114,16 +143,16 @@ def _cached(fn):
 
 
 class DataSourceProxy(DataSource):
-    """数据源代理：包装真实 source，叠加缓存与 fallback。"""
+    """数据源代理：包装唯一 primary，叠加缓存但绝不切换供应商。"""
 
-    def __init__(
-        self,
-        primary: DataSource,
-        fallbacks: list[DataSource] | None = None,
-        cache: CacheStore | None = None,
-    ) -> None:
+    def __init__(self, primary: DataSource, cache: CacheStore | None = None) -> None:
+        # Older callers passed a positional list of secondary providers here.
+        # Reject that shape at construction time instead of accepting it as a
+        # truthy cache object and failing later (or, worse, reviving a hidden
+        # provider chain through duck-typed methods).
+        if isinstance(cache, (list, tuple, set, dict)):
+            raise TypeError("DataSourceProxy 只接受单一 primary；不再接受 fallback 数据源列表")
         self._primary = primary
-        self._fallbacks = fallbacks or []
         self._cache = cache or CacheStore()
         self.name = primary.name
         self.market = primary.market
@@ -131,158 +160,161 @@ class DataSourceProxy(DataSource):
     def supported_intervals(self):
         return self._primary.supported_intervals()
 
+    def data_contract(self) -> dict:
+        """Expose only the configured primary's capabilities."""
+        return _source_contract(self._primary)
+
     def source_plan(self, operation: str, interval: Interval | str | None = None) -> list[dict]:
-        """Expose the configured priority after capability and interval filtering."""
+        """Expose the single configured primary after capability filtering."""
         normalized_interval = Interval(interval) if isinstance(interval, str) else interval
-        plan: list[dict] = []
-        for priority, source in enumerate([self._primary, *self._fallbacks], start=1):
-            contract = _source_contract(source)
-            if operation not in contract["operations"]:
-                continue
-            if (
-                operation == "get_kline"
-                and normalized_interval is not None
-                and normalized_interval.value not in contract["intervals"]
-            ):
-                continue
-            candidate_priority = getattr(source, "_configured_priority", None)
-            configured_priority = (
-                candidate_priority
-                if isinstance(candidate_priority, int) and candidate_priority > 0
-                else priority
+        contract = _source_contract(self._primary)
+        if operation not in contract["operations"]:
+            return []
+        if (
+            operation == "get_kline"
+            and normalized_interval is not None
+            and normalized_interval.value not in contract["intervals"]
+        ):
+            return []
+        return [{"priority": 1, **contract}]
+
+    def get_realtime_quote(self, symbol: str) -> RealtimeQuote | None:
+        """Read a live quote from the one configured primary without caching.
+
+        A missing capability, empty result, or provider failure remains visible
+        to the caller; it never triggers a secondary market/source lookup.
+        """
+        src = self._primary
+        if not self.source_plan("get_realtime_quote"):
+            raise RuntimeError(f"数据源 {src.name} 未声明实时行情能力")
+        started = time.perf_counter()
+        try:
+            quote = src.get_realtime_quote(symbol)
+        except Exception as exc:  # noqa: BLE001 - preserve provider failure without fallback
+            telemetry.record_source(
+                src.name,
+                "get_realtime_quote",
+                success=False,
+                latency_ms=(time.perf_counter() - started) * 1000,
+                error=str(exc),
             )
-            plan.append({"priority": configured_priority, **contract})
-        return plan
+            logger.warning("数据源 %s get_realtime_quote 失败，不切换数据源: %s", src.name, exc)
+            raise
+        telemetry.record_source(
+            src.name,
+            "get_realtime_quote",
+            success=quote is not None,
+            latency_ms=(time.perf_counter() - started) * 1000,
+            error=None if quote is not None else "empty_result",
+        )
+        return quote
 
     @_cached
     def get_kline(self, symbol, interval, start=None, end=None, limit=500) -> pd.DataFrame:
-        source_by_name = {source.name: source for source in [self._primary, *self._fallbacks]}
+        src = self._primary
         plan = self.source_plan("get_kline", interval)
-        sources = [source_by_name[item["name"]] for item in plan]
-        last_err: Exception | None = None
-        for src in sources:
-            started = time.perf_counter()
-            try:
-                df = src.get_kline(symbol, interval, start, end, limit)
-                if df is not None and not df.empty:
-                    telemetry.record_source(
-                        src.name,
-                        "get_kline",
-                        success=True,
-                        latency_ms=(time.perf_counter() - started) * 1000,
-                    )
-                    df.attrs["_source"] = src.name
-                    df.attrs["_source_plan"] = plan
-                    df.attrs["_data_contract"] = _source_contract(src)
-                    return df
-                telemetry.record_source(
-                    src.name,
-                    "get_kline",
-                    success=False,
-                    latency_ms=(time.perf_counter() - started) * 1000,
-                    error="empty_result",
-                )
-            except Exception as e:  # noqa: BLE001 - isolate failures from third-party adapters
-                telemetry.record_source(
-                    src.name,
-                    "get_kline",
-                    success=False,
-                    latency_ms=(time.perf_counter() - started) * 1000,
-                    error=str(e),
-                )
-                last_err = e
-                logger.warning("数据源 %s get_kline 失败，尝试 fallback: %s", src.name, e)
-        if last_err:
-            logger.error("所有数据源均失败: %s", last_err)
-        return pd.DataFrame()
+        started = time.perf_counter()
+        try:
+            df = src.get_kline(symbol, interval, start, end, limit)
+        except Exception as exc:  # noqa: BLE001 - preserve provider failure without fallback
+            telemetry.record_source(
+                src.name,
+                "get_kline",
+                success=False,
+                latency_ms=(time.perf_counter() - started) * 1000,
+                error=str(exc),
+            )
+            logger.warning("数据源 %s get_kline 失败，不切换数据源: %s", src.name, exc)
+            raise
+        if df is None or df.empty:
+            telemetry.record_source(
+                src.name,
+                "get_kline",
+                success=False,
+                latency_ms=(time.perf_counter() - started) * 1000,
+                error="empty_result",
+            )
+            return pd.DataFrame()
+        telemetry.record_source(
+            src.name,
+            "get_kline",
+            success=True,
+            latency_ms=(time.perf_counter() - started) * 1000,
+        )
+        df.attrs["_source"] = src.name
+        df.attrs["_source_plan"] = plan
+        df.attrs["_data_contract"] = _source_contract(src)
+        return df
 
     @_cached
     def get_news(self, symbol=None, limit=50) -> list[News]:
-        source_by_name = {source.name: source for source in [self._primary, *self._fallbacks]}
-        sources = [source_by_name[item["name"]] for item in self.source_plan("get_news")]
-        for src in sources:
-            started = time.perf_counter()
-            try:
-                news = src.get_news(symbol, limit)
-                if news:
-                    telemetry.record_source(
-                        src.name,
-                        "get_news",
-                        success=True,
-                        latency_ms=(time.perf_counter() - started) * 1000,
-                    )
-                    return news
-                telemetry.record_source(
-                    src.name,
-                    "get_news",
-                    success=False,
-                    latency_ms=(time.perf_counter() - started) * 1000,
-                    error="empty_result",
-                )
-            except Exception as exc:
-                telemetry.record_source(
-                    src.name,
-                    "get_news",
-                    success=False,
-                    latency_ms=(time.perf_counter() - started) * 1000,
-                    error=str(exc),
-                )
-                logger.warning("数据源 %s get_news 失败，尝试 fallback", src.name, exc_info=True)
-        return []
+        src = self._primary
+        started = time.perf_counter()
+        try:
+            news = src.get_news(symbol, limit)
+        except Exception as exc:  # noqa: BLE001 - preserve provider failure without fallback
+            telemetry.record_source(
+                src.name,
+                "get_news",
+                success=False,
+                latency_ms=(time.perf_counter() - started) * 1000,
+                error=str(exc),
+            )
+            logger.warning("数据源 %s get_news 失败，不切换数据源", src.name, exc_info=True)
+            raise
+        telemetry.record_source(
+            src.name,
+            "get_news",
+            success=bool(news),
+            latency_ms=(time.perf_counter() - started) * 1000,
+            error=None if news else "empty_result",
+        )
+        return news or []
 
     @_cached
     def get_announcements(self, symbol, limit=50) -> list[Announcement]:
-        source_by_name = {source.name: source for source in [self._primary, *self._fallbacks]}
-        sources = [source_by_name[item["name"]] for item in self.source_plan("get_announcements")]
-        for src in sources:
-            started = time.perf_counter()
-            try:
-                anns = src.get_announcements(symbol, limit)
-                if anns:
-                    telemetry.record_source(
-                        src.name,
-                        "get_announcements",
-                        success=True,
-                        latency_ms=(time.perf_counter() - started) * 1000,
-                    )
-                    return anns
-                telemetry.record_source(
-                    src.name,
-                    "get_announcements",
-                    success=False,
-                    latency_ms=(time.perf_counter() - started) * 1000,
-                    error="empty_result",
-                )
-            except Exception as exc:
-                telemetry.record_source(
-                    src.name,
-                    "get_announcements",
-                    success=False,
-                    latency_ms=(time.perf_counter() - started) * 1000,
-                    error=str(exc),
-                )
-                logger.warning(
-                    "数据源 %s get_announcements 失败，尝试 fallback", src.name, exc_info=True
-                )
-        return []
+        src = self._primary
+        started = time.perf_counter()
+        try:
+            anns = src.get_announcements(symbol, limit)
+        except Exception as exc:  # noqa: BLE001 - preserve provider failure without fallback
+            telemetry.record_source(
+                src.name,
+                "get_announcements",
+                success=False,
+                latency_ms=(time.perf_counter() - started) * 1000,
+                error=str(exc),
+            )
+            logger.warning(
+                "数据源 %s get_announcements 失败，不切换数据源", src.name, exc_info=True
+            )
+            raise
+        telemetry.record_source(
+            src.name,
+            "get_announcements",
+            success=bool(anns),
+            latency_ms=(time.perf_counter() - started) * 1000,
+            error=None if anns else "empty_result",
+        )
+        return anns or []
 
 
 _REGISTRY: dict[str, type[DataSource]] = {}
 _OPTIONAL_DEPENDENCY_FAILURES: set[tuple[str, str]] = set()
 
 
-def _log_source_construction_failure(name: str, role: str, exc: Exception) -> None:
-    """同一可选依赖故障每个进程只记录一次可见告警。"""
+def _log_source_construction_failure(name: str, exc: Exception) -> None:
+    """记录 primary 构造失败；调用方必须显式处理，绝不提升备用源。"""
     message = str(exc)
     if not isinstance(exc, (ImportError, ModuleNotFoundError)):
-        logger.warning("构建 %s 数据源 %s 失败，继续尝试后续数据源: %s", role, name, message)
+        logger.error("构建 primary 数据源 %s 失败: %s", name, message)
         return
     fingerprint = (name, message)
     if fingerprint in _OPTIONAL_DEPENDENCY_FAILURES:
         logger.debug("已聚合可选依赖故障 %s: %s", name, message)
         return
     _OPTIONAL_DEPENDENCY_FAILURES.add(fingerprint)
-    logger.warning("可选依赖不可用，已聚合本进程后续同类告警；数据源 %s: %s", name, message)
+    logger.error("primary 数据源 %s 的可选依赖不可用: %s", name, message)
 
 
 def register_source(name: str, cls: type[DataSource]) -> None:
@@ -348,45 +380,45 @@ def _build_source(
 
 
 def get_data_source(market: str = "a_shares", **kwargs: Any) -> DataSourceProxy:
-    """按市场获取带缓存与 fallback 的数据源代理。
+    """按市场获取唯一 configured primary 的带缓存代理。
 
-    Args:
-        market: "a_shares" | "crypto"
-        **kwargs: 透传给具体 source（如 OKX 密钥）
+    primary 构造失败、请求失败或空结果均不会自动切换到其他供应商或本地存储。
+    需要诊断其他已配置数据源时，调用 :func:`get_configured_source` 显式构造。
     """
     cfg = get_config(market)
     sources_cfg = cfg.get("data_sources", {})
+    if "fallback" in sources_cfg:
+        raise ValueError(
+            f"市场 {market} 使用了已移除的 data_sources.fallback；请显式选择一个 primary"
+        )
     primary_name = sources_cfg.get("primary")
-    fallback_names = sources_cfg.get("fallback", [])
     if not primary_name:
         raise ValueError(f"市场 {market} 未配置 data_sources.primary")
-    built_sources: list[DataSource] = []
-    source_names = [primary_name, *fallback_names]
-    for index, source_name in enumerate(source_names):
-        try:
-            source_kwargs = kwargs if index == 0 else {}
-            source = _build_source(source_name, cfg=cfg, market=market, **source_kwargs)
-            source._configured_priority = index + 1
-            built_sources.append(source)
-        except Exception as exc:  # noqa: BLE001 - optional adapters may fail during construction
-            role = "primary" if index == 0 else "fallback"
-            _log_source_construction_failure(source_name, role, exc)
-
-    if not built_sources:
-        configured = ", ".join(source_names)
-        raise RuntimeError(f"市场 {market} 的数据源均不可用: {configured}")
-
-    # 主源的可选依赖缺失时，将首个可用 fallback 提升为当前源。
-    # 这样离线研究不会在数据源构造阶段提前中断。
-    primary = built_sources[0]
-    return DataSourceProxy(primary, built_sources[1:])
+    try:
+        primary = _build_source(primary_name, cfg=cfg, market=market, **kwargs)
+    except Exception as exc:  # noqa: BLE001 - provider construction is fail-closed
+        _log_source_construction_failure(primary_name, exc)
+        raise RuntimeError(f"市场 {market} 的 primary 数据源不可用: {primary_name}") from exc
+    primary._configured_priority = 1
+    return DataSourceProxy(primary)
 
 
 def get_configured_source(market: str, name: str) -> DataSource:
-    """构造市场配置中明确列出的单个数据源，不启用 fallback。"""
+    """显式构造配置中声明的单个数据源，用于诊断，不启用自动回退。"""
     cfg = get_config(market)
     sources_cfg = cfg.get("data_sources", {})
-    configured = [sources_cfg.get("primary"), *sources_cfg.get("fallback", [])]
+    if "fallback" in sources_cfg:
+        raise ValueError(
+            f"市场 {market} 使用了已移除的 data_sources.fallback；请显式选择诊断数据源"
+        )
+    configured = {
+        str(source_name)
+        for source_name, source_cfg in sources_cfg.items()
+        if source_name != "primary" and isinstance(source_cfg, dict)
+    }
+    primary = sources_cfg.get("primary")
+    if isinstance(primary, str):
+        configured.add(primary)
     if name not in configured:
         raise ValueError(f"市场 {market} 未配置数据源 {name}")
     return _build_source(name, cfg=cfg, market=market)

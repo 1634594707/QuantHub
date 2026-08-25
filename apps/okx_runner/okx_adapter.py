@@ -243,28 +243,17 @@ class OkxCcxtAdapter:
     def _fetch_all_orders(
         self, params: dict[str, Any] | None = None, symbol: str | None = None
     ) -> list[dict[str, Any]]:
-        """Read open and closed orders across CCXT implementations.
+        """Read the OKX provider-native open and closed order views.
 
-        OKX does not expose CCXT's generic ``fetch_orders`` endpoint. Keep the
-        fallback here so risk snapshots, idempotency recovery, and cancellation
-        all use the same provider-compatible order view.
+        OKX does not expose CCXT's generic ``fetch_orders`` endpoint. The formal
+        order-list implementation is therefore ``fetch_open_orders`` plus
+        ``fetch_closed_orders``; both are required so recovery, cancellation,
+        and account snapshots share one explicit provider-native contract.
         """
         query = params or {}
         exchange_symbol = self._resolve_market(symbol)[0] if symbol else None
-        try:
-            return list(self.exchange.fetch_orders(exchange_symbol, None, None, query))
-        except Exception as exc:  # noqa: BLE001 - CCXT uses provider-specific NotSupported errors
-            if "not supported" not in str(exc).lower():
-                raise
         open_orders = list(self.exchange.fetch_open_orders(exchange_symbol, None, None, query))
-        try:
-            closed_orders = list(
-                self.exchange.fetch_closed_orders(exchange_symbol, None, None, query)
-            )
-        except Exception as exc:  # noqa: BLE001 - CCXT uses provider-specific NotSupported errors
-            if "not supported" not in str(exc).lower():
-                raise
-            closed_orders = []
+        closed_orders = list(self.exchange.fetch_closed_orders(exchange_symbol, None, None, query))
         seen: set[str] = set()
         merged: list[dict[str, Any]] = []
         for payload in open_orders + closed_orders:

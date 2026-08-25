@@ -63,6 +63,54 @@ class OkxGridStrategy(StrategyBase):
         self._source: OkxSource | None = None
         self._executor: OkxExecutor | None = None
 
+    def _reject_incomplete_market_data(
+        self,
+        *,
+        source: Any,
+        symbols: list[str],
+        failed_symbols: list[str],
+        reason: str,
+        interval: str,
+        limit: int,
+    ) -> list[Signal]:
+        """记录 primary 行情缺口并阻断整批网格信号。
+
+        网格信号来自截面排名；把缺失标的静默剔除会改变排名宇宙，
+        进而把部分行情误当成完整市场。任何标的不可用时都不发布
+        已经计算出的部分结果，调用方可通过拒绝详情采取恢复动作。
+        """
+        source_name = str(getattr(source, "name", "unknown"))
+        failed = list(dict.fromkeys(str(symbol) for symbol in failed_symbols))
+        details = {
+            "source": source_name,
+            "market": _MARKET,
+            "symbols": [str(symbol) for symbol in symbols],
+            "failed_symbols": failed,
+            "interval": interval,
+            "limit": limit,
+            "reason": reason,
+        }
+        self.last_report = {
+            "kind": _SOURCE,
+            "status": "unavailable",
+            "degraded": True,
+            "display_only": True,
+            "execution_eligible": False,
+            **details,
+        }
+        self.last_signal_rejection = {
+            "code": "market_data_incomplete",
+            "message": "OKX primary 行情不完整，未发布网格信号。",
+            "details": details,
+        }
+        logger.warning(
+            "okx_grid 因 primary 行情不完整而终止: source=%s failed_symbols=%s reason=%s",
+            source_name,
+            failed,
+            reason,
+        )
+        return []
+
     # ------------------------------------------------------------------
     # 数据源 / 执行器懒加载
     # ------------------------------------------------------------------
@@ -114,7 +162,9 @@ class OkxGridStrategy(StrategyBase):
                 - 上半区（pos>0.6）→ sell
                 - 中间区域       → hold
         """
-        symbols = symbols or []
+        symbols = list(symbols or [])
+        self.last_report = None
+        self.last_signal_rejection = None
         if not symbols:
             logger.debug("okx_grid.produce 未提供 symbols，跳过")
             return []
@@ -125,22 +175,68 @@ class OkxGridStrategy(StrategyBase):
         factor_config = kwargs.get("factor_config", _DEFAULT_FACTOR_CONFIG)
 
         # 1. 拉取 K线（OkxSource，不重新封装 ccxt）
+        try:
+            source = self.source
+        except Exception as exc:
+            logger.exception("okx primary 数据源不可用")
+            return self._reject_incomplete_market_data(
+                source=None,
+                symbols=symbols,
+                failed_symbols=symbols,
+                reason=f"primary 数据源初始化失败: {exc}",
+                interval=interval,
+                limit=limit,
+            )
+
         klines_dict: dict[str, pd.DataFrame] = {}
         for sym in symbols:
             try:
-                df = self.source.get_kline(sym, interval=interval, limit=limit)
-            except Exception:
+                df = source.get_kline(sym, interval=interval, limit=limit)
+            except Exception as exc:
                 logger.exception("okx 取 K线失败: %s", sym)
-                continue
-            if df is not None and not df.empty:
-                klines_dict[sym] = df
+                return self._reject_incomplete_market_data(
+                    source=source,
+                    symbols=symbols,
+                    failed_symbols=[sym],
+                    reason=f"primary K 线请求失败: {exc}",
+                    interval=interval,
+                    limit=limit,
+                )
+            if df is None or not isinstance(df, pd.DataFrame) or df.empty:
+                return self._reject_incomplete_market_data(
+                    source=source,
+                    symbols=symbols,
+                    failed_symbols=[sym],
+                    reason="primary K 线为空",
+                    interval=interval,
+                    limit=limit,
+                )
+            klines_dict[sym] = df
 
         if not klines_dict:
             logger.warning("okx_grid.produce 无可用 K线")
-            return []
+            return self._reject_incomplete_market_data(
+                source=source,
+                symbols=symbols,
+                failed_symbols=symbols,
+                reason="primary K 线为空",
+                interval=interval,
+                limit=limit,
+            )
 
         # 2. 多因子选币（因子公式保持原样）
-        selected = run_select(klines_dict, top_n=top_n, factor_config=factor_config)
+        try:
+            selected = run_select(klines_dict, top_n=top_n, factor_config=factor_config)
+        except Exception as exc:
+            logger.exception("okx_grid 选币计算失败")
+            return self._reject_incomplete_market_data(
+                source=source,
+                symbols=symbols,
+                failed_symbols=symbols,
+                reason=f"选币计算失败: {exc}",
+                interval=interval,
+                limit=limit,
+            )
         if not selected:
             logger.warning("okx_grid 选币结果为空")
             return []
@@ -154,26 +250,26 @@ class OkxGridStrategy(StrategyBase):
         signals: list[Signal] = []
         for sym in selected:
             df = klines_dict.get(sym)
-            if df is None or df.empty:
-                continue
-            last_close = float(df.iloc[-1]["close"])
-            upper_p = last_close * upper_coef
-            lower_p = last_close * lower_coef
-            # 价格在区间的相对位置: 0=下限, 1=上限
-            pos = (last_close - lower_p) / (upper_p - lower_p) if upper_p > lower_p else 0.5
-            pos = max(0.0, min(1.0, pos))
-
-            if pos < 0.4:
-                direction = "buy"
-                score = 1.0 - pos  # 越接近下限，买入置信越强
-            elif pos > 0.6:
-                direction = "sell"
-                score = pos  # 越接近上限，卖出置信越强
-            else:
-                direction = "hold"
-                score = 0.5
-
             try:
+                if df is None or df.empty:
+                    raise ValueError("选币结果引用了不可用 K 线")
+                last_close = float(df.iloc[-1]["close"])
+                upper_p = last_close * upper_coef
+                lower_p = last_close * lower_coef
+                # 价格在区间的相对位置: 0=下限, 1=上限
+                pos = (last_close - lower_p) / (upper_p - lower_p) if upper_p > lower_p else 0.5
+                pos = max(0.0, min(1.0, pos))
+
+                if pos < 0.4:
+                    direction = "buy"
+                    score = 1.0 - pos  # 越接近下限，买入置信越强
+                elif pos > 0.6:
+                    direction = "sell"
+                    score = pos  # 越接近上限，卖出置信越强
+                else:
+                    direction = "hold"
+                    score = 0.5
+
                 sig = Signal(
                     symbol=sym,
                     market=_MARKET,
@@ -191,11 +287,20 @@ class OkxGridStrategy(StrategyBase):
                         "top_n": top_n,
                     },
                 )
-                self.publish(sig)
                 signals.append(sig)
-            except ValueError as e:
-                logger.warning("信号构造失败 %s: %s", sym, e)
+            except Exception as exc:
+                logger.exception("网格信号构造失败 %s", sym)
+                return self._reject_incomplete_market_data(
+                    source=source,
+                    symbols=symbols,
+                    failed_symbols=[sym],
+                    reason=f"信号构造失败: {exc}",
+                    interval=interval,
+                    limit=limit,
+                )
 
+        for sig in signals:
+            self.publish(sig)
         return signals
 
     # ------------------------------------------------------------------

@@ -77,9 +77,7 @@ def revoke_api_token(token_id: str) -> dict:
 
 
 @router.get("/audit")
-def audit(
-    limit: int = Query(default=200, ge=1, le=1000), cursor: str | None = None
-) -> dict:
+def audit(limit: int = Query(default=200, ge=1, le=1000), cursor: str | None = None) -> dict:
     try:
         page = repository.list_audit_page(limit=limit, cursor=cursor)
     except ValueError as exc:

@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api, HttpError } from '../api/client'
-import { useLocalStorage } from './useLocalStorage'
 import { uid } from '../lib/uid'
 import { useSecurityNameResolver } from './useSecurityNameResolver'
 import type { PortfolioHolding } from '../api/types'
@@ -15,16 +14,13 @@ export interface HoldingInput {
 }
 
 export interface HoldingRow extends HoldingInput {
-  price: number
-  chgPct: number
+  price: number | null
+  chgPct: number | null
   available: boolean
-  pnl: number
-  marketValue: number
-  chgBasedScore: number
+  pnl: number | null
+  marketValue: number | null
+  chgBasedScore: number | null
 }
-
-const KEY = 'qh.holdings.v1'
-const CASH_KEY = 'qh.portfolio.cash.v1'
 
 function toInput(h: PortfolioHolding): HoldingInput {
   return {
@@ -38,20 +34,16 @@ function toInput(h: PortfolioHolding): HoldingInput {
 }
 
 /**
- * 可编辑持仓：后端 SQLite 为真值源，localStorage 为离线缓存。
+ * 可编辑持仓：后端 SQLite 是唯一业务真源。
  *
- * 同步策略：
- *   - 首屏从 ``/portfolio`` 加载，覆盖 localStorage
- *   - 编辑模式中 add/update/remove 即时改 list（保持流畅输入）
- *   - remove 先做本地乐观更新，并立即提交 DELETE；失败时恢复原行
- *   - 退出编辑模式时调用 ``commit()`` 全量同步：
- *     tmp- 前缀行（code 非空）→ ``POST``；真实行 → ``PATCH``
- *   - 后端不可达时只保留 localStorage 中的用户缓存
+ * 首屏只从 ``/portfolio`` 读取；读取失败时保持空列表并暴露错误，绝不读取旧浏览器缓存。
+ * 编辑草稿仅存在于当前页面内存；DELETE 的同一请求失败可回滚该次乐观删除。
  */
 export function useEditableHoldings(enabled = true) {
-  const [list, setList] = useLocalStorage<HoldingInput[]>(KEY, [])
-  const [seedCash, setSeedCash] = useLocalStorage<number>(CASH_KEY, 0)
+  const [list, setList] = useState<HoldingInput[]>([])
+  const [seedCash, setSeedCash] = useState(0)
   const [seeded, setSeeded] = useState(false)
+  const [loadError, setLoadError] = useState('')
   const [mutationError, setMutationError] = useState('')
 
   const applyResolvedName = useCallback(
@@ -71,24 +63,24 @@ export function useEditableHoldings(enabled = true) {
     let active = true
     api
       .portfolio()
-      .then((r) => {
+      .then((response) => {
         if (!active) return
-        const seed = (r.holdings ?? []).map(toInput)
-        setList(seed)
-        if (typeof r.summary?.cash === 'number') {
-          setSeedCash(r.summary.cash)
-        }
+        setList((response.holdings ?? []).map(toInput))
+        setSeedCash(typeof response.summary?.cash === 'number' ? response.summary.cash : 0)
+        setLoadError('')
         setSeeded(true)
       })
-      .catch(() => {
+      .catch((reason) => {
         if (!active) return
-        // 后端不可达时只保留用户缓存，绝不注入不可删除的演示持仓。
+        setList([])
+        setSeedCash(0)
+        setLoadError(reason instanceof Error ? reason.message : '持仓加载失败')
         setSeeded(true)
       })
     return () => {
       active = false
     }
-  }, [enabled, seeded, setList, setSeedCash])
+  }, [enabled, seeded])
 
   const add = useCallback(
     (market = 'a_shares') => {
@@ -161,7 +153,7 @@ export function useEditableHoldings(enabled = true) {
   }, [list, setList])
 
   return {
-    list, add, update, remove, commit, seeded, seedCash,
+    list, add, update, remove, commit, seeded, seedCash, loadError,
     resolveName, resolvingIds, mutationError,
   }
 }

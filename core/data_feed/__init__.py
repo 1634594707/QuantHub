@@ -1,7 +1,7 @@
 """数据层统一入口。
 
 对外暴露:
-    get_data_source(market) -> DataSourceProxy (带缓存+fallback)
+    get_data_source(market) -> DataSourceProxy (带来源隔离缓存的 single primary)
     Kline / News / Announcement / DataSource / Interval / Market
 """
 
@@ -14,6 +14,7 @@ from core.data_feed.base import (
     Kline,
     Market,
     News,
+    RealtimeQuote,
     klines_to_df,
 )
 from core.data_feed.cache import CacheStore, cache_key_date
@@ -32,6 +33,7 @@ __all__ = [
     "Kline",
     "Market",
     "News",
+    "RealtimeQuote",
     "cache_key_date",
     "get_data_source",
     "klines_to_df",

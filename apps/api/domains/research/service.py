@@ -141,7 +141,7 @@ def dataframe_snapshot(df: pd.DataFrame) -> dict[str, Any]:
                 row[key] = value
         records.append(row)
     return {
-        "source": str(df.attrs.get("_source", "local")),
+        "source": str(df.attrs.get("_source", "unknown")),
         "count": len(records),
         "columns": fields,
         "sha256": snapshot_hash(records),

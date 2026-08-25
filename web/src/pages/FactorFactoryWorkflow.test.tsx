@@ -85,45 +85,9 @@ describe('FactorFactoryWorkflow', () => {
     )
   })
 
-  it('registers an auditable template and runs its DSL drawdown experiment', async () => {
-    vi.spyOn(api, 'factorFactoryArchive').mockResolvedValue({ ok: true, count: 0, total: 0, research_record_count: 0, ineligible_count: 0, verified_count: 0, eligible_only: true, archives: [], live_trading_enabled: false })
-    const definition = {
-      id: 'definition-1', key: 'volatility_adjusted_momentum', factor_key: 'volatility_adjusted_momentum',
-      label: '波动率调整动量', market: 'crypto', input_fields: ['close'],
-      ast: { op: 'rolling_zscore', value: { op: 'field', name: 'close' }, window: 60 },
-      direction: 'positive', horizon: 5, availability_lag: 1, rationale: '趋势延续 × 风险归一化',
-      family: 'factor_factory', version: '1.0.0', parameters: { research_angle: '趋势延续 × 风险归一化', interval: '1d' },
-      formula_hash: 'a'.repeat(64), definition_hash: 'b'.repeat(64),
-      validation: { unit: 'dimensionless', shape: 'series', fields: ['close'], depth: 3, operators: 4 }, created_at: 1,
-    }
-    const register = vi.spyOn(api, 'registerFactorDefinition').mockResolvedValue({ ok: true, definition } as never)
-    const run = vi.spyOn(api, 'demoRun').mockResolvedValue({
-      ok: true, run_id: 'demo-run-1', config: {}, persisted: true,
-      data_provenance: { source: 'okx_local', channel: 'archive', fingerprint: 'c'.repeat(64), selected_first: '2025-01-01', selected_last: '2025-12-31' },
-      summary: { final_equity: 1_080_000, total_return: 0.08, max_drawdown: -0.09, engine: 'event-signal', n_trades: 4, metrics: { sharpe: 1.2 } },
-      equity_curve: [{ datetime: '2025-01-01', equity: 1_000_000 }, { datetime: '2025-12-31', equity: 1_080_000 }],
-      trades: [{ datetime: '2025-12-30', side: 'buy', price: 100, qty: 1, realized_pnl: 0 }], run_log: [],
-    } as never)
-
-    render(<FactorFactoryWorkflow />)
-    fireEvent.click(screen.getByRole('tab', { name: '手动流程' }))
-    expect(screen.getByRole('button', { name: /波动率调整动量/ })).toBeTruthy()
-    expect(screen.queryByRole('button', { name: '运行回撤实验' })).toBeNull()
-    expect((screen.getByRole('button', { name: /固定回测/ }) as HTMLButtonElement).disabled).toBe(true)
-    fireEvent.click(screen.getByRole('button', { name: '登记为 draft' }))
-
-    await waitFor(() => expect(register).toHaveBeenCalledWith(expect.objectContaining({
-      key: 'volatility_adjusted_momentum', market: 'crypto', availability_lag: 1, family: 'factor_factory',
-    })))
-    fireEvent.click(await screen.findByRole('button', { name: '运行回撤实验' }))
-
-    await waitFor(() => expect(run).toHaveBeenCalledWith(expect.objectContaining({
-      source: 'okx_local', symbol: 'BTCUSDT', strategy: 'factor_follow',
-      factor: 'volatility_adjusted_momentum', factor_ast: definition.ast,
-    })))
-    fireEvent.click(screen.getByRole('button', { name: /固定回测/ }))
-    expect((await screen.findAllByText('8.00%')).length).toBeGreaterThanOrEqual(1)
-    expect(screen.getByText('固定回测')).toBeTruthy()
+  it('exposes manual alpha through the formal factor-factory run path only', () => {
+    expect('demoRun' in api).toBe(false)
+    expect('demoPresets' in api).toBe(false)
   })
 
   it('starts the persisted automatic research loop from the control surface', async () => {
@@ -164,7 +128,9 @@ describe('FactorFactoryWorkflow', () => {
     await waitFor(() => expect([...container.querySelectorAll('select')].some((select) => [...select.options].some((option) => option.value === 'custom'))).toBe(true))
     const providerSelect = [...container.querySelectorAll('select')].find((select) => [...select.options].some((option) => option.value === 'custom'))
     fireEvent.change(providerSelect!, { target: { value: 'custom' } })
-    fireEvent.click(screen.getByRole('button', { name: '启动自动研究' }))
+    const startButton = screen.getByRole('button', { name: '启动自动研究' }) as HTMLButtonElement
+    await waitFor(() => expect(startButton.disabled).toBe(false))
+    fireEvent.click(startButton)
 
     await waitFor(() => expect(start).toHaveBeenCalledWith(expect.objectContaining({
       source: 'okx_live', symbol: 'BTC-USDT-SWAP', interval: '4h', candidate_budget: 30,
@@ -271,7 +237,9 @@ describe('FactorFactoryWorkflow', () => {
     const input = container.querySelector('input[type="file"]') as HTMLInputElement
     fireEvent.change(input, { target: { files: [file] } })
     expect(await screen.findByText('1 个上传候选')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: '启动自动研究' }))
+    const startButton = screen.getByRole('button', { name: '启动自动研究' }) as HTMLButtonElement
+    await waitFor(() => expect(startButton.disabled).toBe(false))
+    fireEvent.click(startButton)
 
     await waitFor(() => expect(start).toHaveBeenCalledWith(expect.objectContaining({
       candidate_mode: 'manual', use_ai: false, ai_candidate_count: 0,
@@ -433,6 +401,59 @@ describe('FactorFactoryWorkflow', () => {
     expect((screen.getByPlaceholderText('代码或名称，如 AVGO / 博通') as HTMLInputElement).value).toBe('AVGO-USDT-SWAP')
   })
 
+  it('treats cached OKX catalog rows as metadata until local research is explicitly selected', async () => {
+    vi.spyOn(api, 'factorFactoryArchive').mockResolvedValue({ ok: true, count: 0, total: 0, research_record_count: 0, ineligible_count: 0, verified_count: 0, eligible_only: true, archives: [], live_trading_enabled: false })
+    vi.spyOn(api, 'factorFactoryRuns').mockResolvedValue({ ok: true, count: 0, runs: [], live_trading_enabled: false })
+    vi.mocked(api.okxSwapCatalog).mockImplementation(async (query = '') => ({
+      ok: true,
+      source: 'okx_public_cache' as const,
+      degraded: true,
+      warning: 'OKX public catalog unavailable',
+      query,
+      count: 1,
+      total: 1,
+      cache_age_seconds: 60,
+      cache_ttl_seconds: 900,
+      fetched_at: 1,
+      error: null,
+      instruments: [{
+        instrument_id: 'crypto:ARCHIVE-USDT-SWAP', code: 'ARCHIVE-USDT-SWAP', market: 'crypto' as const,
+        exchange: 'okx', name: '缓存合约 / Cached metadata 永续', currency: 'USDT', asset_class: 'crypto',
+        base: 'ARCHIVE', quote: 'USDT', settle: 'USDT', contract_size: 1, price_precision: 0.01,
+        amount_precision: 0.01, minimum_amount: 0.01, linear: true, verified: true, trading_ready: true,
+      }],
+    }))
+    const start = vi.spyOn(api, 'startFactorFactory').mockResolvedValue({
+      ok: true,
+      run: {
+        id: 'cached-metadata-run', research_plan_id: 'cached-metadata-plan', status: 'no_qualified_factor', config: {}, result: { message: 'done' },
+        selected_factor_key: null, selected_factor_version: null, selected_experiment_id: null, error: null,
+        started_at: 1, updated_at: 1, observation_started_at: null, observation_ends_at: null,
+      },
+      candidates: [], observations: [], simulation_orders: [], observation_summary: { count: 0, latest_equity: null, after_cost_return: null, max_drawdown: 0 }, live_trading_enabled: false,
+    } as never)
+
+    const { container } = render(<FactorFactoryWorkflow />)
+    await waitFor(() => expect(api.okxSwapCatalog).toHaveBeenCalledWith('BTC-USDT-SWAP', 20))
+    fireEvent.click(screen.getByRole('button', { name: '合约目录' }))
+    fireEvent.click(await screen.findByRole('button', { name: /缓存合约.*ARCHIVE-USDT-SWAP.*面值/ }))
+
+    const sourceSelect = [...container.querySelectorAll('select')].find((select) => [...select.options].some((option) => option.value === 'okx_local'))
+    const targetSelect = [...container.querySelectorAll('select')].find((select) => [...select.options].some((option) => option.value === 'okx_demo'))
+    expect(sourceSelect?.value).toBe('okx_live')
+    expect(targetSelect?.value).toBe('simulation_orders')
+    expect((screen.getByRole('button', { name: '启动自动研究' }) as HTMLButtonElement).disabled).toBe(true)
+
+    fireEvent.change(sourceSelect!, { target: { value: 'okx_local' } })
+    expect(targetSelect?.value).toBe('simulation_orders')
+    expect((screen.getByRole('button', { name: '启动自动研究' }) as HTMLButtonElement).disabled).toBe(false)
+    fireEvent.click(screen.getByRole('button', { name: '启动自动研究' }))
+
+    await waitFor(() => expect(start).toHaveBeenCalledWith(expect.objectContaining({
+      source: 'okx_local', symbol: 'ARCHIVE-USDT-SWAP', paper_target: 'simulation_orders',
+    })))
+  })
+
   it('sanitizes OKX catalogue timeouts and keeps dependent actions disabled', async () => {
     vi.mocked(api.okxSwapCatalog).mockResolvedValue({
       ok: false,
@@ -455,5 +476,20 @@ describe('FactorFactoryWorkflow', () => {
     expect(screen.getByRole('button', { name: '刷新 OKX 合约目录' })).toBeTruthy()
     await waitFor(() => expect((screen.getByRole('button', { name: '启动自动研究' }) as HTMLButtonElement).disabled).toBe(true))
     expect((screen.getByRole('button', { name: '实时 K 线' }) as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('keeps the default crypto target fail-closed when the public catalog request fails', async () => {
+    vi.spyOn(api, 'factorFactoryArchive').mockResolvedValue({ ok: true, count: 0, total: 0, research_record_count: 0, ineligible_count: 0, verified_count: 0, eligible_only: true, archives: [], live_trading_enabled: false })
+    vi.spyOn(api, 'factorFactoryRuns').mockResolvedValue({ ok: true, count: 0, runs: [], live_trading_enabled: false })
+    vi.mocked(api.okxSwapCatalog).mockRejectedValue(new Error('OKX public catalog unavailable'))
+    const start = vi.spyOn(api, 'startFactorFactory').mockResolvedValue({} as never)
+
+    render(<FactorFactoryWorkflow />)
+    await waitFor(() => expect(api.okxSwapCatalog).toHaveBeenCalledWith('BTC-USDT-SWAP', 20))
+
+    const startButton = screen.getByRole('button', { name: '启动自动研究' }) as HTMLButtonElement
+    expect(startButton.disabled).toBe(true)
+    fireEvent.click(startButton)
+    expect(start).not.toHaveBeenCalled()
   })
 })

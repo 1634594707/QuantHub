@@ -46,7 +46,7 @@ export interface HealthResp {
 export interface DataSourceStatusResp {
   ok: boolean
   generated_at: number
-  configured: Array<{ market: string; primary: string | null; fallbacks: string[] }>
+  configured: Array<{ market: string; primary: string | null }>
   sources: Array<{
     source: string
     operation: DataSourceOperation
@@ -432,91 +432,6 @@ export interface SimulationAccount {
 /** 数据源：真实 OKX 归档 / 真实 OKX 实时 / 确定性合成 */
 export type DemoSourceKey = 'okx_local' | 'okx_live' | 'synthetic'
 
-export interface DemoSourceOption {
-  key: DemoSourceKey
-  label: string
-  description: string
-  realtime: boolean
-  needs_network: boolean
-  intervals: string[]
-  symbols: Array<{ symbol: string; label: string }>
-  /** 仅本地归档通道有值：每个标的每个周期的行数与覆盖区间 */
-  symbol_coverage: Record<
-    string,
-    Record<string, { rows: number; first: string; last: string; file: string }>
-  >
-}
-
-export interface DemoFactorOption {
-  key: string
-  label: string
-  description: string
-  default_params: Record<string, number>
-}
-
-export interface DemoStrategyOption {
-  key: string
-  label: string
-  description: string
-  uses_factor: boolean
-}
-
-export interface DemoDatasetOption {
-  key: string
-  label: string
-  description: string
-  drift: number
-  vol: number
-  start_price: number
-  regime: string
-}
-
-export interface DemoCatalog {
-  ok: boolean
-  sources: DemoSourceOption[]
-  datasets: DemoDatasetOption[]
-  factors: DemoFactorOption[]
-  strategies: DemoStrategyOption[]
-  intervals: string[]
-  defaults: {
-    source: DemoSourceKey
-    symbol: string
-    dataset: string
-    seed: number
-    n_bars: number
-    interval: string
-    start: string | null
-    end: string | null
-    use_cache: boolean
-    initial_capital: number
-    commission: number
-    position_fraction: number
-    strategy: string
-    factor: string
-  }
-}
-
-export interface DemoRunPayload {
-  source: DemoSourceKey
-  symbol?: string | null
-  dataset?: string
-  seed?: number
-  n_bars: number
-  interval: string
-  start?: string | null
-  end?: string | null
-  use_cache?: boolean
-  initial_capital: number
-  commission: number
-  position_fraction: number
-  strategy: string
-  factor?: string | null
-  factor_params?: Record<string, unknown>
-  factor_ast?: Record<string, unknown> | null
-  factor_label?: string | null
-  factor_version?: string | null
-}
-
 export interface DemoDataProvenance {
   source: DemoSourceKey
   channel: string
@@ -584,18 +499,6 @@ export interface DemoRunLogEntry {
   step: string
   message: string
   at: string
-}
-
-export interface DemoRunResult {
-  ok: boolean
-  run_id: string
-  config: Record<string, unknown>
-  data_provenance: DemoDataProvenance
-  summary: DemoRunSummaryBlock
-  equity_curve: DemoEquityPoint[]
-  trades: DemoTrade[]
-  run_log: DemoRunLogEntry[]
-  persisted: boolean
 }
 
 export interface DemoRunSummary {
@@ -1023,7 +926,7 @@ export interface FactorRealityCheck {
 export interface FactorAiReviewResp {
   ok: boolean
   error?: string
-  run_id?: string
+  run_id: string
   saved?: boolean
   review?: {
     verdict: '支持继续研究' | '谨慎复核' | '证据不足'
@@ -1990,13 +1893,17 @@ export interface DecisionTreeView {
 // ---------- 组合与市场面板 ----------
 
 export interface PortfolioSummary {
-  nav: number
-  dailyPnl: number
-  dailyPnlPct: number
+  nav: number | null
+  dailyPnl: number | null
+  dailyPnlPct: number | null
   cash: number
   /** 涨跌派生情绪分（非真实胜率；真实胜率见 DecisionPanel 的 estimated_win_rate）。 */
-  chgBasedScore: number
+  chgBasedScore: number | null
   totalPositions: number
+  pricedPositions?: number
+  unpricedPositions?: number
+  costBasis?: number
+  valuationStatus?: 'available' | 'cached' | 'partial' | 'unavailable'
 }
 
 export interface PortfolioHolding {
@@ -2004,14 +1911,16 @@ export interface PortfolioHolding {
   id?: string
   code: string
   name: string
-  price: number
+  price: number | null
   /** 持仓成本价（用于前端可编辑持仓的盈亏计算）。 */
   cost: number
-  chgPct: number
+  chgPct: number | null
   shares: number
-  pnl: number
+  pnl: number | null
   /** 涨跌派生情绪分（非真实胜率）。 */
-  chgBasedScore: number
+  chgBasedScore: number | null
+  available?: boolean
+  marketValue?: number | null
   /** 市场标识（a_shares/us_stocks/crypto） */
   market?: string
 }
@@ -2127,6 +2036,14 @@ export interface EnsembleResp {
   contributors?: EnsembleContributor[]
   consensus?: EnsembleConsensus
   warnings?: string[]
+  /**
+   * Execution gate emitted by the ensemble service.  Consumers must treat a
+   * missing value as not eligible (fail closed) before creating a signal.
+   */
+  status?: 'available' | 'degraded' | 'unavailable' | string
+  degraded?: boolean
+  execution_eligible?: boolean
+  display_only?: boolean
 }
 
 // ---------- 配置（API Key 等） ----------
@@ -2213,7 +2130,7 @@ export interface OkxSwapInstrument extends Instrument {
 
 export interface OkxSwapCatalogResponse {
   ok: boolean
-  source: 'okx_public' | 'okx_public_cache' | 'okx_local_cache' | 'unavailable'
+  source: 'okx_public' | 'okx_public_cache' | 'unavailable'
   degraded?: boolean
   warning?: string | null
   query: string
@@ -2761,8 +2678,7 @@ export interface ConfigSystemStatus {
   capabilities: {
     a_shares: { akshare: boolean }
     news_sentiment: {
-      engine: 'transformers' | 'snownlp' | 'keyword'
-      snownlp: boolean
+      engine: 'transformers' | 'unavailable'
       transformers: boolean
       torch: boolean
       model_path: string
@@ -2981,7 +2897,7 @@ export interface NewsAnalysisItem {
   research_event?: NewsEventExtraction
   topic: string
   summary: string
-  engine: string // "semantic" | "semantic+api" | "keyword"
+  engine: 'semantic+api' | 'semantic'
   model: string | null
   latency_ms: number
   error: string | null
@@ -3006,8 +2922,10 @@ export interface NewsAnalyzeResp {
 /** GET /news/health 响应 */
 export interface NewsHealthResp {
   ok: boolean
-  engine: string  // transformers / snownlp / keyword（SentimentAnalyzer 实际引擎）
-  api_enhancement: boolean  // DeepSeek API 是否可用
+  engine: 'transformers' | 'unavailable'
+  sentiment_model_available: boolean
+  sentiment_model_reason: string | null
+  api_enhancement: boolean  // 配置 LLM 是否可用
   api_provider: string
   model: string | null
 }

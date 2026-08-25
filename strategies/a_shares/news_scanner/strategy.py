@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import json
 import logging
-import re
+import math
 from typing import Any
 
 from core.config import get_config
@@ -70,8 +70,8 @@ _SELL_THRESHOLD = 0.35
 class NewsScannerStrategy(StrategyBase):
     """新闻情绪扫描策略。
 
-    通过 ``core.data_feed`` 获取新闻，经 ``core.llm`` 统一客户端做情绪分析，
-    按情绪分数产出 buy/sell/hold 信号。
+    通过 ``core.data_feed`` 获取新闻，经 ``core.llm`` 统一客户端做情绪分析。
+    LLM 不可用、调用失败或输出不完整时只记录不可用状态，不发布替代信号。
     """
 
     def __init__(self, config: dict | None = None) -> None:
@@ -106,8 +106,13 @@ class NewsScannerStrategy(StrategyBase):
         # 复用统一 LLM 客户端（不重新实现 ai_client）
         try:
             self._llm = get_llm()
-        except Exception:
+        except Exception as exc:
             logger.exception("LLM 客户端初始化失败，news_scanner 终止")
+            self._record_unavailable(
+                ",".join(symbols) if symbols else _MARKET_SYMBOL,
+                0,
+                f"llm_client_unavailable: {exc}",
+            )
             return []
 
         ds = get_data_source(_MARKET)
@@ -164,7 +169,11 @@ class NewsScannerStrategy(StrategyBase):
         if not titles:
             return None
 
-        avg_score, dist, dominant_sentiment, reason = self._analyze_batch(titles)
+        analysis = self._analyze_batch(titles)
+        if analysis is None:
+            self._record_unavailable(symbol, len(titles), "llm_response_unavailable_or_invalid")
+            return None
+        avg_score, dist, dominant_sentiment, reason = analysis
         pos_prob = (avg_score + 1.0) / 2.0
         direction, score_field = self._map_direction(pos_prob)
 
@@ -196,18 +205,35 @@ class NewsScannerStrategy(StrategyBase):
             logger.warning("信号构造失败 %s: %s", symbol, e)
             return None
 
-    def _analyze_batch(self, titles: list[str]) -> tuple[float, dict[str, int], str, str]:
+    def _record_unavailable(self, symbol: str, news_count: int, reason: str) -> None:
+        """保存展示级失败诊断；绝不把 LLM 失败合成为中性信号。"""
+        self.last_report = {
+            "kind": "news_scanner",
+            "symbol": symbol,
+            "news_count": news_count,
+            "status": "unavailable",
+            "degraded": True,
+            "display_only": True,
+            "execution_eligible": False,
+            "reason": reason,
+        }
+        self.last_signal_rejection = {
+            "code": "news_scanner_llm_unavailable",
+            "message": "新闻 LLM 不可用或输出不完整，未发布新闻扫描信号。",
+            "details": {"source": _SOURCE, "symbol": symbol, "reason": reason},
+        }
+
+    def _analyze_batch(self, titles: list[str]) -> tuple[float, dict[str, int], str, str] | None:
         """批量分析新闻标题（单次 LLM 调用，避免 N 条新闻 N 次调用的延迟）。
 
         Returns:
             (avg_score, sentiment_dist, dominant_sentiment, reason)
             avg_score ∈ [-1,1]，sentiment_dist 形如 {"Positive": n, ...}，
-            dominant_sentiment ∈ {"Positive","Negative","Neutral"}，
-            失败时返回 (0.0, 全 0 计数, "Neutral", "")。
+            dominant_sentiment ∈ {"Positive","Negative","Neutral"}；
+            失败或不完整输出时返回 None。
         """
-        neutral_dist = {"Positive": 0, "Negative": 0, "Neutral": 0}
         if not titles or self._llm is None:
-            return 0.0, neutral_dist, "Neutral", ""
+            return None
 
         content = "\n".join(f"{i + 1}. {t}" for i, t in enumerate(titles))
         messages = [
@@ -222,46 +248,55 @@ class NewsScannerStrategy(StrategyBase):
             )
         except Exception:
             logger.exception("LLM 批量情绪分析失败")
-            return 0.0, neutral_dist, "Neutral", ""
+            return None
 
-        return self._parse_batch_sentiment(resp.content, len(titles))
+        return self._parse_batch_sentiment(getattr(resp, "content", None), len(titles))
 
     @staticmethod
-    def _parse_batch_sentiment(raw: str, total: int) -> tuple[float, dict[str, int], str, str]:
-        """解析 LLM 批量返回的 JSON。
-
-        若 positive/negative/neutral 计数之和不等于 total，退化为「全部归入主导情绪」。
-        """
-        neutral_dist = {"Positive": 0, "Negative": 0, "Neutral": 0}
+    def _parse_batch_sentiment(
+        raw: str | None,
+        total: int,
+    ) -> tuple[float, dict[str, int], str, str] | None:
+        """严格解析 LLM 批量 JSON；不重建默认中性结果或计数。"""
         if not raw:
-            return 0.0, neutral_dist, "Neutral", ""
-        match = re.search(r"\{.*?\}", raw, re.DOTALL)
-        if not match:
-            return 0.0, neutral_dist, "Neutral", ""
+            return None
         try:
-            obj = json.loads(match.group())
-        except json.JSONDecodeError:
-            return 0.0, neutral_dist, "Neutral", ""
+            obj = json.loads(raw.strip())
+        except (AttributeError, TypeError, json.JSONDecodeError):
+            return None
+        if not isinstance(obj, dict):
+            return None
 
         try:
-            score = max(-1.0, min(1.0, float(obj.get("score", 0.0))))
-        except (TypeError, ValueError):
-            score = 0.0
-
-        dist = {
-            "Positive": max(0, int(obj.get("positive", 0) or 0)),
-            "Negative": max(0, int(obj.get("negative", 0) or 0)),
-            "Neutral": max(0, int(obj.get("neutral", 0) or 0)),
-        }
-        # 计数校正：LLM 返回的计数之和与实际新闻数不符时，退化为全部归主导情绪
-        if total <= 0 or sum(dist.values()) != total:
-            sentiment = _CN_TO_EN.get(obj.get("sentiment", "中性"), "Neutral")
-            dist = {"Positive": 0, "Negative": 0, "Neutral": 0}
-            dist[sentiment] = max(0, total)
-
-        dominant = max(dist, key=dist.get) if any(dist.values()) else "Neutral"
-        reason = str(obj.get("reason", ""))[:200]
-        return score, dist, dominant, reason
+            score = float(obj["score"])
+            values = {
+                "Positive": int(obj["positive"]),
+                "Negative": int(obj["negative"]),
+                "Neutral": int(obj["neutral"]),
+            }
+        except (KeyError, TypeError, ValueError, OverflowError):
+            return None
+        if not math.isfinite(score) or not -1.0 <= score <= 1.0:
+            return None
+        if (
+            total <= 0
+            or any(value < 0 for value in values.values())
+            or sum(values.values()) != total
+        ):
+            return None
+        sentiment = _CN_TO_EN.get(str(obj.get("sentiment", "")).strip())
+        if sentiment is None or values[sentiment] != max(values.values()):
+            return None
+        if sentiment == "Positive" and score <= 0:
+            return None
+        if sentiment == "Negative" and score >= 0:
+            return None
+        if sentiment == "Neutral" and abs(score) > 0.34:
+            return None
+        reason = obj.get("reason")
+        if not isinstance(reason, str):
+            return None
+        return score, values, sentiment, reason[:200]
 
     @staticmethod
     def _map_direction(pos_prob: float) -> tuple[str, float]:

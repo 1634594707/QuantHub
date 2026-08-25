@@ -3,8 +3,8 @@
 把 ``trading-master/02-A-stock-realtime-analyzer`` 的实时分析能力下沉为
 策略插件：
 
-- 抓数层（``fetchers``）纯标准库（东方财富 push2 盘口 + 腾讯 fqkline 日 K +
-  指数宽度），无第三方依赖，离线优雅降级。
+- 抓数层只走 ``core.data_feed`` 中配置的单一 primary；实时报价必须带来源
+  与观察时间，不能用历史 K 线、缓存或另一供应商代替。
 - LLM 层复用 ``core.llm.get_llm()``（与全仓统一，自动解析 GPT/DeepSeek 后端）。
 - 产出：深度研报（文本）+ 一条 info 级 Signal（``direction="hold"``，
   真实买卖信号由研报文本承载，Signal 仅作"分析已产出"的登记与路由占位）。
@@ -17,8 +17,10 @@ from __future__ import annotations
 import datetime as dt
 import json
 import logging
+import math
 from typing import Any
 
+from core.data_feed.factory import get_data_source
 from core.signals import Signal
 from strategies import StrategyBase, StrategyInfo, register_strategy
 from strategies.signal_contract import SIGNAL_MARKER, parse_report_signal
@@ -31,6 +33,9 @@ from .fetchers import (
 )
 
 logger = logging.getLogger(__name__)
+_DEFAULT_MAX_QUOTE_AGE_MINUTES = 12 * 60
+# MA20 plus a 20-bar return need at least 21 valid closes.
+_DEFAULT_MIN_KLINE_BARS = 21
 
 _SYSTEM_PROMPT = """\
 你是一位专业的A股分析师，遵循严格的"证据优先、过程透明"分析原则。
@@ -76,11 +81,35 @@ class RealtimeAnalyzerStrategy(StrategyBase):
     """实时 A 股分析器（实盘默认关闭）。"""
 
     def _resolve_codes(self, codes: Any) -> list[str]:
-        if codes:
-            raw = codes if isinstance(codes, str) else ",".join(codes)
-            return parse_codes(raw)
-        cfg = self.config.get("default_codes") or ["600519", "000001"]
-        return parse_codes(",".join(cfg))
+        if codes is None:
+            codes = self.config.get("default_codes")
+        if isinstance(codes, str):
+            return parse_codes(codes)
+        if isinstance(codes, (list, tuple)):
+            return parse_codes(",".join(str(item) for item in codes))
+        return []
+
+    def _reject_configuration(self, *, reason: str) -> list[Signal]:
+        details = {
+            "market": "a_shares",
+            "reason": reason,
+            "codes": [],
+        }
+        self.last_report = {
+            "kind": "configuration",
+            "status": "unavailable",
+            "degraded": True,
+            "display_only": True,
+            "execution_eligible": False,
+            **details,
+        }
+        self.last_signal_rejection = {
+            "code": "symbols_required",
+            "message": "A股实时分析未配置明确标的，未启动分析。",
+            "details": details,
+        }
+        logger.warning("realtime_analyzer 配置不完整，跳过分析: %s", reason)
+        return []
 
     def produce(
         self,
@@ -90,28 +119,76 @@ class RealtimeAnalyzerStrategy(StrategyBase):
         with_indices: bool = True,
         **kwargs,
     ) -> list[Signal]:
-        target = self.config.get("default_codes")
-        codes = self._resolve_codes(codes or target)
+        self.last_report = None
+        self.last_signal_rejection = None
+        requested_codes = codes if codes is not None else self.config.get("default_codes")
+        codes = self._resolve_codes(requested_codes)
         if not codes:
-            logger.warning("realtime_analyzer: 无可用股票代码，跳过")
-            return []
+            return self._reject_configuration(
+                reason="未提供明确股票代码（调用参数 codes 或 modules.realtime_analyzer.default_codes）"
+            )
 
+        # 只有调用方明确传入 ``with_kline=False`` 才允许 quote-only 运行。
+        # 省略参数、传入 None 或其他值都保持默认的 K 线证据闸门。
+        kline_requested = with_kline is not False
+        realtime_only = not kline_requested
         logger.info("realtime_analyzer: 抓取 %d 只实时行情", len(codes))
+        try:
+            source = get_data_source("a_shares")
+        except Exception as exc:  # noqa: BLE001 - primary construction must fail closed
+            return self._reject_market_data(
+                {
+                    "timestamp": dt.datetime.now(dt.UTC).astimezone().strftime("%Y-%m-%d %H:%M:%S"),
+                    "codes": codes,
+                    "quotes": [],
+                    "data_source": "unavailable",
+                    "kline_requested": kline_requested,
+                    "realtime_only": realtime_only,
+                    "display_only": realtime_only,
+                    "degraded": realtime_only,
+                    "execution_eligible": not realtime_only,
+                },
+                code="market_data_unavailable",
+                message="A股 primary 数据源不可用；未生成分析信号。",
+                details={"error": str(exc), "market": "a_shares"},
+            )
         market_data: dict[str, Any] = {
             "timestamp": dt.datetime.now(dt.UTC).astimezone().strftime("%Y-%m-%d %H:%M:%S"),
             "codes": codes,
-            "quotes": fetch_quotes(codes),
+            "quotes": fetch_quotes(codes, source=source),
+            "data_source": source.name,
         }
         if with_indices:
-            market_data["indices"] = fetch_index_baseline()
-        if with_kline:
-            kline = {}
+            market_data["indices"] = fetch_index_baseline(source=source)
+        kline: dict[str, Any] = {}
+        if kline_requested:
             for c in codes:
                 try:
-                    kline[c] = fetch_kline(c, days=kline_days)
-                except Exception as exc:  # noqa: BLE001 - fetchers expose provider-specific failures
-                    kline[c] = {"error": str(exc)}
+                    kline[c] = fetch_kline(c, days=kline_days, source=source)
+                except Exception as exc:  # noqa: BLE001 - preserve a visible primary failure
+                    logger.warning("A股 primary K 线失败 %s，不切换数据源: %s", c, exc)
+                    kline[c] = {
+                        "metrics": {},
+                        "klines": [],
+                        "available": False,
+                        "source": source.name,
+                        "semantics": "bar_snapshot",
+                        "error": str(exc),
+                    }
             market_data["kline"] = kline
+        market_data["kline_requested"] = kline_requested
+        market_data["realtime_only"] = realtime_only
+        market_data["display_only"] = realtime_only
+        market_data["degraded"] = realtime_only
+        market_data["execution_eligible"] = not realtime_only
+
+        rejection = self._validate_quotes(codes, market_data["quotes"], source.name)
+        if rejection is not None:
+            return self._reject_market_data(market_data, **rejection)
+        if kline_requested:
+            rejection = self._validate_klines(codes, market_data.get("kline"), source.name)
+            if rejection is not None:
+                return self._reject_market_data(market_data, **rejection)
 
         has_llm = False
         report = self._build_report(market_data)
@@ -125,8 +202,14 @@ class RealtimeAnalyzerStrategy(StrategyBase):
             "report": report,
             "has_llm": has_llm,
             "market_data": market_data,
+            "realtime_only": realtime_only,
+            "display_only": realtime_only,
+            "degraded": realtime_only,
+            "execution_eligible": not realtime_only,
         }
         if not has_llm:
+            market_data.update(display_only=True, degraded=True, execution_eligible=False)
+            self.last_report.update(display_only=True, degraded=True, execution_eligible=False)
             self.last_signal_rejection = {
                 "code": "model_unavailable",
                 "message": "LLM 不可用；已保存行情快照，但未发布带数值把握度的信号。",
@@ -136,6 +219,8 @@ class RealtimeAnalyzerStrategy(StrategyBase):
 
         signal_values = parse_report_signal(report)
         if signal_values is None:
+            market_data.update(display_only=True, degraded=True, execution_eligible=False)
+            self.last_report.update(display_only=True, degraded=True, execution_eligible=False)
             self.last_signal_rejection = {
                 "code": "structured_signal_missing",
                 "message": f"分析报告缺少有效的 {SIGNAL_MARKER} 结构，未发布信号。",
@@ -159,13 +244,256 @@ class RealtimeAnalyzerStrategy(StrategyBase):
         self.publish(sig)
         return [sig]
 
+    def _validate_klines(
+        self,
+        codes: list[str],
+        klines: Any,
+        expected_source: str,
+    ) -> dict[str, Any] | None:
+        """Validate the primary K-line evidence before invoking the LLM.
+
+        A realtime quote can be useful for a display-only snapshot, but it is
+        not a substitute for the daily bars requested by the default analysis
+        mode.  Keep this check at the strategy boundary because the fetcher
+        intentionally converts provider errors and empty frames into an
+        explicit unavailable payload.
+        """
+        if not isinstance(klines, dict):
+            return {
+                "code": "market_data_incomplete",
+                "message": "A股 primary K 线不可用；未生成结构化分析信号。",
+                "details": {
+                    "reason": "kline_not_mapping",
+                    "expected_source": expected_source,
+                },
+            }
+
+        configured_min = self.config.get("min_kline_bars", _DEFAULT_MIN_KLINE_BARS)
+        try:
+            min_bars = max(_DEFAULT_MIN_KLINE_BARS, int(configured_min))
+        except (TypeError, ValueError):
+            min_bars = _DEFAULT_MIN_KLINE_BARS
+
+        for code in codes:
+            payload = klines.get(code)
+            if not isinstance(payload, dict):
+                return {
+                    "code": "market_data_incomplete",
+                    "message": "A股 primary K 线覆盖不足；未生成结构化分析信号。",
+                    "details": {
+                        "reason": "kline_missing",
+                        "symbol": code,
+                        "expected_source": expected_source,
+                    },
+                }
+            rows = payload.get("klines")
+            if payload.get("available") is not True or not isinstance(rows, list) or not rows:
+                return {
+                    "code": "market_data_incomplete",
+                    "message": "A股 primary K 线为空或不可用；未生成结构化分析信号。",
+                    "details": {
+                        "reason": "kline_unavailable",
+                        "symbol": code,
+                        "expected_source": expected_source,
+                    },
+                }
+            if payload.get("source") != expected_source:
+                return {
+                    "code": "market_data_incomplete",
+                    "message": "A股 primary K 线来源无法核验；未生成结构化分析信号。",
+                    "details": {
+                        "reason": "kline_unverified",
+                        "symbol": code,
+                        "expected_source": expected_source,
+                        "actual_source": payload.get("source"),
+                    },
+                }
+            if len(rows) < min_bars:
+                return {
+                    "code": "market_data_incomplete",
+                    "message": "A股 primary K 线证据不足；未生成结构化分析信号。",
+                    "details": {
+                        "reason": "kline_insufficient",
+                        "symbol": code,
+                        "expected_source": expected_source,
+                        "required_bars": min_bars,
+                        "actual_bars": len(rows),
+                    },
+                }
+            closes: list[float] = []
+            for row in rows:
+                if not isinstance(row, dict):
+                    continue
+                try:
+                    close = float(row.get("close"))
+                except (TypeError, ValueError):
+                    continue
+                if math.isfinite(close) and close > 0:
+                    closes.append(close)
+            if len(closes) < min_bars:
+                return {
+                    "code": "market_data_incomplete",
+                    "message": "A股 primary K 线有效收盘价不足；未生成结构化分析信号。",
+                    "details": {
+                        "reason": "kline_close_insufficient",
+                        "symbol": code,
+                        "expected_source": expected_source,
+                        "required_bars": min_bars,
+                        "actual_bars": len(closes),
+                    },
+                }
+            metrics = payload.get("metrics")
+            if not isinstance(metrics, dict):
+                return {
+                    "code": "market_data_incomplete",
+                    "message": "A股 primary K 线指标证据不足；未生成结构化分析信号。",
+                    "details": {
+                        "reason": "kline_metrics_missing",
+                        "symbol": code,
+                        "expected_source": expected_source,
+                    },
+                }
+            for metric in ("close", "ma5", "ma10", "ma20"):
+                try:
+                    value = float(metrics.get(metric))
+                except (TypeError, ValueError):
+                    value = float("nan")
+                if not math.isfinite(value) or value <= 0:
+                    return {
+                        "code": "market_data_incomplete",
+                        "message": "A股 primary K 线指标证据不足；未生成结构化分析信号。",
+                        "details": {
+                            "reason": "kline_metric_missing",
+                            "symbol": code,
+                            "metric": metric,
+                            "expected_source": expected_source,
+                        },
+                    }
+        return None
+
+    def _validate_quotes(
+        self,
+        codes: list[str],
+        quotes: Any,
+        expected_source: str,
+    ) -> dict[str, Any] | None:
+        if not isinstance(quotes, list):
+            return {
+                "code": "market_data_unavailable",
+                "message": "A股 primary 未返回可验证的实时行情；未生成分析信号。",
+                "details": {"reason": "quotes_not_list", "expected_source": expected_source},
+            }
+        by_code = {
+            str(item.get("code", "")).upper(): item for item in quotes if isinstance(item, dict)
+        }
+        max_age_minutes = self.config.get("max_quote_age_minutes", _DEFAULT_MAX_QUOTE_AGE_MINUTES)
+        try:
+            max_age = dt.timedelta(minutes=max(1, int(max_age_minutes)))
+        except (TypeError, ValueError):
+            max_age = dt.timedelta(minutes=_DEFAULT_MAX_QUOTE_AGE_MINUTES)
+        now = dt.datetime.now(dt.UTC)
+        for code in codes:
+            quote = by_code.get(code)
+            if quote is None:
+                return {
+                    "code": "market_data_unavailable",
+                    "message": "A股 primary 行情覆盖不足；未生成分析信号。",
+                    "details": {
+                        "reason": "quote_missing",
+                        "symbol": code,
+                        "expected_source": expected_source,
+                    },
+                }
+            try:
+                last = float(quote.get("last"))
+            except (TypeError, ValueError):
+                last = float("nan")
+            if (
+                not math.isfinite(last)
+                or last <= 0
+                or quote.get("source") != expected_source
+                or quote.get("market") != "a_shares"
+                or quote.get("verified") is not True
+            ):
+                return {
+                    "code": "market_data_unavailable",
+                    "message": "A股 primary 行情缺少可信价格或来源标识；未生成分析信号。",
+                    "details": {
+                        "reason": "quote_unverified",
+                        "symbol": code,
+                        "expected_source": expected_source,
+                    },
+                }
+            observed_at = self._parse_observed_at(quote.get("observed_at"))
+            if observed_at is None:
+                return {
+                    "code": "market_data_unavailable",
+                    "message": "A股 primary 行情缺少观察时间；未生成分析信号。",
+                    "details": {"reason": "quote_time_missing", "symbol": code},
+                }
+            age = now - observed_at
+            if age > max_age or age < -dt.timedelta(minutes=5):
+                return {
+                    "code": "market_quote_stale",
+                    "message": "A股 primary 行情已过期；未生成分析信号。",
+                    "details": {
+                        "reason": "quote_stale",
+                        "symbol": code,
+                        "observed_at": observed_at.isoformat(),
+                        "max_age_minutes": int(max_age.total_seconds() / 60),
+                    },
+                }
+        return None
+
+    @staticmethod
+    def _parse_observed_at(value: Any) -> dt.datetime | None:
+        if isinstance(value, dt.datetime):
+            parsed = value
+        elif isinstance(value, str):
+            try:
+                parsed = dt.datetime.fromisoformat(value)
+            except ValueError:
+                return None
+        else:
+            return None
+        return parsed.astimezone(dt.UTC) if parsed.tzinfo is not None else None
+
+    def _reject_market_data(
+        self,
+        market_data: dict[str, Any],
+        *,
+        code: str,
+        message: str,
+        details: dict[str, Any],
+    ) -> list[Signal]:
+        market_data["display_only"] = True
+        market_data["degraded"] = True
+        market_data["execution_eligible"] = False
+        self.last_report = {
+            "kind": "market_snapshot",
+            "status": "unavailable",
+            "report": self._snapshot_only_report(market_data),
+            "has_llm": False,
+            "market_data": market_data,
+            "realtime_only": bool(market_data.get("realtime_only")),
+            "display_only": True,
+            "degraded": True,
+            "execution_eligible": False,
+        }
+        self.last_signal_rejection = {
+            "code": code,
+            "message": message,
+            "details": {"source": "realtime_analyzer", "market": "a_shares", **details},
+        }
+        return []
+
     def _build_report(self, market_data: dict) -> str | None:
         try:
             from core.llm import get_llm
 
             llm = get_llm()
         except Exception as exc:  # noqa: BLE001 - optional LLM providers vary by installation
-            logger.warning("realtime_analyzer: LLM 不可用（%s），降级为快照报告", exc)
+            logger.warning("realtime_analyzer: LLM 不可用（%s），仅记录快照且不发布信号", exc)
             return None
         user_msg = "\n".join(
             [

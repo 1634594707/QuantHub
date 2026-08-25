@@ -35,7 +35,8 @@ const SORT_OPTIONS = [
 export default function StrategiesPage() {
   const navigate = useNavigate()
   const strategies = useApi(() => api.strategies(), [])
-  const { lastRun, addRun } = useStrategyRuns()
+  const { lastRun, addRun, error: runHistoryError } = useStrategyRuns()
+  const [runError, setRunError] = useState('')
   const [filter, setFilter] = useState<MarketKey | 'all'>('all')
   const [liveOnly, setLiveOnly] = useState(false)
   const [search, setSearch] = useState('')
@@ -80,16 +81,19 @@ export default function StrategiesPage() {
 
   async function handleQuickRun(e: React.MouseEvent, name: string) {
     e.stopPropagation()
+    setRunError('')
     setRunning((prev) => new Set([...prev, name]))
     try {
       const params = defaultParams(name)
-      const resp = await api.runStrategy(name, params)
-      addRun(name, params, resp)
+      const response = await api.runStrategy(name, params)
+      await addRun(name, params, response)
+    } catch (reason) {
+      setRunError(reason instanceof Error ? reason.message : '策略运行或历史保存失败')
     } finally {
       setRunning((prev) => {
-        const n = new Set(prev)
-        n.delete(name)
-        return n
+        const next = new Set(prev)
+        next.delete(name)
+        return next
       })
     }
   }
@@ -153,6 +157,8 @@ export default function StrategiesPage() {
             </div>
           </div>
 
+          {runHistoryError ? <div className="run-error" role="alert">策略运行历史不可用：{runHistoryError}</div> : null}
+          {runError ? <div className="run-error" role="alert">{runError}</div> : null}
           <AsyncStateBoundary
             loading={strategies.loading}
             error={strategies.error}

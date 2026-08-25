@@ -1,15 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '../api/client'
-import { useLocalStorage } from './useLocalStorage'
-import { uid } from '../lib/uid'
 import type { RunRecord, RunResp } from '../api/types'
 
-const KEY = 'qh.strategy.runs.v1'
-
-/** 策略运行历史：后端持久化为真源（跨设备），localStorage 仅作离线兜底（G2）。 */
+/** 策略运行历史仅由后端持久化；请求失败时不读取或展示任何本地旧数据。 */
 export function useStrategyRuns() {
-  const [local, setLocal] = useLocalStorage<RunRecord[]>(KEY, [])
-  const [runs, setRuns] = useState<RunRecord[]>(local)
+  const [runs, setRuns] = useState<RunRecord[]>([])
+  const [error, setError] = useState('')
   const didInit = useRef(false)
 
   useEffect(() => {
@@ -17,41 +13,35 @@ export function useStrategyRuns() {
     didInit.current = true
     api
       .strategyRuns()
-      .then((r) => setRuns(r.runs))
-      .catch(() => setRuns(local))
-  }, [local])
+      .then((response) => {
+        setRuns(response.runs)
+        setError('')
+      })
+      .catch((reason) => {
+        setRuns([])
+        setError(reason instanceof Error ? reason.message : '策略运行历史加载失败')
+      })
+  }, [])
 
-  useEffect(() => {
-    setLocal(runs)
-  }, [runs, setLocal])
-
-  const addRun = useCallback(
-    async (name: string, params: Record<string, unknown>, result: RunResp) => {
-      const rec: RunRecord = {
-        id: uid(),
-        name,
-        params,
-        result,
-        ts: Date.now() / 1000,
-      }
-      setRuns((prev) => [rec, ...prev].slice(0, 200))
-      try {
-        await api.saveRun(name, params, result)
-      } catch {
-        /* 后端不可用：保留本地 */
-      }
-    },
-    [],
-  )
+  const addRun = useCallback(async (name: string, params: Record<string, unknown>, result: RunResp) => {
+    try {
+      const response = await api.saveRun(name, params, result)
+      setRuns((previous) => [response.run, ...previous].slice(0, 200))
+      setError('')
+      return response.run
+    } catch (reason) {
+      const message = reason instanceof Error ? reason.message : '策略运行记录保存失败'
+      setError(message)
+      throw reason instanceof Error ? reason : new Error(message)
+    }
+  }, [])
 
   const runsFor = useCallback(
-    (name: string, limit = 10) => runs.filter((r) => r.name === name).slice(0, limit),
+    (name: string, limit = 10) => runs.filter((run) => run.name === name).slice(0, limit),
     [runs],
   )
 
-  const lastRun = useCallback((name: string) => runs.find((r) => r.name === name), [runs])
+  const lastRun = useCallback((name: string) => runs.find((run) => run.name === name), [runs])
 
-  const clear = useCallback(() => setRuns([]), [])
-
-  return { runs, addRun, runsFor, lastRun, clear }
+  return { runs, error, addRun, runsFor, lastRun }
 }

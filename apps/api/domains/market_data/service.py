@@ -19,7 +19,6 @@ def data_source_status() -> dict:
             {
                 "market": market,
                 "primary": cfg.get("primary"),
-                "fallbacks": cfg.get("fallback", []),
                 "plans": {
                     "kline": {
                         interval: proxy.source_plan("get_kline", interval)

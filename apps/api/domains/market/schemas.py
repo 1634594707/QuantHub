@@ -30,7 +30,6 @@ class KlineResponse(BaseModel):
 class MarketStatusItem(BaseModel):
     market: str
     primary: str | None = Field(default=None, description="主数据源")
-    fallbacks: list[str] = Field(default_factory=list)
 
 
 class DataSourceStatusItem(BaseModel):

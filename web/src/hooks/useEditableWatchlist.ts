@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api, HttpError } from '../api/client'
-import { useLocalStorage } from './useLocalStorage'
 import { uid } from '../lib/uid'
 import type { WatchlistItem } from '../api/types'
 import { useSecurityNameResolver } from './useSecurityNameResolver'
@@ -18,20 +17,19 @@ export interface WatchRow extends WatchInput {
   available: boolean
 }
 
-const KEY = 'qh.watchlist.v1'
-
 function toInput(i: WatchlistItem): WatchInput {
   return { id: i.id ?? uid(), sym: i.sym, name: i.name, market: i.market ?? 'a_shares' }
 }
 
 /**
- * 可编辑关注列表：后端 SQLite 为真值源，localStorage 为离线缓存。
+ * 可编辑关注列表：后端 SQLite 是唯一业务真源。
  *
- * 同步策略同 useEditableHoldings：编辑模式即时改 list，退出时 commit 全量同步。
+ * GET 失败时保持空列表并暴露错误；编辑草稿只保留在当前页面内存中。
  */
 export function useEditableWatchlist(enabled = true) {
-  const [list, setList] = useLocalStorage<WatchInput[]>(KEY, [])
+  const [list, setList] = useState<WatchInput[]>([])
   const [seeded, setSeeded] = useState(false)
+  const [loadError, setLoadError] = useState('')
   const [mutationError, setMutationError] = useState('')
 
   const applyResolvedName = useCallback(
@@ -51,21 +49,22 @@ export function useEditableWatchlist(enabled = true) {
     let active = true
     api
       .watchlist()
-      .then((r) => {
+      .then((response) => {
         if (!active) return
-        const seed = (r.items ?? []).map(toInput)
-        setList(seed)
+        setList((response.items ?? []).map(toInput))
+        setLoadError('')
         setSeeded(true)
       })
-      .catch(() => {
+      .catch((reason) => {
         if (!active) return
-        // 后端不可达时只保留用户缓存，绝不注入不可删除的演示关注项。
+        setList([])
+        setLoadError(reason instanceof Error ? reason.message : '关注列表加载失败')
         setSeeded(true)
       })
     return () => {
       active = false
     }
-  }, [enabled, seeded, setList])
+  }, [enabled, seeded])
 
   const add = useCallback(
     (market = 'a_shares') => {
@@ -132,7 +131,7 @@ export function useEditableWatchlist(enabled = true) {
   }, [list, setList])
 
   return {
-    list, add, update, remove, commit, seeded,
+    list, add, update, remove, commit, seeded, loadError,
     resolveName, resolvingIds, mutationError,
   }
 }

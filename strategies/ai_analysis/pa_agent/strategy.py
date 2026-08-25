@@ -298,15 +298,27 @@ def run_scheduled() -> None:
     """供 apps.scheduler 定时调用：遍历配置中的标的批量跑 PA 分析。
 
     配置 ``configs/ai_analysis.yaml`` 的 ``modules.pa_agent.symbols``
-    （缺省回退到 A股+加密各一个示例标的）。单标的失败不影响其余。
+    必须显式指定至少一个标的；配置缺失或标的为空时跳过本次运行。单标的失败
+    不影响其余。
     """
     try:
         cfg = get_config("ai_analysis").get("modules", {}).get("pa_agent", {})
-    except Exception:  # noqa: BLE001 - configuration fallback keeps scheduled analysis available
-        cfg = {}
-    symbols: list[str] = list(cfg.get("symbols", []) or [])
+    except Exception:  # noqa: BLE001 - scheduled execution records configuration failures in logs
+        logger.exception("读取 PA 定时配置失败，跳过本次运行")
+        return
+
+    configured_symbols = cfg.get("symbols") if isinstance(cfg, dict) else None
+    if not isinstance(configured_symbols, list):
+        logger.warning("PA 定时分析未配置 symbols，跳过本次运行")
+        return
+    symbols = [
+        symbol.strip()
+        for symbol in configured_symbols
+        if isinstance(symbol, str) and symbol.strip()
+    ]
     if not symbols:
-        symbols = ["000001", "BTC-USDT"]
+        logger.warning("PA 定时分析 symbols 为空，跳过本次运行")
+        return
     timeframe = cfg.get("timeframe", "1h")
     for sym in symbols:
         try:

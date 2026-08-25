@@ -102,6 +102,39 @@ class AdapterReleaseGateTests(unittest.TestCase):
         _assert_ordered_unique(self, frame)
         self.assertEqual(frame.attrs["corporate_action_adjustment"], "qfq")
 
+        # A missing adjusted payload must fail closed; the adapter must not
+        # silently substitute raw ``day`` bars or a different interval.
+        with patch(
+            "core.data_feed.tencent_source.requests.get",
+            return_value=_Response(
+                {"data": {"sh600519": {"day": [["2024-01-01", "9", "9", "10", "8", "2"]]}}}
+            ),
+        ):
+            missing_adjustment = TencentSource().get_kline("600519", "1d", limit=10)
+        self.assertTrue(missing_adjustment.empty)
+
+        weekly_payload = {
+            "data": {
+                "sh600519": {
+                    "qfqweek": [
+                        ["2024-01-01", "9", "9.5", "10", "8", "2"],
+                    ]
+                }
+            }
+        }
+        with patch(
+            "core.data_feed.tencent_source.requests.get", return_value=_Response(weekly_payload)
+        ):
+            weekly = TencentSource().get_kline(
+                "600519",
+                "1w",
+                start=datetime(2024, 1, 1),  # noqa: DTZ001 - adapter contract accepts local dates
+                end=datetime(2024, 1, 8),  # noqa: DTZ001 - adapter contract accepts local dates
+                limit=10,
+            )
+        _assert_ordered_unique(self, weekly)
+        self.assertEqual(weekly.attrs["corporate_action_adjustment"], "qfq")
+
         yahoo_payload = {
             "chart": {
                 "result": [

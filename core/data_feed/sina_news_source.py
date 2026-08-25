@@ -1,7 +1,7 @@
 """Sina Finance news source for A-share symbols.
 
-This source intentionally does not depend on AkShare or Eastmoney.  It is a
-news-only fallback backed by Sina's public per-stock news page.
+This source intentionally does not depend on AkShare or Eastmoney. It is an
+explicitly selected news-only source backed by Sina's public per-stock news page.
 """
 
 from __future__ import annotations
@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 import re
 from collections.abc import Iterable
-from datetime import datetime
+from datetime import UTC, datetime
 from html.parser import HTMLParser
 
 import pandas as pd
@@ -65,7 +65,7 @@ def _to_sina_symbol(symbol: str) -> str:
 
 
 class SinaNewsSource(DataSource):
-    """Independent Sina Finance news fallback (news only)."""
+    """Independent Sina Finance news source (news only)."""
 
     name = "sina_news"
     market = "a_shares"
@@ -121,12 +121,12 @@ class SinaNewsSource(DataSource):
             matched = _ARTICLE_URL.match(article_url)
             try:
                 published = (
-                    datetime.strptime(matched.group("date"), "%Y-%m-%d")
+                    datetime.strptime(matched.group("date"), "%Y-%m-%d").replace(tzinfo=UTC)
                     if matched
-                    else datetime.now()
+                    else datetime.now(UTC)
                 )
             except ValueError:
-                published = datetime.now()
+                published = datetime.now(UTC)
             result.append(
                 News(
                     title=title,

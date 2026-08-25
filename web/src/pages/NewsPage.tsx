@@ -1,7 +1,7 @@
-// 新闻证据模块：语义情绪分析 + 可选 API 结构化增强结果展示。
+// 新闻证据模块：FinBERT2 + 配置 LLM 结构化结果展示。
 // 数据流：GET /news/health 引擎状态（自动重试） + POST /news/analyze 按需分析（手动触发）。
 // 布局：WorkspaceHeader → NewsToolbar → NewsKpiRow → news-grid（概览 + 列表）。
-// 降级：degraded=true 时 KPI 区与卡片 foot 显示降级角标，engine!=semantic+api 时 foot 徽标转 warn。
+// 不完整模型路径由 API 返回失败；不会展示为可执行新闻结论。
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import '../styles/news.css'
@@ -39,14 +39,13 @@ export default function NewsPage({
   onResearchRunId,
   embedded = false,
 }: NewsPageProps) {
-  // —— 探活：useApi 自动重试，LM Studio 离线时降级 ——
+  // —— 探活：useApi 自动重试；模型路径未就绪时阻断分析 ——
   const health = useApi(() => api.newsHealth(), [], { retryInterval: 15000 })
 
   // —— 分析：仅在输入标的并手动触发后请求，不随输入抖动或页面挂载自动运行 ——
   const [symbol, setSymbol] = useState(initialSymbol)
   const [market, setMarket] = useState(initialMarket)
   const [limit, setLimit] = useState(20)
-  const [apiEnabled, setApiEnabled] = useState(true)
   const [data, setData] = useState<NewsAnalyzeResp | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [symbolError, setSymbolError] = useState<string | null>(null)
@@ -70,7 +69,6 @@ export default function NewsPage({
       timeframe,
       payload: {
         limit,
-        use_api: apiEnabled,
         research_run_id: researchRunId ?? undefined,
       },
       timeoutSeconds: 90,
@@ -83,7 +81,7 @@ export default function NewsPage({
         setError(e instanceof Error ? e.message : String(e))
       })
       .finally(() => setLoading(false))
-  }, [apiEnabled, limit, market, onResearchRunId, researchRunId, symbol, timeframe])
+  }, [limit, market, onResearchRunId, researchRunId, symbol, timeframe])
 
   useEffect(() => {
     setSymbol(initialSymbol)
@@ -114,17 +112,10 @@ export default function NewsPage({
     return data.items.filter((it) => activeTopics.has(it.topic))
   }, [data, activeTopics])
 
-  const apiEnhanced = health.data?.api_enhancement === true
-  const localEngine = health.data?.engine === 'transformers'
-    ? 'FinBERT2'
-    : health.data?.engine === 'snownlp'
-      ? 'SnowNLP'
-      : health.data?.engine === 'keyword'
-        ? '关键词规则'
-        : null
-  const engineLabel = localEngine
-    ? `${localEngine}${data?.engine === 'semantic+api' ? ' + DeepSeek' : ''}`
-    : data?.engine ?? '—'
+  const pipelineReady = health.data?.ok === true
+  const engineLabel = health.data?.engine === 'transformers'
+    ? `FinBERT2 + ${health.data.api_provider}`
+    : '不可用'
 
   return (
     <div className={s.page}>
@@ -133,7 +124,7 @@ export default function NewsPage({
           context="研究 / 综合评估 / 新闻证据"
           title="新闻语义证据"
           metrics={[
-            { label: 'API 增强', value: apiEnhanced ? '已启用' : '未启用·仅语义' },
+            { label: '分析路径', value: pipelineReady ? '可用' : '不可用' },
             { label: '引擎', value: engineLabel },
             { label: '模型', value: data?.model ?? '—' },
             { label: '总条数', value: data?.total ?? 0 },
@@ -172,8 +163,6 @@ export default function NewsPage({
         health={health.data}
         healthLoading={health.loading}
         onRefreshHealth={health.refetch}
-        useApi={apiEnabled}
-        onUseApiChange={setApiEnabled}
       />
 
       {/* 错误态（探活或分析失败） */}
@@ -189,7 +178,7 @@ export default function NewsPage({
       ) : !data ? (
         <EmptyState
           title="输入标的代码开始分析"
-          desc="新闻证据不会在页面打开时自动生成。选择市场并输入标的代码后，由你决定是否启用 API 增强并手动开始。"
+          desc="新闻证据不会在页面打开时自动生成。选择市场并输入标的代码后手动开始。"
         />
       ) : data.items.length === 0 ? (
         <EmptyState

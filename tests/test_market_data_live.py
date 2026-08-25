@@ -101,7 +101,11 @@ def test_factor_factory_market_data_error_is_a_validation_error(monkeypatch) -> 
 
     with pytest.raises(HTTPException) as exc_info:
         factor_factory_router.create_run(
-            FactorFactoryStartRequest(candidate_mode="library", use_ai=False)
+            FactorFactoryStartRequest(
+                source="okx_live",
+                candidate_mode="library",
+                use_ai=False,
+            )
         )
 
     assert exc_info.value.status_code == 422

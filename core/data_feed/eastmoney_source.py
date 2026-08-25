@@ -1,6 +1,6 @@
 """东方财富数据源（A股）。
 
-直接调用东方财富 push2 接口，作为 akshare 的 fallback。
+直接调用东方财富 push2 接口，仅在调用方显式选择 eastmoney 时使用。
 复用 trading-master/04-stock-selector/data/eastmoney_api.py 的接口约定。
 """
 

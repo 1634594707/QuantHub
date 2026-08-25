@@ -47,12 +47,30 @@ def run_signal_backtest(
         df["open"].astype(float).reset_index(drop=True) if "open" in df.columns else closes.copy()
     )
     times = pd.to_datetime(df["datetime"]).reset_index(drop=True)
-    sig = pd.Series(signal).reset_index(drop=True).fillna(0.0).clip(-1.0, 1.0)
+    raw_sig = pd.to_numeric(pd.Series(signal).reset_index(drop=True), errors="coerce")
     n = len(closes)
     if n == 0:
         raise ValueError("回测数据不能为空")
-    if len(sig) != n:
+    if len(raw_sig) != n:
         raise ValueError("信号长度必须与行情数据一致")
+
+    # Rolling factors legitimately produce a leading warm-up prefix of NaN,
+    # but a hole after the first usable value (or a non-finite tail) means the
+    # formula/data path failed.  Treating those values as zero would silently
+    # turn an invalid strategy into a flat/partial backtest.
+    values = raw_sig.to_numpy(dtype=float)
+    finite = np.isfinite(values)
+    if np.isinf(values).any():
+        raise ValueError("回测信号包含非有限值（Inf）")
+    if not finite.any():
+        raise ValueError("回测信号没有任何有限值")
+    first_valid = int(np.flatnonzero(finite)[0])
+    if not finite[first_valid:].all():
+        raise ValueError("回测信号在预热区之后包含缺失或非有限值")
+    sig = raw_sig.copy()
+    if first_valid:
+        sig.iloc[:first_valid] = 0.0
+    sig = sig.clip(-1.0, 1.0)
 
     cash = float(initial_capital)
     position = 0.0
@@ -195,8 +213,9 @@ def _signal_ma_cross(df: pd.DataFrame, _factor: str | None, _params: dict[str, A
 def _signal_factor_follow(
     df: pd.DataFrame, factor: str | None, params: dict[str, Any]
 ) -> pd.Series:
-    name = factor or "momentum"
-    return compute_factor(name, df, **params)
+    if not factor:
+        raise ValueError("因子跟随策略必须提供已登记因子")
+    return compute_factor(factor, df, **params)
 
 
 STRATEGIES: dict[str, StrategyDef] = {
@@ -237,8 +256,8 @@ def run_strategy(
     strategy = STRATEGIES.get(name)
     if strategy is None:
         raise KeyError(f"未知策略: {name}")
-    if strategy.uses_factor and factor_name is None:
-        factor_name = "momentum"  # 因子策略缺省回退到动量，保证可跑
+    if strategy.uses_factor and factor_name is None and factor_ast is None:
+        raise ValueError("因子跟随策略必须提供已登记因子或安全 DSL 因子")
     if factor_ast is not None:
         if not strategy.uses_factor:
             raise ValueError("只有因子策略可以执行自定义 DSL 因子")

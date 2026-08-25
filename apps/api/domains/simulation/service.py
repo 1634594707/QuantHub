@@ -12,24 +12,23 @@ from apps.api.domains.instrument import service as instrument_service
 from apps.api.domains.ledger import repository as ledger_repository
 from apps.api.domains.ledger.domain import Trade
 from apps.api.domains.portfolio import service as portfolio_service
-from core.backtest import dataset as dataset_module
-from core.backtest import factors as factor_module
-from core.backtest import market_data as market_data_module
-from core.backtest import strategies_demo as demo_strategy_module
 from core.config import get_config
 from core.cost_profiles import select_reference_profile
 from core.research_decision import decision_from_mapping
 from core.trading_costs import TradingCostProfile
 
 from .risk import PaperOrderIntent, evaluate_risk
-from .schemas import (
-    DemoRunRequest,
-    SimulationFillCreate,
-    SimulationOrderCreate,
-    SimulationOrderPreviewRequest,
-)
+from .schemas import SimulationFillCreate, SimulationOrderCreate, SimulationOrderPreviewRequest
 
 logger = logging.getLogger(__name__)
+
+_FACTOR_FACTORY_ACCOUNT_PREFIX = "factor-factory:"
+_HISTORICAL_CLOSED_BAR_EXCEPTION = {
+    "kind": "factor_factory_isolated_closed_bar",
+    "scope": "isolated",
+    "authorized_by": "simulation_service",
+    "realtime_executable": False,
+}
 
 
 class SimulationRiskRejected(ValueError):
@@ -38,219 +37,8 @@ class SimulationRiskRejected(ValueError):
         self.decision = decision
 
 
-# 回测 demo 运行记录落地目录（与既有 data/ 体系一致，JSON 可复现、可审查）
+# 历史 Demo 记录目录。新运行禁止写入此目录。
 DEMO_RUNS_DIR = Path("data/demo_runs")
-
-
-def _periods_per_year(interval: str, source: str = "synthetic") -> int:
-    """年化周期数。加密市场 7×24 连续交易按 365 天折算，合成数据沿用 A 股 252 日惯例。"""
-    minutes = dataset_module.INTERVAL_MINUTES.get(interval, 1440)
-    trading_days = 365 if source in {"okx_local", "okx_live"} else 252
-    if minutes >= 1440:
-        return trading_days
-    return max(1, int(trading_days * (1440 / minutes)))
-
-
-def demo_catalog() -> dict:
-    """返回 demo 可用选项：数据源 / 标的 / 数据集 / 因子 / 策略 / 周期，供前端下拉与一键启动。"""
-    return {
-        "sources": market_data_module.list_sources(),
-        "datasets": dataset_module.list_presets(),
-        "factors": factor_module.list_factors(),
-        "strategies": demo_strategy_module.list_strategies(),
-        "intervals": list(dataset_module.INTERVAL_MINUTES.keys()),
-        "defaults": {
-            "source": "okx_local",
-            "symbol": "BTCUSDT",
-            "dataset": "uptrend",
-            "seed": 12,
-            "n_bars": 250,
-            "interval": "1d",
-            "start": None,
-            "end": None,
-            "use_cache": True,
-            "initial_capital": 1_000_000.0,
-            "commission": 0.0003,
-            "position_fraction": 1.0,
-            "strategy": "factor_follow",
-            "factor": "momentum",
-        },
-    }
-
-
-def _load_demo_frame(req: DemoRunRequest) -> tuple[Any, dict[str, Any], str]:
-    """按数据源取数，返回 (DataFrame, 数据溯源信息, 一行摘要)。"""
-    if req.source == "synthetic":
-        start = req.start or "2024-01-01"
-        df = dataset_module.generate_dataset(
-            preset=req.dataset,
-            seed=req.seed,
-            n_bars=req.n_bars,
-            interval=req.interval,
-            start=start,
-        )
-        provenance = {
-            "source": "synthetic",
-            "channel": "确定性合成行情（无真实市场数据）",
-            "dataset": req.dataset,
-            "seed": req.seed,
-            "interval": req.interval,
-            "start": start,
-            "bars": int(len(df)),
-            "fingerprint": market_data_module.fingerprint_frame(df),
-            "offline": True,
-            "reproducible": "相同 (数据集, seed, 周期, 起点, 根数) 必得相同结果",
-        }
-        summary = (
-            f"合成数据集 {req.dataset}（seed={req.seed}, {req.interval}, "
-            f"start={start}）→ {len(df)} 根 K 线"
-        )
-        return df, provenance, summary
-
-    snapshot = market_data_module.load_market_data(
-        req.source,
-        symbol=req.symbol,
-        interval=req.interval,
-        n_bars=req.n_bars,
-        start=req.start,
-        end=req.end,
-        use_cache=req.use_cache,
-    )
-    provenance = {
-        "source": snapshot.source,
-        "symbol": snapshot.symbol,
-        "interval": snapshot.interval,
-        "fingerprint": snapshot.fingerprint,
-        **snapshot.provenance,
-    }
-    summary = (
-        f"真实 OKX 行情 {snapshot.symbol} {snapshot.interval} → {len(snapshot.df)} 根 K 线"
-        f"（{snapshot.provenance.get('selected_first')} ~ {snapshot.provenance.get('selected_last')}）"
-    )
-    return snapshot.df, provenance, summary
-
-
-def run_demo(req: DemoRunRequest) -> dict:
-    """编排一次可复现回测：数据 → (因子) → 策略 → 指标 + 运行日志，并持久化运行记录。"""
-    run_log: list[dict[str, Any]] = []
-    t0 = datetime.now(UTC)
-
-    def log(step: str, message: str) -> None:
-        run_log.append({"step": step, "message": message, "at": datetime.now(UTC).isoformat()})
-
-    # 1) 数据（真实 OKX 归档 / 真实 OKX 实时 / 确定性合成）
-    df, provenance, data_summary = _load_demo_frame(req)
-    log("data", data_summary)
-    log("data", f"数据指纹 sha256:{provenance['fingerprint'][:16]}… | {provenance['channel']}")
-    if provenance.get("cache_file"):
-        hit = "命中快照" if provenance.get("cache_hit") else "已写入快照"
-        log("data", f"{hit}: {provenance['cache_file']}")
-
-    # 2) 因子（仅因子策略需要）
-    strategy_meta = next(
-        (s for s in demo_strategy_module.list_strategies() if s["key"] == req.strategy), None
-    )
-    factor_used = req.factor
-    if strategy_meta and strategy_meta["uses_factor"] and not factor_used:
-        factor_used = "momentum"
-        log("factor", "因子策略未指定因子，回退到 momentum")
-    if req.factor_ast:
-        log(
-            "factor",
-            f"安全 DSL 因子 {req.factor_label or factor_used or '未命名'}"
-            f"@{req.factor_version or '未登记版本'} 已编译为信号序列",
-        )
-    elif factor_used:
-        log("factor", f"因子 {factor_used} 已编译为信号序列")
-    else:
-        log("factor", "策略使用自带信号（忽略因子选择）")
-
-    # 3) 回测
-    periods_per_year = _periods_per_year(req.interval, req.source)
-    result = demo_strategy_module.run_strategy(
-        name=req.strategy,
-        df=df,
-        factor_name=factor_used,
-        factor_params=req.factor_params,
-        factor_ast=req.factor_ast,
-        initial_capital=req.initial_capital,
-        commission=req.commission,
-        position_fraction=req.position_fraction,
-        periods_per_year=periods_per_year,
-    )
-    m = result["metrics"]
-    log(
-        "backtest",
-        f"策略 {req.strategy} 回测完成：{result['n_trades']} 笔成交，期末权益 {result['final_equity']:,.0f}",
-    )
-    log(
-        "kpi",
-        f"收益 {result['total_return'] * 100:+.2f}% | 回撤 {result['max_drawdown'] * 100:+.2f}% | "
-        f"夏普 {m.get('sharpe', 0):.2f} | 交易胜率 {m.get('trade_win_rate', 0) * 100:.1f}%",
-    )
-
-    run_id = uuid.uuid4().hex[:12]
-    config = {
-        "source": req.source,
-        "symbol": req.symbol,
-        "dataset": req.dataset,
-        "seed": req.seed,
-        "n_bars": req.n_bars,
-        "interval": req.interval,
-        "start": req.start,
-        "end": req.end,
-        "use_cache": req.use_cache,
-        "initial_capital": req.initial_capital,
-        "commission": req.commission,
-        "position_fraction": req.position_fraction,
-        "strategy": req.strategy,
-        "factor": factor_used,
-        "factor_params": req.factor_params,
-        "factor_ast": req.factor_ast,
-        "factor_label": req.factor_label,
-        "factor_version": req.factor_version,
-        "periods_per_year": periods_per_year,
-    }
-    record = {
-        "run_id": run_id,
-        "created_at": t0.isoformat(),
-        "config": config,
-        "data_provenance": provenance,
-        "summary": {
-            "final_equity": result["final_equity"],
-            "total_return": result["total_return"],
-            "max_drawdown": result["max_drawdown"],
-            "engine": result["engine"],
-            "n_trades": result["n_trades"],
-            "metrics": m,
-        },
-        "equity_curve": result["equity_curve"],
-        "trades": result["trades"],
-        "run_log": run_log,
-    }
-    try:
-        DEMO_RUNS_DIR.mkdir(parents=True, exist_ok=True)
-        (DEMO_RUNS_DIR / f"{run_id}.json").write_text(
-            json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
-        persisted = True
-        log("persist", f"运行记录已保存: data/demo_runs/{run_id}.json")
-    except Exception as exc:  # noqa: BLE001 - 持久化失败不应阻断回测结果返回
-        persisted = False
-        logger.warning("demo 运行记录持久化失败: %s", exc)
-        log("persist", f"运行记录保存失败（不影响结果）: {exc}")
-
-    return {
-        "ok": True,
-        "run_id": run_id,
-        "config": config,
-        "data_provenance": provenance,
-        "summary": record["summary"],
-        "equity_curve": result["equity_curve"],
-        "trades": result["trades"],
-        "run_log": run_log,
-        "persisted": persisted,
-    }
 
 
 def list_demo_runs(limit: int = 20) -> list[dict[str, Any]]:
@@ -302,7 +90,11 @@ def get_demo_run(run_id: str) -> dict[str, Any] | None:
         return None
 
 
-def _resolve_order_context(req: SimulationOrderCreate | SimulationOrderPreviewRequest) -> dict:
+def _resolve_order_context(
+    req: SimulationOrderCreate | SimulationOrderPreviewRequest,
+    *,
+    trusted_market_snapshot: dict[str, Any] | None = None,
+) -> dict:
     signal = store.get_signal(req.signal_id) if req.signal_id else None
     if req.signal_id and signal is None:
         raise KeyError(req.signal_id)
@@ -315,7 +107,25 @@ def _resolve_order_context(req: SimulationOrderCreate | SimulationOrderPreviewRe
     research_run_id = req.research_run_id
     if not research_run_id and signal:
         research_run_id = (signal.get("meta") or {}).get("research_run_id")
-    instrument = instrument_service.resolve_strict(symbol, market)
+    # The factor-factory paper account replays a historical, already-closed bar.
+    # Its trusted snapshot is an explicit internal contract, so it may resolve a
+    # canonical crypto identity without consulting the live OKX catalogue.  This
+    # exception is deliberately checked before the normal resolver and is kept
+    # narrower than the ordinary order path: account prefix + snapshot provenance
+    # + closed-bar quality + canonical USDT swap symbol are all required.
+    historical_snapshot = (
+        _historical_factor_factory_snapshot(req.account_id, trusted_market_snapshot)
+        if trusted_market_snapshot is not None
+        else None
+    )
+    instrument = None
+    if historical_snapshot is not None and market == "crypto":
+        canonical = instrument_service.normalize_crypto_swap_code(symbol)
+        if canonical:
+            instrument = instrument_service.build_instrument(canonical, "crypto")
+            instrument_service.repository.upsert(instrument)
+    if instrument is None:
+        instrument = instrument_service.resolve_strict(symbol, market)
     return {
         "signal": signal,
         "instrument": instrument,
@@ -325,13 +135,92 @@ def _resolve_order_context(req: SimulationOrderCreate | SimulationOrderPreviewRe
 
 
 def _market_snapshot(symbol: str, market: str) -> dict[str, Any]:
-    observed_at = datetime.now(UTC).isoformat()
-    price = portfolio_service.latest_close(symbol, market)
+    """Fetch a provenance-preserving market snapshot for fail-closed risk checks."""
+    snapshot = portfolio_service.latest_close_snapshot(symbol, market)
+    return dict(snapshot)
+
+
+def _is_factor_factory_account(account_id: str) -> bool:
+    suffix = account_id.removeprefix(_FACTOR_FACTORY_ACCOUNT_PREFIX)
+    return (
+        account_id.startswith(_FACTOR_FACTORY_ACCOUNT_PREFIX)
+        and bool(suffix)
+        and all(char.isalnum() or char in {"-", "_", "."} for char in suffix)
+    )
+
+
+def _utc_iso(value: object) -> str | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC).isoformat()
+
+
+def _historical_factor_factory_snapshot(
+    account_id: str, snapshot: dict[str, Any]
+) -> dict[str, Any] | None:
+    """Validate the sole trusted historical-price path before risk evaluation.
+
+    ``trusted_market_snapshot`` is intentionally absent from HTTP schemas. Even
+    internal callers cannot use it as a general price override: only the
+    factor-factory isolated closed-bar replay has a narrow, audited exception.
+    """
+    source = str(snapshot.get("source") or "").strip().lower()
+    quality = str(snapshot.get("quality_status") or "").strip().lower()
+    event_at = _utc_iso(snapshot.get("event_time"))
+    if not (
+        _is_factor_factory_account(account_id)
+        and source == "factor_factory.closed_bar"
+        and quality == "closed_bar"
+        and event_at is not None
+    ):
+        return None
     return {
-        "price": float(price) if price is not None and price > 0 else None,
-        "observed_at": observed_at,
-        "source": "portfolio.latest_close",
-        "quality_status": "available" if price is not None and price > 0 else "unavailable",
+        "price": snapshot.get("price"),
+        "source": "factor_factory.closed_bar",
+        "primary_source": None,
+        "source_role": "historical_simulation",
+        "cache_status": "not_applicable",
+        "transport": "historical",
+        "data_semantics": "bar_snapshot",
+        "bar_at": event_at,
+        "observed_at": event_at,
+        "quality_status": "closed_bar",
+        "snapshot_kind": "historical_closed_bar",
+        "execution_exception": dict(_HISTORICAL_CLOSED_BAR_EXCEPTION),
+        "error": None,
+    }
+
+
+def _market_snapshot_for_evaluation(
+    *,
+    symbol: str,
+    market: str,
+    account_id: str,
+    trusted_market_snapshot: dict[str, Any] | None,
+) -> dict[str, Any]:
+    if trusted_market_snapshot is None:
+        return _market_snapshot(symbol, market)
+    historical = _historical_factor_factory_snapshot(account_id, trusted_market_snapshot)
+    if historical is not None:
+        return historical
+    return {
+        "price": None,
+        "source": "untrusted_server_snapshot",
+        "primary_source": None,
+        "source_role": "untrusted",
+        "cache_status": "unknown",
+        "transport": "unknown",
+        "data_semantics": None,
+        "bar_at": None,
+        "observed_at": None,
+        "quality_status": "unavailable",
+        "error": "仅 factor-factory 隔离历史闭合 bar 可使用 trusted_market_snapshot",
     }
 
 
@@ -375,7 +264,7 @@ def _evaluate_order(
     trusted_research_decision: dict[str, Any] | None = None,
     trusted_limits: dict[str, float] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any], PaperOrderIntent]:
-    context = _resolve_order_context(req)
+    context = _resolve_order_context(req, trusted_market_snapshot=trusted_market_snapshot)
     instrument = context["instrument"]
     intent = PaperOrderIntent(
         intent_id=intent_id,
@@ -399,10 +288,11 @@ def _evaluate_order(
     risk_config = get_config(instrument.market).get("risk", {})
     decision = evaluate_risk(
         intent,
-        market_snapshot=(
-            trusted_market_snapshot
-            if trusted_market_snapshot is not None
-            else _market_snapshot(instrument.code, instrument.market)
+        market_snapshot=_market_snapshot_for_evaluation(
+            symbol=instrument.code,
+            market=instrument.market,
+            account_id=intent.account_id,
+            trusted_market_snapshot=trusted_market_snapshot,
         ),
         account_snapshot=account,
         open_orders=open_orders,
@@ -520,6 +410,10 @@ def create_order(
             "rejection_reason": None,
             "risk_decision_id": risk_record["id"],
             "risk_decision": decision,
+            "market_execution_class": decision["market_execution_class"],
+            "historical_simulation_exception": decision["snapshot"]["market"].get(
+                "execution_exception"
+            ),
             "cost_profile": decision["snapshot"]["cost_profile"],
             "reduce_only": req.reduce_only,
         },
@@ -540,6 +434,8 @@ def sync_execution_to_ledger(order_id: str, execution_id: str) -> dict:
     order = store.get_simulation_order(order_id)
     if order is None:
         raise KeyError(order_id)
+    if order["audit"].get("market_execution_class") == "historical_closed_bar_simulation":
+        raise ValueError("历史闭合 bar 模拟订单不得同步共享账本")
     execution = _find_execution(order, execution_id)
     ledger_trade_id = f"simulation:{execution_id}"
 
@@ -618,6 +514,8 @@ def fill_order(order_id: str, req: SimulationFillCreate) -> dict:
     current = store.get_simulation_order(order_id)
     if current is None:
         raise KeyError(order_id)
+    if current["audit"].get("market_execution_class") == "historical_closed_bar_simulation":
+        raise ValueError("历史闭合 bar 模拟订单只能通过隔离成交路径处理")
     quantity = req.quantity or (current["quantity"] - current["filled_quantity"])
     order = store.fill_simulation_order(
         order_id,

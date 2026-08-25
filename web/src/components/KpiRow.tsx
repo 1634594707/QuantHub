@@ -10,8 +10,8 @@ interface Props {
   ledger: LedgerSummary | null
 }
 
-function money(value: number): string {
-  return value.toLocaleString('zh-CN', { maximumFractionDigits: 0 })
+function money(value: number | null | undefined): string {
+  return value == null ? '—' : value.toLocaleString('zh-CN', { maximumFractionDigits: 0 })
 }
 
 export default function KpiRow({ scope, research, simulation, ledger }: Props) {
@@ -28,7 +28,7 @@ export default function KpiRow({ scope, research, simulation, ledger }: Props) {
   ] : [
     { label: '研究组合总值', value: money(research.nav) },
     { label: '研究组合累计盈亏', value: money(research.dailyPnl) },
-    { label: '持仓涨跌评分', value: research.chgBasedScore.toFixed(1), unit: undefined },
+    { label: '持仓涨跌评分', value: research.chgBasedScore == null ? '—' : research.chgBasedScore.toFixed(1), unit: undefined },
     { label: '研究可用资金', value: money(research.cash) },
   ]
 

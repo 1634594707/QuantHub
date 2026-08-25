@@ -12,7 +12,7 @@ router = APIRouter(prefix="/news", tags=["news"])
 
 @router.get("/health")
 def news_health() -> dict:
-    """新闻分析健康端点：返回语义引擎 + API 增强可用性。"""
+    """新闻分析健康端点：返回完整模型路径的可用性。"""
     return service.health()
 
 
@@ -20,16 +20,14 @@ def news_health() -> dict:
 def analyze_news(req: NewsAnalyzeRequest, request: Request) -> dict:
     """抓取新闻并执行结构化分析。
 
-    - 始终先走 SentimentAnalyzer 做本地兜底情绪分析
-    - API 可用时启用结构化增强（NER/主题/摘要）
-    - API 不可用时返回 degraded=true，仅包含情绪分析
+    - 配置的 FinBERT2 与 LLM 必须完整成功，才返回可用结构化新闻分析
+    - 模型或 LLM 不可用时返回明确失败，不持久化新闻证据
     """
     return service.analyze(
         symbol=req.symbol,
         market=req.market,
         timeframe=req.timeframe,
         limit=req.limit,
-        use_api=req.use_api,
         research_run_id=req.research_run_id,
         owner_id=str((getattr(request.state, "principal", None) or {}).get("id") or "local-user"),
     )

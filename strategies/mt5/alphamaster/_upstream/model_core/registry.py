@@ -14,11 +14,12 @@ model_core/registry.py -- 声明式注册层（Registration_Interface, R10）
 
 name 约定：非空字符串，长度 1..64（R10.1, R10.2）。
 """
+
 from __future__ import annotations
 
 import inspect
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 import torch
 
@@ -32,6 +33,7 @@ _NAME_MAX_LEN = 64
 
 
 # ── 异常类型（对应 design「错误类型模型」）─────────────────────────────────
+
 
 class RegistrationError(Exception):
     """注册层错误基类。"""
@@ -55,6 +57,7 @@ class InvalidArityError(RegistrationError):
 
 # ── 声明条目（frozen dataclass）─────────────────────────────────────────
 
+
 @dataclass(frozen=True)
 class FeatureSpec:
     """Feature 声明条目。
@@ -64,9 +67,10 @@ class FeatureSpec:
               statistical/cross_sectional），用于报告分组与类别覆盖校验。
     compute:  计算函数，签名 `(raw_dict: dict) -> Tensor[N, T]`。
     """
+
     name: str
     category: str
-    compute: Callable[[dict], "torch.Tensor"]
+    compute: Callable[[dict], torch.Tensor]
 
 
 @dataclass(frozen=True)
@@ -77,12 +81,14 @@ class OperatorSpec:
     arity:     声明区间 0..10 的整数；实际入 VM 执行时另要求 1..3。
     transform: 变换函数，签名 `(*operands: Tensor[N, T]) -> Tensor[N, T]`。
     """
+
     name: str
     arity: int
-    transform: Callable[..., "torch.Tensor"]
+    transform: Callable[..., torch.Tensor]
 
 
 # ── 校验辅助 ────────────────────────────────────────────────────────────
+
 
 def _validate_name(name) -> None:
     """校验 name 为 1..64 字符的非空字符串（R10.1, R10.2）。
@@ -92,13 +98,10 @@ def _validate_name(name) -> None:
     if name is None or (isinstance(name, str) and name.strip() == ""):
         raise MissingFieldError("缺少必填字段: name")
     if not isinstance(name, str):
-        raise MissingFieldError(
-            f"字段 name 必须为字符串，实际类型为 {type(name).__name__}"
-        )
+        raise MissingFieldError(f"字段 name 必须为字符串，实际类型为 {type(name).__name__}")
     if not (_NAME_MIN_LEN <= len(name) <= _NAME_MAX_LEN):
         raise MissingFieldError(
-            f"字段 name 长度必须在 {_NAME_MIN_LEN}..{_NAME_MAX_LEN} 之间，"
-            f"实际长度为 {len(name)}"
+            f"字段 name 长度必须在 {_NAME_MIN_LEN}..{_NAME_MAX_LEN} 之间，实际长度为 {len(name)}"
         )
 
 
@@ -119,14 +122,14 @@ def _observed_arity(transform: Callable) -> int | None:
 
     count = 0
     for p in params:
-        if p.kind in (inspect.Parameter.POSITIONAL_ONLY,
-                      inspect.Parameter.POSITIONAL_OR_KEYWORD):
+        if p.kind in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD):
             if p.default is inspect.Parameter.empty:
                 count += 1
     return count
 
 
 # ── 注册表 ──────────────────────────────────────────────────────────────
+
 
 class Registry:
     """Feature / Operator 的有序声明式注册表。
@@ -220,8 +223,7 @@ class Registry:
         """校验 arity 为 0..10 的整数（R10.8）。bool 是 int 的子类，需显式排除。"""
         if isinstance(arity, bool) or not isinstance(arity, int):
             raise InvalidArityError(
-                f"arity 必须为 {_ARITY_MIN}..{_ARITY_MAX} 的整数，"
-                f"实际类型为 {type(arity).__name__}"
+                f"arity 必须为 {_ARITY_MIN}..{_ARITY_MAX} 的整数，实际类型为 {type(arity).__name__}"
             )
         if not (_ARITY_MIN <= arity <= _ARITY_MAX):
             raise InvalidArityError(

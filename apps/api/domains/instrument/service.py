@@ -13,7 +13,6 @@ import logging
 import re
 import threading
 import time
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -59,7 +58,6 @@ _OKX_MARKET_TTL_SECONDS = 15 * 60
 _OKX_MARKET_RETRY_SECONDS = 60
 _PROJECT_ROOT = Path(__file__).resolve().parents[4]
 _OKX_CATALOG_SNAPSHOT_PATH = _PROJECT_ROOT / "data" / "market_cache" / "okx_swap_catalog.json"
-_OKX_LOCAL_INDEX_PATH = _PROJECT_ROOT / "data" / "market_cache" / "okx_local_index.json"
 
 
 class InstrumentResolutionError(ValueError):
@@ -67,7 +65,7 @@ class InstrumentResolutionError(ValueError):
 
 
 def resolve_strict(code: str, market: str, name_hint: str = "") -> Instrument:
-    """按已定义市场和代码规则解析并持久化 Instrument。"""
+    """Resolve an instrument only when its execution identity is verified."""
     normalized = (code or "").strip().upper()
     if not normalized:
         raise InstrumentResolutionError("标的代码不能为空")
@@ -75,6 +73,18 @@ def resolve_strict(code: str, market: str, name_hint: str = "") -> Instrument:
         raise InstrumentResolutionError(f"不支持的市场: {market}")
     if market == "a_shares" and (not normalized.isdigit() or len(normalized) != 6):
         raise InstrumentResolutionError("A股标的代码必须是 6 位数字")
+    if market == "crypto":
+        canonical = normalize_crypto_swap_code(normalized)
+        if not canonical:
+            raise InstrumentResolutionError("加密标的必须是 OKX USDT 永续合约代码")
+        contract = _verified_okx_swap_contract(canonical)
+        if contract is None:
+            raise InstrumentResolutionError(
+                "加密标的未在当前 OKX 公共目录验证为可交易 USDT 永续合约"
+            )
+        instrument: Instrument = contract["instrument"]
+        repository.upsert(instrument)
+        return instrument
     instrument = resolve(normalized, market=market, name_hint=name_hint)
     if instrument.instrument_id != f"{market}:{normalized}":
         raise InstrumentResolutionError("Instrument 解析结果与请求上下文不一致")
@@ -82,26 +92,29 @@ def resolve_strict(code: str, market: str, name_hint: str = "") -> Instrument:
 
 
 def resolve(code: str, market: str | None = None, name_hint: str = "") -> Instrument:
-    """解析标的：本地缓存 → 腾讯报价 → 推断兜底。"""
+    """Resolve display metadata; executable callers must use ``resolve_strict``."""
     normalized = (code or "").strip().upper()
     actual_market = market or infer_market(normalized)
 
-    # 1. 本地缓存
+    # 1. 本地缓存仅是元数据，不建立可执行交易身份。
     cached = repository.get(normalized, actual_market)
     if cached and cached.name:
         return cached
 
-    # 2. 腾讯报价回填名称（A 股 / 美股）
+    # 2. 腾讯只读展示元数据补全（A 股 / 美股）；不提供价格或执行身份。
     resolved_name = (name_hint or "").strip()
     if not resolved_name and actual_market in ("a_shares", "us_stocks"):
         try:
             from apps.api.domains.portfolio.service import tencent_quote_detail
 
-            detail_name, _, _ = tencent_quote_detail(normalized, actual_market)
+            # The legacy quote helper is used only for display metadata; its
+            # price fields are deliberately discarded and never establish an
+            # execution identity.  Accept its optional error field as well.
+            detail_name, *_ = tencent_quote_detail(normalized, actual_market)
             if detail_name:
                 resolved_name = detail_name
-        except Exception:  # noqa: BLE001 - 名称回填失败必须降级到本地标的元数据
-            logger.debug("腾讯报价解析名称失败 %s/%s", actual_market, normalized)
+        except Exception:  # noqa: BLE001 - 展示名称不可用时保留空名
+            logger.debug("腾讯展示名称解析失败 %s/%s", actual_market, normalized)
 
     # 3. 构建 + 持久化
     instrument = build_instrument(normalized, actual_market, resolved_name)
@@ -248,45 +261,8 @@ def _load_persisted_okx_catalog() -> tuple[list[dict[str, Any]], float]:
         return [], 0.0
 
 
-def _load_local_okx_research_catalog() -> tuple[list[dict[str, Any]], float]:
-    try:
-        payload = json.loads(_OKX_LOCAL_INDEX_PATH.read_text(encoding="utf-8"))
-    except (OSError, TypeError, ValueError, json.JSONDecodeError):
-        return [], 0.0
-    rows: list[dict[str, Any]] = []
-    aliases_by_code = {code: name for code, name in CRYPTO_ALIASES.values()}
-    for raw_symbol, intervals in (payload.get("symbols") or {}).items():
-        normalized = str(raw_symbol).upper()
-        if not normalized.endswith("USDT"):
-            continue
-        base = normalized[:-4]
-        code = f"{base}-USDT-SWAP"
-        last_market_time = max(
-            (str(item.get("last")) for item in intervals.values() if item.get("last")),
-            default=None,
-        )
-        contract = _contract_from_row(
-            {
-                "code": code,
-                "name": aliases_by_code.get(code, f"{base} / USDT 离线研究"),
-                "linear": True,
-                "available_intervals": sorted(intervals),
-                "last_market_time": last_market_time,
-            },
-            source="okx_local_cache",
-        )
-        if contract is not None:
-            rows.append(contract)
-    rows.sort(key=lambda item: item["instrument"].code)
-    try:
-        built_at = datetime.fromisoformat(str(payload.get("built_at"))).timestamp()
-    except (TypeError, ValueError):
-        built_at = _OKX_LOCAL_INDEX_PATH.stat().st_mtime
-    return rows, built_at
-
-
 def _load_okx_swap_contracts(*, refresh: bool = False) -> list[dict[str, Any]]:
-    """Load public OKX USDT swap metadata with a short-lived process cache."""
+    """Load public OKX swaps; only same-endpoint cache may serve as degraded metadata."""
     global _OKX_MARKET_CACHE, _OKX_MARKET_FETCHED_AT, _OKX_MARKET_LAST_ERROR
     global _OKX_MARKET_SOURCE
     global _OKX_MARKET_RETRY_AT
@@ -338,7 +314,7 @@ def _load_okx_swap_contracts(*, refresh: bool = False) -> list[dict[str, Any]]:
             _OKX_MARKET_LAST_ERROR = ""
             _OKX_MARKET_SOURCE = "okx_public"
             return discovered
-        except Exception as exc:  # noqa: BLE001 - search must degrade to cached metadata
+        except Exception as exc:  # noqa: BLE001 - only same-endpoint cached metadata may be used
             logger.info("OKX public market discovery unavailable", exc_info=True)
             _OKX_MARKET_RETRY_AT = now + _OKX_MARKET_RETRY_SECONDS
             _OKX_MARKET_LAST_ERROR = _public_okx_catalog_error(exc)
@@ -348,9 +324,6 @@ def _load_okx_swap_contracts(*, refresh: bool = False) -> list[dict[str, Any]]:
             if not fallback:
                 fallback, fetched_at = _load_persisted_okx_catalog()
                 source = "okx_public_cache" if fallback else "unavailable"
-            if not fallback:
-                fallback, fetched_at = _load_local_okx_research_catalog()
-                source = "okx_local_cache" if fallback else "unavailable"
             if fallback:
                 _OKX_MARKET_CACHE = (now, fallback)
                 _OKX_MARKET_FETCHED_AT = fetched_at
@@ -364,8 +337,65 @@ def _optional_float(value: Any) -> float | None:
     return float(value)
 
 
-def _load_okx_swap_markets() -> list[Instrument]:
-    return [item["instrument"] for item in _load_okx_swap_contracts()]
+def _is_verified_trading_contract(contract: dict[str, Any]) -> bool:
+    """Only a live public-catalogue row may establish an executable identity."""
+    return (
+        contract.get("_catalog_source") == "okx_public"
+        and bool(contract.get("verified"))
+        and bool(contract.get("trading_ready"))
+    )
+
+
+def _verified_okx_swap_contract(code: str) -> dict[str, Any] | None:
+    canonical = normalize_crypto_swap_code(code)
+    if not canonical:
+        return None
+    return next(
+        (
+            contract
+            for contract in _load_okx_swap_contracts()
+            if contract["instrument"].code == canonical and _is_verified_trading_contract(contract)
+        ),
+        None,
+    )
+
+
+def _verified_okx_search_results(query: str, limit: int) -> list[Instrument]:
+    """Return only public, trading-ready contracts for the generic crypto search."""
+    raw_query = query.strip()
+    alias = _alias_instrument(raw_query) if raw_query else None
+    canonical = alias.code if alias else normalize_crypto_swap_code(raw_query)
+    contracts = [
+        contract
+        for contract in _load_okx_swap_contracts()
+        if _is_verified_trading_contract(contract)
+    ]
+    if canonical:
+        contracts = [contract for contract in contracts if contract["instrument"].code == canonical]
+    elif raw_query:
+        needle = raw_query.lower()
+        contracts = [
+            contract
+            for contract in contracts
+            if needle in contract["instrument"].code.lower()
+            or needle in contract["instrument"].name.lower()
+        ]
+    instruments: list[Instrument] = []
+    for contract in contracts:
+        instrument: Instrument = contract["instrument"]
+        if alias is not None and instrument.code == alias.code:
+            instrument = Instrument(
+                code=instrument.code,
+                market=instrument.market,
+                exchange=instrument.exchange,
+                name=alias.name,
+                currency=instrument.currency,
+                asset_class=instrument.asset_class,
+            )
+        instruments.append(instrument)
+        if len(instruments) >= limit:
+            break
+    return instruments
 
 
 def okx_swap_catalog(query: str = "", limit: int = 100, *, refresh: bool = False) -> dict[str, Any]:
@@ -398,9 +428,9 @@ def okx_swap_catalog(query: str = "", limit: int = 100, *, refresh: bool = False
                 "amount_precision": contract["amount_precision"],
                 "minimum_amount": contract["minimum_amount"],
                 "linear": contract["linear"],
-                "verified": bool(contract.get("verified", True)),
-                "research_ready": bool(contract.get("research_ready", True)),
-                "trading_ready": bool(contract.get("trading_ready", True)),
+                "verified": bool(contract.get("verified", False)),
+                "research_ready": bool(contract.get("research_ready", False)),
+                "trading_ready": bool(contract.get("trading_ready", False)),
                 "available_intervals": list(contract.get("available_intervals") or []),
                 "last_market_time": contract.get("last_market_time"),
             }
@@ -409,9 +439,12 @@ def okx_swap_catalog(query: str = "", limit: int = 100, *, refresh: bool = False
             break
     cached_at, _ = _OKX_MARKET_CACHE
     age_seconds = max(0, int(time.monotonic() - cached_at)) if contracts else None
-    source = _OKX_MARKET_SOURCE
-    if contracts and source == "unavailable":
-        source = str(contracts[0].get("_catalog_source") or "okx_public")
+    source = (
+        str(contracts[0].get("_catalog_source") or _OKX_MARKET_SOURCE)
+        if contracts
+        else "unavailable"
+    )
+    trading_ready_count = sum(1 for item in contracts if item.get("trading_ready", False))
     return {
         "ok": bool(contracts),
         "source": source if contracts else "unavailable",
@@ -424,53 +457,23 @@ def okx_swap_catalog(query: str = "", limit: int = 100, *, refresh: bool = False
         "cache_ttl_seconds": _OKX_MARKET_TTL_SECONDS,
         "fetched_at": _OKX_MARKET_FETCHED_AT or None,
         "error": _OKX_MARKET_LAST_ERROR or None,
-        "trading_ready_count": sum(1 for item in contracts if item.get("trading_ready", True)),
+        "trading_ready": bool(contracts) and trading_ready_count == len(contracts),
+        "trading_ready_count": trading_ready_count,
         "instruments": rows,
     }
 
 
 def search(query: str, limit: int = 20, market: str | None = None) -> list[Instrument]:
-    """按市场搜索本地标的；精确代码未登记时自动解析并缓存。"""
+    """Search registered instruments, with crypto restricted to verified OKX contracts."""
     if market is not None and market not in SUPPORTED_MARKETS:
         raise InstrumentResolutionError(f"不支持的市场: {market}")
+    if market == "crypto":
+        return _verified_okx_search_results(query, limit)
     if not query or not query.strip():
         return repository.list_all(limit=limit, market=market)
     raw_query = query.strip()
     normalized = raw_query.upper()
     matches = repository.search(normalized, limit=limit, market=market)
-    if market == "crypto":
-        explicit_pair = re.fullmatch(r"[A-Z0-9]{2,15}(?:[-/][A-Z0-9]{2,15})", normalized)
-        if explicit_pair:
-            exact = next((item for item in matches if item.code == normalized), None)
-            return [exact or resolve_strict(normalized, "crypto")]
-
-        alias = _alias_instrument(raw_query)
-        if alias and not any(item.code == alias.code for item in matches):
-            matches = [alias, *matches]
-        canonical = normalize_crypto_swap_code(raw_query)
-        if canonical:
-            canonical_match = next(
-                (item for item in matches if item.code == canonical), None
-            ) or build_instrument(canonical, "crypto")
-            matches = [
-                canonical_match,
-                *(
-                    item
-                    for item in matches
-                    if item.code != canonical and normalize_crypto_swap_code(item.code) != canonical
-                ),
-            ]
-        if alias or canonical:
-            return matches[:limit]
-        remote = _load_okx_swap_markets()
-        needle = raw_query.lower()
-        remote_matches = [
-            item for item in remote if needle in item.code.lower() or needle in item.name.lower()
-        ]
-        for item in remote_matches:
-            if not any(existing.code == item.code for existing in matches):
-                matches.append(item)
-        return matches[:limit]
     if matches or market is None or not _looks_like_exact_code(normalized, market):
         return matches
     return [resolve_strict(normalized, market)]
@@ -484,7 +487,7 @@ def register(
     currency: str = "",
     asset_class: str = "",
 ) -> Instrument:
-    """手动注册/更新 Instrument 元数据。"""
+    """手动注册/更新 Instrument 元数据，不授予可执行交易身份。"""
     instrument = build_instrument(code, market, name)
     # 允许手动覆盖推断值
     if exchange:

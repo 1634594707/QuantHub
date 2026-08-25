@@ -5,8 +5,8 @@
 market: "crypto"
 
 data_sources:
-  primary: "okx"                        # 在线 ccxt 优先
-  fallback: ["local_parquet"]           # 离线回测/研究用 data/OKX_K线数据 + MT5_K线数据
+  primary: "okx"                        # 默认只使用在线 OKX；失败时 fail-closed
+  # 本地数据仅可由显式诊断/研究路径选择。
   okx:
     exchange: "okx"
     rate_limit_ms: 100

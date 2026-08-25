@@ -1486,6 +1486,27 @@ def _signal_ic(frame: pd.DataFrame, signal: pd.Series) -> float:
     return _spearman(executable, returns)
 
 
+def _validated_factor_signal(signal: pd.Series, *, context: str) -> pd.Series:
+    """Validate a factor output before it enters a backtest or paper path.
+
+    A leading NaN prefix is the explicit warm-up contract for rolling factors.
+    Any hole after the first usable value, an infinite value, or a non-finite
+    tail is a formula/data failure and must stop the path; replacing it with a
+    zero position would silently manufacture a different strategy.
+    """
+    values = pd.to_numeric(pd.Series(signal).reset_index(drop=True), errors="coerce")
+    array = values.to_numpy(dtype=float)
+    if np.isinf(array).any():
+        raise ValueError(f"{context}包含非有限信号（Inf）")
+    finite = np.isfinite(array)
+    if not finite.any():
+        raise ValueError(f"{context}没有任何有限信号")
+    first_valid = int(np.flatnonzero(finite)[0])
+    if not finite[first_valid:].all():
+        raise ValueError(f"{context}在预热区之后包含缺失或非有限信号")
+    return values
+
+
 def _window_stability(returns: list[float], *, windows: int = 3) -> dict[str, Any]:
     values = np.asarray(returns, dtype=float)
     values = values[np.isfinite(values)]
@@ -1522,9 +1543,10 @@ def _backtest_partition(
     applied_commission_bps = (
         req.commission_bps if commission_bps is None else max(0.0, commission_bps)
     )
+    validated_signal = _validated_factor_signal(signal, context="因子回测信号")
     result = run_signal_backtest(
         frame.reset_index(drop=True),
-        pd.Series(signal).reset_index(drop=True),
+        validated_signal,
         initial_capital=req.initial_capital,
         commission=applied_commission_bps / 10_000,
         position_fraction=position_fraction,
@@ -1538,9 +1560,7 @@ def _backtest_partition(
         "metrics": result["metrics"],
         "raw_p_value": _p_value(returns),
         "effective_sample_size": max(1, len(returns)),
-        "rank_ic": _signal_ic(
-            frame.reset_index(drop=True), pd.Series(signal).reset_index(drop=True)
-        ),
+        "rank_ic": _signal_ic(frame.reset_index(drop=True), validated_signal),
         "window_stability": _window_stability(returns),
     }
     return {
@@ -2523,7 +2543,9 @@ def _run_research(
             _experiment_event(experiment["id"], "queued")
             _experiment_event(experiment["id"], "running")
 
-            raw_signal = evaluate_factor_ast(definition["ast"], frame)
+            raw_signal = _validated_factor_signal(
+                evaluate_factor_ast(definition["ast"], frame), context="候选原始因子信号"
+            )
             signal = pd.Series(np.tanh(raw_signal.astype(float) / 2), index=frame.index)
             signal_by_time = pd.Series(signal.to_numpy(), index=frame["datetime"])
             metrics: dict[str, Any] = {}
@@ -2565,7 +2587,10 @@ def _run_research(
             )
             for column in ("open", "high", "low", "close"):
                 perturbed[column] = perturbed[column].astype(float) * (1 + deterministic_noise)
-            perturbed_signal = evaluate_factor_ast(definition["ast"], perturbed)
+            perturbed_signal = _validated_factor_signal(
+                evaluate_factor_ast(definition["ast"], perturbed),
+                context="扰动验证原始因子信号",
+            )
             metrics["rolling_validation_data_perturbation"] = _backtest_partition(
                 perturbed,
                 pd.Series(np.tanh(perturbed_signal.astype(float) / 2), index=perturbed.index),
@@ -2574,7 +2599,10 @@ def _run_research(
             neighbor_returns: list[float] = []
             for multiplier in (0.8, 1.2):
                 neighbor_ast = _shift_ast_parameters(definition["ast"], multiplier)
-                neighbor_signal = evaluate_factor_ast(neighbor_ast, validation_partition)
+                neighbor_signal = _validated_factor_signal(
+                    evaluate_factor_ast(neighbor_ast, validation_partition),
+                    context="参数邻域原始因子信号",
+                )
                 neighbor_result = _backtest_partition(
                     validation_partition,
                     pd.Series(
@@ -2905,9 +2933,8 @@ def _run_research(
 
     now = time.time()
     observation_ends_at = now + req.observation_days * 86_400
-    latest_signal = float(
-        pd.Series(winner["signal"]).replace([np.inf, -np.inf], np.nan).fillna(0).iloc[-1]
-    )
+    winner_signal = _validated_factor_signal(winner["signal"], context="锁定因子信号")
+    latest_signal = float(winner_signal.iloc[-1])
     position_weight = max(0.0, min(1.0, latest_signal))
     latest_price = float(frame["close"].iloc[-1])
     market_time = frame["datetime"].iloc[-1].isoformat()
@@ -3779,9 +3806,12 @@ def _observe_factor_factory_locked(
     )
     if definition is None:
         raise ValueError("模拟观察绑定的因子定义不存在")
-    raw_signal = evaluate_factor_ast(definition["ast"], frame)
+    raw_signal = _validated_factor_signal(
+        evaluate_factor_ast(definition["ast"], frame), context="模拟观察原始因子信号"
+    )
     signals = pd.Series(np.tanh(raw_signal.astype(float) / 2), index=frame.index)
-    signal = float(signals.replace([np.inf, -np.inf], np.nan).fillna(0).iloc[-1])
+    validated_signals = _validated_factor_signal(signals, context="模拟观察因子信号")
+    signal = float(validated_signals.iloc[-1])
     position_weight = max(0.0, min(1.0, signal))
     price = float(frame["close"].iloc[-1])
     market_time = frame["datetime"].iloc[-1].isoformat()

@@ -1,4 +1,4 @@
-// 工具栏：标的输入 + 条数下拉 + 运行按钮 + LM Studio 状态徽标。
+// 工具栏：标的输入 + 条数下拉 + 运行按钮 + 模型路径状态徽标。
 // 受控组件：所有状态由父组件 NewsPage 持有，本组件只负责触发回调。
 
 import type { NewsHealthResp } from '../../api/types'
@@ -14,15 +14,12 @@ export interface NewsToolbarProps {
   onLimitChange: (v: number) => void
   /** 是否正在请求中（按钮禁用 + spinner） */
   loading: boolean
-  /** LM Studio 探活结果 */
+  /** 完整新闻模型路径的探活结果 */
   health: NewsHealthResp | null
   /** 探活是否在加载中 */
   healthLoading: boolean
   /** 手动重探 */
   onRefreshHealth: () => void
-  /** 是否启用 API 结构化增强（用户手动开关） */
-  useApi: boolean
-  onUseApiChange: (v: boolean) => void
 }
 
 const LIMIT_OPTIONS = [10, 20, 50, 100]
@@ -38,10 +35,8 @@ export function NewsToolbar({
   health,
   healthLoading,
   onRefreshHealth,
-  useApi,
-  onUseApiChange,
 }: NewsToolbarProps) {
-  const apiEnhanced = health?.api_enhancement === true
+  const pipelineReady = health?.ok === true
   const modelName = health?.model ?? null
   const hasSymbol = symbol.trim().length > 0
 
@@ -96,39 +91,26 @@ export function NewsToolbar({
         {loading ? '分析中…' : '分析'}
       </button>
 
-      {/* API 增强开关：即使 Key 已配置，用户也可手动关闭以节省 API 额度 */}
-      <label
-        className={`ub-toggle ${s.apiToggle}`}
-        title={useApi ? 'API 增强已开启（结构化 NER/主题/摘要）' : 'API 增强已关闭（仅语义情绪，不消耗 API 额度）'}
-      >
-        <input
-          type="checkbox"
-          checked={useApi}
-          onChange={(e) => onUseApiChange(e.target.checked)}
-        />
-        <span>API 增强</span>
-      </label>
-
       <div className="toolbar-tail">
         <button
-          className={`src-pill ${apiEnhanced ? 'live' : 'warn'} ${s.healthPill}`}
+          className={`src-pill ${pipelineReady ? 'live' : 'warn'} ${s.healthPill}`}
           onClick={onRefreshHealth}
           title={
             healthLoading
               ? '检查中…'
-              : apiEnhanced
-                ? `API 增强${modelName ? ` · ${modelName}` : ''}`
-                : 'API 未启用 · 仅语义分析'
+              : pipelineReady
+                ? `FinBERT2 + 配置 LLM${modelName ? ` · ${modelName}` : ''}`
+                : 'FinBERT2 或配置 LLM 不可用'
           }
         >
           <span
-            className={`${s.healthDot} ${apiEnhanced ? s.healthDotOk : s.healthDotWarn}`}
+            className={`${s.healthDot} ${pipelineReady ? s.healthDotOk : s.healthDotWarn}`}
           />
           {healthLoading
             ? '检查中…'
-            : apiEnhanced
-              ? 'API 增强'
-              : '仅语义分析'}
+            : pipelineReady
+              ? '模型可用'
+              : '模型不可用'}
         </button>
       </div>
     </div>

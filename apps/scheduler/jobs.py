@@ -21,7 +21,7 @@ from strategies import discover_and_register
 discover_and_register()
 
 from core.config import get_config
-from strategies import get_strategy
+from strategies import configured_strategy_config, get_strategy
 
 logger = logging.getLogger(__name__)
 
@@ -145,19 +145,15 @@ def start() -> None:
 def _run_strategy(strategy_name: str) -> None:
     """通用入口：执行指定策略的 produce()（策略内部会发布信号到总线）。"""
     try:
-        strategy = get_strategy(strategy_name)
+        strategy = get_strategy(
+            strategy_name,
+            config=configured_strategy_config(strategy_name),
+        )
     except Exception:
         logger.exception("未找到策略: %s", strategy_name)
         return
     try:
         strategy.produce()
-    except TypeError:
-        # 部分策略 produce() 需要参数（如 mt5 alphamaster 需要 timeframe）
-        # 按模块配置中的 timeframe 或默认 1h 传参
-        try:
-            strategy.produce(timeframe="1h")
-        except Exception:
-            logger.exception("策略执行失败: %s", strategy_name)
     except Exception:
         logger.exception("策略执行失败: %s", strategy_name)
 

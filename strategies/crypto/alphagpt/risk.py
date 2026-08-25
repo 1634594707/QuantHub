@@ -5,7 +5,7 @@
        统一校验（仓位 / 总敞口 / 流动性 / 蜜罐），不通过抛 ``RiskError``。
     2. ``check_honeypot``: 蜜罐检查，复用原 AlphaGPT/strategy_manager/risk.py 概念
        （流动性阈值 + Jupiter 卖出路径报价验证）。solana 为重依赖，懒加载；
-       实盘关闭场景下若依赖未装则跳过（返回安全）。
+       依赖缺失时返回不安全，不能把无法验证当成安全。
 """
 
 from __future__ import annotations
@@ -55,7 +55,7 @@ async def check_honeypot(token_address: str, liquidity_usd: float, *, jupiter: A
         liquidity_usd: 代币流动性（USD）
         jupiter: 可选的 Jupiter 聚合器实例（含 ``get_quote`` / ``close`` 异步方法）。
                  缺省时懒加载原 ``execution.jupiter.JupiterAggregator``；
-                 若 solana/aiohttp 重依赖未装则跳过（实盘默认关场景）。
+                 若 solana/aiohttp 重依赖未装则返回不安全，保持实盘风控 fail-closed。
     """
     if liquidity_usd < _HONEYPOT_MIN_LIQUIDITY_USD:
         logger.warning("蜜罐检查: 流动性过低 $%s", liquidity_usd)
@@ -70,8 +70,8 @@ async def check_honeypot(token_address: str, liquidity_usd: float, *, jupiter: A
             jupiter = JupiterAggregator()
             own_jup = True
         except ImportError:
-            logger.info("蜜罐检查: solana/execution 依赖未装，跳过（实盘默认关）")
-            return True
+            logger.warning("蜜罐检查: solana/execution 依赖未装，无法验证卖出路径")
+            return False
 
     try:
         quote = await jupiter.get_quote(

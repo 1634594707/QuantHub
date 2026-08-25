@@ -1,14 +1,12 @@
 # 美股市场专属配置
 # 继承 base.yaml，覆盖/扩展美股相关项
-# 腾讯负责实时行情；其美股历史不足时使用 Yahoo Chart 公共接口回退。
+# 默认只使用腾讯 primary；历史不足或请求失败时明确返回失败，不切换供应商或本地存储。
 
 market: "us_stocks"
 
 # ===== 美股数据源 =====
 data_sources:
-  # 腾讯历史不足时先回退 Yahoo，离线环境最终回退已有 MT5 Parquet。
   primary: "tencent"
-  fallback: ["yahoo", "local_parquet"]
   tencent: {}
   yahoo: {}
   local_parquet:

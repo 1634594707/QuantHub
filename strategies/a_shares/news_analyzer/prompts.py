@@ -1,6 +1,6 @@
-"""DeepSeek API 批量新闻结构化增强 prompt 模板。
+"""配置 LLM 批量新闻结构化分析 prompt 模板。
 
-设计要点（从 LM Studio 改造为 DeepSeek API 可选增强）：
+设计要点：
     - 一次调用分析 N 条新闻标题，避免 N 条 N 次调用的延迟
     - 强约束输出 JSON 数组（长度 = 输入条数）
     - entities 最多 5 个、summary ≤ 60 字、仅基于标题不得编造

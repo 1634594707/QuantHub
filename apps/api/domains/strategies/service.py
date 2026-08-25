@@ -66,7 +66,7 @@ def strategy_info(name: str) -> dict:
 
 
 def alphamaster_engine_info() -> dict:
-    """返回 AlphaMaster 词表/回退公式信息，不加载任何交易数据。"""
+    """返回 AlphaMaster 词表与训练产物信息，不加载任何交易数据。"""
     from strategies.mt5.alphamaster import engine_info
 
     return engine_info()
@@ -90,10 +90,7 @@ def call_produce(strategy: Any, params: dict[str, Any]) -> list[Any]:
             else dict(params)
         )
     )
-    try:
-        result = strategy.produce(**kwargs)
-    except TypeError:
-        result = strategy.produce()
+    result = strategy.produce(**kwargs)
     if result is None:
         return []
     return list(result) if isinstance(result, (list, tuple)) else [result]
@@ -413,16 +410,15 @@ def pa_analyze(
                 owner_id=owner_id,
             )
         except ResearchContextMismatchError as exc:
-            logger.warning("PA 研究上下文不一致，回退到新建 run: %s", exc)
-            run_id = start_module(
-                symbol=symbol,
-                market=actual_market,
-                timeframe=timeframe,
-                module="pa",
-                input_data={"kline_limit": 300, "timeframe": timeframe},
-                run_id=None,
-                owner_id=owner_id,
-            )
+            logger.warning("PA 研究上下文不一致，拒绝写入其他运行: %s", exc)
+            return {
+                "ok": False,
+                "error": str(exc),
+                "symbol": symbol,
+                "timeframe": timeframe,
+                "market": actual_market,
+                "research_run_id": research_run_id,
+            }
         add_evidence(
             run_id,
             kind="market_snapshot",

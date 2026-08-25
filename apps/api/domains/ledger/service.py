@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
-import os
+import math
 import time
 import uuid
 from datetime import UTC, datetime
@@ -12,7 +12,7 @@ from typing import Any
 
 from apps.api import store
 from apps.api.domains.instrument import service as instrument_service
-from apps.api.domains.portfolio.service import latest_close
+from apps.api.domains.portfolio.service import latest_close_snapshot
 
 from . import repository
 from .domain import (
@@ -25,7 +25,6 @@ from .domain import (
     compute_positions,
     match_closed_trades,
     max_drawdown,
-    portfolio_metrics,
     time_weighted_return,
     trade_analytics,
 )
@@ -59,10 +58,155 @@ def _attribution_fields(req) -> dict[str, Any]:
     }
 
 
-def _ledger_latest_close(code: str, market: str) -> float | None:
-    if os.environ.get("QUANTHUB_DISABLE_MARKET_FETCH") == "1":
-        return None
-    return latest_close(code, market)
+def _is_positive_price(value: object) -> bool:
+    return (
+        not isinstance(value, bool)
+        and isinstance(value, (int, float))
+        and math.isfinite(float(value))
+        and float(value) > 0
+    )
+
+
+def _ledger_market_snapshot(code: str, market: str) -> dict[str, Any]:
+    """Return only a direct online-primary close for ledger valuation.
+
+    Position ``last_price`` starts as the latest execution price. It is useful
+    trade history, but is not a current market quote and must never silently
+    become one when market data is unavailable.
+    """
+    try:
+        snapshot = dict(latest_close_snapshot(code, market))
+    except Exception as exc:  # noqa: BLE001 - ledger reads stay available with an explicit gap
+        logger.debug("回填最新价失败 %s", code, exc_info=True)
+        return {
+            "price": None,
+            "source": "unknown",
+            "quality_status": "unavailable",
+            "error": f"行情源失败: {exc}",
+        }
+    price = snapshot.get("price")
+    executable = (
+        snapshot.get("quality_status") == "closed_bar"
+        and snapshot.get("source_role") == "primary"
+        and snapshot.get("cache_status") == "miss"
+        and snapshot.get("transport") == "online"
+        and _is_positive_price(price)
+    )
+    if not executable:
+        snapshot["price"] = None
+        if not snapshot.get("error"):
+            snapshot["error"] = "未取得可用于账本估值的 online primary 行情"
+    return snapshot
+
+
+def _refresh_market_prices(
+    positions: dict[str, Position], *, refresh_prices: bool = True
+) -> dict[str, dict[str, Any]]:
+    """Fetch explicit valuation quotes without treating execution prices as marks."""
+    quotes: dict[str, dict[str, Any]] = {}
+    for instrument_id, position in positions.items():
+        execution_price = position.last_price
+        if abs(position.quantity) <= 1e-9:
+            quotes[instrument_id] = {
+                "price": None,
+                "execution_price": execution_price,
+                "status": "closed",
+                "snapshot": None,
+            }
+            continue
+        if not refresh_prices:
+            quotes[instrument_id] = {
+                "price": None,
+                "execution_price": execution_price,
+                "status": "unavailable",
+                "snapshot": {
+                    "price": None,
+                    "source": "disabled",
+                    "quality_status": "unavailable",
+                    "error": "账本行情刷新已禁用",
+                },
+            }
+            continue
+        snapshot = _ledger_market_snapshot(position.code, position.market)
+        price = snapshot.get("price")
+        if _is_positive_price(price):
+            position.last_price = float(price)
+            quotes[instrument_id] = {
+                "price": float(price),
+                "execution_price": execution_price,
+                "status": "available",
+                "snapshot": snapshot,
+            }
+        else:
+            quotes[instrument_id] = {
+                "price": None,
+                "execution_price": execution_price,
+                "status": "unavailable",
+                "snapshot": snapshot,
+            }
+    return quotes
+
+
+def _position_view(position: Position, quote: dict[str, Any]) -> dict[str, Any]:
+    """Serialize a position while keeping execution and market prices distinct."""
+    item = position.to_dict()
+    item["last_execution_price"] = round(float(quote["execution_price"]), 8)
+    item["market_snapshot"] = quote["snapshot"]
+    item["market_price"] = quote["price"]
+    item["market_price_available"] = quote["status"] == "available"
+    item["valuation_status"] = quote["status"]
+    if quote["status"] != "available":
+        # ``last_price`` is a domain carry-forward from the latest fill. Clear it
+        # from the current-valuation representation rather than relabeling it.
+        item["last_price"] = None
+        if quote["status"] == "unavailable":
+            item["market_value"] = None
+            item["unrealized_pnl"] = None
+    return item
+
+
+def _valuation_metrics(
+    positions: dict[str, Position], quotes: dict[str, dict[str, Any]], cash: float
+) -> dict[str, Any]:
+    active = [position for position in positions.values() if abs(position.quantity) > 1e-9]
+    unpriced = [
+        position
+        for instrument_id, position in positions.items()
+        if abs(position.quantity) > 1e-9 and quotes[instrument_id]["status"] != "available"
+    ]
+    total_realized = sum(position.realized_pnl for position in positions.values())
+    total_cost = sum(position.cost_basis for position in positions.values())
+    base = {
+        "cash": round(cash, 2),
+        "cost_basis": round(total_cost, 2),
+        "realized_pnl": round(total_realized, 2),
+        "n_positions": len(active),
+        "priced_positions": len(active) - len(unpriced),
+        "unpriced_positions": len(unpriced),
+        "unpriced_instruments": [position.instrument_id for position in unpriced],
+    }
+    if unpriced:
+        return {
+            **base,
+            "nav": None,
+            "market_value": None,
+            "unrealized_pnl": None,
+            "total_pnl": None,
+            "return_pct": None,
+            "valuation_status": "partial" if len(unpriced) < len(active) else "unavailable",
+        }
+    total_market_value = sum(position.market_value for position in active)
+    total_unrealized = sum(position.unrealized_pnl for position in active)
+    total_pnl = total_realized + total_unrealized
+    return {
+        **base,
+        "nav": round(total_market_value + cash, 2),
+        "market_value": round(total_market_value, 2),
+        "unrealized_pnl": round(total_unrealized, 2),
+        "total_pnl": round(total_pnl, 2),
+        "return_pct": round(total_pnl / total_cost * 100, 2) if total_cost > 0 else 0.0,
+        "valuation_status": "available",
+    }
 
 
 def record_trade(req: TradeCreate) -> dict:
@@ -181,16 +325,11 @@ def get_positions(*, refresh_prices: bool = True) -> dict:
     """从成交流水计算当前持仓；按需回填最新价。"""
     trades = repository.list_trades(limit=10_000)
     positions = compute_positions(trades)
-    if refresh_prices:
-        for pos in positions.values():
-            if abs(pos.quantity) > 1e-9:
-                try:
-                    price = _ledger_latest_close(pos.code, pos.market)
-                    if price:
-                        pos.last_price = price
-                except Exception:  # noqa: BLE001 - market adapters must not block ledger reads
-                    logger.debug("回填最新价失败 %s", pos.code)
-    items = [p.to_dict() for p in positions.values()]
+    quotes = _refresh_market_prices(positions, refresh_prices=refresh_prices)
+    items = [
+        _position_view(position, quotes[instrument_id])
+        for instrument_id, position in positions.items()
+    ]
     return {"count": len(items), "positions": items}
 
 
@@ -202,35 +341,22 @@ def get_position(instrument_id: str) -> dict:
     pos = positions.get(instrument_id)
     if not pos:
         return {"ok": False, "error": "持仓计算失败"}
-    if abs(pos.quantity) > 1e-9:
-        try:
-            price = _ledger_latest_close(pos.code, pos.market)
-            if price:
-                pos.last_price = price
-        except Exception:  # noqa: BLE001 - market adapters must not block ledger reads
-            logger.debug("回填最新价失败 %s", pos.code, exc_info=True)
-    return {"ok": True, "position": pos.to_dict()}
+    quotes = _refresh_market_prices(positions)
+    return {"ok": True, "position": _position_view(pos, quotes[instrument_id])}
 
 
 def portfolio_summary() -> dict:
     """组合级指标：NAV、已实现/未实现盈亏、现金、持仓数。"""
     trades = repository.list_trades(limit=10_000)
     positions = compute_positions(trades)
-    for pos in positions.values():
-        if abs(pos.quantity) > 1e-9:
-            try:
-                price = _ledger_latest_close(pos.code, pos.market)
-                if price:
-                    pos.last_price = price
-            except Exception:  # noqa: BLE001 - market adapters must not block ledger reads
-                logger.debug("回填最新价失败 %s", pos.code, exc_info=True)
+    quotes = _refresh_market_prices(positions)
     cash = compute_cash_balance()
-    metrics = portfolio_metrics(positions, cash)
+    metrics = _valuation_metrics(positions, quotes, cash)
     return {"ok": True, "summary": metrics}
 
 
 def _build_equity_curve(
-    trades: list[Trade], cash_entries: list[CashEntry], final_market_value: float
+    trades: list[Trade], cash_entries: list[CashEntry], final_market_value: float | None
 ) -> list[dict[str, Any]]:
     """从成交 + 现金流水按时间顺序重建组合权益曲线。
 
@@ -270,8 +396,10 @@ def _build_equity_curve(
         )
         nav = cash_balance + market_value
         equity_curve.append({"t": ts, "equity": round(nav, 2)})
-    # 最后一点用真实最新市值替换
-    if equity_curve:
+    # Only replace the final historical execution-price point when a verified
+    # current valuation exists. Historical trade prices remain valid for their
+    # own event times; they are not a substitute for a current market quote.
+    if equity_curve and final_market_value is not None:
         last_ts = equity_curve[-1]["t"]
         equity_curve[-1] = {"t": last_ts, "equity": round(cash_balance + final_market_value, 2)}
     return equity_curve
@@ -285,16 +413,9 @@ def performance() -> dict:
     trades = repository.list_trades(limit=10_000)
     cash_entries = repository.list_cash(limit=10_000)
     positions = compute_positions(trades)
-    # 回填最新价用于末点市值
-    for pos in positions.values():
-        if abs(pos.quantity) > 1e-9:
-            try:
-                price = _ledger_latest_close(pos.code, pos.market)
-                if price:
-                    pos.last_price = price
-            except Exception:  # noqa: BLE001 - market adapters must not block ledger reads
-                logger.debug("回填最新价失败 %s", pos.code, exc_info=True)
-    final_market_value = sum(p.market_value for p in positions.values())
+    quotes = _refresh_market_prices(positions)
+    current_metrics = _valuation_metrics(positions, quotes, compute_cash_balance())
+    final_market_value = current_metrics["market_value"]
 
     equity_curve = _build_equity_curve(trades, cash_entries, final_market_value)
     cash_flows = [{"ts": e.ts, "amount": e.signed_amount()} for e in cash_entries]
@@ -316,6 +437,9 @@ def performance() -> dict:
         "twr_pct": twr,
         "max_drawdown": mdd,
         "benchmark_excess": bench_info,
+        "current_market_value": current_metrics["market_value"],
+        "current_valuation_status": current_metrics["valuation_status"],
+        "unpriced_instruments": current_metrics["unpriced_instruments"],
     }
 
 
@@ -375,47 +499,78 @@ def exposures() -> dict:
     """风险敞口：按市场、方向、个股聚合。"""
     trades = repository.list_trades(limit=10_000)
     positions = compute_positions(trades)
-    for pos in positions.values():
-        if abs(pos.quantity) > 1e-9:
-            try:
-                price = _ledger_latest_close(pos.code, pos.market)
-                if price:
-                    pos.last_price = price
-            except Exception:  # noqa: BLE001 - market adapters must not block ledger reads
-                logger.debug("回填最新价失败 %s", pos.code, exc_info=True)
+    quotes = _refresh_market_prices(positions)
     active = [p for p in positions.values() if abs(p.quantity) > 1e-9]
     by_market: dict[str, float] = {}
     by_direction = {"long": 0, "short": 0}
     by_symbol: list[dict] = []
-    for pos in active:
-        mv = pos.market_value
-        by_market[pos.market] = by_market.get(pos.market, 0) + mv
+    unpriced: list[Position] = []
+    for instrument_id, pos in positions.items():
+        if abs(pos.quantity) <= 1e-9:
+            continue
         if pos.quantity > 0:
             by_direction["long"] += 1
         else:
             by_direction["short"] += 1
+        quote = quotes[instrument_id]
+        if quote["status"] != "available":
+            unpriced.append(pos)
+            by_symbol.append(
+                {
+                    "code": pos.code,
+                    "market": pos.market,
+                    "market_price": None,
+                    "market_value": None,
+                    "weight_pct": None,
+                    "valuation_status": "unavailable",
+                    "market_snapshot": quote["snapshot"],
+                }
+            )
+            continue
+        mv = pos.market_value
+        by_market[pos.market] = by_market.get(pos.market, 0) + mv
         by_symbol.append(
             {
                 "code": pos.code,
                 "market": pos.market,
+                "market_price": round(float(quote["price"]), 8),
                 "market_value": round(mv, 2),
                 "weight_pct": 0.0,
+                "valuation_status": "available",
+                "market_snapshot": quote["snapshot"],
             }
         )
-    total_mv = sum(p.market_value for p in active)
-    gross_mv = sum(abs(p.market_value) for p in active)
+    priced = [
+        position for position in active if quotes[position.instrument_id]["status"] == "available"
+    ]
+    total_mv = sum(position.market_value for position in priced)
+    gross_mv = sum(abs(position.market_value) for position in priced)
     for item in by_symbol:
+        if item["market_value"] is None:
+            continue
         item["weight_pct"] = (
             round(abs(item["market_value"]) / gross_mv * 100, 2) if gross_mv > 0 else 0.0
         )
-    by_symbol.sort(key=lambda x: abs(x["market_value"]), reverse=True)
+    by_symbol.sort(
+        key=lambda item: (
+            abs(float(item["market_value"])) if item["market_value"] is not None else -1
+        ),
+        reverse=True,
+    )
+    valuation_complete = not unpriced
     return {
         "ok": True,
         "by_market": {k: round(v, 2) for k, v in by_market.items()},
         "by_direction": by_direction,
         "by_symbol": by_symbol,
-        "total_market_value": round(total_mv, 2),
-        "gross_market_value": round(gross_mv, 2),
+        "total_market_value": round(total_mv, 2) if valuation_complete else None,
+        "gross_market_value": round(gross_mv, 2) if valuation_complete else None,
+        "priced_positions": len(priced),
+        "unpriced_positions": len(unpriced),
+        "unpriced_instruments": [position.instrument_id for position in unpriced],
+        "valuation_status": (
+            "partial" if unpriced and priced else "unavailable" if unpriced else "available"
+        ),
     }
 
 
@@ -430,20 +585,25 @@ def attribution(
         if (start_at is None or trade.ts >= start_at) and (end_at is None or trade.ts <= end_at)
     ]
     positions = compute_positions(trades)
-    by_instrument = [
-        {
-            "instrument_id": position.instrument_id,
-            "code": position.code,
-            "market": position.market,
-            "realized_pnl": round(position.realized_pnl, 2),
-            "unrealized_pnl": round(position.unrealized_pnl, 2),
-            "total_pnl": round(position.realized_pnl + position.unrealized_pnl, 2),
-            "trade_count": sum(
-                1 for trade in trades if trade.instrument_id == position.instrument_id
-            ),
-        }
-        for position in positions.values()
-    ]
+    by_instrument = []
+    for position in positions.values():
+        open_position = abs(position.quantity) > 1e-9
+        by_instrument.append(
+            {
+                "instrument_id": position.instrument_id,
+                "code": position.code,
+                "market": position.market,
+                "realized_pnl": round(position.realized_pnl, 2),
+                # Attribution has immutable trade facts, not a point-in-time
+                # market mark. Do not turn the last execution into unrealized PnL.
+                "unrealized_pnl": None if open_position else 0.0,
+                "total_pnl": None if open_position else round(position.realized_pnl, 2),
+                "valuation_status": "unavailable" if open_position else "closed",
+                "trade_count": sum(
+                    1 for trade in trades if trade.instrument_id == position.instrument_id
+                ),
+            }
+        )
 
     def aggregate(key_of) -> list[dict]:
         groups: dict[str, dict[str, Any]] = {}

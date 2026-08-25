@@ -8,9 +8,8 @@ data_sources:
   # 在线源优先：当前环境 akshare 经系统代理访问东财接口必失败（ProxyError），
   # 腾讯接口可正常穿透代理，故以 tencent 为日/周 K 线 primary。
   # 这些接口均为 bar snapshot，不是逐笔实时；盘中形成中 K 线不得用于研究信号。
-  # 东方财富直连负责个股新闻；新浪财经提供独立新闻兜底，akshare 为兼容备用。
+  # 默认只使用腾讯 primary；其他适配器仅允许通过显式诊断入口构造，绝不自动回退。
   primary: "tencent"
-  fallback: ["eastmoney", "sina_news", "akshare", "local_parquet"]
   akshare: {}
   tencent: {}
   local_parquet:
@@ -53,14 +52,12 @@ modules:
     enabled: true
     # FinBERT2 本地权重目录（相对 models_dir）
     model_dir: "finbert2-base-sentiment-3class-stage2"
-    news_source: "eastmoney"
     daily_scan_cron: "0 18 * * 1-5"       # 每个交易日 18:00 扫描
   news_analyzer:
     enabled: true
-    # 初始情绪分析复用 modules.sentiment 的 SentimentAnalyzer（transformers/FinBERT2 → snownlp → 关键词）
-    # 可选 API 增强：配置 DEEPSEEK_API_KEY 环境变量后自动启用 NER/主题/摘要结构化分析
-    api_provider: "deepseek"              # 可选 API 提供方（未配置 Key 时自动跳过）
-    batch_size: 5                         # API 增强单批最大条数
+    # 可用结果必须同时来自 FinBERT2 和这个配置 LLM；任一不可用即拒绝生成信号/研究证据。
+    api_provider: "deepseek"
+    batch_size: 5                         # 单批最大条数
     max_title_chars: 200                  # 标题截断长度（控制 prompt token）
   news_scanner:
     enabled: true
@@ -68,16 +65,68 @@ modules:
     cron: "*/30 * * * *"                  # 每 30 分钟扫描一次
   selector:
     enabled: true
+    universe: "hs300"                    # 调度必须使用显式选股域，禁止代码默认回退
     cron: "0 17 * * 1-5"                  # 收盘前选股
   supertrend:
     enabled: true
     default_tf: "daily"                   # daily | 4h
+    symbols: ["510300", "601988"]        # 必须显式配置，禁止运行时示例标的回退
     cron: "30 15 * * 1-5"                 # 收盘后生成每日趋势信号
   morning_brief:
     enabled: true
+    symbols: ["sh000001", "sz399006", "sh000300"]  # 必须显式配置观察指数
     cron: "30 8 * * 1-5"                  # 开盘前 8:30 生成
   perks_monitor:
     enabled: true
+    # 公告监控股票池必须显式配置；缺失时调度任务 fail-closed。
+    stock_pool:
+      - "300908"
+      - "002382"
+      - "603101"
+      - "600054"
+      - "603716"
+      - "002557"
+      - "600771"
+      - "836826"
+      - "605300"
+      - "300753"
+      - "300997"
+      - "605081"
+      - "002646"
+      - "002069"
+      - "000620"
+      - "000521"
+      - "002186"
+      - "002320"
+      - "000888"
+      - "000978"
+      - "300972"
+      - "001330"
+      - "001302"
+      - "002301"
+      - "603237"
+      - "603043"
+      - "002702"
+      - "600809"
+      - "600197"
+      - "600559"
+      - "600702"
+      - "001216"
+      - "300883"
+      - "600887"
+      - "603517"
+      - "002881"
+      - "688285"
+      - "300122"
+      - "300740"
+      - "300949"
+      - "301208"
+      - "000597"
+      - "603369"
+      - "002587"
+      - "600839"
+      - "603108"
+      - "002081"
     cron: "0 9 * * *"                     # 每日 9:00 检查公告
     push_channels: ["wecom"]
   realtime_analyzer:
@@ -87,6 +136,8 @@ modules:
     with_kline: true
     with_indices: true
     kline_days: 60
+    # 盘后研究允许使用同一交易日收盘快照；超过 12 小时的报价不可发布信号。
+    max_quote_age_minutes: 720
 
 # ===== 股票池 =====
 stock_pool:

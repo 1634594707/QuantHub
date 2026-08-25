@@ -16,11 +16,12 @@ from __future__ import annotations
 
 from apps.dispatcher.confirm import cli_confirm
 from apps.dispatcher.risk import RiskChecker, RiskError
-from apps.dispatcher.router import OrderIntent, OrderRouter
+from apps.dispatcher.router import OrderIntent, OrderRouter, OrderRoutingError
 
 __all__ = [
     "OrderIntent",
     "OrderRouter",
+    "OrderRoutingError",
     "RiskChecker",
     "RiskError",
     "cli_confirm",

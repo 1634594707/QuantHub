@@ -41,10 +41,6 @@ logger = logging.getLogger(__name__)
 _SOURCE = "morning_brief"
 _MARKET = "a_shares"
 
-# 默认观察指数（上证指数 / 创业板指 / 沪深300）；可经 kwargs/symbols 覆盖
-_DEFAULT_SYMBOLS = ["sh000001", "sz399006", "sh000300"]
-
-
 # ─────────────────────────────────────────────
 # Prompt 常量（从原 prompts/full.md / intraday.md / swing.md 原文提取）
 # ─────────────────────────────────────────────
@@ -354,6 +350,44 @@ class MorningBriefStrategy(StrategyBase):
         5. 可选经 ``core.alert`` 推送简报
     """
 
+    def _reject_configuration(
+        self,
+        *,
+        reason: str,
+        details: dict[str, Any] | None = None,
+        code: str = "symbols_required",
+        message: str = "晨会简报未配置明确的观察指数，未启动分析。",
+    ) -> list[Signal]:
+        """Return a structured unavailable result without inventing a universe."""
+        payload = {"market": _MARKET, "reason": reason, **(details or {})}
+        self.last_report = {
+            "kind": _SOURCE,
+            "status": "unavailable",
+            "degraded": True,
+            "display_only": True,
+            "execution_eligible": False,
+            **payload,
+        }
+        self.last_signal_rejection = {
+            "code": code,
+            "message": message,
+            "details": payload,
+        }
+        logger.warning("晨会简报配置不完整，跳过分析: %s", reason)
+        return []
+
+    def _resolve_symbols(self, symbols: list[str] | None) -> list[str] | None:
+        """Resolve only caller-provided or explicitly configured symbols.
+
+        A missing/empty universe is a configuration error; the historical
+        built-in index list is intentionally not a runtime fallback.
+        """
+        raw = symbols if symbols is not None else self.config.get("symbols")
+        if not isinstance(raw, (list, tuple)):
+            return None
+        resolved = [str(item).strip() for item in raw if str(item).strip()]
+        return resolved or None
+
     def produce(
         self,
         symbols: list[str] | None = None,
@@ -363,7 +397,7 @@ class MorningBriefStrategy(StrategyBase):
         """生成当日晨会简报并产出综合信号。
 
         Args:
-            symbols: 观察指数代码列表（默认上证/创业板/沪深300）
+            symbols: 观察指数代码列表（必须由调用方或模块配置显式提供）
             style: 简报档位 ``"full"`` / ``"intraday"`` / ``"swing"``
             **kwargs:
                 news_limit: 市场新闻条数（默认 30）
@@ -375,11 +409,23 @@ class MorningBriefStrategy(StrategyBase):
         Returns:
             含一个综合信号的列表（已推入总线）；生成失败返回空列表
         """
+        self.last_report = None
+        self.last_signal_rejection = None
         if style not in _PROMPTS:
-            logger.warning("未知 style=%s，回退为 full", style)
-            style = "full"
+            return self._reject_configuration(
+                reason="未知简报档位",
+                details={"style": style, "allowed_styles": sorted(_PROMPTS)},
+                code="invalid_style",
+                message="晨会简报档位无效，未启动分析。",
+            )
 
-        symbols = list(symbols or self.config.get("symbols") or _DEFAULT_SYMBOLS)
+        resolved_symbols = self._resolve_symbols(symbols)
+        if resolved_symbols is None:
+            return self._reject_configuration(
+                reason="未提供明确观察指数（调用参数 symbols 或 modules.morning_brief.symbols）",
+                details={"symbols": []},
+            )
+        symbols = resolved_symbols
         news_limit = int(kwargs.get("news_limit", self.config.get("news_limit", 30)))
         kline_limit = int(kwargs.get("kline_limit", self.config.get("kline_limit", 300)))
         push = bool(kwargs.get("push", self.config.get("push", False)))
@@ -741,13 +787,19 @@ def generate(
     """生成并（默认）推送当日晨会简报（供 apps.scheduler 调用）。
 
     Args:
-        symbols: 观察指数列表（缺省读 config 或默认三指数）
+        symbols: 观察指数列表（缺省读取模块配置；未配置时拒绝运行）
         style: 简报档位 full / intraday / swing
         push: 是否推送简报（默认 True）
         **kwargs: 透传给 MorningBriefStrategy.produce
     Returns:
         当日综合信号列表
     """
-    cfg = get_config(_MARKET).get("modules", {}).get("morning_brief", {})
+    try:
+        raw_config = get_config(_MARKET)
+        module_cfg = raw_config.get("modules", {}).get("morning_brief", {})
+        cfg = module_cfg if isinstance(module_cfg, dict) else {}
+    except Exception as exc:  # noqa: BLE001 - explicit unavailable result, no example universe
+        logger.warning("晨会简报无法读取模块配置: %s", exc)
+        cfg = {}
     strategy = MorningBriefStrategy(config=cfg)
     return strategy.produce(symbols=symbols, style=style, push=push, **kwargs)

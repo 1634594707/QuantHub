@@ -31,6 +31,73 @@ def trade(
 
 
 class LedgerTradeAnalyticsTests(unittest.TestCase):
+    def test_open_position_does_not_relabel_execution_price_as_market_price(self) -> None:
+        open_trade = trade("open", "buy", 1, 100, 0)
+        cached_snapshot = {
+            "price": 101.0,
+            "source": "tencent",
+            "primary_source": "tencent",
+            "source_role": "primary_cache",
+            "cache_status": "hit",
+            "transport": "cache",
+            "quality_status": "cached_primary",
+            "error": "same-primary cache",
+        }
+        with (
+            patch.object(ledger_service.repository, "list_trades", return_value=[open_trade]),
+            patch.object(ledger_service.repository, "list_cash", return_value=[]),
+            patch.object(ledger_service, "latest_close_snapshot", return_value=cached_snapshot),
+        ):
+            positions = ledger_service.get_positions()
+            summary = ledger_service.portfolio_summary()
+            exposure = ledger_service.exposures()
+
+        row = positions["positions"][0]
+        self.assertEqual(row["last_execution_price"], 100.0)
+        self.assertIsNone(row["last_price"])
+        self.assertIsNone(row["market_price"])
+        self.assertIsNone(row["market_value"])
+        self.assertIsNone(row["unrealized_pnl"])
+        self.assertFalse(row["market_price_available"])
+        self.assertEqual(row["valuation_status"], "unavailable")
+        self.assertIsNone(summary["summary"]["nav"])
+        self.assertEqual(summary["summary"]["cost_basis"], 100.0)
+        self.assertEqual(summary["summary"]["unpriced_positions"], 1)
+        self.assertIsNone(exposure["total_market_value"])
+        self.assertEqual(exposure["unpriced_positions"], 1)
+        self.assertIsNone(exposure["by_symbol"][0]["market_value"])
+
+    def test_direct_online_primary_quote_remains_usable_for_ledger_valuation(self) -> None:
+        open_trade = trade("open", "buy", 1, 100, 0)
+        direct_snapshot = {
+            "price": 120.0,
+            "source": "tencent",
+            "primary_source": "tencent",
+            "source_role": "primary",
+            "cache_status": "miss",
+            "transport": "online",
+            "quality_status": "closed_bar",
+            "error": None,
+        }
+        with (
+            patch.object(ledger_service.repository, "list_trades", return_value=[open_trade]),
+            patch.object(ledger_service.repository, "list_cash", return_value=[]),
+            patch.object(ledger_service, "latest_close_snapshot", return_value=direct_snapshot),
+        ):
+            positions = ledger_service.get_positions()
+            summary = ledger_service.portfolio_summary()
+            exposure = ledger_service.exposures()
+
+        row = positions["positions"][0]
+        self.assertEqual(row["last_execution_price"], 100.0)
+        self.assertEqual(row["last_price"], 120.0)
+        self.assertEqual(row["market_price"], 120.0)
+        self.assertEqual(row["market_value"], 120.0)
+        self.assertEqual(row["unrealized_pnl"], 20.0)
+        self.assertTrue(row["market_price_available"])
+        self.assertEqual(summary["summary"]["market_value"], 120.0)
+        self.assertEqual(exposure["total_market_value"], 120.0)
+
     def test_fifo_matching_supports_partial_close_and_open_remainder(self) -> None:
         closed, matching = match_closed_trades(
             [

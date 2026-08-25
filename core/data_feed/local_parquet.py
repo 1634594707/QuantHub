@@ -17,8 +17,8 @@
     （AlphaMaster 的因子引擎只用 K 线序列，时间顺序正确即可正常算特征/信号。）
 
 用法（由 factory 按 configs/*.yaml 的 data_sources.local_parquet 自动构建）：
-    src = get_data_source("crypto")        # 在线 OKX 优先，失败 fallback 到本地
-    src = get_data_source("a_shares")     # 本地 parquet 优先，失败 fallback 到 akshare/东财
+    src = get_configured_source("crypto", "local_parquet")   # 显式离线研究/诊断
+    src = get_configured_source("a_shares", "local_parquet") # 显式离线研究/诊断
 """
 
 from __future__ import annotations
@@ -168,11 +168,7 @@ class LocalParquetSource(DataSource):
             path = self._index.get((gname, key, file_tf))
             if path is None or not path.exists():
                 continue
-            read_interval = (
-                "1d"
-                if interval == "1w" and file_tf in {"daily", "D1"}
-                else interval
-            )
+            read_interval = "1d" if interval == "1w" and file_tf in {"daily", "D1"} else interval
             df = self._read(path, symbol, read_interval, cfg, gname)
             if df is None or df.empty:
                 continue

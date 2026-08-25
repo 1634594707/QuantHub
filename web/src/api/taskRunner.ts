@@ -10,20 +10,6 @@ interface AnalysisTaskSpec {
   timeoutSeconds?: number
 }
 
-function wait(ms: number, signal?: AbortSignal): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const timer = window.setTimeout(resolve, ms)
-    signal?.addEventListener('abort', () => {
-      window.clearTimeout(timer)
-      reject(new DOMException('任务轮询已中止', 'AbortError'))
-    }, { once: true })
-  })
-}
-
-function storageKey(task: Pick<AnalysisTaskSpec, 'kind' | 'symbol' | 'market' | 'timeframe'>): string {
-  return `qh.analysis-task.${task.kind}.${task.market}.${task.symbol}.${task.timeframe}`
-}
-
 async function streamTask(
   taskId: string,
   options: { signal?: AbortSignal; onTask?: (task: AnalysisTask) => void },
@@ -77,32 +63,14 @@ export async function executeAnalysisTask<T>(
   })
   let task = created.task
   options.onTask?.(task)
-  try {
-    localStorage.setItem(storageKey(normalized), task.id)
-  } catch {
-    // Storage may be unavailable in private or embedded browser contexts.
-  }
 
   if (task.status === 'queued' || task.status === 'running') {
-    try {
-      task = await streamTask(task.id, options)
-    } catch (streamError) {
-      if (options.signal?.aborted) throw streamError
-      // SSE 可能被旧版反向代理拦截，继续使用兼容轮询。
-      while (task.status === 'queued' || task.status === 'running') {
-        if (options.signal?.aborted) throw new DOMException('任务轮询已中止', 'AbortError')
-        await wait(750, options.signal)
-        task = (await api.analysisTask(task.id)).task
-        options.onTask?.(task)
-      }
-    }
+    // The stream is the single task-progress contract.  A stream failure is
+    // surfaced to the caller instead of silently switching to the legacy
+    // polling endpoint, which could observe a different task state.
+    task = await streamTask(task.id, options)
   }
 
-  try {
-    localStorage.removeItem(storageKey(normalized))
-  } catch {
-    // Ignore unavailable storage.
-  }
   if (task.status === 'succeeded' && task.result) return task.result as T
   throw new Error(task.error || `分析任务结束：${task.status}`)
 }

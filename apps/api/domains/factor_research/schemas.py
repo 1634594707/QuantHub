@@ -533,10 +533,10 @@ class FactorResearchRequest(BaseModel):
 
 
 class FactorAiReviewRequest(FactorResearchRequest):
-    """AI review uses a saved server snapshot when run_id is provided."""
+    """AI review is bound to one saved server-side research snapshot."""
 
     review_focus: str = Field(default="稳健性与失效风险", max_length=120)
-    run_id: str | None = Field(default=None, min_length=1, max_length=64)
+    run_id: str = Field(..., min_length=1, max_length=64)
 
 
 class FactorUniverseCreate(BaseModel):

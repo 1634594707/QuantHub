@@ -6,7 +6,6 @@ market: "mt5"
 
 data_sources:
   primary: "local_parquet"                 # 离线优先：data/MT5_K线数据
-  fallback: []                             # 暂无在线 MT5 源；研究模式足够
   local_parquet:
     root: "data"
     time_mode: "unix_seconds"              # MT5 parquet 的 time 为 unix 秒
@@ -37,7 +36,7 @@ modules:
       - "JP225.cash"
     # 训练产出的因子公式（best_mt5_strategy.json）放入模块目录：
     #   strategies/mt5/alphamaster/best_mt5_strategy.json
-    # 缺失时自动回退内置启发式公式。
+    # 缺失时策略明确不可用，不产生替代启发式信号。
     min_trade_exposure: 0.05             # |tanh(factor)| 阈值，低于视为空仓
     cost_rate: 0.0001                    # 单边手续费/点差成本（1bp）
     slippage_rate: 0.0001                # 单边滑点（1bp）

@@ -72,6 +72,24 @@ class Kline:
         }
 
 
+@dataclass(frozen=True)
+class RealtimeQuote:
+    """A provider-verified point-in-time quote.
+
+    Quotes deliberately stay outside the bar cache contract: an analyzer must
+    be able to distinguish a live provider response from a historical bar.
+    """
+
+    symbol: str
+    market: str
+    price: float
+    observed_at: datetime
+    source: str
+    name: str | None = None
+    prev_close: float | None = None
+    change_pct: float | None = None
+
+
 @dataclass
 class News:
     """新闻条目。"""
@@ -100,7 +118,7 @@ class DataSource(ABC):
     """数据源抽象接口。
 
     所有具体数据源必须实现 get_kline；news/announcement 视能力实现，
-    不支持的返回空列表（不抛异常，便于多源 fallback）。
+    不支持的返回空列表；调用方必须依据数据契约显式处理能力不足，不能据此切换其他供应商。
     """
 
     name: str = "abstract"
@@ -118,6 +136,14 @@ class DataSource(ABC):
         """获取 K 线，返回 DataFrame，列见 Kline.to_row()。"""
         raise NotImplementedError
 
+    def get_realtime_quote(self, symbol: str) -> RealtimeQuote | None:
+        """Fetch one provider-verified live quote when the adapter supports it.
+
+        Returning ``None`` means this primary has no quote for the symbol; it
+        never authorizes a caller to try another source.
+        """
+        return None
+
     def get_news(self, symbol: str | None = None, limit: int = 50) -> list[News]:
         """获取新闻列表，默认返回空（不支持的数据源）。"""
         return []
@@ -133,6 +159,9 @@ class DataSource(ABC):
     def data_contract(self) -> dict:
         """Return capabilities without implying that bar snapshots are tick data."""
         operations = ["get_kline"] if tuple(self.supported_intervals()) else []
+        has_realtime_quote = type(self).get_realtime_quote is not DataSource.get_realtime_quote
+        if has_realtime_quote:
+            operations.append("get_realtime_quote")
         if type(self).get_news is not DataSource.get_news:
             operations.append("get_news")
         if type(self).get_announcements is not DataSource.get_announcements:
@@ -143,6 +172,7 @@ class DataSource(ABC):
             "operations": operations,
             "intervals": [item.value for item in self.supported_intervals()],
             "kline_semantics": "bar_snapshot" if "get_kline" in operations else None,
+            "realtime_quote_semantics": "provider_snapshot" if has_realtime_quote else None,
             "tick_by_tick": False,
         }
 

@@ -393,20 +393,19 @@ def system_status() -> dict:
     )
     optional_modules = {
         name: importlib.util.find_spec(name) is not None
-        for name in ("akshare", "snownlp", "torch", "transformers")
+        for name in ("akshare", "torch", "transformers")
     }
-    # model_available 原义：FinBERT2 权重目录是否存在。
-    # snownlp 自带本地语料模型，安装后即具备本地情绪分析能力，应一并视为「本地模型可用」，
-    # 否则会出现「snownlp · 本地模型不可用」的自相矛盾。
-    model_available = (
-        bool(sentiment_model_path and sentiment_model_path.is_dir()) or optional_modules["snownlp"]
+    # 设置页只报告可配置的 FinBERT2 运行条件，绝不把其他算法当作备用引擎。
+    model_available = bool(
+        sentiment_model_path
+        and sentiment_model_path.is_dir()
+        and optional_modules["transformers"]
+        and optional_modules["torch"]
     )
     if optional_modules["transformers"] and optional_modules["torch"] and model_available:
         sentiment_engine = "transformers"
-    elif optional_modules["snownlp"]:
-        sentiment_engine = "snownlp"
     else:
-        sentiment_engine = "keyword"
+        sentiment_engine = "unavailable"
     if database.is_postgresql(store._DB):
         backups = {
             "supported": False,
@@ -444,7 +443,6 @@ def system_status() -> dict:
             },
             "news_sentiment": {
                 "engine": sentiment_engine,
-                "snownlp": optional_modules["snownlp"],
                 "transformers": optional_modules["transformers"],
                 "torch": optional_modules["torch"],
                 "model_path": str(sentiment_model_path) if sentiment_model_path else "",

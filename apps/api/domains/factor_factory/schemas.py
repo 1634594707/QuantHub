@@ -69,7 +69,7 @@ class FactorFactoryStartRequest(BaseModel):
         pattern=r"^[a-zA-Z0-9._:-]+$",
     )
     market: Literal["crypto", "a_shares"] = "crypto"
-    source: Literal["okx_local", "okx_live", "akshare_live", "synthetic"] = "okx_local"
+    source: Literal["okx_local", "okx_live", "akshare_live", "synthetic"]
     symbol: str = Field(default="BTCUSDT", min_length=1, max_length=40)
     dataset: str = Field(default="uptrend", min_length=1, max_length=40)
     seed: int = Field(default=12, ge=0, le=2**32 - 1)
@@ -117,6 +117,8 @@ class FactorFactoryStartRequest(BaseModel):
                 raise ValueError("A 股因子工厂当前支持 1h 或 1d")
             if self.paper_target == "okx_demo":
                 raise ValueError("A 股研究只能进入本地独立模拟账户")
+        if self.source in {"okx_local", "synthetic"} and self.paper_target != "simulation_orders":
+            raise ValueError("okx_local 和 synthetic 仅可用于本地独立模拟研究，不能进入 OKX Demo")
         if self.paper_target == "okx_demo":
             if self.source != "okx_live":
                 raise ValueError("OKX Demo 自动观察必须使用 okx_live 公共行情")

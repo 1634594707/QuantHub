@@ -38,7 +38,7 @@ const router = createBrowserRouter([
       { path: 'tasks', lazy: async () => ({ Component: (await import('./pages/AnalysisTasksPage')).default }) },
       { path: 'alerts', lazy: async () => ({ Component: (await import('./pages/AlertsPage')).default }) },
       { path: 'simulation', lazy: async () => ({ Component: (await import('./pages/SimulationOrdersPage')).default }) },
-      // 模拟实验室：因子 / 策略回测沙盒，支持真实 OKX 行情与确定性合成数据
+      // 模拟实验室兼容入口：仅回读历史 Demo 记录；新研究/模拟由职责页面发起
       { path: 'demo-lab', lazy: async () => ({ Component: (await import('./pages/DemoLabPage')).default }) },
       { path: 'ledger', lazy: async () => ({ Component: (await import('./pages/LedgerPage')).default }) },
       { path: 'instruments', lazy: async () => ({ Component: (await import('./pages/InstrumentCenterPage')).default }) },

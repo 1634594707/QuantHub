@@ -12,7 +12,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from core.alert import AlertMessage, get_notifier
@@ -167,13 +167,19 @@ class PerksMonitorStrategy(StrategyBase):
     """股东回馈羊毛监控策略。
 
     - ``produce()``：拉取指定标的公告，关键词筛选命中后产出 buy 信号并推企微。
-    - ``scan_announcements()``：遍历默认股票池（供 scheduler 调用）。
+    - ``scan_announcements()``：遍历模块配置中的显式股票池（供 scheduler 调用）。
     """
 
     def __init__(self, config: dict | None = None) -> None:
         super().__init__(config=config)
-        # 股票池：优先取 config.stock_pool，否则用 DEFAULT_STOCK_POOL
-        self._stock_pool: list[str] = list(self.config.get("stock_pool") or DEFAULT_STOCK_POOL)
+        # 股票池必须来自调用方或模块配置。历史 DEFAULT_STOCK_POOL 仅保留为
+        # 导入兼容常量，不再作为运行时回退，避免调度配置丢失时扫描示例标的。
+        configured_pool = self.config.get("stock_pool")
+        self._stock_pool: list[str] = (
+            [str(symbol).strip() for symbol in configured_pool if str(symbol).strip()]
+            if isinstance(configured_pool, (list, tuple))
+            else []
+        )
         # 单次拉取公告条数（原爬虫 page_size=100）
         self._limit: int = int(self.config.get("limit", 100))
 
@@ -203,11 +209,32 @@ class PerksMonitorStrategy(StrategyBase):
         """产出股东回馈信号。
 
         Args:
-            symbols: 单个代码或代码列表；None 时使用默认股票池。
+            symbols: 单个代码或代码列表；None 时使用模块配置股票池。
         Returns:
             命中公告对应的 Signal 列表（direction="buy"，股东回馈属利好）。
         """
         targets = self._normalize_symbols(symbols)
+        if not targets:
+            details = {
+                "market": "a_shares",
+                "reason": "未提供明确公告监控标的（调用参数 symbols 或 modules.perks_monitor.stock_pool）",
+                "symbols": [],
+            }
+            self.last_report = {
+                "kind": "perks_monitor",
+                "status": "unavailable",
+                "degraded": True,
+                "display_only": True,
+                "execution_eligible": False,
+                **details,
+            }
+            self.last_signal_rejection = {
+                "code": "symbols_required",
+                "message": "公告监控未配置明确标的，未启动扫描。",
+                "details": details,
+            }
+            logger.warning("perks_monitor 配置不完整，跳过公告扫描")
+            return []
         signals: list[Signal] = []
         for sym in targets:
             anns = self._fetch_announcements(sym)
@@ -232,7 +259,7 @@ class PerksMonitorStrategy(StrategyBase):
             confidence=0.7,  # 关键词命中置信度
             source="perks_monitor",
             tags=["perks", "a_shares", "announcement"],
-            ts=datetime.now(),
+            ts=datetime.now(UTC),
             meta={
                 "title": ann.title,
                 "ann_ts": ann.ts.isoformat() if ann.ts else None,
@@ -277,7 +304,7 @@ def scan_announcements(symbols=None, config: dict | None = None) -> list[Signal]
     """遍历股票池扫描股东回馈公告（供 scheduler 调用）。
 
     Args:
-        symbols: 指定股票池；None 时使用策略默认池。
+        symbols: 指定股票池；None 时使用 modules.perks_monitor.stock_pool。
         config:  策略配置 dict（与 ``a_shares.yaml: modules.perks_monitor`` 合并）。
     Returns:
         命中的 Signal 列表。
@@ -288,7 +315,7 @@ def scan_announcements(symbols=None, config: dict | None = None) -> list[Signal]
         mod_cfg = get_config("a_shares").get("modules", {}).get("perks_monitor", {})
         merged_cfg.update(mod_cfg)
     except Exception:
-        logger.warning("读取 perks_monitor 模块配置失败，使用默认", exc_info=True)
+        logger.warning("读取 perks_monitor 模块配置失败，跳过公告扫描", exc_info=True)
     if config:
         merged_cfg.update(config)
 

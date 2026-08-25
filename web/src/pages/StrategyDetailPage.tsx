@@ -66,6 +66,7 @@ export default function StrategyDetailPage() {
   const [presetName, setPresetName] = useState('')
   const [loadedPreset, setLoadedPreset] = useState('')
   const [presetMessage, setPresetMessage] = useState('')
+  const [presetError, setPresetError] = useState('')
 
   // ?tab= 直达（列表卡片「回测」按钮跳 /strategies/:name?tab=backtest）
   // 兼容旧 Tab 值：'params' → 'run'（已合并），'live' → 'overview'（已合并）
@@ -159,13 +160,43 @@ export default function StrategyDetailPage() {
     try {
       const resp = await api.runStrategy(name, params)
       setRunResult(resp)
-      addRun(name, params, resp)
+      try {
+        await addRun(name, params, resp)
+      } catch (reason) {
+        setRunError(`策略已运行，但历史保存失败：${reason instanceof Error ? reason.message : '未知错误'}`)
+      }
       // 运行后总线已写入该策略信号，刷新以与信号中心保持同源
       void refetchBus()
     } catch (err) {
       setRunError(err instanceof Error ? err.message : '运行失败')
     } finally {
       setRunning(false)
+    }
+  }
+
+  async function savePreset() {
+    if (!name || !presetName.trim()) return
+    setPresetError('')
+    setPresetMessage('')
+    try {
+      await save(name, presetName.trim(), params)
+      setPresetMessage(`预设 ${presetName.trim()} 已保存`)
+      setPresetName('')
+    } catch (reason) {
+      setPresetError(reason instanceof Error ? reason.message : '预设保存失败')
+    }
+  }
+
+  async function removePreset(presetId: string, presetLabel: string) {
+    if (!name) return
+    setPresetError('')
+    setPresetMessage('')
+    try {
+      await remove(name, presetId)
+      if (loadedPreset === presetLabel) setLoadedPreset('')
+      setPresetMessage(`预设 ${presetLabel} 已删除`)
+    } catch (reason) {
+      setPresetError(reason instanceof Error ? reason.message : '预设删除失败')
     }
   }
 
@@ -412,7 +443,7 @@ export default function StrategyDetailPage() {
             <div className="detail-section">
               <div className="detail-section-title">
                 参数预设
-                <span className="local-hint">本机保存 · 不跨设备</span>
+                <span className="local-hint">后端保存 · 跨设备同步</span>
               </div>
               <div className="preset-add">
                 <Input
@@ -420,21 +451,14 @@ export default function StrategyDetailPage() {
                   value={presetName}
                   onChange={(e) => setPresetName(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && presetName.trim() && name) {
-                      save(name, presetName.trim(), params)
-                      setPresetName('')
-                    }
+                    if (e.key === 'Enter') void savePreset()
                   }}
                 />
                 <Button
                   variant="primary"
                   size="sm"
                   disabled={!presetName.trim() || !name}
-                  onClick={() => {
-                    if (!presetName.trim() || !name) return
-                    save(name, presetName.trim(), params)
-                    setPresetName('')
-                  }}
+                  onClick={() => void savePreset()}
                 >
                   保存当前为预设
                 </Button>
@@ -461,14 +485,10 @@ export default function StrategyDetailPage() {
                         <ConfirmActionButton
                           label="删除"
                           title="确认删除参数预设"
-                          description={`删除预设 ${p.name} 后无法从本地预设列表恢复。策略运行历史不会被删除。`}
+                          description={`删除预设 ${p.name} 后无法从后端预设列表恢复。策略运行历史不会被删除。`}
                           confirmLabel="确认删除"
                           variant="link"
-                          onConfirm={() => {
-                            if (name) remove(name, p.id)
-                            if (loadedPreset === p.name) setLoadedPreset('')
-                            setPresetMessage(`预设 ${p.name} 已删除`)
-                          }}
+                          onConfirm={() => removePreset(p.id, p.name)}
                         />
                       </div>
                     </div>
@@ -484,6 +504,7 @@ export default function StrategyDetailPage() {
                 <div className="local-hint ok">已加载预设：{loadedPreset}</div>
               )}
               {presetMessage && <div className="local-hint ok" role="status">{presetMessage}</div>}
+              {presetError && <div className="run-error" role="alert">{presetError}</div>}
             </div>
           </>
         )}

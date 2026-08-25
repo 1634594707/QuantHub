@@ -80,7 +80,7 @@ export default function AnalysisTasksPage() {
     setActionError('')
     try {
       const payload = kind === 'news'
-        ? { limit: 20, use_api: true }
+        ? { limit: 20 }
         : kind === 'ensemble'
           ? { limit: 200 }
           : {}

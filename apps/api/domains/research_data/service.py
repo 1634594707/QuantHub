@@ -120,13 +120,10 @@ def evaluate_macro_events(
     actual_provider = provider or AkshareMacroProvider()
     events = actual_provider.fetch_events(as_of=cutoff)
     ingest_macro_events(events)
-    if market:
-        ensure_default_relationships(
-            instrument_id=instrument_id,
-            market=market,
-            owner_id=owner_id,
-            as_of=cutoff,
-        )
+    # ``market`` remains part of the request contract, but market-wide model
+    # defaults must never be silently materialized into an executable run.
+    # Relationships are instead supplied explicitly by their owner.
+    _ = market
     relationships = tuple(
         InstrumentRelationship.model_validate(item)
         for item in store.list_instrument_relationships(
@@ -134,11 +131,24 @@ def evaluate_macro_events(
         )
     )
     transmissions = build_macro_transmissions(events=events, relationships=relationships)
-    for transmission in transmissions:
+    executable_relationship_ids = {
+        relationship.relationship_id
+        for relationship in relationships
+        if relationship.relation_source in {"fact", "user"}
+    }
+    relationship_sources = {
+        relationship.relationship_id: relationship.relation_source for relationship in relationships
+    }
+    executable_transmissions = [
+        transmission
+        for transmission in transmissions
+        if transmission.relationship_id in executable_relationship_ids
+    ]
+    for transmission in executable_transmissions:
         store.save_macro_transmission(transmission.model_dump(mode="json"), owner_id=owner_id)
     reliable = [
         item
-        for item in transmissions
+        for item in executable_transmissions
         if item.evidence_level in {"high", "medium"}
         and item.direction.value not in {"insufficient", "mixed"}
     ]
@@ -159,12 +169,28 @@ def evaluate_macro_events(
         "event_count": len(events),
         "relationship_count": len(relationships),
         "transmission_count": len(transmissions),
+        "execution_relationship_count": len(executable_relationship_ids),
+        "display_only_relationship_count": len(relationships) - len(executable_relationship_ids),
+        "execution_transmission_count": len(executable_transmissions),
         "reliable_transmission_count": len(reliable),
         "direction": direction,
         "execution_eligible": bool(reliable) and direction not in {"conflicted", "insufficient"},
-        "reason": "宏观事件与标的可靠暴露传导汇总" if reliable else "无法建立可靠传导",
+        "reason": (
+            "宏观事件与标的可靠暴露传导汇总"
+            if reliable
+            else "模型默认关系仅供展示，未纳入可执行宏观传导"
+            if transmissions and not executable_transmissions
+            else "无法建立可靠传导"
+        ),
         "events": [item.model_dump(mode="json") for item in events[:20]],
-        "transmissions": [item.model_dump(mode="json") for item in transmissions[:50]],
+        "transmissions": [
+            {
+                **item.model_dump(mode="json"),
+                "relationship_source": relationship_sources[item.relationship_id],
+                "execution_eligible": item.relationship_id in executable_relationship_ids,
+            }
+            for item in transmissions[:50]
+        ],
     }
     add_evidence(
         run_id,

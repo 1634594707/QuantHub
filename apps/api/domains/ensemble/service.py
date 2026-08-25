@@ -3,7 +3,7 @@
 设计要点：
     - K 线只拉一次，technical 复用同一份 frame 计算 SuperTrend
     - 每个贡献者独立 try/except，失败标记 ``available=False`` 并计入 warnings
-    - 共识只统计可用贡献者；n=0 时返回 hold 兜底
+    - 共识只统计可用贡献者；全部不可用时显式失败，不伪造 hold 共识
     - 结果写入 ResearchRun：market_snapshot + ensemble_output 证据
 """
 
@@ -14,6 +14,7 @@ from typing import Any
 
 import pandas as pd
 
+from apps.api import store
 from apps.api.domains.research.service import (
     ResearchContextMismatchError,
     add_evidence,
@@ -157,7 +158,23 @@ def _news_contributor(symbol: str, market: str) -> dict[str, Any]:
             "metrics": {},
         }
     analyzer = NewsAnalyzer.from_config(market)
-    batch = analyzer.analyze_batch(news_list, use_api=True)
+    batch = analyzer.analyze_batch(news_list)
+    if not batch.ok:
+        return {
+            "name": "News-Sentiment",
+            "kind": "news",
+            "direction": "hold",
+            "score": 0.0,
+            "confidence": 0.0,
+            "weight": _WEIGHT_NEWS,
+            "available": False,
+            "rationale": f"新闻模型不可用: {batch.degraded_reason or 'unknown'}",
+            "metrics": {
+                "engine": batch.engine,
+                "degraded_reason": batch.degraded_reason,
+                "display_only": batch.display_only,
+            },
+        }
     sentiment_dist = {"positive": 0, "negative": 0, "neutral": 0}
     for item in batch.items:
         sentiment_dist[item.sentiment.label] = sentiment_dist.get(item.sentiment.label, 0) + 1
@@ -190,20 +207,16 @@ def _news_contributor(symbol: str, market: str) -> dict[str, Any]:
     }
 
 
-def _aggregate_consensus(contributors: list[dict[str, Any]]) -> dict[str, Any]:
-    """加权聚合共识。仅统计 available=True 的贡献者。"""
+def _aggregate_consensus(contributors: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """加权聚合共识。仅统计 available=True 的贡献者。
+
+    没有可用贡献者时没有可解释的共识，调用方必须返回不可用状态，
+    不能把合成的 ``hold`` 当作研究结论。
+    """
     available = [c for c in contributors if c.get("available")]
     n = len(available)
     if n == 0:
-        return {
-            "direction": "hold",
-            "score": 0.0,
-            "confidence": 0.0,
-            "agreement": 0.0,
-            "buy_votes": 0,
-            "sell_votes": 0,
-            "n": 0,
-        }
+        return None
     weighted: dict[str, float] = {"buy": 0.0, "sell": 0.0, "hold": 0.0}
     votes = {"buy": 0, "sell": 0, "hold": 0}
     conf_sum = 0.0
@@ -245,20 +258,57 @@ def predict(req: EnsembleRequest, *, owner_id: str = "local-user") -> dict[str, 
     warnings: list[str] = []
     contributors: list[dict[str, Any]] = []
 
-    def _fail(error: str) -> dict[str, Any]:
-        if req.research_run_id:
+    def _fail(
+        error: str,
+        *,
+        failure_run_id: str | None = None,
+        mark_run_failed: bool = True,
+        **details: Any,
+    ) -> dict[str, Any]:
+        target_run_id = failure_run_id or req.research_run_id
+        if target_run_id and mark_run_failed:
             try:
-                fail_module(req.research_run_id, "ensemble", error)
+                fail_module(target_run_id, "ensemble", error)
             except Exception:  # noqa: BLE001 - persistence failure must not hide analysis error
                 logger.warning("Ensemble 失败时写 ResearchRun 失败: %s", error)
-        return {
+        result = {
             "ok": False,
             "error": error,
             "symbol": symbol,
             "market": actual_market,
             "timeframe": timeframe,
-            "research_run_id": req.research_run_id,
+            "research_run_id": target_run_id,
+            "status": "unavailable",
+            "degraded": True,
+            "display_only": True,
+            "execution_eligible": False,
+            "published": False,
         }
+        result.update(details)
+        return result
+
+    # Validate an explicitly supplied research context before invoking any
+    # contributor.  Otherwise a malformed/mismatched run could spend time in
+    # model/news paths and return an unrelated "all contributors unavailable"
+    # result, obscuring the actual contract violation.
+    if req.research_run_id:
+        context_run = store.get_research_run(req.research_run_id)
+        if context_run is None or context_run.get("owner_id") != owner_id:
+            return _fail(
+                f"研究运行不存在或无权访问: {req.research_run_id}",
+                mark_run_failed=False,
+            )
+        expected_context = (
+            context_run.get("symbol"),
+            context_run.get("market"),
+            context_run.get("timeframe"),
+        )
+        actual_context = (symbol, actual_market, timeframe)
+        if expected_context != actual_context:
+            return _fail(
+                f"研究上下文不一致: run={expected_context}, request={actual_context}",
+                mark_run_failed=False,
+            )
 
     # 一次性拉取 K 线（technical + llm 共用）
     try:
@@ -271,7 +321,7 @@ def predict(req: EnsembleRequest, *, owner_id: str = "local-user") -> dict[str, 
     if frame is None or frame.empty:
         return _fail("K 线为空，无法执行协同预测")
 
-    data_source_name = str(frame.attrs.get("_source", "local"))
+    data_source_name = str(frame.attrs.get("_source", "unknown"))
     kline_count = int(len(frame))
 
     # technical 贡献者
@@ -335,6 +385,30 @@ def predict(req: EnsembleRequest, *, owner_id: str = "local-user") -> dict[str, 
         )
 
     consensus = _aggregate_consensus(contributors)
+    unavailable_contributors = [
+        str(contributor.get("name") or contributor.get("kind") or "unknown")
+        for contributor in contributors
+        if not contributor.get("available")
+    ]
+    if consensus is None:
+        error = "所有协同预测贡献者均不可用，无法形成可用共识"
+        warnings.append(error)
+        return _fail(
+            error,
+            contributors=contributors,
+            warnings=warnings,
+            data_source=data_source_name,
+            kline_count=kline_count,
+            status="unavailable",
+            degraded=True,
+            execution_eligible=False,
+        )
+
+    degraded = bool(unavailable_contributors)
+    if degraded:
+        warnings.append(f"部分贡献者不可用: {', '.join(unavailable_contributors)}")
+    output_status = "degraded" if degraded else "available"
+    execution_eligible = not degraded
 
     # 持久化到研究运行
     run_id = req.research_run_id
@@ -351,16 +425,11 @@ def predict(req: EnsembleRequest, *, owner_id: str = "local-user") -> dict[str, 
                 owner_id=owner_id,
             )
         except ResearchContextMismatchError as exc:
-            logger.warning("Ensemble 研究上下文不一致，回退到新建 run: %s", exc)
-            run_id = start_module(
-                symbol=symbol,
-                market=actual_market,
-                timeframe=timeframe,
-                module="ensemble",
-                input_data={"limit": req.limit, "timeframe": timeframe},
-                run_id=None,
-                owner_id=owner_id,
-            )
+            logger.warning("Ensemble 研究上下文不一致，拒绝写入其他运行: %s", exc)
+            # A context mismatch belongs to the caller's existing run; do not
+            # mark that unrelated/incomplete run as failed while still
+            # returning an explicit fail-closed result.
+            return _fail(str(exc), mark_run_failed=False)
         add_evidence(
             run_id,
             kind="market_snapshot",
@@ -376,6 +445,9 @@ def predict(req: EnsembleRequest, *, owner_id: str = "local-user") -> dict[str, 
             payload={
                 "contributors": contributors,
                 "consensus": consensus,
+                "status": output_status,
+                "degraded": degraded,
+                "execution_eligible": execution_eligible,
                 "weights": {
                     "technical": _WEIGHT_TECHNICAL,
                     "llm": _WEIGHT_LLM,
@@ -390,12 +462,29 @@ def predict(req: EnsembleRequest, *, owner_id: str = "local-user") -> dict[str, 
             {
                 "consensus": consensus,
                 "n": consensus["n"],
+                "status": output_status,
+                "degraded": degraded,
+                "execution_eligible": execution_eligible,
                 "version": ENSEMBLE_VERSION,
             },
         )
-    except Exception as exc:  # noqa: BLE001 - persistence is best-effort for analysis output
+    except Exception as exc:  # noqa: BLE001 - an unpublished result must never look successful
         logger.warning("Ensemble 结果持久化失败 %s: %s", symbol, exc)
-        run_id = req.research_run_id
+        error = f"协同预测结果持久化失败: {exc}"
+        warnings.append(error)
+        return _fail(
+            error,
+            failure_run_id=run_id or req.research_run_id,
+            contributors=contributors,
+            consensus=consensus,
+            warnings=warnings,
+            data_source=data_source_name,
+            kline_count=kline_count,
+            status="unavailable",
+            degraded=True,
+            execution_eligible=False,
+            published=False,
+        )
 
     return {
         "ok": True,
@@ -408,4 +497,8 @@ def predict(req: EnsembleRequest, *, owner_id: str = "local-user") -> dict[str, 
         "contributors": contributors,
         "consensus": consensus,
         "warnings": warnings,
+        "status": output_status,
+        "degraded": degraded,
+        "display_only": degraded,
+        "execution_eligible": execution_eligible,
     }

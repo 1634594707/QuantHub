@@ -129,6 +129,7 @@ export default function KlineCard({
   const { data, loading, error } = useApi(
     () => api.kline(symbol, market, INTERVAL_MAP[effectivePeriod], 240),
     [effectivePeriod, symbol, market],
+    { resetKey: `${market}:${symbol}:${effectivePeriod}` },
   )
 
   const isReal = !!data?.ok && data.candles.length > 0 && data.source !== 'empty'
@@ -656,7 +657,7 @@ export default function KlineCard({
         {error && (
           <div className={`item ${s.itemFull}`}>
             <span className={`k ${s.itemKeyErr}`}>
-              后端连接失败，已降级为模拟数据
+              后端连接失败，暂无真实行情数据
             </span>
           </div>
         )}

@@ -45,8 +45,7 @@ def _migrate_schema(cfg, current_schema):
 ```python
 @register_strategy(StrategyInfo(name="my_strat", market="a_shares", live_capable=False))
 class MyStrategy(StrategyBase):
-    def produce(self, **kwargs) -> list[Signal]:
-        ...
+    def produce(self, **kwargs) -> list[Signal]: ...
 ```
 
 ### 2.2 新增数据源
@@ -66,7 +65,9 @@ class MySource(DataSource):
 register_source("my_source", MySource)
 ```
 
-然后在 `configs/<market>.yaml: data_sources.primary` 或 `fallback` 引用。
+然后在 `configs/<market>.yaml: data_sources.primary` 引用。备用供应商不再
+通过 `fallback` 自动串联；如需诊断，必须显式调用指定数据源接口，并保留其
+来源与质量标记。
 
 ### 2.3 新增告警通道
 

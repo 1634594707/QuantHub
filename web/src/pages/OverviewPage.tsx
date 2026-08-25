@@ -218,7 +218,7 @@ export default function OverviewPage() {
   const breadthData = breadth.data
   const headerMetrics = [
     ...(accountVisible
-      ? [{ label: accountMetrics.totalLabel, value: accountMetrics.total == null ? '—' : `¥${(accountMetrics.total ?? 0).toLocaleString('zh-CN')}` },
+      ? [{ label: accountMetrics.totalLabel, value: accountMetrics.total == null ? '—' : `¥${accountMetrics.total.toLocaleString('zh-CN')}` },
         { label: accountMetrics.positionLabel, value: accountMetrics.positions }]
       : []),
     ...(marketVisible && watchlist.seeded ? [{ label: '自选', value: watchlist.list.length }] : []),
@@ -366,7 +366,7 @@ export default function OverviewPage() {
           onRemove={watchlist.remove}
           onToggleEdit={() => void toggleWatchlistEdit()}
           saving={savingW}
-          saveError={watchSaveError || watchlist.mutationError}
+          saveError={watchSaveError || watchlist.mutationError || watchlist.loadError}
           resolvingIds={watchlist.resolvingIds}
         />
         <AsyncStateBoundary
@@ -457,7 +457,7 @@ export default function OverviewPage() {
             onRemove={holdings.remove}
             onToggleEdit={() => void toggleHoldingsEdit()}
             saving={savingH}
-            saveError={holdingSaveError || holdings.mutationError}
+            saveError={holdingSaveError || holdings.mutationError || holdings.loadError}
             resolvingIds={holdings.resolvingIds}
           />
         </div>

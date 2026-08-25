@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 from apps.api.domains.factor_research.ai_review import run_ai_review
 from apps.api.domains.factor_research.schemas import FactorAiReviewRequest
-from apps.api.domains.factor_research.service import review_factor_research
+from apps.api.domains.factor_research.service import _request_payload, review_factor_research
 
 
 def research_result() -> dict:
@@ -170,17 +170,32 @@ class FactorAiReviewTests(unittest.TestCase):
         self.assertIn("不存在的因子键", client.calls[1][0][-1]["content"])
         self.assertEqual(response["meta"]["usage"]["total_tokens"], 100)
 
+    def test_review_request_requires_saved_run_id(self) -> None:
+        with self.assertRaisesRegex(ValueError, "run_id"):
+            FactorAiReviewRequest(symbol="AAPL", market="us_stocks")
+
+    @patch("apps.api.domains.factor_research.service._save_ai_outcome")
+    @patch("apps.api.domains.factor_research.service.get_factor_research_run")
     @patch("apps.api.domains.factor_research.service.run_factor_research")
     @patch("apps.api.domains.factor_research.service.run_ai_review")
-    def test_timeout_returns_actionable_chinese_error(self, ai_review, factor_research) -> None:
-        factor_research.return_value = research_result() | {"ok": True}
+    def test_timeout_returns_actionable_chinese_error_for_saved_run(
+        self, ai_review, factor_research, get_factor_research_run, save_ai_outcome
+    ) -> None:
+        request = FactorAiReviewRequest(symbol="AAPL", market="us_stocks", run_id="saved-run")
+        expected_payload = _request_payload(request)
+        get_factor_research_run.return_value = {
+            "run": {"input": {"factor_research": expected_payload}},
+            "result": research_result() | {"ok": True},
+        }
         ai_review.side_effect = RuntimeError("Request timed out.")
 
-        response = review_factor_research(FactorAiReviewRequest(symbol="AAPL", market="us_stocks"))
+        response = review_factor_research(request)
 
         self.assertFalse(response["ok"])
         self.assertIn("超过 120 秒", response["error"])
         self.assertIn("统计结论未受影响", response["error"])
+        factor_research.assert_not_called()
+        save_ai_outcome.assert_called_once()
 
 
 if __name__ == "__main__":

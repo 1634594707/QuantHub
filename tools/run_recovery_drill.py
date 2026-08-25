@@ -19,7 +19,6 @@ class RecordingExecutor:
 
     def submit(self, *args):
         self.calls.append(args)
-        return None
 
 
 def run_drill() -> dict:

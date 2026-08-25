@@ -111,6 +111,12 @@ class StackVM:
     def execute(self, formula_tokens, feat_tensor):
         stack = []
         try:
+            # Reject malformed feature tensors before any operator can hide a
+            # NaN/Inf behind a neutral sentinel (for example a rank warm-up).
+            if not isinstance(feat_tensor, torch.Tensor) or not bool(
+                torch.isfinite(feat_tensor).all()
+            ):
+                return None
             for token in formula_tokens:
                 token = int(token)
                 if token < self.feat_offset:
@@ -127,13 +133,18 @@ class StackVM:
                     args.reverse()
                     func = self.op_map[token]
                     res = func(*args)
-                    if torch.isnan(res).any() or torch.isinf(res).any():
-                        res = torch.nan_to_num(res, nan=0.0, posinf=1.0, neginf=-1.0)
+                    # A non-finite intermediate is a formula/data failure.  Do
+                    # not coerce it to a numeric sentinel: doing so silently
+                    # changes the submitted formula and can publish a signal
+                    # that has no reproducible mathematical result.
+                    if not bool(torch.isfinite(res).all()):
+                        return None
                     stack.append(res)
                 else:
                     return None
             if len(stack) == 1:
-                return stack[0]
+                result = stack[0]
+                return result if bool(torch.isfinite(result).all()) else None
             else:
                 return None
         except Exception:

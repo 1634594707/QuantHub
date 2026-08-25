@@ -12,6 +12,6 @@ jobs:
       - uses: astral-sh/setup-uv@v7
       - run: uv python install 3.11
       - run: uv sync --locked --group test
-      - run: uv run python -m unittest tests.split.test_core_contracts tests.split.test_okx_ccxt_adapter tests.split.test_okx_runner_product tests.split.test_product_auth tests.split.test_product_migrations tests.split.test_product_backup -v
+      - run: uv run --frozen python -m pytest -q tests/split/test_core_contracts.py tests/split/test_okx_ccxt_adapter.py tests/split/test_okx_runner_product.py tests/split/test_product_auth.py tests/split/test_product_migrations.py tests/split/test_product_backup.py
       - run: uv run python tools/check_product_secrets.py --product okx-runner
       - run: docker build -f docker/Dockerfile.okx-runner -t quanthub-okx-runner:ci .

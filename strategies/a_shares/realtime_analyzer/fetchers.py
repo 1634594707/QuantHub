@@ -1,29 +1,27 @@
-"""A 股实时快照抓取（无第三方依赖，纯 urlib）。
+"""A 股实时分析器的数据适配。
 
-移植自 ``trading-master/02-A-stock-realtime-analyzer`` 的 ``scripts/a_share_snapshot.py``：
-- 东方财富 push2 实时盘口
-- 腾讯 fqkline 日 K 线 + 均线/回报指标
-- 上证/深成/创业板指数宽度
-
-仅依赖标准库，离线环境会优雅降级（返回空列表 + 日志警告）。
+所有行情都从 ``core.data_feed`` 的已配置 primary 获取。这里不再保留
+东方财富、腾讯直连或跨供应商回退；空结果和 provider 错误由调用方按
+不可发布信号处理。
 """
 
 from __future__ import annotations
 
-import json
+import logging
+import math
 import re
 import statistics
-import urllib.parse
-import urllib.request
+from typing import Any
 
-EM_QUOTE_API = "https://push2.eastmoney.com/api/qt/ulist.np/get"
-TX_KLINE_API = "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get"
+from core.data_feed.base import DataSource, Interval, RealtimeQuote
+from core.data_feed.factory import get_data_source
 
-
-def _http_get_json(url: str, timeout: int = 15) -> dict:
-    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        return json.loads(resp.read().decode("utf-8", "ignore"))
+_INDEX_SYMBOLS = (
+    ("sh000001", "上证指数"),
+    ("sz399001", "深证成指"),
+    ("sz399006", "创业板指"),
+)
+logger = logging.getLogger(__name__)
 
 
 def normalize_code(code: str) -> str:
@@ -41,139 +39,92 @@ def normalize_code(code: str) -> str:
     return c
 
 
-def code_to_secid(code6: str) -> str:
-    if code6.startswith("6"):
-        return "1." + code6
-    return "0." + code6
+def parse_codes(raw: str) -> list[str]:
+    parts = [x for x in re.split(r"[,，\s]+", raw.strip()) if x]
+    out: list[str] = []
+    for part in parts:
+        try:
+            code = normalize_code(part)
+        except ValueError:
+            continue
+        if code not in out:
+            out.append(code)
+    return out
 
 
-def code_to_tencent_symbol(code6: str) -> str:
-    if code6.startswith("6"):
-        return "sh" + code6
-    return "sz" + code6
-
-
-def fetch_quotes(codes: list[str]) -> list[dict]:
+def fetch_quotes(codes: list[str], *, source: DataSource | None = None) -> list[dict]:
+    """Return only complete provider quotes from the configured A-share primary."""
     if not codes:
         return []
-    secids = [code_to_secid(c) for c in codes]
-    fields = "f12,f14,f2,f3,f4,f5,f6,f7,f8,f9,f10,f15,f16,f17,f18"
-    url = (
-        EM_QUOTE_API
-        + "?"
-        + urllib.parse.urlencode(
-            {"fltt": "2", "invt": "2", "fields": fields, "secids": ",".join(secids)}
-        )
-    )
-    try:
-        obj = _http_get_json(url)
-    except Exception:
-        return []
-    diff = obj.get("data", {}).get("diff", [])
-    out = []
-    for it in diff:
-        out.append(
-            {
-                "code": str(it.get("f12", "")),
-                "name": it.get("f14"),
-                "last": it.get("f2"),
-                "pct": it.get("f3"),
-                "chg": it.get("f4"),
-                "open": it.get("f17"),
-                "high": it.get("f15"),
-                "low": it.get("f16"),
-                "prev_close": it.get("f18"),
-                "volume": it.get("f5"),
-                "amount": it.get("f6"),
-                "amplitude": it.get("f7"),
-                "turnover": it.get("f8"),
-                "pe_ttm": it.get("f9"),
-                "volume_ratio": it.get("f10"),
-            }
-        )
-    order = {c: i for i, c in enumerate(codes)}
-    out.sort(key=lambda x: order.get(x.get("code"), 9999))
-    return out
-
-
-def fetch_index_baseline() -> list[dict]:
-    secids = ["1.000001", "0.399001", "0.399006"]
-    fields = "f12,f14,f2,f3,f4,f15,f16,f17,f18,f104,f105,f6,f7"
-    url = (
-        EM_QUOTE_API
-        + "?"
-        + urllib.parse.urlencode(
-            {"fltt": "2", "invt": "2", "fields": fields, "secids": ",".join(secids)}
-        )
-    )
-    try:
-        obj = _http_get_json(url)
-    except Exception:
-        return []
-    diff = obj.get("data", {}).get("diff", [])
-    out = []
-    for it in diff:
-        out.append(
-            {
-                "code": str(it.get("f12", "")),
-                "name": it.get("f14"),
-                "last": it.get("f2"),
-                "pct": it.get("f3"),
-                "chg": it.get("f4"),
-                "high": it.get("f15"),
-                "low": it.get("f16"),
-                "open": it.get("f17"),
-                "prev_close": it.get("f18"),
-                "amount": it.get("f6"),
-                "amplitude": it.get("f7"),
-                "up_count": it.get("f104"),
-                "down_count": it.get("f105"),
-            }
-        )
-    return out
-
-
-def _ma(vals: list[float], n: int) -> float | None:
-    if len(vals) < n:
-        return None
-    return round(statistics.mean(vals[-n:]), 4)
-
-
-def _ret(vals: list[float], n: int) -> float | None:
-    if len(vals) <= n:
-        return None
-    base = vals[-(n + 1)]
-    if not base:
-        return None
-    return round((vals[-1] / base - 1) * 100, 4)
-
-
-def fetch_kline(code6: str, days: int = 60) -> dict:
-    symbol = code_to_tencent_symbol(code6)
-    url = TX_KLINE_API + "?" + urllib.parse.urlencode({"param": f"{symbol},day,,,{days},qfq"})
-    try:
-        obj = _http_get_json(url)
-    except Exception:
-        return {"metrics": {}, "klines": []}
-    data = obj.get("data", {}).get(symbol, {})
-    rows = data.get("qfqday") or data.get("day") or []
-
-    klines: list[dict] = []
-    closes: list[float] = []
-    for r in rows:
+    source = source or get_data_source("a_shares")
+    quotes: list[dict] = []
+    for code in codes:
         try:
-            rec = {
-                "date": r[0],
-                "open": float(r[1]),
-                "close": float(r[2]),
-                "high": float(r[3]),
-                "low": float(r[4]),
-                "volume": float(r[5]),
-            }
-        except Exception:
+            quote = source.get_realtime_quote(code)
+        except Exception as exc:  # noqa: BLE001 - the strategy records an explicit rejection
+            logger.warning("A股 primary 实时行情失败 %s，不切换数据源: %s", code, exc)
             continue
-        klines.append(rec)
-        closes.append(rec["close"])
+        if quote is not None:
+            quotes.append(_quote_dict(quote, code))
+    return quotes
+
+
+def fetch_index_baseline(*, source: DataSource | None = None) -> list[dict]:
+    """Fetch index snapshots from the same primary; breadth is intentionally absent.
+
+    The former Eastmoney breadth endpoint was a second provider. A missing
+    breadth value is reported as missing evidence instead of being filled from
+    that old path.
+    """
+    source = source or get_data_source("a_shares")
+    rows: list[dict] = []
+    for symbol, display_name in _INDEX_SYMBOLS:
+        try:
+            quote = source.get_realtime_quote(symbol)
+        except Exception as exc:  # noqa: BLE001 - optional context must not change primary
+            logger.warning("A股 primary 指数行情失败 %s，不切换数据源: %s", symbol, exc)
+            continue
+        if quote is None:
+            continue
+        row = _quote_dict(quote, symbol)
+        row["name"] = quote.name or display_name
+        row["up_count"] = None
+        row["down_count"] = None
+        row["breadth_available"] = False
+        rows.append(row)
+    return rows
+
+
+def fetch_kline(code: str, days: int = 60, *, source: DataSource | None = None) -> dict:
+    """Return daily bars from the same configured primary, without local fallback."""
+    source = source or get_data_source("a_shares")
+    source_name = str(getattr(source, "name", "unknown"))
+    try:
+        frame = source.get_kline(code, Interval.DAILY, limit=days)
+    except Exception:  # noqa: BLE001 - the strategy handles insufficient evidence
+        return _empty_kline(source_name)
+    if frame is None or frame.empty:
+        return _empty_kline(source_name)
+
+    klines: list[dict[str, Any]] = []
+    closes: list[float] = []
+    for _, row in frame.iterrows():
+        close = _finite_float(row.get("close"))
+        if close is None:
+            continue
+        timestamp = row.get("datetime")
+        date = timestamp.isoformat() if hasattr(timestamp, "isoformat") else str(timestamp)
+        klines.append(
+            {
+                "date": date,
+                "open": _finite_float(row.get("open")),
+                "close": close,
+                "high": _finite_float(row.get("high")),
+                "low": _finite_float(row.get("low")),
+                "volume": _finite_float(row.get("volume")),
+            }
+        )
+        closes.append(close)
 
     metrics = {
         "latest_date": klines[-1]["date"] if klines else None,
@@ -187,54 +138,58 @@ def fetch_kline(code6: str, days: int = 60) -> dict:
         "high_10d": max(closes[-10:]) if len(closes) >= 10 else (max(closes) if closes else None),
         "low_10d": min(closes[-10:]) if len(closes) >= 10 else (min(closes) if closes else None),
     }
-    return {"metrics": metrics, "klines": klines}
+    contract = frame.attrs.get("_data_contract", {})
+    return {
+        "metrics": metrics,
+        "klines": klines,
+        "available": bool(klines),
+        "source": str(frame.attrs.get("_source") or source_name),
+        "semantics": contract.get("kline_semantics", "bar_snapshot"),
+    }
 
 
-EM_SUGGEST_API = "https://searchapi.eastmoney.com/api/suggest/get"
+def _quote_dict(quote: RealtimeQuote, requested_symbol: str) -> dict:
+    return {
+        "code": requested_symbol.upper(),
+        "name": quote.name,
+        "last": quote.price,
+        "pct": quote.change_pct,
+        "prev_close": quote.prev_close,
+        "source": quote.source,
+        "market": quote.market,
+        "observed_at": quote.observed_at.isoformat(),
+        "verified": True,
+    }
 
 
-def search_stock_by_name(keyword: str, count: int = 8) -> list[tuple[str, str]]:
-    url = (
-        EM_SUGGEST_API
-        + "?"
-        + urllib.parse.urlencode(
-            {
-                "input": keyword,
-                "type": "14",
-                "token": "D43BF722C8E33BDC906FB84D85E326A8",
-                "count": count,
-            }
-        )
-    )
+def _finite_float(value: object) -> float | None:
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            text = resp.read().decode("utf-8", "ignore")
-        m = re.search(r"\{.*\}", text, re.DOTALL)
-        if not m:
-            return []
-        obj = json.loads(m.group())
-        items = obj.get("QuotationCodeTable", {}).get("Data") or []
-        results = []
-        for it in items:
-            code = str(it.get("Code", ""))
-            name = it.get("Name", "")
-            sec_type = str(it.get("SecurityType", ""))
-            if re.fullmatch(r"\d{6}", code) and sec_type in {"1", "2"}:
-                results.append((code, name))
-        return results
-    except Exception:
-        return []
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if math.isfinite(parsed) else None
 
 
-def parse_codes(raw: str) -> list[str]:
-    parts = [x for x in re.split(r"[,，\s]+", raw.strip()) if x]
-    out: list[str] = []
-    for p in parts:
-        try:
-            c = normalize_code(p)
-        except ValueError:
-            continue
-        if c not in out:
-            out.append(c)
-    return out
+def _empty_kline(source_name: str) -> dict:
+    return {
+        "metrics": {},
+        "klines": [],
+        "available": False,
+        "source": source_name,
+        "semantics": "bar_snapshot",
+    }
+
+
+def _ma(values: list[float], window: int) -> float | None:
+    if len(values) < window:
+        return None
+    return round(statistics.mean(values[-window:]), 4)
+
+
+def _ret(values: list[float], window: int) -> float | None:
+    if len(values) <= window:
+        return None
+    base = values[-(window + 1)]
+    if not base:
+        return None
+    return round((values[-1] / base - 1) * 100, 4)

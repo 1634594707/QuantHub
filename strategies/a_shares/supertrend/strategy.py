@@ -8,12 +8,14 @@
 from __future__ import annotations
 
 import logging
+import math
 from typing import Any
 
 import numpy as np
 import pandas as pd
 
 from core.backtest.engine import BacktestResult, EventContext, EventEngine
+from core.config import get_config
 from core.data_feed import Interval, get_data_source
 from core.signals import Signal
 from strategies.a_shares.supertrend import indicators as st_ind
@@ -35,9 +37,6 @@ _TIMEFRAME_TO_INTERVAL: dict[str, Interval] = {
     "5m": Interval.M5,
     "1m": Interval.M1,
 }
-
-# 默认扫描标的（沪深300ETF、中国银行）
-DEFAULT_SYMBOLS: list[str] = ["510300", "601988"]
 
 
 def _resolve_interval(timeframe: str) -> Interval:
@@ -69,6 +68,91 @@ def _is_nan(x: Any) -> bool:
 class SuperTrendStrategy(StrategyBase):
     """SuperTrend 趋势跟踪策略。"""
 
+    def _resolve_symbols(self, symbols: list[str] | None) -> list[str] | None:
+        """Resolve only caller-provided or explicitly configured symbols.
+
+        The former built-in example universe is intentionally not used when
+        a scheduler or API caller omits its target universe.
+        """
+        raw = symbols if symbols is not None else self.config.get("symbols")
+        if not isinstance(raw, (list, tuple)):
+            return None
+        resolved = [str(item).strip() for item in raw if str(item).strip()]
+        return resolved or None
+
+    def _reject_configuration(self, *, reason: str, timeframe: str) -> list[Signal]:
+        details = {
+            "source": "configuration",
+            "market": "a_shares",
+            "symbols": [],
+            "failed_symbols": [],
+            "timeframe": timeframe,
+            "reason": reason,
+        }
+        self.last_report = {
+            "kind": "supertrend",
+            "status": "unavailable",
+            "degraded": True,
+            "display_only": True,
+            "execution_eligible": False,
+            **details,
+        }
+        self.last_signal_rejection = {
+            "code": "symbols_required",
+            "message": "SuperTrend 未配置明确标的，未启动扫描。",
+            "details": details,
+        }
+        logger.warning("SuperTrend 配置不完整，跳过扫描: %s", reason)
+        return []
+
+    def _reject_incomplete_market_data(
+        self,
+        *,
+        source: Any,
+        symbols: list[str],
+        failed_symbols: list[str],
+        timeframe: str,
+        interval: Interval,
+        reason: str,
+    ) -> list[Signal]:
+        """记录 primary 行情/指标缺口并阻断整批趋势信号。
+
+        SuperTrend 信号是方向性结果；静默丢弃一个标的会使扫描结果
+        变成不完整的候选池。因此任一标的不可用时不发布已计算的部分，
+        并把失败原因留在统一的拒绝诊断中。
+        """
+        source_name = str(getattr(source, "name", "unknown"))
+        failed = list(dict.fromkeys(str(symbol) for symbol in failed_symbols))
+        details = {
+            "source": source_name,
+            "market": "a_shares",
+            "symbols": [str(symbol) for symbol in symbols],
+            "failed_symbols": failed,
+            "timeframe": timeframe,
+            "interval": interval.value,
+            "reason": reason,
+        }
+        self.last_report = {
+            "kind": "supertrend",
+            "status": "unavailable",
+            "degraded": True,
+            "display_only": True,
+            "execution_eligible": False,
+            **details,
+        }
+        self.last_signal_rejection = {
+            "code": "market_data_incomplete",
+            "message": "A股 primary 行情不完整，未发布 SuperTrend 信号。",
+            "details": details,
+        }
+        logger.warning(
+            "SuperTrend 因 primary 行情不完整而终止: source=%s failed_symbols=%s reason=%s",
+            source_name,
+            failed,
+            reason,
+        )
+        return []
+
     def produce(
         self,
         symbols: list[str] | None = None,
@@ -84,31 +168,91 @@ class SuperTrendStrategy(StrategyBase):
         trend = -1 → sell
         score / confidence 基于 ATR 与趋势强度。
         """
-        symbols = symbols or DEFAULT_SYMBOLS
+        self.last_report = None
+        self.last_signal_rejection = None
         interval = _resolve_interval(timeframe)
-        source = get_data_source("a_shares")
+        resolved_symbols = self._resolve_symbols(symbols)
+        if resolved_symbols is None:
+            return self._reject_configuration(
+                reason="未提供明确标的（调用参数 symbols 或 modules.supertrend.symbols）",
+                timeframe=timeframe,
+            )
+        symbols = resolved_symbols
+        try:
+            source = get_data_source("a_shares")
+        except Exception as exc:
+            logger.exception("A股 primary 数据源不可用")
+            return self._reject_incomplete_market_data(
+                source=None,
+                symbols=symbols,
+                failed_symbols=symbols,
+                timeframe=timeframe,
+                interval=interval,
+                reason=f"primary 数据源初始化失败: {exc}",
+            )
 
         signals: list[Signal] = []
         for symbol in symbols:
             try:
                 klines = source.get_kline(symbol, interval, limit=limit)
-            except Exception:
+            except Exception as exc:
                 logger.exception("获取 K 线失败: %s %s", symbol, interval)
-                continue
-            if klines is None or klines.empty:
-                logger.warning("K 线为空: %s %s", symbol, interval)
-                continue
+                return self._reject_incomplete_market_data(
+                    source=source,
+                    symbols=symbols,
+                    failed_symbols=[symbol],
+                    timeframe=timeframe,
+                    interval=interval,
+                    reason=f"primary K 线请求失败: {exc}",
+                )
+            if klines is None or not isinstance(klines, pd.DataFrame) or klines.empty:
+                return self._reject_incomplete_market_data(
+                    source=source,
+                    symbols=symbols,
+                    failed_symbols=[symbol],
+                    timeframe=timeframe,
+                    interval=interval,
+                    reason="primary K 线为空",
+                )
 
             try:
                 df = st_ind.supertrend(klines, period=period, multiplier=multiplier)
-            except Exception:
+            except Exception as exc:
                 logger.exception("SuperTrend 计算失败: %s", symbol)
-                continue
+                return self._reject_incomplete_market_data(
+                    source=source,
+                    symbols=symbols,
+                    failed_symbols=[symbol],
+                    timeframe=timeframe,
+                    interval=interval,
+                    reason=f"SuperTrend 计算失败: {exc}",
+                )
 
-            sig = self._signal_from_df(df, symbol, timeframe, period, multiplier)
-            if sig is not None:
-                signals.append(sig)
-                self.publish(sig)
+            try:
+                sig = self._signal_from_df(df, symbol, timeframe, period, multiplier)
+            except Exception as exc:
+                logger.exception("SuperTrend 信号构造失败: %s", symbol)
+                return self._reject_incomplete_market_data(
+                    source=source,
+                    symbols=symbols,
+                    failed_symbols=[symbol],
+                    timeframe=timeframe,
+                    interval=interval,
+                    reason=f"SuperTrend 信号构造失败: {exc}",
+                )
+            if sig is None:
+                return self._reject_incomplete_market_data(
+                    source=source,
+                    symbols=symbols,
+                    failed_symbols=[symbol],
+                    timeframe=timeframe,
+                    interval=interval,
+                    reason="SuperTrend 未返回有效信号",
+                )
+            signals.append(sig)
+
+        for sig in signals:
+            self.publish(sig)
         return signals
 
     @staticmethod
@@ -127,25 +271,43 @@ class SuperTrendStrategy(StrategyBase):
         if _is_nan(trend):
             return None
 
-        direction = "buy" if trend == 1 else "sell"
+        # A warm-up/malformed indicator row must not be turned into a neutral
+        # score (or, worse, the implicit ``sell`` branch below).  The latest
+        # bar needs a finite direction, close, ATR and active SuperTrend band
+        # before it can become a directional signal.
+        try:
+            trend_value = int(trend)
+        except (TypeError, ValueError, OverflowError):
+            return None
+        if trend_value not in {-1, 1}:
+            return None
 
-        close = float(last["close"])
+        direction = "buy" if trend_value == 1 else "sell"
+
+        try:
+            close = float(last["close"])
+        except (TypeError, ValueError, OverflowError):
+            return None
+        if not math.isfinite(close) or close <= 0:
+            return None
         atr_raw = last.get("atr")
         st_raw = last.get("supertrend")
-        atr_val = 0.0 if _is_nan(atr_raw) else float(atr_raw)
-        st_val = None if _is_nan(st_raw) else float(st_raw)
+        try:
+            atr_val = float(atr_raw)
+            st_val = float(st_raw)
+        except (TypeError, ValueError, OverflowError):
+            return None
+        if not math.isfinite(atr_val) or atr_val <= 0 or not math.isfinite(st_val) or st_val <= 0:
+            return None
 
         # score: 价格距 supertrend 线的距离（以 ATR 归一化），越远强度越高
-        if atr_val > 0 and st_val is not None:
-            strength = abs(close - st_val) / atr_val
-            score = float(min(1.0, strength / 3.0))
-        else:
-            score = 0.5
+        strength = abs(close - st_val) / atr_val
+        score = float(min(1.0, strength / 3.0))
 
         # confidence: 趋势持续 bar 数越长置信度越高
         trend_bars = 0
         for t in df["trend"].iloc[::-1]:
-            if t == trend:
+            if t == trend_value:
                 trend_bars += 1
             else:
                 break
@@ -161,7 +323,7 @@ class SuperTrendStrategy(StrategyBase):
             source="supertrend",
             tags=[f"period={period}", f"multiplier={multiplier}"],
             meta={
-                "trend": int(trend),
+                "trend": trend_value,
                 "atr": atr_val,
                 "supertrend": st_val,
                 "trend_bars": trend_bars,
@@ -219,9 +381,21 @@ def run_scan(
     **kwargs: Any,
 ) -> list[Signal]:
     """便捷扫描入口：实例化 SuperTrendStrategy 并产出信号。"""
-    strategy = SuperTrendStrategy(config={"enabled": True})
+    # Scheduler jobs must pass the configured universe explicitly; an omitted
+    # config must not revive the historical built-in example symbols.
+    cfg: dict[str, Any] = {}
+    if symbols is None:
+        try:
+            raw_config = get_config("a_shares")
+            module_cfg = raw_config.get("modules", {}).get("supertrend", {})
+            if isinstance(module_cfg, dict):
+                cfg = module_cfg
+        except Exception as exc:  # noqa: BLE001 - preserve explicit unavailable result
+            logger.warning("SuperTrend 无法读取模块配置，跳过扫描: %s", exc)
+    strategy = SuperTrendStrategy(config={**cfg, "enabled": True})
+    configured_symbols = symbols if symbols is not None else cfg.get("symbols")
     return strategy.produce(
-        symbols=symbols,
+        symbols=configured_symbols,
         timeframe=timeframe,
         period=period,
         multiplier=multiplier,

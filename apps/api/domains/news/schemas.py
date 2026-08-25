@@ -22,13 +22,16 @@ EVENT_TYPES = Literal[
 class NewsAnalyzeRequest(BaseModel):
     """新闻分析请求（POST /news/analyze）。"""
 
+    # 新闻分析只允许完整的 FinBERT2 + 配置 LLM 路径；拒绝旧客户端传入
+    # ``use_api`` 等兼容开关，避免静默落到不可执行的展示级结果。
+    model_config = ConfigDict(extra="forbid")
+
     symbol: str = Field(
         ..., min_length=1, description="股票代码（必填，禁止空输入回退到全市场扫描）"
     )
     market: str = Field(default="a_shares")
     timeframe: str = Field(default="1d")
     limit: int = Field(default=20, ge=1, le=100)
-    use_api: bool = Field(default=True, description="是否启用 API 结构化增强")
     research_run_id: str | None = Field(default=None, description="复用已有研究运行 ID")
 
     @field_validator("symbol")

@@ -11,7 +11,7 @@ torch 为重依赖：本模块在模块级 ``import torch``，但由 ``strategy.
 from __future__ import annotations
 
 import torch
-import torch.nn as nn
+from torch import nn
 
 from strategies.crypto.alphagpt.stack_vm import FEATURE_NAMES
 

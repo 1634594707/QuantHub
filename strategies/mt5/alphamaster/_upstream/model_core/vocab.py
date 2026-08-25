@@ -21,6 +21,7 @@ import 方向说明：`features.py` / `ops.py` 只依赖 `.registry`，本模块
 `alphagpt.py` / `engine.py` 对 `FEATURE_NAMES` / `FORMULA_VOCAB` / `VOCAB_VERSION`
 的 import 保持兼容。
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -35,6 +36,7 @@ VOCAB_SCHEMA_TAG = "4.0-registry"
 
 # ── 版本层异常（R3.7）───────────────────────────────────────────────────
 
+
 class VocabVersionMismatchError(Exception):
     """加载产物版本 ≠ 当前派生 VOCAB_VERSION（R3.7）。
 
@@ -44,6 +46,7 @@ class VocabVersionMismatchError(Exception):
 
 
 # ── 确定性版本派生（R3.4、R3.5）─────────────────────────────────────────
+
 
 def compute_vocab_version(token_names: tuple[str, ...]) -> str:
     """由有序 token 名称列表确定性派生紧凑版本标识。
@@ -102,6 +105,7 @@ class FormulaVocab:
 
 # ── 构建 FORMULA_VOCAB（由 registry 派生）与完整性校验（R3.1、R3.2）──────
 
+
 def _build_formula_vocab() -> FormulaVocab:
     """由 FEATURE_REGISTRY / OPERATOR_REGISTRY 构建词表并做完整性校验。
 
@@ -135,9 +139,7 @@ def _build_formula_vocab() -> FormulaVocab:
     # 计数一致性：size == F + O，无缺失/重复/多余（R3.2）
     expected = len(feature_names) + len(operator_names)
     if vocab.size != expected:
-        raise ValueError(
-            f"词表计数不一致: size={vocab.size} != F+O={expected}"
-        )
+        raise ValueError(f"词表计数不一致: size={vocab.size} != F+O={expected}")
     # 全局 token 名称唯一（无缺失/重复/多余）
     if len(set(vocab.token_names)) != vocab.size:
         raise ValueError("token 名称存在重复或缺失，词表完整性校验失败")

@@ -1,4 +1,5 @@
 import torch
+
 from .ops import OPS_CONFIG
 from .vocab import FORMULA_VOCAB
 
@@ -24,23 +25,54 @@ POSITIVE_ONLY_OPS = {"TS_RANK_5", "TS_RANK_10", "TS_RANK_20", "ABS"}
 # SIGMOID: 2*sigmoid-1，对非负输入输出正值
 # TANH_SQUASH: tanh，对非负输入输出正值
 INFECTED_PROPAGATING_OPS = {
-    "TS_RANK_5", "TS_RANK_10", "TS_RANK_20", "ABS",
-    "TS_SUM_5", "TS_SUM_10", "TS_SUM_20",
-    "TS_MEAN_5", "TS_MEAN_10", "TS_MEAN_20",
-    "TS_MAX_10", "TS_MAX_20",
-    "CLIP", "SQRT", "POWER", "SIGNED_LOG",
-    "SIGMOID", "TANH_SQUASH", "WINSORIZE",
-    "WMA", "EMA_5", "EMA_20", "DECAY", "DECAY_LINEAR_5",
+    "TS_RANK_5",
+    "TS_RANK_10",
+    "TS_RANK_20",
+    "ABS",
+    "TS_SUM_5",
+    "TS_SUM_10",
+    "TS_SUM_20",
+    "TS_MEAN_5",
+    "TS_MEAN_10",
+    "TS_MEAN_20",
+    "TS_MAX_10",
+    "TS_MAX_20",
+    "CLIP",
+    "SQRT",
+    "POWER",
+    "SIGNED_LOG",
+    "SIGMOID",
+    "TANH_SQUASH",
+    "WINSORIZE",
+    "WMA",
+    "EMA_5",
+    "EMA_20",
+    "DECAY",
+    "DECAY_LINEAR_5",
     "TS_DECAY_EXP_5",
 }
 # 恢复算子：能够把恒正值域重新变成有正有负
 SIGN_RESTORE_OPS = {
-    "SUB", "DIV", "NEG", "GATE", "IF_GT",
-    "TS_ZSCORE_10", "TS_ZSCORE_20",
-    "CS_NEUTRALIZE", "CS_RANK", "CS_SCALE",
-    "TS_STD_5", "TS_STD_10", "TS_STD_20",
-    "TS_CORR_10", "TS_SKEW_10", "TS_QUANTILE_10",
-    "DELTA", "DELTA_5", "MOMENTUM_5", "MOMENTUM_10",
+    "SUB",
+    "DIV",
+    "NEG",
+    "GATE",
+    "IF_GT",
+    "TS_ZSCORE_10",
+    "TS_ZSCORE_20",
+    "CS_NEUTRALIZE",
+    "CS_RANK",
+    "CS_SCALE",
+    "TS_STD_5",
+    "TS_STD_10",
+    "TS_STD_20",
+    "TS_CORR_10",
+    "TS_SKEW_10",
+    "TS_QUANTILE_10",
+    "DELTA",
+    "DELTA_5",
+    "MOMENTUM_5",
+    "MOMENTUM_10",
     "PPO",  # 但 PPO 是特征不是算子
 }
 
@@ -60,7 +92,9 @@ def is_sign_restoring(token_name: str) -> bool:
     return token_name in SIGN_RESTORE_OPS
 
 
-def validate_formula_structure(formula_tokens: list[int], vocab_names: tuple[str, ...]) -> list[str]:
+def validate_formula_structure(
+    formula_tokens: list[int], vocab_names: tuple[str, ...]
+) -> list[str]:
     """校验公式结构，返回违规原因列表（空列表 = 合法）。
 
     使用「感染模型」：一旦公式中出现恒正算子（如 TS_RANK），
@@ -113,11 +147,11 @@ def validate_formula_structure(formula_tokens: list[int], vocab_names: tuple[str
     # 规则2：公式末尾处于感染状态
     if infected and infected_chain_len >= 2:
         violations.append(
-            f"公式末尾处于恒正感染状态（链长 {infected_chain_len}），"
-            f"因子输出将偏向单方向"
+            f"公式末尾处于恒正感染状态（链长 {infected_chain_len}），因子输出将偏向单方向"
         )
 
     return violations
+
 
 # ── 扩展后词表规模说明（task 12.1）──────────────────────────────────────────
 #
@@ -168,20 +202,20 @@ class StackVM:
         # 检测是否是全局常数（标准化无意义）
         global_std = x.std()
         if global_std < 1e-6:
-            return x   # 常数因子，由 engine 的 const_cnt 拦截
+            return x  # 常数因子，由 engine 的 const_cnt 拦截
 
         # ── 截面标准化（跨品种，每时间步；N=1 时跳过）──────────────
         if N > 1:
             cs_mean = x.mean(dim=0, keepdim=True)
-            cs_std  = x.std(dim=0, keepdim=True).clamp(min=1e-8)
-            cs_z    = (x - cs_mean) / cs_std
+            cs_std = x.std(dim=0, keepdim=True).clamp(min=1e-8)
+            cs_z = (x - cs_mean) / cs_std
             if cs_z.std() >= 0.3:
                 return torch.clamp(cs_z, -3.0, 3.0)
 
         # ── 时序标准化（每品种独立）─────────────────────────────────
         ts_mean = x.mean(dim=1, keepdim=True)
-        ts_std  = x.std(dim=1, keepdim=True).clamp(min=1e-8)
-        ts_z    = (x - ts_mean) / ts_std
+        ts_std = x.std(dim=1, keepdim=True).clamp(min=1e-8)
+        ts_z = (x - ts_mean) / ts_std
 
         if ts_z.std() >= 0.1:
             return torch.clamp(ts_z, -3.0, 3.0)
@@ -192,6 +226,12 @@ class StackVM:
     def execute(self, formula_tokens, feat_tensor):
         stack = []
         try:
+            # Validate model features before an operator can sanitize a
+            # malformed value into a neutral score.
+            if not isinstance(feat_tensor, torch.Tensor) or not bool(
+                torch.isfinite(feat_tensor).all()
+            ):
+                return None
             for token in formula_tokens:
                 token = int(token)
                 if token < self.feat_offset:
@@ -200,22 +240,27 @@ class StackVM:
                     stack.append(feat_tensor[:, token, :])
                 elif token in self.op_map:
                     arity = self.arity_map[token]
-                    if len(stack) < arity: return None
+                    if len(stack) < arity:
+                        return None
                     args = []
                     for _ in range(arity):
                         args.append(stack.pop())
                     args.reverse()
                     func = self.op_map[token]
                     res = func(*args)
-                    if torch.isnan(res).any() or torch.isinf(res).any():
-                        res = torch.nan_to_num(res, nan=0.0, posinf=1.0, neginf=-1.0)
+                    # Non-finite formula output is an execution failure.  The
+                    # caller must reject the whole batch; replacing NaN/Inf
+                    # with sentinels would create an implicit fallback score.
+                    if not bool(torch.isfinite(res).all()):
+                        return None
                     stack.append(res)
                 else:
                     return None
             if len(stack) == 1:
                 result = stack[0]
                 # 最终输出标准化：保证因子幅度足够，避免全程空仓
-                return self._normalize_output(result)
+                normalized = self._normalize_output(result)
+                return normalized if bool(torch.isfinite(normalized).all()) else None
             else:
                 return None
         except Exception:

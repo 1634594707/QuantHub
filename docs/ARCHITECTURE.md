@@ -19,7 +19,7 @@
 │  └─ ai_analysis/ pa_agent                               │
 ├─────────────────────────────────────────────────────────┤
 │  统一底座 core/ (只实现一次)                              │
-│  ├─ data_feed  (多源行情/公告 + SQLite 缓存 + 退避重试)  │
+│  ├─ data_feed  (配置 primary + 来源隔离 SQLite 缓存 + 同端点退避重试) │
 │  ├─ signals    (Signal 数据类 + 轻量总线)                │
 │  ├─ alert      (企微/Webhook/Telegram)                  │
 │  ├─ llm        (DeepSeek/OpenAI 兼容客户端)             │
@@ -46,9 +46,9 @@
 scheduler (cron) ──► strategy.produce()
                         │
                         ├─ core.data_feed.get_data_source(market)
-                        │      ├─ akshare/eastmoney (A股)
-                        │      └─ okx/ccxt (加密)
-                        │      [SQLite 缓存 + 退避重试]
+                        │      ├─ configured primary (A股 / 美股 / 加密 / MT5)
+                        │      └─ explicit diagnostic source only when requested
+                        │      [来源隔离 SQLite 缓存 + 同端点退避重试]
                         │
                         ├─ core.llm.get_llm() (可选)
                         ├─ 本地模型 (FinBERT2, 懒加载)
@@ -61,16 +61,16 @@ scheduler (cron) ──► strategy.produce()
 ```python
 @dataclass
 class Signal:
-    symbol: str           # 标的
-    market: str           # a_shares | crypto
-    timeframe: str        # daily / 1h / 4h
-    direction: str        # buy | sell | hold
-    score: float          # 0~1 方向强度
-    confidence: float     # 0~1 模型置信度
-    source: str           # 策略模块名
-    tags: list[str]       # 标签
-    ts: datetime          # 时间戳
-    meta: dict            # 模块特有附加信息
+    symbol: str  # 标的
+    market: str  # a_shares | crypto
+    timeframe: str  # daily / 1h / 4h
+    direction: str  # buy | sell | hold
+    score: float  # 0~1 方向强度
+    confidence: float  # 0~1 模型置信度
+    source: str  # 策略模块名
+    tags: list[str]  # 标签
+    ts: datetime  # 时间戳
+    meta: dict  # 模块特有附加信息
 ```
 
 构造时强校验 `score`/`confidence` ∈ [0,1]，`direction` ∈ {buy,sell,hold}。
@@ -135,7 +135,7 @@ class DataSource(ABC):
     def get_announcements(self, symbol, limit) -> list[Announcement]  # 默认空
 ```
 
-实现：`AkshareSource` / `EastmoneySource` / `OkxSource`，通过 `get_data_source(market)` 获取带缓存+fallback 的代理。
+实现：`AkshareSource` / `EastmoneySource` / `OkxSource`，通过 `get_data_source(market)` 获取带来源隔离缓存的 single-primary 代理。primary 请求失败、返回空结果或构造失败时不切换供应商；备用源只能由诊断或明确研究路径直接选择。
 
 ## 6. 实盘安全设计
 
@@ -178,7 +178,7 @@ Web 工作台
 
 - **uv workspace**：成员列表以根目录 `pyproject.toml` 的 `[tool.uv.workspace].members` 为准，共享单一虚拟环境
 - 可选依赖组：`a_shares` / `crypto` / `ai` / `backtest` / `heavy-torch` / `heavy-solana`
-- 重依赖（torch/solana）懒加载，未安装时策略降级而非崩溃
+- 重依赖（torch/solana）可懒加载；任何产生信号、回测或执行的策略在模型/产物缺失时必须 fail-closed。仅非执行展示可标记为 `degraded`，且不得升级为信号或交易授权。
 
 ## 8. 已注册策略清单
 

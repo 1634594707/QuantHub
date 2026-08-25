@@ -5,7 +5,7 @@
 
 导出:
     - AlphaMasterStrategy : 策略类（继承 StrategyBase，已 @register_strategy 注册）
-    - run_factor_search  : MT5 因子搜索便捷入口（无训练权重时回退启发式）
+    - run_factor_search  : MT5 因子搜索便捷入口（训练产物缺失时显式不可用）
     - compute_target_positions : 连续仓位 tanh + 阈值（等价重实现）
 """
 

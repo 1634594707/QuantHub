@@ -60,17 +60,15 @@ def analyze(
     market: str = "a_shares",
     timeframe: str = "1d",
     limit: int = 20,
-    use_api: bool = True,
     research_run_id: str | None = None,
     owner_id: str = "local-user",
 ) -> dict[str, Any]:
     """抓取新闻并执行结构化分析。
 
-    - 始终先走 SentimentAnalyzer 做本地兜底情绪分析
-    - API 可用时启用结构化增强（NER/主题/摘要）
-    - API 不可用时返回 degraded=true，仅包含情绪分析
+    - 配置的 FinBERT2 与 LLM 必须完整成功，才返回可用结构化新闻分析
+    - 模型或 LLM 不可用时返回明确失败，不持久化新闻证据
     - 无新闻时返回 ok=true, total=0, degraded_reason=no_news
-    - 支持传入 ``research_run_id`` 复用同一研究运行；上下文不一致时回退到新建 run
+    - 传入 ``research_run_id`` 时必须复用同一研究运行；上下文不一致会明确失败
     """
     analyzer = NewsAnalyzer.from_config(market)
     ds = get_data_source(market)
@@ -119,7 +117,10 @@ def analyze(
             "research_run_id": None,
         }
 
-    batch = analyzer.analyze_batch(news_list, use_api=use_api)
+    batch = analyzer.analyze_batch(news_list)
+    if not batch.ok:
+        reason = batch.degraded_reason or "新闻模型或 LLM 不可用"
+        return _fail(f"新闻分析不可用: {reason}")
 
     # 聚合主题/情绪分布
     sentiment_dist = {"positive": 0, "negative": 0, "neutral": 0}
@@ -165,7 +166,6 @@ def analyze(
                 module="news",
                 input_data={
                     "limit": limit,
-                    "use_api": use_api,
                     "engine": batch.engine,
                     "timeframe": timeframe,
                 },
@@ -173,21 +173,16 @@ def analyze(
                 owner_id=owner_id,
             )
         except ResearchContextMismatchError as exc:
-            logger.warning("新闻研究上下文不一致，回退到新建 run: %s", exc)
-            run_id = start_module(
-                symbol=symbol,
-                market=market,
-                timeframe=timeframe,
-                module="news",
-                input_data={
-                    "limit": limit,
-                    "use_api": use_api,
-                    "engine": batch.engine,
-                    "timeframe": timeframe,
-                },
-                run_id=None,
-                owner_id=owner_id,
-            )
+            logger.warning("新闻研究上下文不一致，拒绝写入其他运行: %s", exc)
+            return {
+                "ok": False,
+                "error": str(exc),
+                "symbol": symbol,
+                "market": market,
+                "total": 0,
+                "items": [],
+                "research_run_id": research_run_id,
+            }
         first_title = batch.items[0].title if batch.items else symbol
         add_evidence(
             run_id,

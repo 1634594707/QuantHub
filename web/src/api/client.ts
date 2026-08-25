@@ -44,10 +44,7 @@ import type {
   DataSourceStatusResp,
   DataSourceCheckResult,
   DataSourceOperation,
-  DemoCatalog,
-  DemoRunPayload,
   DemoRunRecord,
-  DemoRunResult,
   DemoRunSummary,
   CreatedApiToken,
   EnsembleResp,
@@ -624,14 +621,7 @@ export const api = {
 
   simulationAccount: () => getJSON<SimulationAccount>('/simulation/account'),
 
-  // ---- 模拟实验室（因子 / 策略回测沙盒）----
-  demoPresets: () => getJSON<DemoCatalog>('/simulation/demo/presets'),
-  demoRun: (payload: DemoRunPayload) =>
-    getJSON<DemoRunResult>('/simulation/demo/run', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    }),
+  // ---- 历史模拟实验记录（只读兼容）----
   demoRuns: (limit = 20) =>
     getJSON<{ ok: boolean; runs: DemoRunSummary[] }>(`/simulation/demo/runs?limit=${limit}`),
   demoRunDetail: (runId: string) =>
@@ -773,7 +763,7 @@ export const api = {
     walk_forward_folds: number
     availability_lag?: number
     review_focus?: string
-    run_id?: string
+    run_id: string
   }) => getJSON<FactorAiReviewResp>('/factor-research/ai-review', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1965,14 +1955,13 @@ export const api = {
       { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ resolution }) },
     ),
 
-  // ---- G8 新闻结构化分析（Phase 1：本地 LM Studio）----
+  // ---- 新闻结构化分析（FinBERT2 + 配置 LLM）----
   newsHealth: () => getJSON<NewsHealthResp>('/news/health'),
 
   newsAnalyze: (
     symbol: string,
     limit = 20,
     market = 'a_shares',
-    useApi = true,
     timeframe = '1d',
     researchRunId?: string,
   ) =>
@@ -1984,7 +1973,6 @@ export const api = {
         limit,
         market,
         timeframe,
-        use_api: useApi,
         research_run_id: researchRunId,
       }),
     }),

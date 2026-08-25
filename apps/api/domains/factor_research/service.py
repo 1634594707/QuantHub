@@ -2475,8 +2475,6 @@ def get_factor_research_run(run_id: str) -> dict | None:
 
 
 def _factor_run_for_review(req: FactorAiReviewRequest) -> tuple[dict[str, Any] | None, str | None]:
-    if not req.run_id:
-        return run_factor_research(FactorResearchRequest(**_request_payload(req))), None
     detail = get_factor_research_run(req.run_id)
     if detail is None or detail.get("result") is None:
         return None, "因子研究记录不存在或没有可复核的统计结果"
@@ -2522,12 +2520,12 @@ def _save_ai_outcome(run_id: str, response: dict[str, Any]) -> None:
 
 
 def review_factor_research(req: FactorAiReviewRequest) -> dict:
-    """Review a saved server snapshot, or rebuild one for backward-compatible callers."""
+    """Review exactly the saved server snapshot identified by ``run_id``."""
     result, context_error = _factor_run_for_review(req)
     if context_error:
         return {"ok": False, "error": context_error, "run_id": req.run_id}
     if result is None or not result.get("ok"):
-        return result or {"ok": False, "error": "因子研究结果不可用"}
+        return result or {"ok": False, "error": "因子研究结果不可用", "run_id": req.run_id}
     try:
         response = run_ai_review(result, focus=req.review_focus)
     except Exception as exc:  # noqa: BLE001 - normalize provider/configuration failures for the UI
@@ -2542,7 +2540,5 @@ def review_factor_research(req: FactorAiReviewRequest) -> dict:
             }
         else:
             response = {"ok": False, "error": f"AI 科研复核失败: {exc}"}
-    if req.run_id:
-        _save_ai_outcome(req.run_id, response)
-        response = {**response, "run_id": req.run_id, "saved": True}
-    return response
+    _save_ai_outcome(req.run_id, response)
+    return {**response, "run_id": req.run_id, "saved": True}

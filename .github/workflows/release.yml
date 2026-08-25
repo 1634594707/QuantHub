@@ -50,7 +50,7 @@ jobs:
           uv sync --locked --group test
           uv run python -m compileall -q apps/api apps/dispatcher apps/scheduler core strategies
           uv run python -c "from apps.api.main import app; assert app.version == '${GITHUB_REF_NAME#v}'"
-          uv run --frozen python -B tools/run_backend_tests.py
+          uv run --frozen python -m pytest -q
 
   publish:
     needs: validate

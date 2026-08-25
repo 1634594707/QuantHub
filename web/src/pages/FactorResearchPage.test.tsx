@@ -394,7 +394,11 @@ describe('FactorResearchPage', () => {
   })
 
   it('shows a deep-review state while waiting for the AI provider', async () => {
-    vi.spyOn(api, 'factorResearch').mockResolvedValue(response as never)
+    vi.spyOn(api, 'factorResearch').mockResolvedValue({
+      ...response,
+      run_id: 'factor-run-pending-ai',
+      saved: true,
+    } as never)
     vi.spyOn(api, 'factorAiReview').mockReturnValue(new Promise(() => {}) as never)
     render(<FactorResearchPage />)
 
@@ -403,6 +407,19 @@ describe('FactorResearchPage', () => {
     fireEvent.click(screen.getByRole('button', { name: '启动 AI 复核' }))
 
     expect(await screen.findByRole('button', { name: 'AI 深度复核中' })).toBeTruthy()
+  })
+
+  it('does not submit an AI review for an unsaved statistical result', async () => {
+    vi.spyOn(api, 'factorResearch').mockResolvedValue(response as never)
+    const aiRequest = vi.spyOn(api, 'factorAiReview')
+    render(<FactorResearchPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: '运行研究' }))
+    await screen.findByText('AI 科研复核')
+    fireEvent.click(screen.getByRole('button', { name: '启动 AI 复核' }))
+
+    expect(await screen.findByText('当前研究结果没有可复核的已保存运行记录。')).toBeTruthy()
+    expect(aiRequest).not.toHaveBeenCalled()
   })
 
   it('keeps the statistical result readable when the AI review fails', async () => {

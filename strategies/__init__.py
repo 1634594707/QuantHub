@@ -19,6 +19,7 @@ from typing import Any
 from strategies.base import (
     StrategyBase,
     StrategyInfo,
+    configured_strategy_config,
     get_strategy,
     list_strategies,
     register_strategy,
@@ -29,6 +30,7 @@ logger = logging.getLogger(__name__)
 __all__ = [
     "StrategyBase",
     "StrategyInfo",
+    "configured_strategy_config",
     "get_strategy",
     "list_strategies",
     "register_strategy",

@@ -64,8 +64,11 @@ class FakeExchange:
         payload["clientOrderId"] = args[5]["clOrdId"]
         return payload
 
-    def fetch_orders(self, *args):
+    def fetch_open_orders(self, *args):
         return [self.order]
+
+    def fetch_closed_orders(self, *args):
+        return []
 
     def cancel_order(self, order_id, symbol):
         return dict(self.order, status="canceled")
@@ -89,14 +92,16 @@ class FakeExchange:
         return [{"symbol": "BTC-USDT-SWAP", "contracts": 0.01, "markPrice": 60000}]
 
 
-class FetchOrdersUnsupportedExchange(FakeExchange):
+class ProviderNativeOrdersExchange(FakeExchange):
     def __init__(self) -> None:
         super().__init__()
         self.open_orders_args = None
         self.closed_orders_args = None
+        self.fetch_orders_called = False
 
     def fetch_orders(self, *args):
-        raise RuntimeError("okx fetchOrders() is not supported yet")
+        self.fetch_orders_called = True
+        raise AssertionError("generic fetch_orders must not be called for OKX")
 
     def fetch_open_orders(self, *args):
         self.open_orders_args = args
@@ -166,13 +171,14 @@ class OkxCcxtAdapterTests(unittest.TestCase):
         self.assertTrue(instrument["minimum_notional_estimated"])
         self.assertNotIn("must-not-leak", json.dumps(result))
 
-    def test_order_recovery_falls_back_to_symbol_scoped_closed_orders(self) -> None:
-        exchange = FetchOrdersUnsupportedExchange()
+    def test_order_recovery_uses_provider_native_order_views_only(self) -> None:
+        exchange = ProviderNativeOrdersExchange()
         order = OkxCcxtAdapter(exchange).fetch_order_by_client_id("client-1", "BTC-USDT-SWAP")
 
         self.assertIsNotNone(order)
         assert order is not None
         self.assertEqual(order.status, "canceled")
+        self.assertFalse(exchange.fetch_orders_called)
         self.assertEqual(exchange.open_orders_args[0], "BTC/USDT:USDT")
         self.assertEqual(exchange.closed_orders_args[0], "BTC/USDT:USDT")
         self.assertEqual(exchange.closed_orders_args[3], {"clOrdId": "client-1"})

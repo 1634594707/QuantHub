@@ -6,15 +6,58 @@
 from __future__ import annotations
 
 import logging
+import math
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 from apps.dispatcher.risk import RiskChecker, RiskContext, RiskError
-from apps.dispatcher.router import OrderRouter
+from apps.dispatcher.router import (
+    CRYPTO_EXECUTION_SOURCE_AMBIGUOUS,
+    CRYPTO_EXECUTION_SOURCES,
+    CRYPTO_SOURCE_NOT_AUTHORIZED,
+    HOLD_SIGNAL_NOT_ORDERABLE,
+    SIGNAL_NOT_EXECUTION_ELIGIBLE,
+    OrderRouter,
+    OrderRoutingError,
+    signal_execution_rejection,
+)
 from core.config import get_config
 from core.signals import Signal, get_bus
 
 logger = logging.getLogger(__name__)
+
+DIRECTION_TIE = "direction_tie"
+SIGNAL_MARKET_MISMATCH = "signal_market_mismatch"
+
+
+def _rejection_result(agg: dict, reason: str) -> dict:
+    """Build a small, serializable result for a fail-closed aggregate.
+
+    Rejections are returned from ``flush`` just like order intents so callers
+    can show the source/reason to an operator without mistaking a rejected
+    signal for a successful order.
+    """
+
+    result = {
+        "symbol": agg.get("symbol"),
+        "market": agg.get("market"),
+        "rejected": reason,
+        "direction": agg.get("direction"),
+        "score": agg.get("score", 0.0),
+        "sources": list(agg.get("sources") or []),
+    }
+    if agg.get("direction_tie"):
+        result["direction_tie"] = True
+    for key in (
+        "observed_sources",
+        "observed_markets",
+        "unconfigured_sources",
+        "invalid_weight_sources",
+        "ineligible_sources",
+    ):
+        if agg.get(key):
+            result[key] = list(agg[key])
+    return result
 
 
 def build_ledger_risk_context(symbol: str, market: str) -> RiskContext:
@@ -74,7 +117,7 @@ class Dispatcher:
 
     def _on_signal(self, signal: Signal) -> None:
         """信号到达回调：缓存。"""
-        self._buffer[signal.symbol].append((signal, datetime.now()))
+        self._buffer[signal.symbol].append((signal, datetime.now(UTC)))
 
     def flush(
         self, symbol: str | None = None, account_ctx: RiskContext | None = None
@@ -89,7 +132,7 @@ class Dispatcher:
         """
         results: list[dict] = []
         symbols = [symbol] if symbol else list(self._buffer.keys())
-        now = datetime.now()
+        now = datetime.now(UTC)
         for sym in symbols:
             pending = self._buffer.get(sym, [])
             # 过滤过期
@@ -98,11 +141,32 @@ class Dispatcher:
                 self._buffer.pop(sym, None)
                 continue
             agg = self._aggregate(pending)
+            self._buffer[sym] = []
+
+            # A source/configuration rejection is observable, but never
+            # allowed to proceed to risk or order routing.
+            if agg.get("rejected"):
+                logger.warning(
+                    "信号聚合拒绝: %s (%s; sources=%s)",
+                    agg["symbol"],
+                    agg["rejected"],
+                    agg.get("observed_sources", agg.get("sources", [])),
+                )
+                results.append(_rejection_result(agg, agg["rejected"]))
+                continue
+
+            # ``hold`` is a valid display outcome.  It is intentionally
+            # handled before the score threshold so a high-confidence hold
+            # cannot become an order through a hidden side default.
+            if agg["direction"] == "hold":
+                logger.info("信号仅供展示，不生成订单: %s", agg["symbol"])
+                results.append(_rejection_result(agg, HOLD_SIGNAL_NOT_ORDERABLE))
+                continue
+
             if agg["score"] >= self.score_threshold:
                 intent = self._route(agg, account_ctx)
                 if intent:
                     results.append(intent)
-            self._buffer[sym] = []
         return results
 
     def _aggregate(self, pending: list[tuple[Signal, datetime]]) -> dict:
@@ -110,8 +174,36 @@ class Dispatcher:
         weight_sum = 0.0
         weighted_score = 0.0
         direction_votes: dict[str, float] = defaultdict(float)
+        observed_sources = {str(sig.source or "<empty>") for sig, _ in pending}
+        observed_markets = {str(sig.market or "<empty>") for sig, _ in pending}
+        weighted_sources: set[str] = set()
+        unconfigured_sources: set[str] = set()
+        invalid_weight_sources: set[str] = set()
+        ineligible_sources: set[str] = set()
         for sig, _ in pending:
-            w = self.weights.get(sig.source, 0.1)
+            # Display/degraded/realtime-only signals may carry a buy/sell
+            # direction for explanation, but they are never valid dispatcher
+            # inputs for an executable aggregate.
+            if signal_execution_rejection(sig) is not None:
+                ineligible_sources.add(str(sig.source or "<empty>"))
+                continue
+
+            # There is no safe universal weight for a source that has not
+            # been configured.  Skip it explicitly and preserve provenance so
+            # an operator can fix configuration instead of receiving a
+            # silently diluted/boosted trade signal.
+            if sig.source not in self.weights:
+                unconfigured_sources.add(str(sig.source or "<empty>"))
+                continue
+            try:
+                w = float(self.weights[sig.source])
+            except (TypeError, ValueError):
+                w = 0.0
+            if not math.isfinite(w) or w <= 0:
+                invalid_weight_sources.add(str(sig.source or "<empty>"))
+                continue
+
+            weighted_sources.add(sig.source)
             weight_sum += w
             weighted_score += sig.score * w
             # 方向投票（buy +score, sell -score）
@@ -121,23 +213,121 @@ class Dispatcher:
                 direction_votes["sell"] += sig.confidence * w
 
         score = weighted_score / weight_sum if weight_sum > 0 else 0.0
-        direction = (
-            "buy" if direction_votes.get("buy", 0) > direction_votes.get("sell", 0) else "sell"
+        buy_votes = direction_votes.get("buy", 0.0)
+        sell_votes = direction_votes.get("sell", 0.0)
+        direction_tie = (
+            buy_votes > 0
+            and sell_votes > 0
+            and math.isclose(buy_votes, sell_votes, rel_tol=1e-12, abs_tol=1e-12)
         )
-        if max(direction_votes.values(), default=0) == 0:
+        if direction_tie or max(direction_votes.values(), default=0) == 0:
             direction = "hold"
+        elif buy_votes > sell_votes:
+            direction = "buy"
+        else:
+            direction = "sell"
+
+        rejected: str | None = None
+        if len(observed_markets) > 1:
+            # The buffer is keyed by symbol for historical reasons.  A symbol
+            # can nevertheless be emitted by more than one market (for
+            # example ``BTCUSDT`` in a crypto and a synthetic research feed).
+            # Picking the first market would silently route the other signal
+            # through the wrong risk/venue boundary, so reject the whole
+            # aggregate and retain both markets for diagnosis.
+            rejected = SIGNAL_MARKET_MISMATCH
+        elif ineligible_sources:
+            # Even when another source is configured, mixing a non-executable
+            # display result into an order decision is ambiguous.  Reject the
+            # batch and expose the offending source instead of guessing.
+            rejected = SIGNAL_NOT_EXECUTION_ELIGIBLE
+        elif direction_tie:
+            # A tie has no principled execution side.  Do not preserve the
+            # historical implicit ``sell`` default.
+            rejected = DIRECTION_TIE
+        elif unconfigured_sources:
+            # A mixed configured/unknown batch is not safe to partially
+            # aggregate: dropping the unknown source changes the score and
+            # direction while looking like a successful signal.  Require the
+            # producer/configuration to be fixed before routing any part of
+            # this symbol's window.
+            rejected = "signal_source_unconfigured"
+        elif invalid_weight_sources:
+            # Invalid configured weights are equally ambiguous when another
+            # source has a valid weight.  Do not silently dilute the result.
+            rejected = "signal_source_weight_invalid"
+
+        if unconfigured_sources or invalid_weight_sources or ineligible_sources:
+            logger.warning(
+                "忽略未启用/无效/非执行信号来源: %s (unconfigured=%s invalid_weight=%s ineligible=%s)",
+                pending[0][0].symbol,
+                sorted(unconfigured_sources),
+                sorted(invalid_weight_sources),
+                sorted(ineligible_sources),
+            )
 
         return {
             "symbol": pending[0][0].symbol,
             "market": pending[0][0].market,
             "direction": direction,
             "score": score,
-            "sources": list({s.source for s, _ in pending}),
-            "ts": datetime.now(),
+            # ``sources`` contains only signals that actually participated in
+            # the aggregate.  ``observed_sources`` retains the full input
+            # provenance for diagnostics and audit logs.
+            "sources": sorted(weighted_sources),
+            "weighted_sources": sorted(weighted_sources),
+            "observed_sources": sorted(observed_sources),
+            "observed_markets": sorted(observed_markets),
+            "unconfigured_sources": sorted(unconfigured_sources),
+            "invalid_weight_sources": sorted(invalid_weight_sources),
+            "ineligible_sources": sorted(ineligible_sources),
+            "direction_tie": direction_tie,
+            "rejected": rejected,
+            "ts": datetime.now(UTC),
         }
 
     def _route(self, agg: dict, account_ctx: RiskContext | None) -> dict | None:
         from core.signals import Signal
+
+        # Keep direct callers fail-closed as well as ``flush``.  This protects
+        # future schedulers/HTTP adapters that may bypass the normal loop.
+        if agg.get("rejected"):
+            return _rejection_result(agg, agg["rejected"])
+        if agg.get("direction") == "hold":
+            return _rejection_result(agg, HOLD_SIGNAL_NOT_ORDERABLE)
+
+        # Aggregates supplied by another caller may carry the original
+        # metadata directly; preserve the same execution gate used by the
+        # normal ``_aggregate`` path.
+        agg_meta = dict(agg.get("meta") or {})
+        if agg_meta:
+            probe = Signal(
+                symbol=agg["symbol"],
+                market=agg["market"],
+                timeframe="agg",
+                direction=agg["direction"],
+                score=agg["score"],
+                confidence=agg.get("confidence", agg["score"]),
+                source=str((agg.get("sources") or ["dispatcher"])[0]),
+                meta=agg_meta,
+            )
+            execution_rejection = signal_execution_rejection(probe)
+            if execution_rejection is not None:
+                return _rejection_result(agg, execution_rejection[0])
+
+        weighted_sources = list(agg.get("weighted_sources") or agg.get("sources") or [])
+        execution_source = "dispatcher"
+        if agg.get("market") == "crypto":
+            unauthorized = sorted(set(weighted_sources) - CRYPTO_EXECUTION_SOURCES)
+            authorized = sorted(set(weighted_sources) & CRYPTO_EXECUTION_SOURCES)
+            if unauthorized:
+                return _rejection_result(agg, CRYPTO_SOURCE_NOT_AUTHORIZED)
+            if len(authorized) != 1:
+                # Selecting one venue/wallet when several contributed would
+                # be an implicit routing policy.  Require an explicit split
+                # upstream instead.
+                return _rejection_result(agg, CRYPTO_EXECUTION_SOURCE_AMBIGUOUS)
+            execution_source = authorized[0]
 
         # 构造聚合 Signal
         sig = Signal(
@@ -147,9 +337,10 @@ class Dispatcher:
             direction=agg["direction"],
             score=agg["score"],
             confidence=agg["score"],
-            source="dispatcher",
-            tags=agg["sources"],
+            source=execution_source,
+            tags=list(agg.get("observed_sources") or weighted_sources),
             ts=agg["ts"],
+            meta=agg_meta,
         )
         price: float | None = None
         quantity = 1.0
@@ -165,7 +356,9 @@ class Dispatcher:
                 agg["market"], RiskChecker(market=agg["market"])
             )
             try:
-                notional = allocation_notional(agg["symbol"], agg["sources"], context.total_equity)
+                notional = allocation_notional(
+                    agg["symbol"], weighted_sources, context.total_equity
+                )
                 quantity = notional / price
                 checker.check(
                     {"symbol": agg["symbol"], "side": agg["direction"], "notional": notional},
@@ -175,8 +368,19 @@ class Dispatcher:
                 logger.warning("风控拒绝: %s (%s)", agg["symbol"], e)
                 return {"symbol": agg["symbol"], "rejected": str(e)}
 
-        intent = self._router.route(sig, qty=quantity, price=price)
-        return intent.to_dict()
+        try:
+            intent = self._router.route(sig, qty=quantity, price=price)
+        except OrderRoutingError as exc:
+            logger.warning("订单路由拒绝: %s (%s)", agg["symbol"], exc)
+            return _rejection_result(agg, exc.code)
+        result = intent.to_dict()
+        # Keep ignored/ineligible provenance attached to the operator-facing
+        # result even when the remaining configured sources produced a valid
+        # order intent.
+        for key in ("observed_sources", "unconfigured_sources", "ineligible_sources"):
+            if agg.get(key):
+                result[key] = list(agg[key])
+        return result
 
 
 def main() -> None:

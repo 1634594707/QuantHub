@@ -2,14 +2,14 @@
 
 与 ``news_scanner`` 的差异：
     - ``news_scanner`` 走 DeepSeek，仅产出「单标的聚合情绪信号」
-    - ``news_analyzer`` 走 SentimentAnalyzer（语义情绪）+ 可选 DeepSeek API 结构化增强，
+    - ``news_analyzer`` 走 FinBERT2 + 配置的 DeepSeek API 结构化分析，
       产出「单标的结构化信号 + 主题/实体分布」
 
 信号 meta 携带：
     - ``topic_dist``：8 主题计数
     - ``sentiment_dist``：{positive, negative, neutral} 计数
     - ``top_entities``：高频实体 [{text, type, count}]
-    - ``degraded``：是否降级（API 未配置/失败时 True）
+    - ``degraded``：仅完整模型与 LLM 路径成功时为 False
     - ``model`` / ``engine``
     - ``items``：原始结构化分析（前端展开用）
 """
@@ -46,14 +46,14 @@ _TOP_ENTERS_LIMIT = 10
         name="news_analyzer",
         market="a_shares",
         live_capable=False,
-        description="新闻结构化分析（语义情绪 + 可选 API 结构化增强）",
+        description="新闻结构化分析（FinBERT2 + 配置 LLM）",
     )
 )
 class NewsAnalyzerStrategy(StrategyBase):
     """新闻结构化分析策略。
 
-    通过 ``core.data_feed`` 获取新闻，经 ``NewsAnalyzer`` 做四维结构化分析，
-    按聚合情绪产出 buy/sell/hold 信号，meta 携带主题/实体分布。
+    通过 ``core.data_feed`` 获取新闻，经 ``NewsAnalyzer`` 做四维结构化分析。
+    只有模型与 LLM 均完整成功时才产出信号。
     """
 
     def __init__(self, config: dict | None = None) -> None:
@@ -113,25 +113,22 @@ class NewsAnalyzerStrategy(StrategyBase):
     # ------------------------------------------------------------------
     # 直接暴露批量分析（供 API 端点复用，不走信号总线）
     # ------------------------------------------------------------------
-    def analyze(self, symbol: str | None, limit: int, use_api: bool = True) -> NewsBatchResult:
-        """供 ``/news/analyze`` 端点调用：抓取新闻 + 结构化分析，返回原始批次结果。
-
-        Args:
-            use_api: 是否启用 API 结构化增强（False 时仅语义情绪，不消耗 API 额度）。
-        """
+    def analyze(self, symbol: str | None, limit: int) -> NewsBatchResult:
+        """供 ``/news/analyze`` 端点调用：抓取新闻 + 结构化分析，返回原始批次结果。"""
         analyzer = self._get_analyzer()
         ds = get_data_source(_MARKET)
         news_list = self._fetch_news(ds, symbol, max(1, int(limit)))
         if not news_list:
             return NewsBatchResult(
                 items=[],
-                engine="keyword",
+                engine="unavailable",
                 model=None,
                 total=0,
                 ok=False,
                 degraded_reason="no_news",
+                display_only=True,
             )
-        return analyzer.analyze_batch(news_list, use_api=use_api)
+        return analyzer.analyze_batch(news_list)
 
     # ------------------------------------------------------------------
     # 内部工具
@@ -165,6 +162,9 @@ class NewsAnalyzerStrategy(StrategyBase):
             return None
 
         batch = analyzer.analyze_batch(news_list)
+        if not batch.ok:
+            self._record_unavailable(symbol, batch)
+            return None
 
         # 情绪聚合
         sent_dist = {"positive": 0, "negative": 0, "neutral": 0}
@@ -181,8 +181,11 @@ class NewsAnalyzerStrategy(StrategyBase):
                 entity_counter[f"{e.text}|{e.type}"] += 1
 
         n = len(batch.items)
-        avg_score = score_sum / n if n else 0.0  # [-1, 1]
-        avg_conf = confidence_sum / n if n else 0.0  # [0, 1]
+        if n == 0:
+            self._record_unavailable(symbol, batch, reason="empty_model_output")
+            return None
+        avg_score = score_sum / n  # [-1, 1]
+        avg_conf = confidence_sum / n  # [0, 1]
         pos_prob = (avg_score + 1.0) / 2.0  # [0, 1]
         direction, score_field = self._map_direction(pos_prob)
 
@@ -206,6 +209,7 @@ class NewsAnalyzerStrategy(StrategyBase):
                     "model": batch.model,
                     "degraded": batch.engine != "semantic+api",
                     "degraded_reason": batch.degraded_reason,
+                    "display_only": batch.display_only,
                     "avg_score": round(avg_score, 4),
                     "pos_prob": round(pos_prob, 4),
                     "sentiment_dist": sent_dist,
@@ -217,6 +221,33 @@ class NewsAnalyzerStrategy(StrategyBase):
         except ValueError as e:
             logger.warning("信号构造失败 %s: %s", symbol, e)
             return None
+
+    def _record_unavailable(
+        self,
+        symbol: str,
+        batch: NewsBatchResult,
+        *,
+        reason: str | None = None,
+    ) -> None:
+        """仅保存展示级失败诊断，禁止降级批次进入信号总线。"""
+        detail = reason or batch.degraded_reason or "news_model_or_llm_unavailable"
+        self.last_report = {
+            "kind": "news_analysis",
+            "symbol": symbol,
+            "status": "unavailable",
+            "degraded": True,
+            "display_only": True,
+            "execution_eligible": False,
+            "engine": batch.engine,
+            "model": batch.model,
+            "news_count": batch.total,
+            "reason": detail,
+        }
+        self.last_signal_rejection = {
+            "code": "news_analysis_unavailable",
+            "message": "新闻模型或 LLM 不可用/输出不完整，未发布结构化新闻信号。",
+            "details": {"source": _SOURCE, "symbol": symbol, "reason": detail},
+        }
 
     @staticmethod
     def _top_entities(counter: Counter) -> list[dict]:

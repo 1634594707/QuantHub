@@ -1,29 +1,23 @@
-"""NewsAnalyzer：语义情绪分析 + 可选 API 结构化增强。
+"""NewsAnalyzer：FinBERT2 + 配置 LLM 结构化分析。
 
-设计原则（从 LM Studio 改造为语义模型优先）：
+设计原则：
 
-    1. **本地兜底**：始终先用 ``SentimentAnalyzer``（资金流向规则 → FinBERT2 → snownlp →
-       关键词）生成可离线工作的基础情绪
-    2. **API 可选增强**：当 DeepSeek API Key 已配置时，调用 API 做财经情绪、NER、主题与
-       摘要增强；API 成功返回的情绪优先，本地结果仅在字段缺失或调用失败时兜底
-    3. **批量调用**：API 增强一次 prompt 分析 N 条标题，避免 N 条 N 次的延迟
-    4. **容错解析**：剥 markdown fence → json.loads → 提取数组 → 单条缺字段降级
-    5. **优雅降级**：API 调用失败时仅丢结构化字段，情绪分析不受影响
-
-不改动 ``news_scanner`` 的 DeepSeek 路径，两模块独立。
+    1. 仅使用配置的 FinBERT2 本地模型作为情绪基础；不切换 SnowNLP、关键词或规则模型。
+    2. 配置的 LLM 必须完整返回批次结构化结果，才允许 ``ok=True`` 的研究/信号输入。
+    3. 模型或 LLM 不可用时可返回 ``display_only`` 诊断，但不得作为信号或研究证据。
 """
 
 from __future__ import annotations
 
 import json
 import logging
-import re
+import math
 from typing import Any
 
 from core.config import get_config
 from core.data_feed.base import News
 from core.llm import get_llm
-from core.news_event_research import extract_event_semantics
+from core.news_event_research import EVENT_DIRECTIONS, EVENT_TAXONOMY, extract_event_semantics
 from strategies.a_shares.news_analyzer.event_semantics import (
     classify_event_impact,
     uncertain_price_direction,
@@ -35,6 +29,7 @@ from strategies.a_shares.news_analyzer.prompts import (
     build_user_prompt,
 )
 from strategies.a_shares.news_analyzer.schema import (
+    VALID_TOPICS,
     NewsAnalysis,
     NewsBatchResult,
     NewsEntity,
@@ -42,8 +37,6 @@ from strategies.a_shares.news_analyzer.schema import (
     NewsEventImpact,
     NewsPriceDirection,
     NewsSentiment,
-    coerce_sentiment_label,
-    coerce_topic,
 )
 
 logger = logging.getLogger(__name__)
@@ -62,12 +55,13 @@ _FUSION_API_WEIGHT = 0.5
 
 
 class NewsAnalyzer:
-    """新闻结构化分析器（语义情绪 + 可选 API 增强）。
+    """新闻结构化分析器（FinBERT2 情绪 + 配置 LLM 结构化分析）。
 
-    优先级链：
-        1. SentimentAnalyzer.analyze(title) → 本地兜底情绪  [始终执行]
-        2. 若 DeepSeek API 可用 → 调用 API 对批次做财经情绪/NER/主题/摘要增强  [可选]
-        3. API 不可用/失败 → entities=[], topic=unknown, summary=title[:60]
+    可用路径必须同时满足：
+        1. 每条新闻均由配置的 FinBERT2 成功推理；
+        2. 配置的 LLM 对整个批次返回有效的结构化 JSON。
+
+    任一步失败仅返回明确标记的 display-only 结果，禁止下游将其作为信号或证据。
     """
 
     def __init__(
@@ -97,8 +91,8 @@ class NewsAnalyzer:
     # 健康状态
     # ------------------------------------------------------------------
     def is_available(self) -> bool:
-        """始终可用（SentimentAnalyzer 至少有关键词降级）。"""
-        return True
+        """完整模型和 LLM 路径均可用时，才允许生成可用分析。"""
+        return self._get_sentiment_analyzer().is_available() and self._check_api_available()
 
     def reset_availability(self) -> None:
         """清除 API 客户端缓存（前端「刷新」按钮调用）。"""
@@ -108,15 +102,14 @@ class NewsAnalyzer:
     def health(self) -> dict[str, Any]:
         """返回健康状态字典（供 ``/news/health`` 端点）。"""
         sa = self._get_sentiment_analyzer()
-        # 触发一次 analyze 以确定实际引擎（transformers/snownlp/keyword）
-        sa._ensure_loaded()  # noqa: SLF001 触发懒加载以读取 _engine
-        sentiment_engine = sa._engine or "keyword"  # noqa: SLF001
-
+        sentiment_ok = sa.is_available()
         api_ok = self._check_api_available()
         api_cfg = get_config().get("llm", {}).get(self._api_provider, {})
         return {
-            "ok": True,
-            "engine": sentiment_engine,
+            "ok": sentiment_ok and api_ok,
+            "engine": sa.engine,
+            "sentiment_model_available": sentiment_ok,
+            "sentiment_model_reason": sa.unavailable_reason,
             "api_enhancement": api_ok,
             "api_provider": self._api_provider,
             "model": api_cfg.get("model") if api_ok else None,
@@ -125,69 +118,76 @@ class NewsAnalyzer:
     # ------------------------------------------------------------------
     # 单条 / 批量分析
     # ------------------------------------------------------------------
-    def analyze_one(self, news: News) -> NewsAnalysis:
-        """分析单条新闻（内部走批量 1 条路径，便于复用解析与降级）。"""
+    def analyze_one(self, news: News) -> NewsAnalysis | None:
+        """分析单条新闻；不可用时返回 None，而不是伪造中性结果。"""
         result = self.analyze_batch([news])
-        return result.items[0]
+        return result.items[0] if result.ok and result.items else None
 
-    def analyze_batch(self, news_list: list[News], use_api: bool = True) -> NewsBatchResult:
+    def analyze_batch(self, news_list: list[News]) -> NewsBatchResult:
         """批量分析新闻。
 
-        Args:
-            use_api: 是否启用 API 结构化增强（False 时仅做语义情绪分析，不消耗 API 额度）。
-                即使 API Key 已配置，用户也可经此开关关闭增强。
-
         Returns:
-            ``NewsBatchResult``，始终包含情绪分析；API 可用且 ``use_api=True`` 时附带结构化字段。
+            仅配置模型和 LLM 全部成功时返回 ``ok=True``；其他结果明确标为
+            ``display_only``，不得用于信号或研究证据。
         """
         if not news_list:
             return NewsBatchResult(
                 items=[],
-                engine="keyword",
+                engine="unavailable",
                 model=None,
                 total=0,
                 ok=False,
                 degraded_reason="empty_input",
+                display_only=True,
             )
 
         sa = self._get_sentiment_analyzer()
-        api_ok = self._check_api_available() if use_api else False
-        if use_api and not api_ok:
-            logger.info("API 增强已启用但 Key 未配置/不可用，仅返回情绪分析")
-        items: list[NewsAnalysis] = []
-        any_enhanced = False
-        degraded_reason = "api_disabled" if not use_api else "api_unavailable"
-
-        # 1. 本地兜底情绪（始终执行）：API 失败或缺字段时仍可返回结果
+        # 1. 所有输入必须由配置的 FinBERT2 成功推理，不能改用其他算法。
         sentiment_results: list[tuple[float, float, str]] = []
         for news in news_list:
             try:
                 pos_prob, certainty, eng = sa.analyze(news.title or "")
-            except Exception as exc:  # noqa: BLE001 - optional analyzer failures degrade to neutral
-                logger.warning("SentimentAnalyzer 异常，降级为中性: %s", exc)
-                pos_prob, certainty, eng = 0.5, 0.0, "keyword"
+            except Exception as exc:  # noqa: BLE001 - model boundary is converted to unavailable output
+                logger.warning("FinBERT2 情绪推理异常，不生成替代结论: %s", exc)
+                return self._unavailable_batch(
+                    news_list,
+                    "sentiment_model_failed",
+                    reason=str(exc),
+                )
+            if pos_prob is None or eng != "transformers":
+                return self._unavailable_batch(
+                    news_list,
+                    "sentiment_model_unavailable",
+                    reason=sa.unavailable_reason or f"unexpected_engine:{eng}",
+                )
             sentiment_results.append((pos_prob, certainty, eng))
 
-        # 2. API 结构化增强（可选）：批量调用 DeepSeek 做财经情绪/NER/主题/摘要
-        api_objs: list[dict | None] = [None] * len(news_list)
-        if api_ok:
-            try:
-                api_objs, model_name = self._api_enhance_batch(news_list)
-                any_enhanced = any(o is not None for o in api_objs)
-                if not any_enhanced:
-                    degraded_reason = "api_invalid_response"
-            except Exception as exc:  # noqa: BLE001 - optional API failures use local analysis
-                logger.warning("API 增强失败，仅返回情绪分析: %s", exc)
-                api_objs = [None] * len(news_list)
-                model_name = None
-                degraded_reason = "api_call_failed"
-        else:
-            model_name = None
+        # 2. 配置 LLM 必须完整返回整个批次的结构化输出。
+        if not self._check_api_available():
+            return self._display_only_batch(news_list, sentiment_results, "api_unavailable")
+        try:
+            api_objs, model_name = self._api_enhance_batch(news_list)
+        except Exception as exc:  # noqa: BLE001 - API boundary is converted to display-only output
+            logger.warning("配置 LLM 结构化分析失败，不生成可用新闻结论: %s", exc)
+            return self._display_only_batch(
+                news_list,
+                sentiment_results,
+                "api_call_failed",
+            )
+        if len(api_objs) != len(news_list) or not all(
+            self._is_complete_api_object(item) for item in api_objs
+        ):
+            return self._display_only_batch(
+                news_list,
+                sentiment_results,
+                "api_invalid_response",
+            )
 
-        # 3. 合并：API 情绪优先，SentimentAnalyzer 兜底
+        # 3. 两个配置路径均成功后才构造可用结果。
+        items: list[NewsAnalysis] = []
         for i, news in enumerate(news_list):
             pos_prob, certainty, eng = sentiment_results[i]
-            obj = api_objs[i] if i < len(api_objs) else None
+            obj = api_objs[i]
             items.append(
                 self._build_analysis(
                     news=news,
@@ -195,28 +195,147 @@ class NewsAnalyzer:
                     certainty=certainty,
                     sentiment_engine=eng,
                     obj=obj,
-                    enhanced=obj is not None,
-                    model=model_name if obj is not None else None,
+                    enhanced=True,
+                    model=model_name,
                 )
             )
 
-        engine = "semantic+api" if any_enhanced else "semantic"
         return NewsBatchResult(
             items=items,
-            engine=engine,
+            engine="semantic+api",
             model=model_name,
             total=len(news_list),
             ok=True,
-            degraded_reason=None if any_enhanced else degraded_reason,
+            degraded_reason=None,
+            display_only=False,
         )
+
+    def _unavailable_batch(
+        self,
+        news_list: list[News],
+        code: str,
+        *,
+        reason: str | None = None,
+    ) -> NewsBatchResult:
+        """返回无可用模型结论的诊断，避免虚构中性新闻分析。"""
+        detail = f"{code}: {reason}" if reason else code
+        return NewsBatchResult(
+            items=[],
+            engine="unavailable",
+            model=None,
+            total=len(news_list),
+            ok=False,
+            degraded_reason=detail,
+            display_only=True,
+        )
+
+    def _display_only_batch(
+        self,
+        news_list: list[News],
+        sentiment_results: list[tuple[float, float, str]],
+        reason: str,
+    ) -> NewsBatchResult:
+        """保留已验证本地模型的展示结果，但明确禁止其进入信号或证据路径。"""
+        items: list[NewsAnalysis] = []
+        for news, (pos_prob, certainty, eng) in zip(news_list, sentiment_results, strict=True):
+            item = self._build_analysis(
+                news=news,
+                pos_prob=pos_prob,
+                certainty=certainty,
+                sentiment_engine=eng,
+                obj=None,
+                enhanced=False,
+                model=None,
+            )
+            item.error = reason
+            items.append(item)
+        return NewsBatchResult(
+            items=items,
+            engine="display_only",
+            model=None,
+            total=len(news_list),
+            ok=False,
+            degraded_reason=reason,
+            display_only=True,
+        )
+
+    @staticmethod
+    def _is_complete_api_object(value: object) -> bool:
+        """仅接受足以支持结构化研究的完整 LLM 条目，不补默认字段。"""
+        if not isinstance(value, dict):
+            return False
+        required = (
+            "sentiment",
+            "sentiment_score",
+            "topic",
+            "entities",
+            "summary",
+            "event_type",
+            "event_direction",
+            "event_strength",
+            "event_confidence",
+            "event_evidence",
+        )
+        if any(value.get(field) is None for field in required):
+            return False
+        sentiment = str(value["sentiment"]).strip().lower()
+        if sentiment not in {"positive", "negative", "neutral"}:
+            return False
+        topic = str(value["topic"]).strip().lower()
+        if topic not in VALID_TOPICS - {"unknown"}:
+            return False
+        event_type = str(value["event_type"]).strip().lower()
+        if event_type not in {*EVENT_TAXONOMY, "unclassified"}:
+            return False
+        if str(value["event_direction"]).strip().lower() not in EVENT_DIRECTIONS:
+            return False
+        if (
+            not isinstance(value["summary"], str)
+            or not value["summary"].strip()
+            or len(value["summary"].strip()) > _MAX_SUMMARY_CHARS
+        ):
+            return False
+        if not isinstance(value["event_evidence"], str) or not value["event_evidence"].strip():
+            return False
+        entities = value["entities"]
+        if not isinstance(entities, list) or len(entities) > _MAX_ENTITIES_PER_ITEM:
+            return False
+        for entity in entities:
+            if not isinstance(entity, dict):
+                return False
+            if not isinstance(entity.get("text"), str) or not entity["text"].strip():
+                return False
+            if str(entity.get("type", "")).strip().lower() not in {"person", "org", "location"}:
+                return False
+        try:
+            sentiment_score = float(value["sentiment_score"])
+            event_strength = float(value["event_strength"])
+            event_confidence = float(value["event_confidence"])
+        except (TypeError, ValueError):
+            return False
+        if not all(
+            math.isfinite(item) for item in (sentiment_score, event_strength, event_confidence)
+        ):
+            return False
+        if not (-1.0 <= sentiment_score <= 1.0):
+            return False
+        if sentiment == "positive" and sentiment_score <= 0:
+            return False
+        if sentiment == "negative" and sentiment_score >= 0:
+            return False
+        if sentiment == "neutral" and abs(sentiment_score) > 0.34:
+            return False
+        if not (0.0 <= event_strength <= 1.0 and 0.0 <= event_confidence <= 1.0):
+            return False
+        return True
 
     # ------------------------------------------------------------------
     # API 增强调用
     # ------------------------------------------------------------------
-    def _api_enhance_batch(self, news_list: list[News]) -> tuple[list[dict | None], str | None]:
+    def _api_enhance_batch(self, news_list: list[News]) -> tuple[list[dict], str | None]:
         """调用 DeepSeek API 批量分析 NER/主题/摘要，返回 dict 列表与模型名。
 
-        失败抛异常，由调用方降级为纯情绪分析。
+        失败由调用方转为 display-only 结果，不生成可用分析。
         """
         llm = self._get_api_llm()
         assert llm is not None  # 由 _check_api_available 保证
@@ -244,52 +363,18 @@ class NewsAnalyzer:
         return objs, resp.model
 
     def _parse_batch_json(self, raw: str, expected_n: int) -> list[dict]:
-        """容错解析 LLM 输出为 dict 列表。
-
-        步骤：剥 markdown fence → json.loads → 提取数组片段 → 长度对齐。
-        对齐策略：多于 expected_n 截断；少于则补 None。
-        """
+        """严格解析与输入一一对应的 LLM JSON 数组，不重建缺失条目。"""
         if not raw:
-            return [None] * expected_n
-
-        text = raw.strip()
-        # 剥 ```json ... ``` / ``` ... ``` fence
-        fence_match = re.search(r"```(?:json)?\s*(.*?)```", text, re.DOTALL)
-        if fence_match:
-            text = fence_match.group(1).strip()
-
-        # 尝试直接解析
-        parsed: Any = None
+            return []
         try:
-            parsed = json.loads(text)
+            parsed: Any = json.loads(raw.strip())
         except json.JSONDecodeError:
-            # 提取首个 JSON 数组片段
-            arr_match = re.search(r"\[.*\]", text, re.DOTALL)
-            if arr_match:
-                try:
-                    parsed = json.loads(arr_match.group())
-                except json.JSONDecodeError:
-                    parsed = None
-
-        if not isinstance(parsed, list):
-            # 单对象兜底（LLM 偶尔只返回一条）
-            if isinstance(parsed, dict):
-                parsed = [parsed]
-            else:
-                return [None] * expected_n
-
-        # 长度对齐
-        if len(parsed) > expected_n:
-            parsed = parsed[:expected_n]
-        elif len(parsed) < expected_n:
-            parsed = parsed + [None] * (expected_n - len(parsed))
-        # 元素类型校验
-        return [p if isinstance(p, dict) else None for p in parsed]
-
-    @staticmethod
-    def _align(batch: list[News], objs: list[dict]) -> list[tuple[News, dict | None]]:
-        """按位置对齐 news 与解析结果。"""
-        return list(zip(batch, objs, strict=False))
+            return []
+        if not isinstance(parsed, list) or len(parsed) != expected_n:
+            return []
+        if not all(isinstance(item, dict) for item in parsed):
+            return []
+        return parsed
 
     # ------------------------------------------------------------------
     # 构建分析结果
@@ -309,11 +394,11 @@ class NewsAnalyzer:
         Args:
             pos_prob: SentimentAnalyzer 返回的正向概率 [0,1]
             certainty: SentimentAnalyzer 返回的确定性 [0,1]
-            sentiment_engine: SentimentAnalyzer 实际引擎（transformers/snownlp/keyword）
+            sentiment_engine: SentimentAnalyzer 实际引擎（仅允许 transformers）
             obj: API 增强返回的 dict（None 表示未增强）
             enhanced: 是否成功获得 API 增强
         """
-        # 本地兜底情绪
+        # FinBERT2 情绪
         score = pos_prob * 2.0 - 1.0  # [0,1] -> [-1,1]
         if pos_prob >= _POS_THRESHOLD:
             label = "positive"
@@ -323,8 +408,7 @@ class NewsAnalyzer:
             label = "neutral"
         sentiment = NewsSentiment(label=label, score=score, confidence=certainty)
 
-        # API 增强成功时与本地财经引擎融合。明确资金规则优先；FinBERT2 与
-        # DeepSeek 等权融合；SnowNLP/关键词属于弱兜底，由 API 结果覆盖。
+        # API 成功时与 FinBERT2 结果等权融合。
         if obj is not None and obj.get("sentiment"):
             api_sentiment = self._parse_api_sentiment(obj)
             sentiment = self._merge_sentiments(
@@ -333,13 +417,11 @@ class NewsAnalyzer:
                 local_engine=sentiment_engine,
             )
 
-        # 结构化字段（API 增强时来自 LLM；否则空/unknown/title）
+        # LLM 字段已在完整性检查中验证，无需再修正或补默认值。
         if obj is not None:
-            topic = coerce_topic(obj.get("topic"))
+            topic = str(obj["topic"]).strip().lower()
             entities = self._parse_entities(obj.get("entities"))
-            summary = str(obj.get("summary", "") or "").strip()
-            if len(summary) > _MAX_SUMMARY_CHARS:
-                summary = summary[:_MAX_SUMMARY_CHARS]
+            summary = str(obj["summary"]).strip()
         else:
             topic = "unknown"
             entities = []
@@ -370,22 +452,9 @@ class NewsAnalyzer:
 
     @staticmethod
     def _parse_api_sentiment(obj: dict) -> NewsSentiment:
-        """解析并校准 API 情绪，保证标签与分数方向一致。"""
-        label = coerce_sentiment_label(obj.get("sentiment"))
-        default_score = {"positive": 0.5, "negative": -0.5, "neutral": 0.0}[label]
-        try:
-            score = float(obj.get("sentiment_score", default_score))
-        except (TypeError, ValueError):
-            score = default_score
-        score = max(-1.0, min(1.0, score))
-
-        if label == "positive" and score <= 0:
-            score = max(0.35, abs(score))
-        elif label == "negative" and score >= 0:
-            score = -max(0.35, abs(score))
-        elif label == "neutral":
-            score = max(-0.34, min(0.34, score))
-
+        """解析已通过完整性校验的 API 情绪，不补默认标签或分数。"""
+        label = str(obj["sentiment"]).strip().lower()
+        score = float(obj["sentiment_score"])
         confidence = abs(score) if label != "neutral" else 1.0 - abs(score)
         return NewsSentiment(label=label, score=score, confidence=confidence)
 
@@ -395,11 +464,9 @@ class NewsAnalyzer:
         api: NewsSentiment,
         local_engine: str,
     ) -> NewsSentiment:
-        """融合本地与 API 情绪，按引擎可靠度选择策略。"""
-        if local_engine == "financial_rules":
-            return local
+        """融合两个已验证模型的情绪，不接受替代引擎。"""
         if local_engine != "transformers":
-            return api
+            raise ValueError(f"不允许将 {local_engine} 作为可用新闻情绪来源")
 
         local_weight = 1.0 - _FUSION_API_WEIGHT
         score = local.score * local_weight + api.score * _FUSION_API_WEIGHT
@@ -423,16 +490,12 @@ class NewsAnalyzer:
             return []
         out: list[NewsEntity] = []
         for item in raw:
-            if isinstance(item, dict):
-                text = str(item.get("text", "") or "").strip()
-                etype = str(item.get("type", "") or "").strip().lower()
-                if etype not in ("person", "org", "location"):
-                    etype = "org"  # 兜底为 org（最常见的财经实体）
-                if text:
-                    out.append(NewsEntity(text=text, type=etype))
-            elif isinstance(item, str) and item.strip():
-                # 退化：纯字符串实体，默认 org
-                out.append(NewsEntity(text=item.strip(), type="org"))
+            if not isinstance(item, dict):
+                continue
+            text = str(item.get("text", "") or "").strip()
+            etype = str(item.get("type", "") or "").strip().lower()
+            if text and etype in ("person", "org", "location"):
+                out.append(NewsEntity(text=text, type=etype))
             if len(out) >= _MAX_ENTITIES_PER_ITEM:
                 break
         return out
@@ -448,7 +511,7 @@ class NewsAnalyzer:
         return t
 
     def _get_sentiment_analyzer(self) -> Any:
-        """SentimentAnalyzer 单例（懒加载，始终可用）。"""
+        """SentimentAnalyzer 单例（懒加载；模型不可用时由调用方 fail closed）。"""
         if self._sentiment_analyzer is None:
             from strategies.a_shares.sentiment.analyzer import SentimentAnalyzer
 
@@ -458,7 +521,7 @@ class NewsAnalyzer:
     def _check_api_available(self) -> bool:
         """检查 DeepSeek API 是否已配置（Key 环境变量存在）。
 
-        缓存结果避免重复检查。Key 未配置时返回 False，不抛异常。
+        缓存结果避免重复检查。Key 未配置时返回 False，由调用方返回 display-only 结果。
         """
         if self._api_checked:
             return self._api_llm is not None
@@ -467,13 +530,13 @@ class NewsAnalyzer:
         cfg = get_config().get("llm", {}).get(self._api_provider, {})
         api_key = cfg.get("api_key")
         if not api_key:
-            logger.info("DeepSeek API Key 未配置，跳过结构化增强（仅情绪分析）")
+            logger.info("DeepSeek API Key 未配置，新闻结构化分析不可用")
             return False
         try:
             self._api_llm = get_llm(self._api_provider)
             return True
         except (RuntimeError, ImportError) as exc:
-            logger.info("DeepSeek API 客户端初始化失败，跳过增强: %s", exc)
+            logger.info("DeepSeek API 客户端初始化失败，新闻结构化分析不可用: %s", exc)
             self._api_llm = None
             return False
 

@@ -146,14 +146,13 @@ class AkshareSource(DataSource):
         return result
 
     def get_news(self, symbol: str | None = None, limit: int = 50) -> list[News]:
-        """获取财经新闻（优先按股票代码查东财个股新闻，否则回退全球快讯）。"""
+        """获取财经新闻；指定标的时绝不以无标的全局快讯替代。"""
         if symbol:
             try:
                 return self._fetch_stock_news_em(symbol, limit)
             except Exception:
-                logger.warning(
-                    "akshare 个股新闻获取失败 %s，尝试 global 新闻", symbol, exc_info=True
-                )
+                logger.warning("akshare 个股新闻获取失败 %s", symbol, exc_info=True)
+                return []
 
         @self._retryer()
         def _fetch():

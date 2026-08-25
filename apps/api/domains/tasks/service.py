@@ -107,7 +107,6 @@ def _run_analysis(task: dict) -> dict[str, Any]:
             market=task["market"],
             timeframe=task["timeframe"],
             limit=int(request.get("limit", 20)),
-            use_api=bool(request.get("use_api", True)),
             research_run_id=request.get("research_run_id"),
             owner_id=str(task.get("owner_id") or "local-user"),
         )
@@ -327,7 +326,6 @@ def _run_evaluation(task: dict, request: dict[str, Any]) -> dict[str, Any]:
                     market=instrument.market,
                     timeframe=task["timeframe"],
                     limit=int(request.get("news_limit", 20)),
-                    use_api=bool(request.get("use_api", True)),
                     research_run_id=run_id,
                     owner_id=str(task.get("owner_id") or "local-user"),
                 )

@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import math
 from datetime import datetime
-from typing import Any, Literal
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -41,6 +42,13 @@ class SimulationOrderCreate(BaseModel):
     @classmethod
     def normalize_optional_id(cls, value: str | None) -> str | None:
         return value.strip() if value and value.strip() else None
+
+    @field_validator("quantity", "limit_price", "theoretical_price", "capacity_used")
+    @classmethod
+    def reject_non_finite_numbers(cls, value: float | None) -> float | None:
+        if value is not None and not math.isfinite(value):
+            raise ValueError("数值必须是有限数")
+        return value
 
     @field_validator("symbol")
     @classmethod
@@ -87,6 +95,13 @@ class SimulationOrderPreviewRequest(BaseModel):
     def normalize_signal_id(cls, value: str | None) -> str | None:
         return value.strip() if value and value.strip() else None
 
+    @field_validator("quantity", "limit_price")
+    @classmethod
+    def reject_non_finite_numbers(cls, value: float | None) -> float | None:
+        if value is not None and not math.isfinite(value):
+            raise ValueError("数值必须是有限数")
+        return value
+
     @model_validator(mode="after")
     def validate_context(self):
         if not self.signal_id and (not self.symbol or not self.side):
@@ -103,57 +118,9 @@ class SimulationFillCreate(BaseModel):
     price: float = Field(gt=0)
     fee_rate: float = Field(default=0.0003, ge=0, le=0.1)
 
-
-# ---- M4 模拟演示（回测沙盒）----
-DemoSource = Literal["okx_local", "okx_live", "synthetic"]
-
-
-class DemoRunRequest(BaseModel):
-    """一键回测演示请求。所有参数均有默认值，仅传 {} 即可跑通默认演示。
-
-    数据源语义：
-    - ``okx_local``（默认）：本地归档的真实 OKX K 线，离线、完全可复现。
-    - ``okx_live``：经公共行情接口实时拉取真实 OKX 行情，首拉落盘快照后可复现。
-    - ``synthetic``：确定性合成行情，由 ``dataset`` + ``seed`` 决定。
-    """
-
-    source: DemoSource = "okx_local"
-    symbol: str | None = Field(default=None, min_length=1, max_length=40)
-    use_cache: bool = True
-    end: str | None = Field(default=None, min_length=4, max_length=32)
-
-    dataset: str = Field(default="uptrend", min_length=1, max_length=40)
-    seed: int = Field(default=12, ge=0, le=999999)
-    n_bars: int = Field(default=250, ge=10, le=5000)
-    interval: str = Field(default="1d", pattern=r"^(1m|5m|15m|30m|1h|4h|1d)$")
-    start: str | None = Field(default=None, min_length=4, max_length=32)
-    initial_capital: float = Field(default=1_000_000.0, gt=0, le=1e12)
-    commission: float = Field(default=0.0003, ge=0, le=0.1)
-    position_fraction: float = Field(default=1.0, gt=0, le=1.0)
-    strategy: str = Field(default="factor_follow", min_length=1, max_length=40)
-    factor: str | None = Field(default=None, min_length=1, max_length=80)
-    factor_params: dict[str, Any] = Field(default_factory=dict)
-    factor_ast: dict[str, Any] | None = Field(default=None, min_length=1)
-    factor_label: str | None = Field(default=None, min_length=1, max_length=120)
-    factor_version: str | None = Field(
-        default=None,
-        pattern=r"^\d+\.\d+\.\d+$",
-    )
-
-    @field_validator("symbol")
+    @field_validator("quantity", "price", "fee_rate")
     @classmethod
-    def normalize_symbol(cls, value: str | None) -> str | None:
-        return value.strip().upper() if value and value.strip() else None
-
-    @field_validator("start", "end")
-    @classmethod
-    def normalize_time_bound(cls, value: str | None) -> str | None:
-        return value.strip() if value and value.strip() else None
-
-    @model_validator(mode="after")
-    def validate_source_context(self):
-        if self.source == "okx_local" and self.symbol is None:
-            self.symbol = "BTCUSDT"
-        if self.source == "okx_live" and self.symbol is None:
-            self.symbol = "BTC-USDT-SWAP"
-        return self
+    def reject_non_finite_numbers(cls, value: float | None) -> float | None:
+        if value is not None and not math.isfinite(value):
+            raise ValueError("数值必须是有限数")
+        return value

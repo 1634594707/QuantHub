@@ -28,7 +28,7 @@ _ADJUSTED_RETURN_DISCONTINUITY_THRESHOLD = 0.35
 
 
 class YahooSource(DataSource):
-    """Public Yahoo chart endpoint, used as a US-market history fallback."""
+    """Public Yahoo chart endpoint for explicitly selected US-market history."""
 
     name = "yahoo"
     market = "us_stocks"

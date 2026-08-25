@@ -111,6 +111,29 @@ def get_strategy(name: str, config: dict | None = None) -> StrategyBase:
     return _REGISTRY[name](config=config)
 
 
+def configured_strategy_config(name: str) -> dict[str, Any]:
+    """Load the explicit module configuration for a scheduled strategy.
+
+    Generic scheduler/automation entry points must not instantiate a strategy
+    with an empty config: doing so can revive a plugin's historical example
+    universe or silently skip the configured universe.  Unknown names return an
+    empty mapping so test doubles and error handling can still exercise the
+    normal registry lookup; registered strategies require a readable module
+    config and fail closed when it is absent or malformed.
+    """
+    registered = _REGISTRY.get(name)
+    if registered is None:
+        return {}
+    from core.config import get_config
+
+    market_config = get_config(registered.info.market)
+    modules = market_config.get("modules", {})
+    module_config = modules.get(name) if isinstance(modules, dict) else None
+    if not isinstance(module_config, dict):
+        raise TypeError(f"策略 {name} 未配置 modules.{name}，拒绝使用空配置启动调度任务")
+    return dict(module_config)
+
+
 def list_strategies() -> dict[str, StrategyInfo]:
     """列出所有已注册策略。"""
     return {name: cls.info for name, cls in _REGISTRY.items()}

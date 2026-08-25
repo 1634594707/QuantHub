@@ -10,7 +10,7 @@ export function quoteKey(market: string, symbol: string) {
 }
 
 /**
- * 批量拉取一组标的的实时报价（A股/美股走腾讯真实源，加密货 available=false）。
+ * 批量拉取一组标的的实时报价（由后端配置的 primary 决定；无能力时保持 unavailable）。
  * items 为空时不发请求。依赖 JSON 化的 items 变化触发刷新。
  */
 export function useMarketQuotes(items: { market: string; symbol: string }[]) {

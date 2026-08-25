@@ -151,7 +151,11 @@ export default function EnsemblePage({
       timeoutSeconds: 90,
     }),
     [active.symbol, active.timeframe, active.market, requestKey],
-    { enabled: requestKey > 0, retry: false },
+    {
+      enabled: requestKey > 0,
+      retry: false,
+      resetKey: `${active.market}:${active.symbol}:${active.timeframe}:${requestKey}`,
+    },
   )
 
   useEffect(() => {
@@ -160,6 +164,20 @@ export default function EnsemblePage({
   const cons = data?.consensus
   const contributors = data?.contributors ?? []
   const isReal = !!data?.ok
+  // Only the run id returned with this exact ensemble result is trusted for
+  // publication; an unrelated/stale workspace context must not authorize it.
+  const hasResearchRun = Boolean(data?.research_run_id)
+  // A consensus is publishable only when the backend explicitly attests that
+  // every contributor was available and the result is execution eligible.
+  // Missing gate fields intentionally fail closed.
+  const canPublish = Boolean(
+      data?.ok &&
+      data.consensus &&
+      data.execution_eligible === true &&
+      data.degraded === false &&
+      data.display_only === false &&
+      hasResearchRun,
+  )
 
   const votes = useMemo(() => {
     let b = 0
@@ -202,11 +220,11 @@ export default function EnsemblePage({
           : 'warn'
 
   async function publishConsensus() {
-    if (!data?.ok || !data.consensus) return
+    if (!canPublish || !data?.consensus) return
     setPublishing(true)
     setPublishMessage('')
     try {
-      const runId = data.research_run_id ?? researchRunId ?? null
+      const runId = data.research_run_id ?? null
       const response = await api.publishSignal({
         symbol: data.symbol,
         market: data.market ?? active.market,
@@ -222,6 +240,12 @@ export default function EnsemblePage({
           buy_votes: data.consensus.buy_votes,
           sell_votes: data.consensus.sell_votes,
           contributors: data.contributors ?? [],
+          // Preserve the server-side execution gate in the signal metadata so
+          // downstream dispatchers and reviewers cannot mistake degraded
+          // analysis output for an executable signal.
+          degraded: data.degraded === true,
+          execution_eligible: data.execution_eligible === true,
+          display_only: data.display_only === true,
         },
       })
       if (runId) {
@@ -313,7 +337,7 @@ export default function EnsemblePage({
           <span className={`src-pill ${srcCls}`}>{srcLabel}</span>
         </div>
 
-        {isReal && cons && (
+        {canPublish && cons && (
           <div className={s.publishBar}>
             <Button variant="primary" size="sm" onClick={() => void publishConsensus()} loading={publishing}>
               生成待审核信号

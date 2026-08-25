@@ -324,7 +324,19 @@ class UnifiedEvaluationTests(TemporaryStoreTestCase):
         task = store.update_analysis_task(task["id"], {"status": "running"})
         assert task is not None
 
-        with patch.dict(os.environ, {"QUANTHUB_DISABLE_MARKET_FETCH": "1"}):
+        contract = instrument_service._contract_from_row(
+            {"code": "BTC-USDT-SWAP", "name": "BTC / USDT 永续"},
+            source="okx_public",
+        )
+        assert contract is not None
+        with (
+            patch.dict(os.environ, {"QUANTHUB_DISABLE_MARKET_FETCH": "1"}),
+            patch.object(
+                instrument_service,
+                "_load_okx_swap_contracts",
+                return_value=[contract],
+            ),
+        ):
             result = task_service._run_evaluation(task, {"modules": ["market"]})
 
         run = store.get_research_run(result["research_run_id"])
@@ -492,11 +504,21 @@ class MultiMarketInstrumentSearchTests(TemporaryStoreTestCase):
         self.assertEqual(results[0].name, "NVIDIA")
         self.assertEqual(instrument_service.search("NVDA", market="a_shares"), [])
 
-    def test_exact_crypto_pair_is_registered_without_remote_lookup(self) -> None:
-        results = instrument_service.search("btc-usdt", market="crypto")
+    def test_exact_crypto_pair_requires_verified_public_catalog_contract(self) -> None:
+        contract = instrument_service._contract_from_row(
+            {"code": "BTC-USDT-SWAP", "name": "BTC / USDT 永续"},
+            source="okx_public",
+        )
+        self.assertIsNotNone(contract)
+        with patch.object(
+            instrument_service,
+            "_load_okx_swap_contracts",
+            return_value=[contract],
+        ):
+            results = instrument_service.search("btc-usdt", market="crypto")
 
         self.assertEqual(len(results), 1)
-        self.assertEqual(results[0].instrument_id, "crypto:BTC-USDT")
+        self.assertEqual(results[0].instrument_id, "crypto:BTC-USDT-SWAP")
         self.assertEqual(results[0].asset_class, "crypto")
 
 
@@ -516,7 +538,23 @@ class SignalSimulationLedgerTests(TemporaryStoreTestCase):
         accepted = signal_service.review(signal["id"], target="accepted", note="测试通过")
         self.assertEqual(accepted["status"], "accepted")
 
-        with patch.object(portfolio_service, "latest_close", return_value=100.0):
+        with patch.object(
+            portfolio_service,
+            "latest_close_snapshot",
+            return_value={
+                "price": 100.0,
+                "source": "tencent",
+                "primary_source": "tencent",
+                "source_role": "primary",
+                "cache_status": "miss",
+                "transport": "online",
+                "data_semantics": "bar_snapshot",
+                "bar_at": datetime.now(UTC).isoformat(),
+                "observed_at": datetime.now(UTC).isoformat(),
+                "quality_status": "closed_bar",
+                "error": None,
+            },
+        ):
             order = simulation_service.create_order(
                 SimulationOrderCreate(
                     signal_id=signal["id"],
@@ -557,7 +595,23 @@ class SignalSimulationLedgerTests(TemporaryStoreTestCase):
             research_run["id"],
             {"summary": {"research_decision": decision.model_dump(mode="json")}},
         )
-        with patch.object(portfolio_service, "latest_close", return_value=100.0):
+        with patch.object(
+            portfolio_service,
+            "latest_close_snapshot",
+            return_value={
+                "price": 100.0,
+                "source": "tencent",
+                "primary_source": "tencent",
+                "source_role": "primary",
+                "cache_status": "miss",
+                "transport": "online",
+                "data_semantics": "bar_snapshot",
+                "bar_at": datetime.now(UTC).isoformat(),
+                "observed_at": datetime.now(UTC).isoformat(),
+                "quality_status": "closed_bar",
+                "error": None,
+            },
+        ):
             order = simulation_service.create_order(
                 SimulationOrderCreate(
                     symbol="600519",
@@ -590,7 +644,23 @@ class SignalSimulationLedgerTests(TemporaryStoreTestCase):
         self.assertFalse(execution["live_trading_enabled"])
 
     def test_cancelled_paper_order_records_rejection_reason(self) -> None:
-        with patch.object(portfolio_service, "latest_close", return_value=100.0):
+        with patch.object(
+            portfolio_service,
+            "latest_close_snapshot",
+            return_value={
+                "price": 100.0,
+                "source": "tencent",
+                "primary_source": "tencent",
+                "source_role": "primary",
+                "cache_status": "miss",
+                "transport": "online",
+                "data_semantics": "bar_snapshot",
+                "bar_at": datetime.now(UTC).isoformat(),
+                "observed_at": datetime.now(UTC).isoformat(),
+                "quality_status": "closed_bar",
+                "error": None,
+            },
+        ):
             order = simulation_service.create_order(
                 SimulationOrderCreate(
                     symbol="600519",

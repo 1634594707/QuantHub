@@ -16,7 +16,7 @@ def predict_ensemble(req: EnsembleRequest, request: Request) -> dict:
 
     - K 线只拉一次，三类贡献者独立 try/except，失败标记 available=False
     - 结果写入 ResearchRun（market_snapshot + ensemble_output 证据）
-    - 传入 research_run_id 时复用同一运行；上下文不一致时回退到新建 run
+    - 传入 research_run_id 时只写入该运行；上下文不一致时明确失败
     """
     owner_id = str((getattr(request.state, "principal", None) or {}).get("id") or "local-user")
     return service.predict(req, owner_id=owner_id)

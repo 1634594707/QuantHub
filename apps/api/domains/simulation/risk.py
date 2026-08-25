@@ -8,11 +8,25 @@ import math
 from datetime import UTC, datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-RISK_RULE_VERSION = "simulation-risk-v1"
+from core.config import get_config
+
+RISK_RULE_VERSION = "simulation-risk-v2"
 MARKET_MAX_AGE_SECONDS = 300
 ACCOUNT_MAX_AGE_SECONDS = 90
+_ONLINE_PRIMARY_SOURCES: dict[str, frozenset[str]] = {
+    "a_shares": frozenset({"akshare", "eastmoney", "tencent"}),
+    "us_stocks": frozenset({"tencent", "yahoo"}),
+    "crypto": frozenset({"okx"}),
+}
+_EXECUTABLE_MARKET_QUALITIES = {"live", "closed_bar", "verified"}
+_HISTORICAL_EXCEPTION = {
+    "kind": "factor_factory_isolated_closed_bar",
+    "scope": "isolated",
+    "authorized_by": "simulation_service",
+    "realtime_executable": False,
+}
 
 
 class PaperOrderIntent(BaseModel):
@@ -29,6 +43,13 @@ class PaperOrderIntent(BaseModel):
     signal_id: str | None = None
     research_run_id: str | None = None
     reduce_only: bool = False
+
+    @field_validator("quantity", "limit_price")
+    @classmethod
+    def reject_non_finite_numbers(cls, value: float | None) -> float | None:
+        if value is not None and not math.isfinite(value):
+            raise ValueError("订单数值必须是有限数")
+        return value
 
 
 def _parse_time(value: Any) -> datetime | None:
@@ -67,6 +88,48 @@ def _multiple(value: float, step: float) -> bool:
     return math.isclose(ratio, round(ratio), rel_tol=0, abs_tol=1e-8)
 
 
+def _source_name(value: Any) -> str:
+    return str(value or "").strip().lower()
+
+
+def _configured_primary_source(market: str) -> str:
+    try:
+        primary = get_config(market).get("data_sources", {}).get("primary")
+    except Exception:  # noqa: BLE001 - configuration failures must fail closed
+        return ""
+    return _source_name(primary)
+
+
+def _is_factor_factory_account(account_id: str) -> bool:
+    prefix = "factor-factory:"
+    suffix = account_id.removeprefix(prefix)
+    return (
+        account_id.startswith(prefix)
+        and bool(suffix)
+        and all(char.isalnum() or char in {"-", "_", "."} for char in suffix)
+    )
+
+
+def _is_historical_simulation_exception(
+    intent: PaperOrderIntent, market_snapshot: dict[str, Any]
+) -> bool:
+    """Allow exactly the internal factor-factory isolated closed-bar workflow.
+
+    This is not a price-quality upgrade. It is an audit-labelled historical
+    simulation exception, created only by ``simulation.service`` after it has
+    validated the internal call boundary.
+    """
+    exception = market_snapshot.get("execution_exception")
+    return (
+        _is_factor_factory_account(intent.account_id)
+        and market_snapshot.get("snapshot_kind") == "historical_closed_bar"
+        and _source_name(market_snapshot.get("source")) == "factor_factory.closed_bar"
+        and _source_name(market_snapshot.get("quality_status")) == "closed_bar"
+        and isinstance(exception, dict)
+        and all(exception.get(key) == value for key, value in _HISTORICAL_EXCEPTION.items())
+    )
+
+
 def evaluate_risk(
     intent: PaperOrderIntent,
     *,
@@ -99,29 +162,93 @@ def evaluate_risk(
             }
         )
 
+    def excepted(code: str, *, actual: Any = None, action: str) -> None:
+        checks.append(
+            {
+                "code": code,
+                "status": "excepted",
+                "actual": actual,
+                "limit": None,
+                "reevaluate_action": action,
+            }
+        )
+
     price = market_snapshot.get("price")
     price_ok = isinstance(price, (int, float)) and math.isfinite(float(price)) and float(price) > 0
-    market_age = _age_seconds(market_snapshot.get("observed_at"), evaluated_at)
+    bar_at = market_snapshot.get("bar_at") or market_snapshot.get("observed_at")
+    market_age = _age_seconds(bar_at, evaluated_at)
+    source = _source_name(market_snapshot.get("source"))
+    primary_source = _source_name(market_snapshot.get("primary_source"))
+    configured_primary = _configured_primary_source(intent.market)
+    source_role = _source_name(market_snapshot.get("source_role"))
+    cache_status = _source_name(market_snapshot.get("cache_status"))
+    transport = _source_name(market_snapshot.get("transport"))
+    quality = _source_name(market_snapshot.get("quality_status"))
+    historical_exception = _is_historical_simulation_exception(intent, market_snapshot)
+    source_is_online_primary = (
+        bool(configured_primary)
+        and source == primary_source == configured_primary
+        and source in _ONLINE_PRIMARY_SOURCES.get(intent.market, frozenset())
+        and source_role == "primary"
+        and transport == "online"
+        and cache_status == "miss"
+    )
     check(
         "MARKET_PRICE_MISSING",
         price_ok,
         actual=price,
         action="刷新行情后重新预览",
     )
-    check(
-        "MARKET_PRICE_STALE",
-        market_age is not None and market_age <= MARKET_MAX_AGE_SECONDS,
-        actual=market_age,
-        limit=MARKET_MAX_AGE_SECONDS,
-        action="等待新的可执行行情",
-    )
-    quality = str(market_snapshot.get("quality_status") or "unknown")
-    check(
-        "MARKET_PRICE_QUALITY",
-        quality in {"available", "live", "closed_bar", "verified"},
-        actual=quality,
-        action="修复行情质量问题",
-    )
+    if historical_exception:
+        excepted(
+            "MARKET_HISTORICAL_SIMULATION_EXCEPTION",
+            actual={
+                "source": source,
+                "bar_at": bar_at,
+                "execution_exception": market_snapshot.get("execution_exception"),
+                "realtime_executable": False,
+            },
+            action="该订单仅可在 factor-factory 隔离历史模拟中成交，不可转为实时或账本执行",
+        )
+    else:
+        check(
+            "MARKET_BAR_TIME_MISSING",
+            _parse_time(bar_at) is not None,
+            actual=bar_at,
+            action="获取带行情 bar 时间的可执行行情",
+        )
+        check(
+            "MARKET_PRICE_STALE",
+            market_age is not None and market_age <= MARKET_MAX_AGE_SECONDS,
+            actual=market_age,
+            limit=MARKET_MAX_AGE_SECONDS,
+            action="等待新的可执行行情",
+        )
+        check(
+            "MARKET_PRICE_SOURCE",
+            source_is_online_primary,
+            actual={
+                "source": source,
+                "primary_source": primary_source,
+                "configured_primary": configured_primary,
+                "source_role": source_role,
+                "transport": transport,
+            },
+            action="使用明确的在线 primary 行情",
+        )
+        check(
+            "MARKET_PRICE_CACHE",
+            cache_status == "miss",
+            actual=cache_status,
+            limit="miss",
+            action="绕过缓存并取得同源 online primary 行情",
+        )
+        check(
+            "MARKET_PRICE_QUALITY",
+            quality in _EXECUTABLE_MARKET_QUALITIES,
+            actual=quality,
+            action="修复行情质量问题",
+        )
 
     account_age = _age_seconds(account_snapshot.get("observed_at"), evaluated_at)
     check(
@@ -328,6 +455,13 @@ def evaluate_risk(
         "reason_codes": [item["code"] for item in failed],
         "checks": checks,
         "snapshot": snapshot,
+        "market_execution_class": (
+            "historical_closed_bar_simulation"
+            if historical_exception
+            else "online_primary"
+            if source_is_online_primary and quality in _EXECUTABLE_MARKET_QUALITIES
+            else "unavailable"
+        ),
         "calculation": calculation,
         "evaluated_at": evaluated_at.isoformat(),
         "rule_version": RISK_RULE_VERSION,
