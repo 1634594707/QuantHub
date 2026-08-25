@@ -48,8 +48,8 @@
   background: var(--warn-weak);
 }
 .mode-scope-notice > div { display: flex; align-items: center; gap: var(--sp-3); }
-.mode-scope-notice strong { color: var(--warn-ink); font-size: 13px; }
-.mode-scope-notice span { color: var(--text-2); font-size: 12px; }
+.mode-scope-notice strong { color: var(--warn-ink); font-size: var(--fs-small); }
+.mode-scope-notice span { color: var(--text-2); font-size: var(--fs-caption); }
 .mode-scope-notice a,
 .mode-scope-notice button {
   min-height: 36px;
@@ -60,7 +60,7 @@
   padding: 0 var(--sp-3);
   background: var(--bg-elevated);
   color: var(--text-1);
-  font-size: 12px;
+  font-size: var(--fs-caption);
   text-decoration: none;
   white-space: nowrap;
   cursor: pointer;
@@ -132,7 +132,7 @@
   background: var(--accent);
   color: var(--accent-contrast);
   font-weight: var(--fw-semibold);
-  font-size: 13px;
+  font-size: var(--fs-small);
   transition: box-shadow var(--t-fast);
 }
 .rail-brand:hover span {
@@ -162,7 +162,7 @@
   gap: 2px;
   border-radius: var(--r-sm);
   color: var(--text-3);
-  font-size: 10px;
+  font-size: var(--fs-tiny);
   line-height: 1;
   text-decoration: none;
   transition: color var(--t-fast), background var(--t-fast);
@@ -414,7 +414,7 @@
   background: var(--surface-active);
   color: currentColor;
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--fs-tiny);
   text-align: center;
 }
 
@@ -1401,7 +1401,7 @@ select.edit-input {
   color: var(--text-1);
 }
 .d-prob-badge {
-  font-size: 11px;
+  font-size: var(--fs-micro);
   font-weight: var(--fw-semibold);
   padding: 2px 7px;
   border-radius: var(--r-pill);
@@ -1634,7 +1634,7 @@ select.edit-input {
 
 /* ---------------- Data Source Pills ---------------- */
 .src-pill {
-  font-size: 11px;
+  font-size: var(--fs-micro);
   font-weight: var(--fw-semibold);
   padding: 2px 8px;
   border-radius: var(--r-pill);
@@ -1708,7 +1708,7 @@ select.edit-input {
 .data-source-row.head { min-height: 30px; background: var(--bg-subtle); color: var(--text-3); font-size: var(--fs-micro); }
 .data-source-row > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .data-source-row > span:first-child { display: grid; }
-.data-source-row small { color: var(--text-3); font-size: 10px; }
+.data-source-row small { color: var(--text-3); font-size: var(--fs-tiny); }
 .data-source-row .ok { color: var(--up-ink); }
 .data-source-row .warn,
 .data-source-error { color: var(--down-ink); }
@@ -1791,7 +1791,7 @@ select.edit-input {
   }
   .mobile-context span {
     color: var(--text-3);
-    font-size: 10px;
+    font-size: var(--fs-tiny);
   }
   .mobile-context strong {
     overflow: hidden;
@@ -1888,7 +1888,7 @@ select.edit-input {
     border-radius: var(--r-sm);
     background: transparent;
     color: var(--text-3);
-    font-size: 10px;
+    font-size: var(--fs-tiny);
     line-height: 1;
     text-decoration: none;
     transition: color var(--t-fast), background var(--t-fast);

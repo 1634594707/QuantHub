@@ -1,7 +1,7 @@
 .simulation-page { display: flex; flex-direction: column; gap: var(--sp-4); }
 .simulation-head { display: flex; align-items: end; justify-content: space-between; gap: var(--sp-4); border: 1px solid var(--border); border-left: 3px solid var(--accent); padding: var(--sp-4); background: var(--bg-elevated); }
 .simulation-head > div > span { color: var(--accent-strong); font-size: var(--fs-11); font-weight: 800; }
-.simulation-head h1 { margin: 3px 0 0; font-size: 24px; letter-spacing: 0; }
+.simulation-head h1 { margin: 3px 0 0; font-size: var(--fs-page-title); letter-spacing: 0; }
 .simulation-head p { margin: 4px 0 0; color: var(--text-3); font-size: var(--fs-12); }
 .simulation-summary { display: flex; gap: var(--sp-5); }
 .simulation-summary span { display: grid; gap: 3px; color: var(--text-3); font-size: var(--fs-11); }

@@ -387,7 +387,7 @@
   white-space: nowrap;
 }
 .entity-chip .ent-type {
-  font-size: 10px;
+  font-size: var(--fs-tiny);
   color: var(--text-3);
   margin-left: 2px;
   font-weight: 400;
@@ -436,7 +436,7 @@
 }
 .news-foot .foot-engine::before {
   content: '⚡';
-  font-size: 11px;
+  font-size: var(--fs-micro);
 }
 .news-foot .foot-engine.warn::before {
   content: '⚠';
@@ -627,7 +627,7 @@
 }
 .topic-tab .count {
   color: var(--text-3);
-  font-size: 11px;
+  font-size: var(--fs-micro);
   font-family: var(--font-mono);
 }
 .topic-tab.active .count {
@@ -669,7 +669,7 @@
   opacity: 0.75;
 }
 .entity-cloud-item .ec-count {
-  font-size: 11px;
+  font-size: var(--fs-micro);
   color: var(--text-3);
   font-family: var(--font-mono);
   font-weight: 400;

@@ -17,7 +17,7 @@
   flex-wrap: wrap;
 }
 .rm-toolbar .rm-source-tag {
-  font-size: 11px;
+  font-size: var(--fs-micro);
   color: var(--text-3);
   border: 1px solid var(--border);
   border-radius: var(--r-sm);
@@ -25,7 +25,7 @@
 }
 .rm-toolbar .rm-source-tag.live { color: var(--up-ink); border-color: color-mix(in srgb, var(--up) 40%, var(--border)); }
 .rm-note {
-  font-size: 11px;
+  font-size: var(--fs-micro);
   color: var(--text-3);
   line-height: 1.6;
 }
@@ -37,7 +37,7 @@
   gap: var(--sp-3);
   width: fit-content;
   color: var(--text-3);
-  font-size: 12px;
+  font-size: var(--fs-caption);
 }
 .rm-source-select select {
   min-height: 36px;
@@ -58,8 +58,8 @@
   background: var(--bg-subtle);
 }
 .rm-state-banner > div { display: grid; gap: 3px; }
-.rm-state-banner strong { color: var(--down-ink); font-size: 13px; }
-.rm-state-banner span { color: var(--text-2); font-size: 12px; }
+.rm-state-banner strong { color: var(--down-ink); font-size: var(--fs-small); }
+.rm-state-banner span { color: var(--text-2); font-size: var(--fs-caption); }
 .rm-state-banner button,
 .radar-state-detail button {
   min-height: 36px;
@@ -82,13 +82,13 @@
   border-bottom: 1px dashed var(--divider);
 }
 .rm-source-filter-label {
-  font-size: 11px;
+  font-size: var(--fs-micro);
   color: var(--text-3);
   margin-right: var(--sp-2);
   font-weight: 600;
 }
 .rm-source-chip {
-  font-size: 11px;
+  font-size: var(--fs-micro);
   font-family: var(--font-mono);
   border: 1px solid var(--border);
   border-radius: 999px;
@@ -151,9 +151,9 @@
   justify-content: space-between;
   gap: var(--sp-2);
 }
-.radar-sym { font-family: var(--font-mono); font-size: 18px; font-weight: 800; color: var(--text-1); }
-.radar-name { color: var(--text-3); font-size: 12px; }
-.radar-chg { font-family: var(--font-mono); font-weight: 800; font-size: 16px; }
+.radar-sym { font-family: var(--font-mono); font-size: var(--fs-h2); font-weight: 800; color: var(--text-1); }
+.radar-name { color: var(--text-3); font-size: var(--fs-caption); }
+.radar-chg { font-family: var(--font-mono); font-weight: 800; font-size: var(--fs-h4); }
 .radar-chg.up { color: var(--up); }
 .radar-chg.down { color: var(--down); }
 .radar-chg.flat { color: var(--text-3); }
@@ -163,7 +163,7 @@
   grid-template-columns: 1fr 1fr;
   gap: 6px 12px;
   margin: 0;
-  font-size: 12px;
+  font-size: var(--fs-caption);
 }
 .radar-meta dt { color: var(--text-3); }
 .radar-meta dd { margin: 0; font-family: var(--font-mono); color: var(--text-1); text-align: right; }
@@ -171,7 +171,7 @@
 .radar-card.has-signal .radar-meta dd.down  { color: var(--down); }
 .radar-card.has-signal .radar-meta dd.flat  { color: var(--text-3); }
 .radar-empty-row {
-  font-size: 12px;
+  font-size: var(--fs-caption);
   color: var(--text-3);
   border: 1px dashed var(--divider);
   border-radius: var(--r-sm);
@@ -187,10 +187,10 @@
   border-top: 1px solid var(--divider);
   padding-top: var(--sp-3);
   color: var(--text-2);
-  font-size: 12px;
+  font-size: var(--fs-caption);
   line-height: 1.5;
 }
-.radar-state-detail strong { color: var(--text-1); font-size: 14px; }
+.radar-state-detail strong { color: var(--text-1); font-size: var(--fs-body); }
 .radar-state-detail.error strong { color: var(--down-ink); }
 .radar-state-detail.stale strong { color: var(--warn-ink); }
 .radar-state-detail button { width: fit-content; margin-top: var(--sp-2); }
@@ -237,14 +237,14 @@
   flex: 0 0 auto;
 }
 .kol-name { font-weight: 800; color: var(--text-1); }
-.kol-platform { font-size: 11px; color: var(--text-3); }
+.kol-platform { font-size: var(--fs-micro); color: var(--text-3); }
 .kol-score-row { display: flex; align-items: baseline; justify-content: space-between; }
-.kol-followers { font-size: 12px; color: var(--text-2); }
+.kol-followers { font-size: var(--fs-caption); color: var(--text-2); }
 .kol-followers b { font-family: var(--font-mono); color: var(--text-1); }
-.kol-score { font-family: var(--font-mono); font-weight: 800; font-size: 18px; color: var(--accent-strong); }
+.kol-score { font-family: var(--font-mono); font-weight: 800; font-size: var(--fs-h2); color: var(--accent-strong); }
 .kol-tags { display: flex; flex-wrap: wrap; gap: 6px; }
 .kol-tag {
-  font-size: 11px;
+  font-size: var(--fs-micro);
   font-family: var(--font-mono);
   border: 1px solid var(--border);
   border-radius: 999px;
@@ -274,7 +274,7 @@
   background: var(--bg-elevated);
 }
 .rm-empty-title { font-size: var(--fs-18); font-weight: 800; color: var(--text-2); }
-.rm-empty-desc { max-width: 560px; font-size: 12px; color: var(--text-3); line-height: 1.7; }
+.rm-empty-desc { max-width: 560px; font-size: var(--fs-caption); color: var(--text-3); line-height: 1.7; }
 
 /* ---------- 因子实时面板（D2） ---------- */
 .flb-panel {
@@ -292,7 +292,7 @@
   border-bottom: 1px solid var(--divider);
 }
 .flb-head h2 { margin: 0; font-size: var(--fs-15); }
-.flb-head .flb-sub { font-size: 11px; color: var(--text-3); }
+.flb-head .flb-sub { font-size: var(--fs-micro); color: var(--text-3); }
 .flb-metrics {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -300,9 +300,9 @@
   background: var(--divider);
 }
 .flb-metric { background: var(--bg-elevated); padding: var(--sp-3); }
-.flb-metric dt { color: var(--text-3); font-size: 11px; }
-.flb-metric dd { margin: 0; font-family: var(--font-mono); font-size: 18px; font-weight: 800; color: var(--text-1); }
-.flb-metric dd small { font-size: 11px; color: var(--text-3); font-weight: 500; }
+.flb-metric dt { color: var(--text-3); font-size: var(--fs-micro); }
+.flb-metric dd { margin: 0; font-family: var(--font-mono); font-size: var(--fs-h2); font-weight: 800; color: var(--text-1); }
+.flb-metric dd small { font-size: var(--fs-micro); color: var(--text-3); font-weight: 500; }
 .flb-status {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -316,12 +316,12 @@
   display: grid;
   gap: 6px;
 }
-.flb-status-card .flb-st-title { font-size: 12px; color: var(--text-2); font-weight: 700; }
-.flb-status-card .flb-st-state { font-size: 11px; font-weight: 800; }
+.flb-status-card .flb-st-title { font-size: var(--fs-caption); color: var(--text-2); font-weight: 700; }
+.flb-status-card .flb-st-state { font-size: var(--fs-micro); font-weight: 800; }
 .flb-status-card .flb-st-state.momentum { color: var(--up-ink); }
 .flb-status-card .flb-st-state.warn { color: var(--warn-ink); }
 .flb-status-card .flb-st-state.neutral { color: var(--text-3); }
-.flb-status-card .flb-st-desc { font-size: 11px; color: var(--text-3); line-height: 1.5; }
+.flb-status-card .flb-st-desc { font-size: var(--fs-micro); color: var(--text-3); line-height: 1.5; }
 .flb-flow {
   padding: var(--sp-3) var(--sp-4);
   border-top: 1px solid var(--divider);
@@ -330,9 +330,9 @@
   gap: var(--sp-2);
   flex-wrap: wrap;
 }
-.flb-flow .flb-flow-label { font-size: 11px; color: var(--text-3); margin-right: 4px; }
+.flb-flow .flb-flow-label { font-size: var(--fs-micro); color: var(--text-3); margin-right: 4px; }
 .flb-factor-chip {
-  font-size: 11px;
+  font-size: var(--fs-micro);
   font-family: var(--font-mono);
   border: 1px solid var(--border);
   border-radius: 999px;

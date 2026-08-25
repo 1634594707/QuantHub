@@ -785,18 +785,18 @@
   background: var(--bg-elevated);
 }
 
-.d-quality-row span { color: var(--text-1); font-size: 12px; font-weight: 600; }
-.d-quality-row b { font-size: 11px; }
+.d-quality-row span { color: var(--text-1); font-size: var(--fs-caption); font-weight: 600; }
+.d-quality-row b { font-size: var(--fs-micro); }
 .d-quality-row b.passed { color: var(--up); }
 .d-quality-row b.failed { color: var(--down); }
-.d-quality-row small { grid-column: 1 / -1; color: var(--text-3); font-size: 10px; }
+.d-quality-row small { grid-column: 1 / -1; color: var(--text-3); font-size: var(--fs-tiny); }
 
 .d-quality-warnings {
   margin: 10px 0 0;
   padding: 0;
   list-style: none;
   color: var(--text-2);
-  font-size: 11px;
+  font-size: var(--fs-micro);
   line-height: 1.6;
 }
 

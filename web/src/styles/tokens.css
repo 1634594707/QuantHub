@@ -189,7 +189,10 @@
   --fs-small: 13px;
   --fs-caption: 12px;
   --fs-micro: 11px; /* 新增 */
+  --fs-tiny: 10px; /* 新增：徽标、workspace-tab 标签 */
+  --fs-nano: 9px; /* 新增：K 线轴等极小标注 */
   --fs-h4: 16px; /* 新增：卡片内节标题 / 强调数值（原 --fs-16、--fs-title、--fs-subtitle 的归宿） */
+  --fs-page-title: 24px; /* 新增：路由页标题（WorkspaceHeader 等 h1） */
   --fs-mono-num: 13px; /* 行情数字专用 */
 
   /* 字重 */

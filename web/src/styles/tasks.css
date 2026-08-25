@@ -9,7 +9,7 @@
   background: var(--bg-elevated);
 }
 .tasks-head > div > span { color: var(--accent-strong); font-size: var(--fs-11); font-weight: 800; }
-.tasks-head h1 { margin: 3px 0 0; font-size: 24px; letter-spacing: 0; }
+.tasks-head h1 { margin: 3px 0 0; font-size: var(--fs-page-title); letter-spacing: 0; }
 .tasks-summary { display: flex; gap: var(--sp-5); color: var(--text-3); font-size: var(--fs-12); }
 .tasks-summary span { display: grid; gap: 3px; }
 .tasks-summary b { color: var(--text-1); font-size: var(--fs-18); }

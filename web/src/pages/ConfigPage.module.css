@@ -597,7 +597,7 @@
 }
 .credentialStatus {
   color: var(--text-3);
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 .credentialStatus b {
   color: var(--text-1);
@@ -611,7 +611,7 @@
 }
 .credentialNotice {
   color: var(--accent-strong);
-  font-size: 12px;
+  font-size: var(--fs-caption);
 }
 @media (max-width: 767px) {
   .credentialActions > * {

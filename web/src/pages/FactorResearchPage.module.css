@@ -982,7 +982,7 @@
   border: 1px solid var(--accent);
   border-radius: var(--r-xs);
   color: var(--accent-strong);
-  font-size: 9px;
+  font-size: var(--fs-nano);
   font-style: normal;
   font-weight: var(--fw-semibold);
 }
@@ -1044,7 +1044,7 @@
 .decay small {
   color: var(--text-3);
   font-family: var(--font-mono);
-  font-size: 8px;
+  font-size: var(--fs-nano);
 }
 
 .decayPositive i { background: var(--up); }
@@ -1095,8 +1095,8 @@
   background: var(--bg-elevated);
 }
 .metricDefinitionGrid strong { color: var(--text-1); }
-.metricDefinitionGrid span { color: var(--text-2); font-size: 0.9rem; line-height: 1.5; }
-.metricDefinitionGrid small { color: var(--text-3); font-family: var(--font-mono); font-size: 0.75rem; line-height: 1.45; }
+.metricDefinitionGrid span { color: var(--text-2); font-size: var(--fs-body); line-height: 1.5; }
+.metricDefinitionGrid small { color: var(--text-3); font-family: var(--font-mono); font-size: var(--fs-caption); line-height: 1.45; }
 
 @media (max-width: 760px) {
   .metricDefinitionGrid { grid-template-columns: 1fr; }

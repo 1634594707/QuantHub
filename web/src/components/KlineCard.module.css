@@ -5,7 +5,7 @@
 /* 标题区涨跌幅文本 */
 .changeText {
   font-weight: 600;
-  font-size: 12px;
+  font-size: var(--fs-caption);
 }
 
 /* MA 指示点：颜色由 --c 注入 */

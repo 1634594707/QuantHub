@@ -51,6 +51,18 @@ for (const [name, sites] of used) {
 }
 // 反向豁免说明：TSX 注入但 CSS 未消费属运行时动态样式，不检查。
 
+// ---- 校验 3：裸字号禁止（font-size 只允许走 tokens 阶梯；tokens.css 自身除外）----
+for (const f of cssFiles) {
+  if (f.endsWith('tokens.css')) continue;
+  const rel = path.relative(srcRoot, f);
+  const lines = fs.readFileSync(f, 'utf8').split(/\r?\n/);
+  lines.forEach((line, i) => {
+    for (const m of line.matchAll(/font-size:\s*[\d.]+(?:px|rem)/g)) {
+      errors.push('[raw-font-size] ' + rel + ':' + (i + 1) + ' -> ' + m[0] + '（请改用 --fs-* 阶梯令牌）');
+    }
+  });
+}
+
 // ---- 校验 2：语义文字色对比度（tokens.css 双主题 *-ink 对 --bg / --bg-elevated ≥ 4.5:1）----
 function relLuminance(hex) {
   const c = hex.replace('#', '');

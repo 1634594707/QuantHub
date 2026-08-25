@@ -15,9 +15,9 @@
 }
 
 .heading { display: grid; gap: var(--sp-2); }
-.heading > span { color: var(--accent-strong); font-family: var(--font-mono); font-size: 12px; font-weight: var(--fw-semibold); }
-.heading h1 { margin: 0; font-size: 28px; letter-spacing: 0; }
-.heading p { margin: 0; color: var(--text-3); font-size: 13px; }
+.heading > span { color: var(--accent-strong); font-family: var(--font-mono); font-size: var(--fs-caption); font-weight: var(--fw-semibold); }
+.heading h1 { margin: 0; font-size: var(--fs-display); letter-spacing: 0; }
+.heading p { margin: 0; color: var(--text-3); font-size: var(--fs-small); }
 
 .options {
   display: grid;
@@ -43,8 +43,8 @@
 .options button:hover { border-color: var(--accent); background: var(--accent-weak); }
 .options button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .options button svg { color: var(--accent-strong); }
-.options strong { font-size: 17px; }
-.options span { color: var(--text-3); font-size: 12px; line-height: 1.5; }
+.options strong { font-size: var(--fs-h4); }
+.options span { color: var(--text-3); font-size: var(--fs-caption); line-height: 1.5; }
 
 @media (max-width: 767px) {
   .page { place-items: start stretch; padding: var(--sp-4); }

@@ -31,7 +31,7 @@
 /* 右侧价格块：价格右对齐 + 小字号 */
 .priceBlock {
   text-align: right;
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 
 .card {
