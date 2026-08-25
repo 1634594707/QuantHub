@@ -5,7 +5,7 @@ import { useApi } from '../api/useApi'
 import { AsyncStateBoundary } from '../components/ui/AsyncStateBoundary/AsyncStateBoundary'
 import { ConfirmActionButton } from '../components/ui/ConfirmActionButton/ConfirmActionButton'
 import { RefreshControl } from '../components/ui/RefreshControl/RefreshControl'
-import { ResponsiveDetails } from '../components/ui/ResponsiveDetails/ResponsiveDetails'
+import { Table } from '../components/ui/Table'
 import { WorkspaceHeader } from '../components/WorkspaceHeader/WorkspaceHeader'
 import { researchResultHref } from '../lib/researchResults'
 import '../styles/tasks.css'
@@ -44,6 +44,18 @@ export default function AnalysisTasksPage() {
   const [actionMessage, setActionMessage] = useState('')
   const [loadedTasks, setLoadedTasks] = useState<AnalysisTask[]>([])
   const [loadingMore, setLoadingMore] = useState(false)
+  const [expandedTaskIds, setExpandedTaskIds] = useState<ReadonlySet<string>>(new Set())
+  function toggleTaskDetails(id: string) {
+    setExpandedTaskIds((current) => {
+      const next = new Set(current)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+      return next
+    })
+  }
   const tasks = useApi(
     () => api.analysisTasks(statusFilter || undefined, kindFilter || undefined, 50),
     [statusFilter, kindFilter, tick],
@@ -163,7 +175,6 @@ export default function AnalysisTasksPage() {
       </div>
 
       <div className="tasks-table">
-        <div className="tasks-row head"><span>状态</span><span>任务</span><span>标的</span><span>创建 / 耗时</span><span>结果</span><span>操作</span></div>
         <AsyncStateBoundary
           loading={tasks.loading}
           error={tasks.error}
@@ -174,12 +185,13 @@ export default function AnalysisTasksPage() {
           loadingTitle="正在读取任务…"
           emptyTitle="当前筛选条件下没有任务"
         >
-          {loadedTasks.map((task) => (
-            <div className="tasks-row" key={task.id}>
-              <span><b className={`task-status ${task.status}`}>{STATUS_META[task.status]}</b><small>第 {task.attempt} 次</small></span>
-              <span><b>{KIND_META[task.kind]}</b><small className="mono-num">{task.id.slice(0, 12)}</small></span>
-              <span><b className="mono-num">{task.symbol}</b><small>{task.market} · {task.timeframe}</small></span>
-              <ResponsiveDetails className="task-row-details" compactAt={760} summary="查看任务详情">
+          <Table
+            rows={loadedTasks}
+            rowKey={(task) => task.id}
+            density="compact"
+            isRowExpanded={(task) => expandedTaskIds.has(task.id)}
+            expandedRow={(task) => (
+              <div className="task-row-details">
                 <span><b>{formatTime(task.created_at)}</b><small>{task.duration_ms == null ? '—' : `${(task.duration_ms / 1000).toFixed(1)} 秒`}</small></span>
                 <span title={task.error || undefined}><b>{task.error || (task.result ? '结果已保存' : '等待执行')}</b><small>{task.result && typeof task.result.research_run_id === 'string' ? `研究 ${task.result.research_run_id.slice(0, 10)}` : '—'}</small></span>
                 <span className="task-actions">
@@ -203,9 +215,19 @@ export default function AnalysisTasksPage() {
                   )}
                   {['failed', 'cancelled', 'timeout'].includes(task.status) && <button type="button" onClick={() => { void act('retry', task.id).catch(() => {}) }}>重试</button>}
                 </span>
-              </ResponsiveDetails>
-            </div>
-          ))}
+              </div>
+            )}
+            columns={[
+              { key: 'status', header: '状态', render: (task) => (<span><b className={`task-status ${task.status}`}>{STATUS_META[task.status]}</b><small>第 {task.attempt} 次</small></span>) },
+              { key: 'kind', header: '任务', render: (task) => (<span><b>{KIND_META[task.kind]}</b><small className="mono-num">{task.id.slice(0, 12)}</small></span>) },
+              { key: 'symbol', header: '标的', render: (task) => (<span><b className="mono-num">{task.symbol}</b><small>{task.market} · {task.timeframe}</small></span>) },
+              { key: 'toggle', header: '详情', render: (task) => (
+                <button type="button" onClick={() => toggleTaskDetails(task.id)}>
+                  {expandedTaskIds.has(task.id) ? '收起详情' : '查看任务详情'}
+                </button>
+              ) },
+            ]}
+          />
         </AsyncStateBoundary>
         {tasks.data?.next_cursor && (
           <button type="button" className="tasks-load-more" disabled={loadingMore} onClick={() => void loadMore()}>
