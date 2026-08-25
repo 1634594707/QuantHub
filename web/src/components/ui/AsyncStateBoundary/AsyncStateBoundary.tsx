@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { Button } from '../Button/Button'
+import { Skeleton } from '../Skeleton/Skeleton'
 import { EmptyState } from '../EmptyState/EmptyState'
 import s from './AsyncStateBoundary.module.css'
 
@@ -18,6 +19,9 @@ interface AsyncStateBoundaryProps {
   isEmpty: boolean
   onRetry?: () => void
   loadingTitle?: string
+  /** 首次加载占位骨架；提供时替代默认 loading 空态 */
+  loadingSkeleton?: boolean
+  skeletonRows?: number
   emptyTitle: string
   emptyDescription?: string
   emptyAction?: AsyncStateAction
@@ -36,12 +40,23 @@ export function AsyncStateBoundary({
   isEmpty,
   onRetry,
   loadingTitle = '正在读取数据…',
+  loadingSkeleton = false,
+  skeletonRows = 3,
   emptyTitle,
   emptyDescription,
   emptyAction,
   children,
 }: AsyncStateBoundaryProps) {
   if (!hasData && loading) {
+    if (loadingSkeleton) {
+      return (
+        <div role="status" aria-label={loadingTitle}>
+          {Array.from({ length: skeletonRows }, (_, i) => (
+            <Skeleton key={i} variant="text" width={`${88 - i * 14}%`} height={34} />
+          ))}
+        </div>
+      )
+    }
     return <EmptyState variant="loading" title={loadingTitle} />
   }
 

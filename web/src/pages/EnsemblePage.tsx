@@ -6,6 +6,7 @@ import { useApi } from '../api/useApi'
 import KlineCard from '../components/KlineCard'
 import { EmptyState, ErrorState } from '../components/ui/EmptyState/EmptyState'
 import { RefreshControl } from '../components/ui/RefreshControl/RefreshControl'
+import { Skeleton } from '../components/ui/Skeleton/Skeleton'
 import { Button } from '../components/ui/Button/Button'
 import { Input } from '../components/ui/Input/Input'
 import { Select } from '../components/ui/Select/Select'
@@ -398,9 +399,7 @@ export default function EnsemblePage({
             </div>
             <div className="ens-contrib-grid">
               {loading && contributors.length === 0 ? (
-                <div className={`muted ${s.contribHint}`}>
-                  加载中…
-                </div>
+                <Skeleton variant="text" width="72%" height={30} />
               ) : contributors.length === 0 ? (
                 <div className={`muted ${s.contribHint}`}>
                   暂无可用算法（检查标的与数据源）

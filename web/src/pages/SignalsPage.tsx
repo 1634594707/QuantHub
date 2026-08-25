@@ -645,6 +645,8 @@ export default function SignalsPage() {
                 isEmpty={rows.length === 0}
                 onRetry={signals.refetch}
                 loadingTitle="正在读取信号…"
+                loadingSkeleton
+                skeletonRows={6}
                 emptyTitle="信号审核队列为空"
                 emptyAction={{ label: '运行默认扫描', onClick: runDefaultScan, loading: filling }}
               >

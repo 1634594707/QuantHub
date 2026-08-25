@@ -218,7 +218,7 @@ export default function OverviewPage() {
   const breadthData = breadth.data
   const headerMetrics = [
     ...(accountVisible
-      ? [{ label: accountMetrics.totalLabel, value: `¥${accountMetrics.total.toLocaleString('zh-CN')}` },
+      ? [{ label: accountMetrics.totalLabel, value: accountMetrics.total == null ? '—' : `¥${(accountMetrics.total ?? 0).toLocaleString('zh-CN')}` },
         { label: accountMetrics.positionLabel, value: accountMetrics.positions }]
       : []),
     ...(marketVisible && watchlist.seeded ? [{ label: '自选', value: watchlist.list.length }] : []),
@@ -377,6 +377,8 @@ export default function OverviewPage() {
           isEmpty={false}
           onRetry={breadth.refetch}
           loadingTitle="正在读取市场广度…"
+          loadingSkeleton
+          skeletonRows={2}
           emptyTitle="暂无市场广度"
         >
           <MarketBreadth data={breadth.data} />
@@ -402,6 +404,8 @@ export default function OverviewPage() {
           }
         }}
         loadingTitle="正在读取待处理事项…"
+        loadingSkeleton
+        skeletonRows={4}
         emptyTitle="暂无待处理事项"
       >
         <ActionQueue items={[
