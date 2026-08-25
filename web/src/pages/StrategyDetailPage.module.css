@@ -141,7 +141,7 @@
 .runningState { color: var(--accent-strong) !important; }
 .stoppedState { color: var(--text-3) !important; }
 
-@media (max-width: 720px) {
+@media (max-width: 767px) {
   .operationBar {
     top: var(--topbar-h);
     grid-template-columns: auto minmax(0, 1fr) auto;

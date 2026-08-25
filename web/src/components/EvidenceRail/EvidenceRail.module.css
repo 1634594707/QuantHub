@@ -46,7 +46,7 @@
 .timeline a { color: var(--accent-strong); font-size: var(--fs-micro); text-decoration: none; }
 .empty { margin: 0; padding: var(--sp-5) var(--sp-3); line-height: var(--lh-relaxed); }
 
-@media (max-width: 960px) {
+@media (max-width: 1023px) {
   .rail, .collapsed { position: static; width: 100%; max-height: none; border-top: 1px solid var(--border-strong); border-left: 0; }
   .body { max-height: none; }
 }

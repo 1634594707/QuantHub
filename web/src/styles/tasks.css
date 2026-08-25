@@ -49,7 +49,7 @@
 .tasks-empty { padding: var(--sp-8); color: var(--text-3); text-align: center; }
 .tasks-load-more { display: block; min-height: 36px; margin: var(--sp-3) auto; border: 1px solid var(--border); border-radius: var(--r-sm); padding: 6px 14px; background: var(--bg-subtle); color: var(--text-2); cursor: pointer; font-weight: 700; }
 .tasks-load-more:disabled { cursor: default; opacity: .55; }
-@media (max-width: 760px) {
+@media (max-width: 767px) {
   .tasks-head { align-items: start; }
   .tasks-summary { display: none; }
   .tasks-submit { grid-template-columns: 1fr 1fr; }

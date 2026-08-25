@@ -1,10 +1,5 @@
 /* NewsToolbar 专属样式 — 从内联 style 迁移 */
 
-/* API 增强开关：不随工具栏伸缩 */
-.apiToggle {
-  flex: none;
-}
-
 .limitControl {
   display: inline-flex;
   gap: 3px;

@@ -828,7 +828,7 @@
   margin-top: var(--sp-3);
 }
 
-@media (max-width: 980px) {
+@media (max-width: 1023px) {
   .workbench {
     grid-template-columns: minmax(250px, 0.8fr) minmax(0, 1.2fr);
   }
@@ -850,7 +850,7 @@
   }
 }
 
-@media (max-width: 720px) {
+@media (max-width: 767px) {
   .toolbar {
     align-items: stretch;
     flex-direction: column;

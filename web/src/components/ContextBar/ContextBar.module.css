@@ -33,7 +33,7 @@
 .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 .controls { min-width: min(680px, 60%); }
 
-@media (max-width: 880px) {
+@media (max-width: 1023px) {
   .bar { align-items: stretch; flex-direction: column; }
   .controls { width: 100%; min-width: 0; }
 }

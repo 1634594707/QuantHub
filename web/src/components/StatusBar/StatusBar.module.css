@@ -71,7 +71,7 @@
   50% { opacity: 0.35; }
 }
 
-@media (max-width: 600px) {
+@media (max-width: 767px) {
   .bar {
     font-size: var(--fs-11);
   }

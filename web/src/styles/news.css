@@ -33,7 +33,7 @@
 }
 
 /* 平板及以下：单列，概览移至列表上方 */
-@media (max-width: 1200px) {
+@media (max-width: 1280px) {
   .news-grid {
     grid-template-columns: 1fr;
   }
@@ -174,7 +174,7 @@
     grid-template-columns: repeat(2, 1fr);
   }
 }
-@media (max-width: 600px) {
+@media (max-width: 767px) {
   .news-kpi-row {
     grid-template-columns: 1fr;
   }
@@ -737,7 +737,7 @@
 }
 
 /* ---------- 10. 卡片列表响应式 ---------- */
-@media (max-width: 900px) {
+@media (max-width: 1023px) {
   .news-card {
     padding: var(--sp-3);
   }

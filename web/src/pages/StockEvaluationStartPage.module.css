@@ -548,7 +548,7 @@
   text-align: center;
 }
 
-@media (max-width: 1024px) {
+@media (max-width: 1023px) {
   .workspace { grid-template-columns: 1fr; }
   .deepResearchGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .deepResearchModule:nth-child(2) { border-right: 0; }
@@ -577,7 +577,7 @@
   .deepResearchBand > header > button { width: 100%; }
 }
 
-@media (max-width: 520px) {
+@media (max-width: 480px) {
   .deepResearchGrid { grid-template-columns: 1fr; }
   .deepResearchModule,
   .deepResearchModule:nth-child(2) { border-right: 0; border-bottom: 1px solid var(--divider); }

@@ -305,7 +305,7 @@
 }
 
 /* ---------------- 响应式 ---------------- */
-@media (max-width: 900px) {
+@media (max-width: 1023px) {
   .ens-verdict {
     flex-wrap: wrap;
   }

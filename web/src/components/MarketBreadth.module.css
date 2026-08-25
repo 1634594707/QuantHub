@@ -108,7 +108,7 @@
   outline: none;
 }
 
-@media (max-width: 420px) {
+@media (max-width: 480px) {
   .sectors {
     grid-template-columns: 1fr;
   }

@@ -128,7 +128,7 @@
 .negative { color: #d74753 !important; }
 .emptyInline { grid-column: 1 / -1; color: var(--text-3); font-size: var(--fs-caption); }
 
-@media (max-width: 900px) {
+@media (max-width: 1023px) {
   .visualGrid { grid-template-columns: 1fr; }
   .kpiGrid { grid-template-columns: repeat(4, minmax(120px, 1fr)); }
   .tradeHeader { display: none; }
@@ -136,7 +136,7 @@
   .tradeRow span:nth-child(4) { display: none; }
 }
 
-@media (max-width: 560px) {
+@media (max-width: 480px) {
   .reportHeader { align-items: flex-start; }
   .coverage { align-items: flex-end; flex-direction: column; gap: 4px; }
   .coverage span + span { padding-left: 0; border-left: 0; }

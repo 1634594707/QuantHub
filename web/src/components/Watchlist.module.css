@@ -178,7 +178,7 @@
   transform: rotate(180deg);
 }
 
-@media (max-width: 680px) {
+@media (max-width: 767px) {
   .columnHead,
   .row {
     grid-template-columns: minmax(110px, 1fr) 72px 70px 24px;
@@ -206,7 +206,7 @@
   }
 }
 
-@media (max-width: 520px) {
+@media (max-width: 480px) {
   .editRow {
     grid-template-columns: 1fr 1fr auto;
   }

@@ -136,7 +136,7 @@
   height: 100%;
 }
 
-@media (max-width: 1200px) {
+@media (max-width: 1280px) {
   .evaluationEntry {
     grid-template-columns: 1fr;
   }

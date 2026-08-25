@@ -240,7 +240,7 @@
   flex-wrap: wrap;
 }
 
-@media (max-width: 860px) {
+@media (max-width: 1023px) {
   .card {
     grid-template-columns: minmax(0, 1fr) auto;
   }
@@ -256,7 +256,7 @@
   }
 }
 
-@media (max-width: 600px) {
+@media (max-width: 767px) {
   .toolbarWrap { padding: 0; }
   .toolbar { align-items: stretch; flex-direction: column; }
   .searchInput { max-width: none; }

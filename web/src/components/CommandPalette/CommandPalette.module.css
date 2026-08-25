@@ -232,7 +232,7 @@
   to { transform: rotate(360deg); }
 }
 
-@media (max-width: 600px) {
+@media (max-width: 767px) {
   .backdrop {
     align-items: stretch;
     padding: 10px;

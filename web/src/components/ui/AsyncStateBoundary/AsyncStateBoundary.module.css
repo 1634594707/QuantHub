@@ -33,7 +33,7 @@
   color: var(--warn-ink);
 }
 
-@media (max-width: 560px) {
+@media (max-width: 480px) {
   .notice {
     grid-template-columns: minmax(0, 1fr);
   }

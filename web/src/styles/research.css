@@ -699,7 +699,7 @@
   word-break: break-word;
 }
 
-@media (max-width: 1100px) {
+@media (max-width: 1023px) {
   .research-workspace-grid { grid-template-columns: minmax(0, 1fr); }
   .research-head { grid-template-columns: 1fr; align-items: start; }
   .research-session { border-top: 1px solid var(--divider); border-left: 0; padding-top: var(--sp-3); padding-left: 0; }
@@ -709,7 +709,7 @@
   .research-module:nth-child(-n + 2) { border-bottom: 1px solid var(--divider); }
 }
 
-@media (max-width: 680px) {
+@media (max-width: 767px) {
   .research-tabs {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -870,6 +870,6 @@
   padding: var(--sp-2);
 }
 
-@media (max-width: 720px) {
+@media (max-width: 767px) {
   .evaluation-progress-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }

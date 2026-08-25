@@ -1098,7 +1098,7 @@
 .metricDefinitionGrid span { color: var(--text-2); font-size: var(--fs-body); line-height: 1.5; }
 .metricDefinitionGrid small { color: var(--text-3); font-family: var(--font-mono); font-size: var(--fs-caption); line-height: 1.45; }
 
-@media (max-width: 760px) {
+@media (max-width: 767px) {
   .metricDefinitionGrid { grid-template-columns: 1fr; }
 }
 
@@ -1332,7 +1332,7 @@
 .termGlossary details[open] summary svg { transform: rotate(180deg); }
 .termGlossary details p { margin: 0; padding: 0 var(--sp-3) var(--sp-3); color: var(--text-2); font-size: var(--fs-caption); line-height: var(--lh-relaxed); }
 
-@media (max-width: 1180px) {
+@media (max-width: 1280px) {
   .firstGuide { grid-template-columns: 1fr auto; }
   .firstGuide ol { grid-column: 1 / -1; grid-row: 2; }
   .firstGuide > button { grid-column: 2; grid-row: 1; }
@@ -1362,7 +1362,7 @@
   .historyOpen { grid-column: 1 / -1; justify-content: flex-start; }
 }
 
-@media (max-width: 820px) {
+@media (max-width: 1023px) {
   .page { gap: var(--sp-4); }
   .viewBar,
   .historyHead { align-items: stretch; flex-direction: column; }
@@ -1417,7 +1417,7 @@
   .aiBottomGrid > section + section { border-top: 1px solid var(--border); border-left: 0; }
 }
 
-@media (max-width: 520px) {
+@media (max-width: 480px) {
   .viewBar { padding-inline: 0; }
   .viewNavigation { display: grid; width: 100%; }
   .viewNavigation > div,

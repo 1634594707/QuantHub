@@ -170,7 +170,7 @@
 .openedLedger dt { color: var(--text-3); font-size: var(--fs-micro); }
 .openedLedger dd { overflow-wrap: anywhere; margin: 0; font-family: var(--font-mono); font-size: var(--fs-micro); }
 
-@media (max-width: 900px) {
+@media (max-width: 1023px) {
   .header { grid-template-columns: auto minmax(0, 1fr); }
   .header > button { grid-column: 1 / -1; justify-self: start; }
   .workspace { grid-template-columns: 1fr; }

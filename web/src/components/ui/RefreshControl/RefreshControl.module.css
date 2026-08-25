@@ -19,7 +19,7 @@
   font-weight: 700;
 }
 
-@media (max-width: 560px) {
+@media (max-width: 480px) {
   .control {
     width: 100%;
     justify-content: space-between;
