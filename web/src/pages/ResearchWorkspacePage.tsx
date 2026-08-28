@@ -4,6 +4,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { api } from '../api/client'
 import type { AnalysisTask, ResearchRun, ResearchStatus } from '../api/types'
 import { useApi } from '../api/useApi'
+import { useLanguage } from '../i18n'
 import DecisionPanel from '../components/DecisionPanel'
 import KlineCard from '../components/KlineCard'
 import { IconChart } from '../components/icons'
@@ -478,6 +479,7 @@ function ResearchHistory({
 }
 
 export default function ResearchWorkspacePage() {
+  const { t } = useLanguage()
   const params = useParams<{ symbol: string }>()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -909,24 +911,24 @@ export default function ResearchWorkspacePage() {
         context="研究 / 综合评估"
         title={symbol}
         metrics={[
-          { label: '市场', value: MARKET_LABELS[market] ?? market },
-          { label: '关注周期', value: TIMEFRAME_LABELS[timeframe] },
-          { label: '分析依据', value: activeRun ? `${activeRun.evidence_count} 条` : '等待首次分析' },
+          { label: t('市场'), value: t(MARKET_LABELS[market] ?? market) },
+          { label: t('关注周期'), value: t(TIMEFRAME_LABELS[timeframe]) },
+          { label: t('分析依据'), value: activeRun ? `${activeRun.evidence_count} ${t('条')}` : t('等待首次分析') },
         ]}
       />
       {evaluationTaskId && (
-        <section className="evaluation-progress" aria-label="综合评估进度">
+        <section className="evaluation-progress" aria-label={t('综合评估进度')}>
           <div className="evaluation-progress-head">
             <div>
-              <span>统一标的评估</span>
-              <strong>{evaluation ? STATUS_META[evaluation.status === 'succeeded' && evaluationResult.partial === true ? 'partial' : evaluation.status as ResearchStatus]?.label ?? evaluation.status : '正在读取任务'}</strong>
+              <span>{t('统一标的评估')}</span>
+              <strong>{evaluation ? t(STATUS_META[evaluation.status === 'succeeded' && evaluationResult.partial === true ? 'partial' : evaluation.status as ResearchStatus]?.label ?? evaluation.status) : t('正在读取任务')}</strong>
             </div>
             <div className="evaluation-progress-actions">
               {evaluation && ['queued', 'running'].includes(evaluation.status) && (
-                <button type="button" onClick={() => void cancelEvaluation()}>取消评估</button>
+                <button type="button" onClick={() => void cancelEvaluation()}>{t('取消评估')}</button>
               )}
               {evaluation && ['failed', 'cancelled', 'timeout'].includes(evaluation.status) && (
-                <button type="button" onClick={() => void retryEvaluation()}>重新评估</button>
+                <button type="button" onClick={() => void retryEvaluation()}>{t('重新评估')}</button>
               )}
             </div>
           </div>
@@ -940,8 +942,8 @@ export default function ResearchWorkspacePage() {
               return (
                 <div className={`evaluation-step ${derived}`} key={key} title={evaluationSteps[key]?.error ?? undefined}>
                   <span aria-hidden="true" />
-                  <b>{label}</b>
-                  <small>{derived === 'succeeded' ? '完成' : derived === 'failed' ? '失败' : derived === 'running' ? '进行中' : '等待'}</small>
+                  <b>{t(label)}</b>
+                  <small>{t(derived === 'succeeded' ? '完成' : derived === 'failed' ? '失败' : derived === 'running' ? '进行中' : '等待')}</small>
                 </div>
               )
             })}
@@ -953,10 +955,10 @@ export default function ResearchWorkspacePage() {
       )}
       <ContextBar items={[
         { label: '标的代码', value: symbol, mono: true },
-        { label: '市场', value: MARKET_LABELS[market] ?? market },
-        { label: '关注周期', value: TIMEFRAME_LABELS[timeframe] },
-        { label: '评估状态', value: activeRun ? STATUS_META[activeRun.status].label : '未开始' },
-        { label: '更新时间', value: activeRun ? formatTime(activeRun.updated_at) : '—', mono: true },
+        { label: t('市场'), value: t(MARKET_LABELS[market] ?? market) },
+        { label: t('关注周期'), value: t(TIMEFRAME_LABELS[timeframe]) },
+        { label: t('评估状态'), value: activeRun ? t(STATUS_META[activeRun.status].label) : t('未开始') },
+        { label: t('更新时间'), value: activeRun ? formatTime(activeRun.updated_at) : '—', mono: true },
       ]}>
         <form
           className="research-context-controls"
@@ -966,27 +968,27 @@ export default function ResearchWorkspacePage() {
           }}
         >
           <label>
-            <span>标的代码</span>
+            <span>{t('标的代码')}</span>
             <input
               value={symbolInput}
               onChange={(event) => setSymbolInput(event.target.value)}
               placeholder="600519"
-              aria-label="标的代码"
+              aria-label={t('标的代码')}
             />
           </label>
           <label>
-            <span>市场</span>
+            <span>{t('市场')}</span>
             <select
               value={market}
               onChange={(event) => updateContext({ market: event.target.value as WorkspaceMarket })}
-              aria-label="标的市场"
+              aria-label={t('标的市场')}
             >
-              <option value="a_shares">A股</option>
-              <option value="us_stocks">美股</option>
-              <option value="crypto">虚拟货币</option>
+              <option value="a_shares">{t('A股')}</option>
+              <option value="us_stocks">{t('美股')}</option>
+              <option value="crypto">{t('虚拟货币')}</option>
             </select>
           </label>
-          <div className="research-timeframes" role="group" aria-label="关注周期">
+          <div className="research-timeframes" role="group" aria-label={t('关注周期')}>
             {TIMEFRAMES.map((item) => (
               <button
                 type="button"
@@ -994,23 +996,23 @@ export default function ResearchWorkspacePage() {
                 className={item === timeframe ? 'active' : ''}
                 onClick={() => updateContext({ timeframe: item })}
               >
-                {TIMEFRAME_LABELS[item]}
+                {t(TIMEFRAME_LABELS[item])}
               </button>
             ))}
           </div>
           <label>
-            <span>查看方式</span>
+            <span>{t('查看方式')}</span>
             <select
               value={researchMode}
               onChange={(event) => setResearchMode(event.target.value)}
-              aria-label="研究查看方式"
+              aria-label={t('研究查看方式')}
             >
               {Object.entries(RESEARCH_MODE_LABELS).map(([value, label]) => (
-                <option value={value} key={value}>{label}</option>
+                <option value={value} key={value}>{t(label)}</option>
               ))}
             </select>
           </label>
-          <button className="research-go" type="submit">切换</button>
+          <button className="research-go" type="submit">{t('切换')}</button>
           <Button
             className="research-evaluate"
             type="button"
@@ -1020,24 +1022,24 @@ export default function ResearchWorkspacePage() {
             disabled={evaluation?.status === 'queued' || evaluation?.status === 'running'}
             onClick={() => void startEvaluation()}
           >
-            {evaluation?.status === 'queued' || evaluation?.status === 'running' ? '全面评估进行中' : '运行全面评估'}
+            {t(evaluation?.status === 'queued' || evaluation?.status === 'running' ? '全面评估进行中' : '运行全面评估')}
           </Button>
         </form>
       </ContextBar>
       {evaluationStartError && (
         <div className="evaluation-start-error" role="alert">
-          <strong>一键评估启动失败</strong>
-          <span>{evaluationStartError}。当前工作台数据未受影响，请检查分析服务后重试。</span>
+          <strong>{t('一键评估启动失败')}</strong>
+          <span>{evaluationStartError}。{t('当前工作台数据未受影响，请检查分析服务后重试。')}</span>
         </div>
       )}
 
       <section className="research-module-rail" aria-labelledby="research-module-title">
         <header>
           <div>
-            <span>最新研究覆盖</span>
-            <h2 id="research-module-title">财务、估值与事件状态</h2>
+            <span>{t('最新研究覆盖')}</span>
+            <h2 id="research-module-title">{t('财务、估值与事件状态')}</h2>
           </div>
-          <p>{latestResearchRun ? `读取最近评估 · ${formatTime(latestResearchRun.updated_at)}` : '全面评估会在这里直接给出结果摘要'}</p>
+          <p>{latestResearchRun ? `${t('读取最近评估')} · ${formatTime(latestResearchRun.updated_at)}` : t('全面评估会在这里直接给出结果摘要')}</p>
         </header>
         <div className="research-module-grid">
           {researchModuleStates.map((module) => {
@@ -1046,10 +1048,10 @@ export default function ResearchWorkspacePage() {
               <div className={`research-module ${module.status}`} key={module.key}>
                 <ModuleIcon size={18} aria-hidden="true" />
                 <div>
-                  <span>{module.label}</span>
-                  <strong>{module.value}</strong>
+                  <span>{t(module.label)}</span>
+                  <strong>{t(module.value)}</strong>
                 </div>
-                <small><i aria-hidden="true" />{module.statusLabel}</small>
+                <small><i aria-hidden="true" />{t(module.statusLabel)}</small>
               </div>
             )
           })}
@@ -1057,7 +1059,7 @@ export default function ResearchWorkspacePage() {
       </section>
       {detailedRun ? <ResearchReportStream runId={detailedRun.id} reportId={requestedReportId || undefined} mode={researchMode as 'quick' | 'investor' | 'professional' | 'quant'} /> : null}
 
-      <nav className="research-tabs" aria-label="综合评估视图">
+      <nav className="research-tabs" aria-label={t('综合评估视图')}>
         {VIEWS.map((item) => (
           <button
             type="button"
@@ -1065,7 +1067,7 @@ export default function ResearchWorkspacePage() {
             className={view === item.key ? 'active' : ''}
             onClick={() => setView(item.key)}
           >
-            {item.label}
+            {t(item.label)}
           </button>
         ))}
       </nav>

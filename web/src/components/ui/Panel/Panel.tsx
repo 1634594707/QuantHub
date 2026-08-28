@@ -2,6 +2,7 @@
 // 替代 .panel / .panel-head / .panel-body / .panel-actions。
 import { useState, type ReactNode } from 'react'
 import s from './Panel.module.css'
+import { useLanguage } from '../../../i18n'
 
 interface PanelProps {
   title?: ReactNode
@@ -24,6 +25,8 @@ export function Panel({
   bodyClassName,
   children,
 }: PanelProps) {
+  const { t } = useLanguage()
+  const translateNode = (value: ReactNode) => typeof value === 'string' ? t(value) : value
   const [open, setOpen] = useState(defaultOpen)
 
   return (
@@ -36,8 +39,8 @@ export function Panel({
               className={s.caret}
               onClick={() => setOpen((p) => !p)}
               aria-expanded={open}
-              aria-label={open ? '收起' : '展开'}
-              title={open ? '收起' : '展开'}
+              aria-label={t(open ? '收起' : '展开')}
+              title={t(open ? '收起' : '展开')}
             >
               <svg
                 width="14"
@@ -56,8 +59,8 @@ export function Panel({
           )}
           {title && (
             <h3 className={s.title}>
-              {title}
-              {subtitle && <span className={s.subtitle}>{subtitle}</span>}
+              {translateNode(title)}
+              {subtitle && <span className={s.subtitle}>{translateNode(subtitle)}</span>}
             </h3>
           )}
           {actions && <div className={s.actions}>{actions}</div>}

@@ -23,6 +23,7 @@ import { IconChart, IconCog, IconGrid } from '../components/icons'
 import { SegmentedControl } from '../components/ui/SegmentedControl/SegmentedControl'
 import { Toggle } from '../components/ui/Toggle/Toggle'
 import { alertEventHref } from '../lib/alerts'
+import { useLanguage } from '../i18n'
 import s from './OverviewPage.module.css'
 
 const DASHBOARD_MODULES = [
@@ -52,6 +53,7 @@ const DEFAULT_BEGINNER_LAYOUT: DashboardLayout = {
 
 export default function OverviewPage() {
   const navigate = useNavigate()
+  const { t } = useLanguage()
   const [interfaceMode] = useInterfaceMode()
   const isAdvanced = interfaceMode === 'advanced'
   const [layoutSettingsOpen, setLayoutSettingsOpen] = useState(false)
@@ -163,29 +165,29 @@ export default function OverviewPage() {
   const summary = useMemo(() => computeSummary(holdingRows, holdings.seedCash), [holdingRows, holdings.seedCash])
   const accountMetrics = accountScope === 'simulation'
     ? {
-        totalLabel: '模拟账户权益',
+        totalLabel: t('模拟账户权益'),
         total: simulationAccount.data?.equity ?? 0,
-        positionLabel: '模拟持仓',
+        positionLabel: t('模拟持仓'),
         positions: simulationAccount.data?.positions.length ?? 0,
       }
     : accountScope === 'ledger'
       ? {
-          totalLabel: '账本净值',
+          totalLabel: t('账本净值'),
           total: ledgerSummary.data?.summary.nav ?? 0,
-          positionLabel: '账本持仓',
+          positionLabel: t('账本持仓'),
           positions: ledgerSummary.data?.summary.n_positions ?? 0,
         }
       : {
-          totalLabel: '研究组合总值',
+          totalLabel: t('研究组合总值'),
           total: summary.nav,
-          positionLabel: '研究持仓',
+          positionLabel: t('研究持仓'),
           positions: summary.totalPositions,
         }
   const accountScopeDescription = accountScope === 'simulation'
-    ? '模拟账户：由模拟订单和成交驱动，不代表真实资产。'
+    ? t('模拟账户：由模拟订单和成交驱动，不代表真实资产。')
     : accountScope === 'ledger'
-      ? '账本账户：由账本成交、现金和持仓记录计算。'
-      : '研究组合：由手工维护的研究持仓计算，不代表模拟账户或账本账户。'
+      ? t('账本账户：由账本成交、现金和持仓记录计算。')
+      : t('研究组合：由手工维护的研究持仓计算，不代表模拟账户或账本账户。')
   const moduleOrder = [
     ...dashboardLayout.order.filter((id) => DASHBOARD_MODULES.some((item) => item.id === id)),
     ...DASHBOARD_MODULES.map((item) => item.id).filter((id) => !dashboardLayout.order.includes(id)),
@@ -221,8 +223,8 @@ export default function OverviewPage() {
       ? [{ label: accountMetrics.totalLabel, value: accountMetrics.total == null ? '—' : `¥${accountMetrics.total.toLocaleString('zh-CN')}` },
         { label: accountMetrics.positionLabel, value: accountMetrics.positions }]
       : []),
-    ...(marketVisible && watchlist.seeded ? [{ label: '自选', value: watchlist.list.length }] : []),
-    ...(marketVisible && breadthData ? [{ label: '涨/跌', value: `${breadthData.up}/${breadthData.down}` }] : []),
+    ...(marketVisible && watchlist.seeded ? [{ label: t('自选'), value: watchlist.list.length }] : []),
+    ...(marketVisible && breadthData ? [{ label: t('涨/跌'), value: `${breadthData.up}/${breadthData.down}` }] : []),
   ]
   const actionLoading = userAlerts.loading || failedTasks.loading || simulationOrders.loading
     || (isAdvanced && (pendingSignals.loading || pendingIncidents.loading || factorAttention.loading || automationAlerts.loading))
@@ -250,7 +252,7 @@ export default function OverviewPage() {
       await holdings.commit()
       setEditH(false)
     } catch (error) {
-      setHoldingSaveError(error instanceof Error ? error.message : '持仓保存失败')
+      setHoldingSaveError(error instanceof Error ? error.message : t('持仓保存失败'))
     } finally {
       setSavingH(false)
     }
@@ -268,7 +270,7 @@ export default function OverviewPage() {
       await watchlist.commit()
       setEditW(false)
     } catch (error) {
-      setWatchSaveError(error instanceof Error ? error.message : '关注列表保存失败')
+      setWatchSaveError(error instanceof Error ? error.message : t('关注列表保存失败'))
     } finally {
       setSavingW(false)
     }
@@ -277,23 +279,23 @@ export default function OverviewPage() {
   return (
     <>
       <WorkspaceHeader
-        context="驾驶舱"
-        title="总览"
-        description="账户、行情与执行状态"
+        context={t('驾驶舱')}
+        title={t('总览')}
+        description={t('账户、行情与执行状态')}
         metrics={headerMetrics}
       />
-      {accountVisible ? <section className={s.accountScope} aria-label="驾驶舱账户口径">
+      {accountVisible ? <section className={s.accountScope} aria-label={t('驾驶舱账户口径')}>
         <div>
-          <span>数据口径</span>
+          <span>{t('数据口径')}</span>
           <strong>{accountScopeDescription}</strong>
         </div>
         <SegmentedControl
           value={accountScope}
           onChange={(value) => setAccountScope(value as AccountScope)}
           options={[
-            { value: 'research', label: '研究组合' },
-            { value: 'simulation', label: '模拟账户' },
-            { value: 'ledger', label: '账本账户' },
+            { value: 'research', label: t('研究组合') },
+            { value: 'simulation', label: t('模拟账户') },
+            { value: 'ledger', label: t('账本账户') },
           ]}
         />
       </section> : null}
@@ -306,17 +308,17 @@ export default function OverviewPage() {
           aria-controls="overview-layout-settings"
           onClick={() => setLayoutSettingsOpen((open) => !open)}
         >
-          布局设置
+          {t('布局设置')}
         </Button>
       </div>
       {layoutSettingsOpen ? (
-        <section id="overview-layout-settings" className={s.layoutPanel} aria-label="总览布局设置">
+        <section id="overview-layout-settings" className={s.layoutPanel} aria-label={t('总览布局设置')}>
           <header>
             <div>
-              <strong>总览布局</strong>
-              <span>调整当前界面的模块顺序与可见性</span>
+              <strong>{t('总览布局')}</strong>
+              <span>{t('调整当前界面的模块顺序与可见性')}</span>
             </div>
-            <Button size="sm" variant="ghost" onClick={() => setLayoutSettingsOpen(false)}>完成</Button>
+            <Button size="sm" variant="ghost" onClick={() => setLayoutSettingsOpen(false)}>{t('完成')}</Button>
           </header>
           <div className={s.layoutRows}>
           {moduleOrder.map((id, index) => {
@@ -324,11 +326,11 @@ export default function OverviewPage() {
             if (!module) return null
             const visible = moduleVisible(id)
             return <div key={id}>
-              <strong>{module.label}</strong>
+              <strong>{t(module.label)}</strong>
               <div>
-                <Button size="sm" variant="link" disabled={index === 0} onClick={() => moveDashboardModule(id, -1)}>上移</Button>
-                <Button size="sm" variant="link" disabled={index === moduleOrder.length - 1} onClick={() => moveDashboardModule(id, 1)}>下移</Button>
-                <Toggle size="sm" checked={visible} onChange={(checked) => setDashboardModuleVisible(id, checked)} label={visible ? '显示' : '隐藏'} />
+                <Button size="sm" variant="link" disabled={index === 0} onClick={() => moveDashboardModule(id, -1)}>{t('上移')}</Button>
+                <Button size="sm" variant="link" disabled={index === moduleOrder.length - 1} onClick={() => moveDashboardModule(id, 1)}>{t('下移')}</Button>
+                <Toggle size="sm" checked={visible} onChange={(checked) => setDashboardModuleVisible(id, checked)} label={t(visible ? '显示' : '隐藏')} />
               </div>
             </div>
           })}
@@ -339,24 +341,24 @@ export default function OverviewPage() {
       {moduleVisible('evaluation') ? <div style={{ order: moduleOrder.indexOf('evaluation') }}>
       <section className={s.evaluationEntry} aria-labelledby="evaluation-entry-title">
         <div className={s.entryCopy}>
-          <h2 id="evaluation-entry-title">标的评估</h2>
-          <p>输入一个标的，自动汇总行情快照、新闻事件与价格结构到同一份研究记录。</p>
+          <h2 id="evaluation-entry-title">{t('标的评估')}</h2>
+          <p>{t('输入一个标的，自动汇总行情快照、新闻事件与价格结构到同一份研究记录。')}</p>
         </div>
         <div className={s.entryActions}>
           <Button variant="primary" size="lg" icon={<IconChart size={18} />} onClick={() => navigate('/evaluate')}>
-            开始评估
+            {t('开始评估')}
           </Button>
           <Button size="lg" onClick={() => navigate('/tasks')}>
-            历史记录
+            {t('历史记录')}
           </Button>
           <Button variant="ghost" size="lg" icon={<IconCog size={18} />} onClick={() => navigate('/config')}>
-            数据设置
+            {t('数据设置')}
           </Button>
         </div>
       </section>
       </div> : null}
       {marketVisible ? <div style={{ order: moduleOrder.indexOf('market') }}>
-      <section id="watchlist" className={s.marketDesk} aria-label="关注标的与市场广度">
+      <section id="watchlist" className={s.marketDesk} aria-label={t('关注标的与市场广度')}>
         <Watchlist
           rows={watchRows}
           editing={editW}
@@ -376,10 +378,10 @@ export default function OverviewPage() {
           hasData={breadth.data !== null}
           isEmpty={false}
           onRetry={breadth.refetch}
-          loadingTitle="正在读取市场广度…"
+          loadingTitle={t('正在读取市场广度…')}
           loadingSkeleton
           skeletonRows={2}
-          emptyTitle="暂无市场广度"
+          emptyTitle={t('暂无市场广度')}
         >
           <MarketBreadth data={breadth.data} />
         </AsyncStateBoundary>
@@ -403,22 +405,22 @@ export default function OverviewPage() {
             void automationAlerts.refetch()
           }
         }}
-        loadingTitle="正在读取待处理事项…"
+        loadingTitle={t('正在读取待处理事项…')}
         loadingSkeleton
         skeletonRows={4}
-        emptyTitle="暂无待处理事项"
+        emptyTitle={t('暂无待处理事项')}
       >
         <ActionQueue items={[
-          { id: 'alerts', label: '待确认提醒', count: userAlerts.data?.count ?? 0, detail: firstPendingAlert ? `${firstPendingAlert.symbol} · ${firstPendingAlert.rule_name}` : '查看触发条件', to: firstPendingAlert ? alertEventHref(firstPendingAlert) : '/alerts', tone: 'warning' },
-          { id: 'tasks', label: '失败分析任务', count: failedTasks.data?.total ?? 0, detail: '查看错误并重试', to: '/tasks?status=failed', tone: 'danger' },
-          { id: 'orders', label: '需处理订单', count: simulationAttentionCount, detail: '待成交或同步失败', to: '/simulation', tone: 'warning' },
+          { id: 'alerts', label: t('待确认提醒'), count: userAlerts.data?.count ?? 0, detail: firstPendingAlert ? `${firstPendingAlert.symbol} · ${firstPendingAlert.rule_name}` : t('查看触发条件'), to: firstPendingAlert ? alertEventHref(firstPendingAlert) : '/alerts', tone: 'warning' },
+          { id: 'tasks', label: t('失败分析任务'), count: failedTasks.data?.total ?? 0, detail: t('查看错误并重试'), to: '/tasks?status=failed', tone: 'danger' },
+          { id: 'orders', label: t('需处理订单'), count: simulationAttentionCount, detail: t('待成交或同步失败'), to: '/simulation', tone: 'warning' },
           ...(isAdvanced ? [
-          { id: 'signals', label: '待审核信号', count: pendingSignals.data?.total ?? 0, detail: '进入审核队列', to: '/signals?status=new' },
-          { id: 'factor-revalidation', label: '需复验研究', count: factorAttention.data?.counts.needs_revalidation ?? 0, detail: factorAttention.data?.items.find((item) => item.states.includes('needs_revalidation')) ? `${factorAttention.data.items.find((item) => item.states.includes('needs_revalidation'))?.symbol} · 查看窗口证据` : '查看多窗口一致性', to: factorAttention.data?.items.find((item) => item.states.includes('needs_revalidation')) ? `/factor-research?run_id=${encodeURIComponent(factorAttention.data.items.find((item) => item.states.includes('needs_revalidation'))!.run_id)}` : '/factor-research', tone: 'warning' },
-          { id: 'factor-invalidated', label: '已失效研究', count: factorAttention.data?.counts.invalidated ?? 0, detail: factorAttention.data?.items.find((item) => item.states.includes('invalidated')) ? `${factorAttention.data.items.find((item) => item.states.includes('invalidated'))?.symbol} · 查看淘汰因子` : '查看已标记淘汰的因子', to: factorAttention.data?.items.find((item) => item.states.includes('invalidated')) ? `/factor-research?run_id=${encodeURIComponent(factorAttention.data.items.find((item) => item.states.includes('invalidated'))!.run_id)}` : '/factor-research', tone: 'danger' },
-          { id: 'factor-stale', label: '数据过期研究', count: factorAttention.data?.counts.data_stale ?? 0, detail: factorAttention.data?.items.find((item) => item.states.includes('data_stale')) ? `${factorAttention.data.items.find((item) => item.states.includes('data_stale'))?.symbol} · 已超过 ${factorAttention.data.stale_hours} 小时` : '查看超过时效阈值的研究', to: factorAttention.data?.items.find((item) => item.states.includes('data_stale')) ? `/factor-research?run_id=${encodeURIComponent(factorAttention.data.items.find((item) => item.states.includes('data_stale'))!.run_id)}` : '/factor-research', tone: 'warning' },
-          { id: 'automation', label: '自动化告警', count: automationAlerts.data?.count ?? 0, detail: '确认或重试失败运行', to: '/automation', tone: 'warning' },
-          { id: 'incidents', label: '全部故障', count: pendingIncidents.data?.total ?? 0, detail: '跨域故障统一处置', to: '/incidents', tone: 'danger' },
+          { id: 'signals', label: t('待审核信号'), count: pendingSignals.data?.total ?? 0, detail: t('进入审核队列'), to: '/signals?status=new' },
+          { id: 'factor-revalidation', label: t('需复验研究'), count: factorAttention.data?.counts.needs_revalidation ?? 0, detail: factorAttention.data?.items.find((item) => item.states.includes('needs_revalidation')) ? `${factorAttention.data.items.find((item) => item.states.includes('needs_revalidation'))?.symbol} · ${t('查看窗口证据')}` : t('查看多窗口一致性'), to: factorAttention.data?.items.find((item) => item.states.includes('needs_revalidation')) ? `/factor-research?run_id=${encodeURIComponent(factorAttention.data.items.find((item) => item.states.includes('needs_revalidation'))!.run_id)}` : '/factor-research', tone: 'warning' },
+          { id: 'factor-invalidated', label: t('已失效研究'), count: factorAttention.data?.counts.invalidated ?? 0, detail: factorAttention.data?.items.find((item) => item.states.includes('invalidated')) ? `${factorAttention.data.items.find((item) => item.states.includes('invalidated'))?.symbol} · ${t('查看淘汰因子')}` : t('查看已标记淘汰的因子'), to: factorAttention.data?.items.find((item) => item.states.includes('invalidated')) ? `/factor-research?run_id=${encodeURIComponent(factorAttention.data.items.find((item) => item.states.includes('invalidated'))!.run_id)}` : '/factor-research', tone: 'danger' },
+          { id: 'factor-stale', label: t('数据过期研究'), count: factorAttention.data?.counts.data_stale ?? 0, detail: factorAttention.data?.items.find((item) => item.states.includes('data_stale')) ? `${factorAttention.data.items.find((item) => item.states.includes('data_stale'))?.symbol} · ${t('已超过')} ${factorAttention.data.stale_hours} ${t('小时')}` : t('查看超过时效阈值的研究'), to: factorAttention.data?.items.find((item) => item.states.includes('data_stale')) ? `/factor-research?run_id=${encodeURIComponent(factorAttention.data.items.find((item) => item.states.includes('data_stale'))!.run_id)}` : '/factor-research', tone: 'warning' },
+          { id: 'automation', label: t('自动化告警'), count: automationAlerts.data?.count ?? 0, detail: t('确认或重试失败运行'), to: '/automation', tone: 'warning' },
+          { id: 'incidents', label: t('全部故障'), count: pendingIncidents.data?.total ?? 0, detail: t('跨域故障统一处置'), to: '/incidents', tone: 'danger' },
           ] as const : []),
         ]} />
       </AsyncStateBoundary>

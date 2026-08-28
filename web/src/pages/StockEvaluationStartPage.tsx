@@ -11,6 +11,7 @@ import { Input } from '../components/ui/Input/Input'
 import { SegmentedControl } from '../components/ui/SegmentedControl/SegmentedControl'
 import { WorkspaceHeader } from '../components/WorkspaceHeader/WorkspaceHeader'
 import { useLocalStorage } from '../hooks/useLocalStorage'
+import { useLanguage } from '../i18n'
 import s from './StockEvaluationStartPage.module.css'
 
 type Horizon = 'short' | 'swing' | 'medium'
@@ -186,6 +187,7 @@ function watchResearchSummary(item: WatchlistItem) {
 
 export default function StockEvaluationStartPage() {
   const navigate = useNavigate()
+  const { locale, t } = useLanguage()
   const health = useApi(() => api.health(), [], { retryInterval: 15000 })
   const preference = useApi(() => api.researchPreference(), [], { retry: false })
   const preferenceHydrated = useRef(false)
@@ -303,7 +305,7 @@ export default function StockEvaluationStartPage() {
     event.preventDefault()
     const normalized = query.trim()
     if (!normalized) {
-      setQueryError(`请输入${MARKETS[market].assetLabel}名称或代码`)
+      setQueryError(`${t('请输入')}${t(MARKETS[market].assetLabel)} ${t('名称或代码')}`)
       return
     }
     setQueryError('')
@@ -412,7 +414,7 @@ export default function StockEvaluationStartPage() {
       setRecentTask(null)
       openTask(instrument, timeframe, created.task.id)
     } catch (error) {
-      setStartError(error instanceof Error ? error.message : '综合评估任务创建失败')
+      setStartError(error instanceof Error ? error.message : t('综合评估任务创建失败'))
     } finally {
       setStarting(false)
     }
@@ -432,28 +434,28 @@ export default function StockEvaluationStartPage() {
   return (
     <div className={s.page}>
       <WorkspaceHeader
-        context="研究 / 综合评估"
-        title="标的评估"
-        description="行情快照、新闻与价格结构归档到同一研究记录"
+        context={t('研究 / 综合评估')}
+        title={t('标的评估')}
+        description={t('行情快照、新闻与价格结构归档到同一研究记录')}
         metrics={[
-          { label: '当前市场', value: MARKETS[market].label },
-          { label: '当前模式', value: '研究模式' },
-          { label: '分析服务', value: serviceReady ? '可用' : health.loading ? '检查中' : '需检查' },
+          { label: t('当前市场'), value: t(MARKETS[market].label) },
+          { label: t('当前模式'), value: t('研究模式') },
+          { label: t('分析服务'), value: serviceReady ? t('可用') : health.loading ? t('检查中') : t('需检查') },
         ]}
       />
 
-      <div className={s.flow} aria-label="标的评估步骤">
-        <div className={s.flowStepActive}><span>1</span><strong>选择标的</strong></div>
-        <div><span>2</span><strong>选择周期</strong></div>
-        <div><span>3</span><strong>查看评估</strong></div>
+      <div className={s.flow} aria-label={t('标的评估步骤')}>
+        <div className={s.flowStepActive}><span>1</span><strong>{t('选择标的')}</strong></div>
+        <div><span>2</span><strong>{t('选择周期')}</strong></div>
+        <div><span>3</span><strong>{t('查看评估')}</strong></div>
       </div>
 
       <section className={s.deepResearchBand} aria-labelledby="deep-research-title">
         <header>
           <div>
-            <span>新增研究能力</span>
-            <h2 id="deep-research-title">深度研究覆盖</h2>
-            <p>财报、估值、公司事件与宏观传导会进入同一份统一决策，不再藏在历史报告里。</p>
+            <span>{t('新增研究能力')}</span>
+            <h2 id="deep-research-title">{t('深度研究覆盖')}</h2>
+            <p>{t('财报、估值、公司事件与宏观传导会进入同一份统一决策，不再藏在历史报告里。')}</p>
           </div>
           {market !== 'crypto' && profile !== 'comprehensive' && (
             <Button
@@ -464,7 +466,7 @@ export default function StockEvaluationStartPage() {
                 setStrategyLenses(EVALUATION_PROFILES.comprehensive.defaultLenses)
                 setRecentTask(null)
               }}
-            >选择全面评估</Button>
+            >{t('选择全面评估')}</Button>
           )}
         </header>
         <div className={s.deepResearchGrid}>
@@ -474,9 +476,9 @@ export default function StockEvaluationStartPage() {
               <div className={s.deepResearchModule} key={module.key} data-status={module.status}>
                 <ModuleIcon size={19} aria-hidden="true" />
                 <div>
-                  <strong>{module.label}</strong>
-                  <p>{module.description}</p>
-                  <span><i aria-hidden="true" />{module.statusLabel} · {module.detail}</span>
+                  <strong>{t(module.label)}</strong>
+                  <p>{t(module.description)}</p>
+                  <span><i aria-hidden="true" />{t(module.statusLabel)} · {t(module.detail)}</span>
                 </div>
               </div>
             )
@@ -487,20 +489,20 @@ export default function StockEvaluationStartPage() {
       <div className={s.workspace}>
         <section className={s.searchSection}>
           <div className={s.sectionTitle}>
-            <span>第一步</span>
-            <h2>你想评估哪个标的？</h2>
-            <p>{MARKETS[market].searchHint}</p>
+            <span>{t('第一步')}</span>
+            <h2>{t('你想评估哪个标的？')}</h2>
+            <p>{t(MARKETS[market].searchHint)}</p>
           </div>
 
           <div className={s.marketField}>
-            <span>市场</span>
+            <span>{t('市场')}</span>
             <SegmentedControl
               value={market}
               onChange={(value) => changeMarket(value as EvaluationMarket)}
               fullWidth
               options={(Object.keys(MARKETS) as EvaluationMarket[]).map((value) => ({
                 value,
-                label: MARKETS[value].label,
+                label: t(MARKETS[value].label),
               }))}
             />
           </div>
@@ -513,12 +515,12 @@ export default function StockEvaluationStartPage() {
                 if (event.target.value.trim()) setQueryError('')
               }}
               prefix={<IconSearch size={17} />}
-              placeholder={MARKETS[market].placeholder}
-              aria-label={`${MARKETS[market].assetLabel}名称或代码`}
+              placeholder={t(MARKETS[market].placeholder)}
+              aria-label={`${t(MARKETS[market].assetLabel)} ${t('名称或代码')}`}
               invalid={Boolean(queryError)}
               autoComplete="off"
             />
-            <Button type="submit" variant="primary">查找标的</Button>
+            <Button type="submit" variant="primary">{t('查找标的')}</Button>
           </form>
           {queryError && <div className={s.fieldError} role="alert">{queryError}</div>}
 
@@ -526,14 +528,14 @@ export default function StockEvaluationStartPage() {
             <div className={s.quickPickGroups}>
               {recentInstruments.some((item) => item.market === market) && (
                 <div className={s.quickPickGroup}>
-                  <span>最近搜索</span>
-                  <div>{recentInstruments.filter((item) => item.market === market).map((item) => <button type="button" key={item.instrument_id} onClick={() => queryInstrument(item.code)}><b>{item.name || item.code}</b><small>{item.code} · {MARKETS[market].label}</small></button>)}</div>
+                  <span>{t('最近搜索')}</span>
+                  <div>{recentInstruments.filter((item) => item.market === market).map((item) => <button type="button" key={item.instrument_id} onClick={() => queryInstrument(item.code)}><b>{item.name || item.code}</b><small>{item.code} · {t(MARKETS[market].label)}</small></button>)}</div>
                 </div>
               )}
               {(watchlist.data?.items ?? []).some((item) => item.market === market) && (
                 <div className={s.quickPickGroup}>
-                  <span>自选标的</span>
-                  <div>{(watchlist.data?.items ?? []).filter((item) => item.market === market).slice(0, 6).map((item) => <button type="button" key={item.id ?? `${item.market}:${item.sym}`} onClick={() => queryInstrument(item.sym)}><b>{item.name || item.sym}</b><small>{item.sym} · {MARKETS[market].label} · {watchResearchSummary(item)}</small></button>)}</div>
+                  <span>{t('自选标的')}</span>
+                  <div>{(watchlist.data?.items ?? []).filter((item) => item.market === market).slice(0, 6).map((item) => <button type="button" key={item.id ?? `${item.market}:${item.sym}`} onClick={() => queryInstrument(item.sym)}><b>{item.name || item.sym}</b><small>{item.sym} · {t(MARKETS[market].label)} · {watchResearchSummary(item)}</small></button>)}</div>
                 </div>
               )}
             </div>
@@ -542,13 +544,13 @@ export default function StockEvaluationStartPage() {
           {!activeQuery && (
             <div className={s.sampleBand}>
               <div>
-                <span>还不确定从哪里开始</span>
-                <strong>使用{SAMPLE_INSTRUMENTS[market].name}查看示例流程</strong>
+                <span>{t('还不确定从哪里开始')}</span>
+                <strong>{t('使用')} {SAMPLE_INSTRUMENTS[market].name} {t('查看示例流程')}</strong>
               </div>
               <Button variant="secondary" size="sm" onClick={() => {
                 setSelected(SAMPLE_INSTRUMENTS[market])
                 setQuery(SAMPLE_INSTRUMENTS[market].code)
-              }}>选择示例标的</Button>
+              }}>{t('选择示例标的')}</Button>
             </div>
           )}
 
@@ -560,12 +562,12 @@ export default function StockEvaluationStartPage() {
               hasData={directory.data !== null}
               isEmpty={results.length === 0}
               onRetry={directory.refetch}
-              loadingTitle="正在查找股票…"
-              emptyTitle="没有找到这只股票"
-              emptyDescription="请检查名称或代码；也可以前往标的与数据登记。"
-              emptyAction={{ label: '前往标的与数据', onClick: () => navigate('/instruments') }}
+              loadingTitle={t('正在查找股票…')}
+              emptyTitle={t('没有找到这只股票')}
+              emptyDescription={t('请检查名称或代码；也可以前往标的与数据登记。')}
+              emptyAction={{ label: t('前往标的与数据'), onClick: () => navigate('/instruments') }}
             >
-              <div className={s.resultList} aria-label="标的搜索结果">
+              <div className={s.resultList} aria-label={t('标的搜索结果')}>
                 {results.map((instrument) => (
                   <button
                     key={instrument.instrument_id}
@@ -578,7 +580,7 @@ export default function StockEvaluationStartPage() {
                       <strong>{instrument.name || instrument.code}</strong>
                       <small>{instrument.code} · {exchangeLabel(instrument)}</small>
                     </span>
-                    <span className={s.selectState}>{selected?.instrument_id === instrument.instrument_id ? '已选择' : '选择'}</span>
+                    <span className={s.selectState}>{selected?.instrument_id === instrument.instrument_id ? t('已选择') : t('选择')}</span>
                   </button>
                 ))}
               </div>
@@ -586,11 +588,11 @@ export default function StockEvaluationStartPage() {
           )}
 
           {selected && !activeQuery && (
-            <div className={s.resultList} aria-label="已选择的示例标的">
+            <div className={s.resultList} aria-label={t('已选择的示例标的')}>
               <button type="button" className={s.resultSelected} onClick={() => setSelected(SAMPLE_INSTRUMENTS[market])}>
                 <span className={s.stockMark}>{selected.name.slice(0, 1) || selected.code.slice(0, 1)}</span>
-                <span className={s.stockIdentity}><strong>{selected.name || selected.code}</strong><small>{selected.code} · {exchangeLabel(selected)} · 示例</small></span>
-                <span className={s.selectState}>已选择</span>
+                <span className={s.stockIdentity}><strong>{selected.name || selected.code}</strong><small>{selected.code} · {exchangeLabel(selected)} · {t('示例')}</small></span>
+                <span className={s.selectState}>{t('已选择')}</span>
               </button>
             </div>
           )}
@@ -598,13 +600,13 @@ export default function StockEvaluationStartPage() {
 
         <aside className={s.setupSection}>
           <div className={s.sectionTitle}>
-            <span>第二步</span>
-            <h2>设置研究方式与计算范围</h2>
-            <p>查看方式只改变信息密度；周期和评估规模决定计算范围。</p>
+            <span>{t('第二步')}</span>
+            <h2>{t('设置研究方式与计算范围')}</h2>
+            <p>{t('查看方式只改变信息密度；周期和评估规模决定计算范围。')}</p>
           </div>
 
           <div className={s.profileField}>
-            <span>查看方式</span>
+            <span>{t('查看方式')}</span>
             <SegmentedControl
               value={researchMode}
               onChange={(value) => {
@@ -616,14 +618,14 @@ export default function StockEvaluationStartPage() {
               fullWidth
               options={(Object.keys(RESEARCH_MODES) as ResearchMode[]).map((value) => ({
                 value,
-                label: RESEARCH_MODES[value].label,
+                label: t(RESEARCH_MODES[value].label),
               }))}
             />
-            <p>{RESEARCH_MODES[researchMode].description}</p>
+            <p>{t(RESEARCH_MODES[researchMode].description)}</p>
           </div>
 
           <div className={s.profileField}>
-            <span>当前持仓</span>
+            <span>{t('当前持仓')}</span>
             <SegmentedControl
               value={holdingStatus}
               onChange={(value) => {
@@ -634,11 +636,11 @@ export default function StockEvaluationStartPage() {
               }}
               fullWidth
               options={[
-                { value: 'not_held', label: '未持仓' },
-                { value: 'held', label: '已持仓' },
+                { value: 'not_held', label: t('未持仓') },
+                { value: 'held', label: t('已持仓') },
               ]}
             />
-            <p>持仓状态只改变后续观察或风险动作，不改变研究事实和统一结论。</p>
+            <p>{t('持仓状态只改变后续观察或风险动作，不改变研究事实和统一结论。')}</p>
           </div>
 
           <SegmentedControl
@@ -652,13 +654,13 @@ export default function StockEvaluationStartPage() {
             fullWidth
             options={(Object.keys(HORIZONS[market]) as Horizon[]).map((value) => ({
               value,
-              label: HORIZONS[market][value].label,
+              label: t(HORIZONS[market][value].label),
             }))}
           />
-          <div className={s.horizonDescription}>{horizonConfig.description}</div>
+          <div className={s.horizonDescription}>{t(horizonConfig.description)}</div>
 
           <div className={s.profileField}>
-            <span>评估规模</span>
+            <span>{t('评估规模')}</span>
             <SegmentedControl
               value={profile}
               onChange={(value) => {
@@ -670,18 +672,18 @@ export default function StockEvaluationStartPage() {
               fullWidth
               options={(Object.keys(EVALUATION_PROFILES) as EvaluationProfile[]).map((value) => ({
                 value,
-                label: EVALUATION_PROFILES[value].label,
+                label: t(EVALUATION_PROFILES[value].label),
               }))}
             />
-            <p>{profileDescription}</p>
-            {market !== 'a_shares' && <p className={s.marketCapability}>当前市场按所选规模运行可用模块；独立新闻模块暂不运行，美股全面评估使用 SEC 财报并对估值参照不足明确降级。</p>}
-            <div className={s.methodList} aria-label="本次量化评估方法">
-              {activeMethods.map((method) => <span key={method}>{METHOD_LABELS[method]}</span>)}
+            <p>{t(profileDescription)}</p>
+            {market !== 'a_shares' && <p className={s.marketCapability}>{t('当前市场按所选规模运行可用模块；独立新闻模块暂不运行，美股全面评估使用 SEC 财报并对估值参照不足明确降级。')}</p>}
+            <div className={s.methodList} aria-label={t('本次量化评估方法')}>
+              {activeMethods.map((method) => <span key={method}>{t(METHOD_LABELS[method])}</span>)}
             </div>
           </div>
 
           <fieldset className={s.strategyField}>
-            <legend>策略视角</legend>
+            <legend>{t('策略视角')}</legend>
             <div>
               {(Object.keys(STRATEGY_LENSES) as StrategyLens[]).map((lens) => (
                 <label key={lens}>
@@ -690,19 +692,19 @@ export default function StockEvaluationStartPage() {
                     checked={strategyLenses.includes(lens)}
                     onChange={() => toggleStrategyLens(lens)}
                   />
-                  <span><strong>{STRATEGY_LENSES[lens].label}</strong><small>{STRATEGY_LENSES[lens].description}</small></span>
+                  <span><strong>{t(STRATEGY_LENSES[lens].label)}</strong><small>{t(STRATEGY_LENSES[lens].description)}</small></span>
                 </label>
               ))}
             </div>
           </fieldset>
 
           <div className={s.readiness}>
-            <div><span className={serviceReady ? s.readyDot : s.pendingDot} /><strong>分析服务</strong><em>{serviceReady ? '连接正常' : health.loading ? '正在检查' : '需要检查设置'}</em></div>
-            <div><span className={s.readyDot} /><strong>交易方式</strong><em>仅研究和模拟</em></div>
-            <div><span className={s.readyDot} /><strong>查看方式</strong><em>{RESEARCH_MODES[researchMode].label} · {holdingStatus === 'held' ? '已持仓' : '未持仓'}</em></div>
-            <div><span className={s.readyDot} /><strong>量化方法</strong><em>{activeMethods.length} 项 · {profileConfig.marketLimit} 根样本</em></div>
-            <div><span className={s.readyDot} /><strong>评估模块</strong><em>{activeModules.map((module) => MODULE_LABELS[module]).join('、')}</em></div>
-            <div><span className={strategyLenses.length ? s.readyDot : s.pendingDot} /><strong>策略视角</strong><em>{strategyLenses.length ? `${strategyLenses.length} 种` : '至少选择一种'}</em></div>
+            <div><span className={serviceReady ? s.readyDot : s.pendingDot} /><strong>{t('分析服务')}</strong><em>{serviceReady ? t('连接正常') : health.loading ? t('正在检查') : t('需要检查设置')}</em></div>
+            <div><span className={s.readyDot} /><strong>{t('交易方式')}</strong><em>{t('仅研究和模拟')}</em></div>
+            <div><span className={s.readyDot} /><strong>{t('查看方式')}</strong><em>{t(RESEARCH_MODES[researchMode].label)} · {t(holdingStatus === 'held' ? '已持仓' : '未持仓')}</em></div>
+            <div><span className={s.readyDot} /><strong>{t('量化方法')}</strong><em>{activeMethods.length} {t('项')} · {profileConfig.marketLimit} {t('根样本')}</em></div>
+            <div><span className={s.readyDot} /><strong>{t('评估模块')}</strong><em>{activeModules.map((module) => t(MODULE_LABELS[module])).join(locale === 'en' ? ', ' : '、')}</em></div>
+            <div><span className={strategyLenses.length ? s.readyDot : s.pendingDot} /><strong>{t('策略视角')}</strong><em>{strategyLenses.length ? `${strategyLenses.length} ${t('种')}` : t('至少选择一种')}</em></div>
           </div>
 
           <div className={s.primaryActions}>
@@ -713,7 +715,7 @@ export default function StockEvaluationStartPage() {
               icon={<IconChevron size={18} />}
               disabled={!selected || starting}
               onClick={() => openWorkspace()}
-            >进入评估工作区</Button>
+            >{t('进入评估工作区')}</Button>
             <Button
               variant="primary"
               size="lg"
@@ -722,22 +724,22 @@ export default function StockEvaluationStartPage() {
               disabled={!selected || starting || strategyLenses.length === 0}
               loading={starting}
               onClick={() => void beginEvaluation()}
-            >开始评估</Button>
+            >{t('开始评估')}</Button>
           </div>
           {recentTask && selected && (
             <div className={s.reuseNotice} role="status">
               <div>
-                <strong>15 分钟内已有同股票、市场和周期的评估</strong>
-                <span>{new Date(recentTask.created_at * 1000).toLocaleString('zh-CN', { hour12: false })} · {recentTask.status}</span>
+                <strong>{t('15 分钟内已有同股票、市场和周期的评估')}</strong>
+                <span>{new Date(recentTask.created_at * 1000).toLocaleString(locale, { hour12: false })} · {recentTask.status}</span>
               </div>
               <div>
-                <Button variant="primary" size="sm" onClick={() => openTask(selected, horizonConfig.timeframe, recentTask.id)}>复用已有评估</Button>
-                <Button variant="secondary" size="sm" onClick={() => void beginEvaluation(selected, horizon, true)}>仍然新建</Button>
+                <Button variant="primary" size="sm" onClick={() => openTask(selected, horizonConfig.timeframe, recentTask.id)}>{t('复用已有评估')}</Button>
+                <Button variant="secondary" size="sm" onClick={() => void beginEvaluation(selected, horizon, true)}>{t('仍然新建')}</Button>
               </div>
             </div>
           )}
           {startError && <p className={s.fieldError} role="alert">{startError}</p>}
-          {!selected && <p className={s.actionHint}>先从左侧选择一个标的</p>}
+          {!selected && <p className={s.actionHint}>{t('先从左侧选择一个标的')}</p>}
         </aside>
       </div>
 
@@ -747,23 +749,23 @@ export default function StockEvaluationStartPage() {
       <section className={s.secondaryActions}>
         <button type="button" onClick={() => navigate('/news')}>
           <IconSearch size={19} />
-          <span><strong>新闻证据</strong><small>事件与情绪，按标的检索原文</small></span>
+          <span><strong>{t('新闻证据')}</strong><small>{t('事件与情绪，按标的检索原文')}</small></span>
         </button>
         <button type="button" onClick={() => navigate('/pa')}>
           <IconChart size={19} />
-          <span><strong>价格结构</strong><small>两阶段价格行为分析</small></span>
+          <span><strong>{t('价格结构')}</strong><small>{t('两阶段价格行为分析')}</small></span>
         </button>
         <button type="button" onClick={() => navigate('/ensemble')}>
           <IconChart size={19} />
-          <span><strong>模型共识</strong><small>多模型协同结论对比</small></span>
+          <span><strong>{t('模型共识')}</strong><small>{t('多模型协同结论对比')}</small></span>
         </button>
         <button type="button" onClick={() => navigate('/config')}>
           <IconCog size={19} />
-          <span><strong>检查数据设置</strong><small>行情或模型不可用时从这里开始</small></span>
+          <span><strong>{t('检查数据设置')}</strong><small>{t('行情或模型不可用时从这里开始')}</small></span>
         </button>
       </section>
 
-      <p className={s.disclaimer}>评估结果用于辅助研究，不构成投资建议；数据不足时系统应降低结论置信度。</p>
+      <p className={s.disclaimer}>{t('评估结果用于辅助研究，不构成投资建议；数据不足时系统应降低结论置信度。')}</p>
     </div>
   )
 }

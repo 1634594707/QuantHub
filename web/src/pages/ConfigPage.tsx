@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { api, getApiToken, getBase, setApiToken } from '../api/client'
 import type { BackupRetentionResult, BackupVerification, DataSourceCheckResult, DataSourceOperation, NotificationChannelName } from '../api/types'
 import { useApi } from '../api/useApi'
+import { useLanguage } from '../i18n'
 import { AsyncStateBoundary } from '../components/ui/AsyncStateBoundary/AsyncStateBoundary'
 import { Button } from '../components/ui/Button/Button'
 import { ConfirmActionButton } from '../components/ui/ConfirmActionButton/ConfirmActionButton'
@@ -20,6 +21,7 @@ import s from './ConfigPage.module.css'
 const API_BASE_KEY = 'quanthub:api-base'
 
 export default function ConfigPage() {
+  const { t } = useLanguage()
   // 初始化为当前生效的 base（localStorage > VITE_API_BASE > '/api'）
   const [base, setBase] = useState(getBase())
   const [baseSaved, setBaseSaved] = useState('')
@@ -226,37 +228,37 @@ export default function ConfigPage() {
         title="系统设置"
         description="界面、连接与本地运行维护"
         metrics={[{
-          label: '网关',
-          value: health.data ? `v${health.data.version} · ${health.data.build_id}` : '版本：—',
+          label: t('网关'),
+          value: health.data ? `v${health.data.version} · ${health.data.build_id}` : t('版本：—'),
         }]}
       />
-      <nav className={s.sectionNav} aria-label="设置分区">
-        <a href="#preferences">界面与个人偏好</a>
-        <a href="#connections">连接与凭据</a>
-        <a href="#maintenance">运行与维护</a>
+      <nav className={s.sectionNav} aria-label={t('设置分区')}>
+        <a href="#preferences">{t('界面与个人偏好')}</a>
+        <a href="#connections">{t('连接与凭据')}</a>
+        <a href="#maintenance">{t('运行与维护')}</a>
       </nav>
 
       <section id="preferences" className={s.settingsSection} aria-labelledby="preferences-title">
         <header className={s.sectionHeading}>
-          <div><h2 id="preferences-title">界面与个人偏好</h2><p>控制界面范围、工作区可见性与高频入口。</p></div>
+          <div><h2 id="preferences-title">{t('界面与个人偏好')}</h2><p>{t('控制界面范围、工作区可见性与高频入口。')}</p></div>
         </header>
         <div className="card">
           <div className="card-head">
-            <div className="card-title">界面范围<span className="sub">选择当前工作流需要的能力范围</span></div>
+            <div className="card-title">{t('界面范围')}<span className="sub">{t('选择当前工作流需要的能力范围')}</span></div>
           </div>
           <div className={s.interfaceModeBody}>
             <SegmentedControl
               value={interfaceMode ?? 'beginner'}
               onChange={(value) => setInterfaceMode(value as 'beginner' | 'advanced')}
               options={[
-                { value: 'beginner', label: '精简界面' },
-                { value: 'advanced', label: '完整界面' },
+                { value: 'beginner', label: t('精简界面') },
+                { value: 'advanced', label: t('完整界面') },
               ]}
             />
-            <span>{interfaceMode === 'beginner' ? '显示总览、自选、标的研究、模拟交易、账户账本与系统设置。' : '显示总览、市场研究、策略、交易、账户风控、设置六大工作区。'}</span>
+            <span>{t(interfaceMode === 'beginner' ? '显示总览、自选、标的研究、模拟交易、账户账本与系统设置。' : '显示总览、市场研究、策略、交易、账户风控、设置六大工作区。')}</span>
           </div>
           <div className={s.workspacePreferences}>
-            <div className={s.preferenceTitle}><strong>工作区显示</strong><span>总览与设置始终保留，确保偏好可以恢复。</span></div>
+            <div className={s.preferenceTitle}><strong>{t('工作区显示')}</strong><span>{t('总览与设置始终保留，确保偏好可以恢复。')}</span></div>
             <div className={s.workspaceToggles}>
               {WORKSPACES.filter((workspace) => ['market', 'strategy', 'trading', 'risk'].includes(workspace.key)).map((workspace) => {
                 const visible = !hiddenWorkspaceIds.includes(workspace.key)

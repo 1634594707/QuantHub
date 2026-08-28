@@ -7,6 +7,7 @@ import { Input } from './ui/Input/Input'
 import { Select } from './ui/Select/Select'
 import { IconButton } from './ui/IconButton/IconButton'
 import s from './Watchlist.module.css'
+import { useLanguage } from '../i18n'
 
 const fmt = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 2 })
 
@@ -39,6 +40,7 @@ function lcg(seed: number) {
 }
 
 function MiniSpark({ sym, up }: { sym: string; up: boolean }) {
+  const { t } = useLanguage()
   const rnd = lcg(sym.split('').reduce((a, c) => a + c.charCodeAt(0), 0))
   const points: number[] = []
   let v = 50
@@ -58,7 +60,7 @@ function MiniSpark({ sym, up }: { sym: string; up: boolean }) {
   })
   const color = up ? 'var(--up)' : 'var(--down)'
   return (
-    <svg className="watch-mini" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`${sym} 走势`}>
+    <svg className="watch-mini" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`${sym} ${t('走势')}`}>
       <polyline fill="none" stroke={color} strokeWidth={1.5} points={coords.join(' ')} />
     </svg>
   )
@@ -89,6 +91,7 @@ export default function Watchlist({
   saveError = '',
   resolvingIds = new Set(),
 }: Props) {
+  const { t } = useLanguage()
   const [page, setPage] = useState(0)
   const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE))
   const currentPage = Math.min(page, pageCount - 1)
@@ -99,15 +102,15 @@ export default function Watchlist({
     <div className={`card ${s.card}`}>
       <div className="card-head">
         <div className="card-title">
-          关注列表 <span className="sub">{rows.length} 个</span>
+          {t('关注列表')} <span className="sub">{rows.length} {t('个')}</span>
         </div>
         <div className={s.headActions}>
           {!editing && pageCount > 1 && (
-            <div className={s.headerPagination} aria-label="关注列表分页">
+            <div className={s.headerPagination} aria-label={t('关注列表分页')}>
               <IconButton
                 variant="ghost"
                 size="sm"
-                label="上一页"
+                label={t('上一页')}
                 disabled={currentPage === 0}
                 onClick={() => setPage((value) => Math.max(0, value - 1))}
               >
@@ -117,7 +120,7 @@ export default function Watchlist({
               <IconButton
                 variant="ghost"
                 size="sm"
-                label="下一页"
+                label={t('下一页')}
                 disabled={currentPage >= pageCount - 1}
                 onClick={() => setPage((value) => Math.min(pageCount - 1, value + 1))}
               >
@@ -128,7 +131,7 @@ export default function Watchlist({
           {editing ? (
             <>
               <Button variant="link" size="sm" onClick={onAdd}>
-                + 添加
+                + {t('添加')}
               </Button>
               <Button
                 variant="primary"
@@ -137,12 +140,12 @@ export default function Watchlist({
                 loading={saving}
                 disabled={saving}
               >
-                {saving ? '保存中…' : '完成'}
+                {saving ? t('保存中…') : t('完成')}
               </Button>
             </>
           ) : (
             <Button variant="link" size="sm" onClick={onToggleEdit}>
-              管理
+              {t('管理')}
             </Button>
           )}
         </div>
@@ -154,7 +157,7 @@ export default function Watchlist({
             <div className={`edit-row ${s.editRow}`} key={w.id}>
               <Input
                 className="edit-input"
-                placeholder="代码/标的"
+                placeholder={t('代码/标的')}
                 value={w.sym}
                 onChange={(e) => {
                   const sym = e.target.value.toUpperCase()
@@ -164,14 +167,14 @@ export default function Watchlist({
               />
               <Input
                 className="edit-input"
-                placeholder={resolvingIds.has(w.id) ? '识别中…' : '名称'}
+                placeholder={t(resolvingIds.has(w.id) ? '识别中…' : '名称')}
                 value={w.name}
                 aria-busy={resolvingIds.has(w.id)}
                 onChange={(e) => onUpdate(w.id, { name: e.target.value })}
               />
               <Select
                 className="edit-input"
-                options={MARKETS}
+                options={MARKETS.map((market) => ({ ...market, label: t(market.label) }))}
                 value={w.market}
                 onChange={(e) => {
                   const market = e.target.value
@@ -182,8 +185,8 @@ export default function Watchlist({
               <IconButton
                 variant="ghost"
                 size="sm"
-                label="删除关注"
-                title="删除关注"
+                label={t('删除关注')}
+                title={t('删除关注')}
                 onClick={() => onRemove(w.id)}
               >
                 ✕
@@ -192,19 +195,19 @@ export default function Watchlist({
           ))}
           {rows.length === 0 && (
             <div className={`muted ${s.emptyHint}`}>
-              暂无关注
+              {t('暂无关注')}
             </div>
           )}
           {saveError && <div className="edit-save-error" role="alert">{saveError}</div>}
         </div>
       ) : (
-        <div className={s.watch} role="list" aria-label="关注标的行情">
+        <div className={s.watch} role="list" aria-label={t('关注标的行情')}>
           <div className={s.columnHead} aria-hidden="true">
-            <span>标的</span>
-            <span>市场</span>
-            <span>日内走势</span>
-            <span>最新价</span>
-            <span>涨跌</span>
+            <span>{t('标的')}</span>
+            <span>{t('市场')}</span>
+            <span>{t('日内走势')}</span>
+            <span>{t('最新价')}</span>
+            <span>{t('涨跌')}</span>
             <span />
           </div>
           {visibleRows.map((w) => {
@@ -215,12 +218,12 @@ export default function Watchlist({
                     <span className={`mono ${s.symbol}`}>{w.sym}</span>
                     <span className={s.name}>{w.name}</span>
                   </div>
-                  <span className={s.market}>{MARKET_LABELS[w.market] ?? w.market}</span>
-                  <span className={s.noTrend}>暂无走势</span>
-                  <span className={s.unavailable}>行情不可用</span>
+                  <span className={s.market}>{t(MARKET_LABELS[w.market] ?? w.market)}</span>
+                  <span className={s.noTrend}>{t('暂无走势')}</span>
+                  <span className={s.unavailable}>{t('行情不可用')}</span>
                   <span className={s.noChange}>--</span>
-                  <span className={s.openAction} aria-label={`评估 ${w.sym}`}>
-                    <span>评估</span><IconChevron size={15} />
+                  <span className={s.openAction} aria-label={`${t('评估')} ${w.sym}`}>
+                    <span>{t('评估')}</span><IconChevron size={15} />
                   </span>
                 </Link>
               )
@@ -232,19 +235,19 @@ export default function Watchlist({
                   <span className={`mono ${s.symbol}`}>{w.sym}</span>
                   <span className={s.name}>{w.name}</span>
                 </div>
-                <span className={s.market}>{MARKET_LABELS[w.market] ?? w.market}</span>
+                <span className={s.market}>{t(MARKET_LABELS[w.market] ?? w.market)}</span>
                 <MiniSpark sym={w.sym} up={up} />
                 <span className={`mono ${s.price}`}>{fmt(w.price)}</span>
                 <span className={`mono ${s.change} ${up ? 'up' : 'down'}`}>
                   {up ? '+' : ''}{(w.chgPct ?? 0).toFixed(2)}%
                 </span>
-                <span className={s.openAction} aria-label={`评估 ${w.sym}`}>
-                  <span>评估</span><IconChevron size={15} />
+                <span className={s.openAction} aria-label={`${t('评估')} ${w.sym}`}>
+                  <span>{t('评估')}</span><IconChevron size={15} />
                 </span>
               </Link>
             )
           })}
-          {rows.length === 0 && <div className={s.emptyState}>还没有关注标的，点击“管理”添加。</div>}
+          {rows.length === 0 && <div className={s.emptyState}>{t('还没有关注标的，点击“管理”添加。')}</div>}
         </div>
       )}
     </div>

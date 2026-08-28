@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { CSSProperties } from 'react'
 import type { MarketBreadthResp } from '../api/types'
 import s from './MarketBreadth.module.css'
+import { useLanguage } from '../i18n'
 
 const PREVIEW_COUNT = 4
 
@@ -11,17 +12,18 @@ export default function MarketBreadth({
   data?: MarketBreadthResp | null
 }) {
   const [expanded, setExpanded] = useState(false)
+  const { t } = useLanguage()
   // M3 无假数据：没有后端返回时渲染空态，不使用任何硬编码广度/行业数据
   if (!data) {
     return (
       <div className={`card ${s.card}`}>
         <div className="card-head">
           <div className="card-title">
-            市场广度 <span className="sub">暂无数据</span>
+            {t('市场广度')} <span className="sub">{t('暂无数据')}</span>
           </div>
         </div>
         <div className={s.body}>
-          <div className={`muted ${s.note}`}>未取到市场广度数据，稍后重试或检查数据源状态。</div>
+          <div className={`muted ${s.note}`}>{t('未取到市场广度数据，稍后重试或检查数据源状态。')}</div>
         </div>
       </div>
     )
@@ -39,8 +41,8 @@ export default function MarketBreadth({
     <div className={`card ${s.card}`}>
       <div className="card-head">
         <div className="card-title">
-          市场广度 <span className="sub">{marketTone}</span>
-          {b.sample && <span className={`src-pill warn ${s.samplePill}`}>样本</span>}
+          {t('市场广度')} <span className="sub">{t(marketTone)}</span>
+          {b.sample && <span className={`src-pill warn ${s.samplePill}`}>{t('样本')}</span>}
         </div>
       </div>
       <div className={s.body}>
@@ -48,7 +50,7 @@ export default function MarketBreadth({
         <div
           className={s.bar}
           role="img"
-          aria-label={`上涨 ${b.up} 平 ${b.flat} 下跌 ${b.down}`}
+          aria-label={`${t('上涨')} ${b.up} ${t('平')} ${b.flat} ${t('下跌')} ${b.down}`}
         >
           <i
             className={`${s.barSeg} ${s.barSegUp}`}
@@ -65,18 +67,18 @@ export default function MarketBreadth({
         </div>
         <div className={s.legend}>
           <span className="up">
-            涨 <b>{b.up}</b> ({pct(b.up)}%)
+            {t('涨')} <b>{b.up}</b> ({pct(b.up)}%)
           </span>
           <span className="sec">
-            平 <b>{b.flat}</b>
+            {t('平')} <b>{b.flat}</b>
           </span>
           <span className="down">
-            跌 <b>{b.down}</b> ({pct(b.down)}%)
+            {t('跌')} <b>{b.down}</b> ({pct(b.down)}%)
           </span>
         </div>
 
         <div className={s.sectors}>
-          {visible.length === 0 && <div className={`muted ${s.note}`}>暂无行业涨跌数据</div>}
+          {visible.length === 0 && <div className={`muted ${s.note}`}>{t('暂无行业涨跌数据')}</div>}
           {visible.map((sec) => {
             const up = sec.chgPct >= 0
             return (
@@ -97,7 +99,7 @@ export default function MarketBreadth({
             className={s.toggle}
             onClick={() => setExpanded((v) => !v)}
           >
-            {expanded ? '收起行业' : `展开 ${hidden} 个行业`}
+            {expanded ? t('收起行业') : `${t('展开')} ${hidden} ${t('个行业')}`}
           </button>
         )}
       </div>

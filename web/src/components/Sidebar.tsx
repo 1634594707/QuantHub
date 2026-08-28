@@ -12,6 +12,7 @@ import type { WorkspaceProfile } from '../api/types'
 import { strategyRouteId, useNavigationPreferences } from '../navigation/navigationPreferences'
 import { IconChevron } from './icons'
 import { Star } from 'lucide-react'
+import { useLanguage } from '../i18n'
 
 interface Props {
   collapsed: boolean
@@ -35,6 +36,7 @@ export default function Sidebar({
   workspaceProfile,
 }: Props) {
   const location = useLocation()
+  const { locale, t } = useLanguage()
   const activeWorkspace = workspaceForPath(location.pathname)
   const {
     hiddenWorkspaceIds,
@@ -58,14 +60,14 @@ export default function Sidebar({
   return (
     <aside
       className={`sidebar ${collapsed ? 'collapsed' : ''} ${mobileOpen ? 'mobile-open' : ''}`}
-      aria-label="工作区导航"
+      aria-label={t('工作区导航')}
     >
       <div className="workspace-rail">
-        <NavLink className="rail-brand" to="/" onClick={onNavigate} aria-label="QuantHub 驾驶舱">
+        <NavLink className="rail-brand" to="/" onClick={onNavigate} aria-label={`QuantHub ${t('驾驶舱')}`}>
           <span>Q</span>
         </NavLink>
 
-        <nav className="workspace-tabs" aria-label="一级工作区">
+        <nav className="workspace-tabs" aria-label={t('一级工作区')}>
           {visibleWorkspaces.map((workspace) => {
             const Icon = workspace.icon
             const active = workspace.key === activeWorkspace.key
@@ -75,12 +77,12 @@ export default function Sidebar({
                 to={workspace.to}
                 className={`workspace-tab ${active ? 'active' : ''}`}
                 onClick={onNavigate}
-                title={workspace.label}
-                aria-label={workspace.label}
+                title={t(workspace.label)}
+                aria-label={t(workspace.label)}
                 aria-current={active ? 'page' : undefined}
               >
                 <Icon size={20} />
-                <span>{workspace.shortLabel}</span>
+                <span>{t(workspace.shortLabel)}</span>
               </NavLink>
             )
           })}
@@ -90,9 +92,9 @@ export default function Sidebar({
           type="button"
           className="rail-collapse"
           onClick={onToggleCollapse}
-          aria-label="展开侧边栏"
+          aria-label={t('展开侧边栏')}
           aria-pressed={collapsed}
-          title="展开侧边栏"
+          title={t('展开侧边栏')}
         >
           <IconChevron size={16} />
         </button>
@@ -102,34 +104,36 @@ export default function Sidebar({
         <header className="context-nav-head">
           <div>
             <strong>QuantHub</strong>
-            <span>{activeWorkspace.label}工作区</span>
+            <span>{t(activeWorkspace.label)}{locale === 'en' ? ' ' : ''}{t('工作区')}</span>
           </div>
           <div className="context-nav-tools">
             <span className="context-nav-count">
-              {activeWorkspace.key === 'strategy' ? `${strategyCount ?? 0} 策略` : `${activeWorkspace.items.length} 入口`}
+              {activeWorkspace.key === 'strategy'
+                ? locale === 'en' ? `${strategyCount ?? 0} ${t('策略')}` : `${strategyCount ?? 0} 策略`
+                : locale === 'en' ? `${activeWorkspace.items.length} ${t('入口')}` : `${activeWorkspace.items.length} 入口`}
             </span>
             <button
               type="button"
               className="context-collapse"
               onClick={onToggleCollapse}
-              aria-label="收起侧边栏"
-              title="收起侧边栏"
+              aria-label={t('收起侧边栏')}
+              title={t('收起侧边栏')}
             >
               <IconChevron size={15} className="chevron-flip" />
             </button>
           </div>
         </header>
 
-        <nav className="context-nav" aria-label={`${activeWorkspace.label}二级导航`}>
+        <nav className="context-nav" aria-label={`${t(activeWorkspace.label)} ${t('二级导航')}`}>
           {pinnedItems.length > 0 ? (
             <div className="context-pinned">
-              <span className="context-strategies-label">钉选入口</span>
+              <span className="context-strategies-label">{t('钉选入口')}</span>
               {pinnedItems.map((item) => {
                 const Icon = item.icon
                 return (
                   <NavLink key={item.key} to={item.to} className="context-pinned-item" onClick={onNavigate}>
                     <Icon size={15} />
-                    <span>{item.label}</span>
+                    <span>{t(item.label)}</span>
                   </NavLink>
                 )
               })}
@@ -158,8 +162,8 @@ export default function Sidebar({
                   type="button"
                   className={`context-pin ${pinnedRouteIds.includes(item.key) ? 'active' : ''}`}
                   onClick={() => togglePinnedRoute(item.key)}
-                  aria-label={`${pinnedRouteIds.includes(item.key) ? '取消钉选' : '钉选'}${item.label}`}
-                  title={`${pinnedRouteIds.includes(item.key) ? '取消钉选' : '钉选'}${item.label}`}
+                  aria-label={`${t(pinnedRouteIds.includes(item.key) ? '取消钉选' : '钉选')}${t(item.label)}`}
+                  title={`${t(pinnedRouteIds.includes(item.key) ? '取消钉选' : '钉选')}${t(item.label)}`}
                 >
                   <Star size={14} fill={pinnedRouteIds.includes(item.key) ? 'currentColor' : 'none'} />
                 </button>
@@ -169,7 +173,7 @@ export default function Sidebar({
 
           {activeWorkspace.key === 'strategy' && visibleStrategies.length > 0 ? (
             <div className="context-strategies">
-              <span className="context-strategies-label">收藏与最近使用</span>
+              <span className="context-strategies-label">{t('收藏与最近使用')}</span>
               {visibleStrategies.map((strategy) => (
                 <div className="context-strategy-row" key={strategy.name}>
                   <NavLink
@@ -185,8 +189,8 @@ export default function Sidebar({
                     type="button"
                     className={`context-pin ${pinnedRouteIds.includes(strategyRouteId(strategy.name)) ? 'active' : ''}`}
                     onClick={() => togglePinnedRoute(strategyRouteId(strategy.name))}
-                    aria-label={`${pinnedRouteIds.includes(strategyRouteId(strategy.name)) ? '取消收藏' : '收藏'}策略 ${strategy.name}`}
-                    title={`${pinnedRouteIds.includes(strategyRouteId(strategy.name)) ? '取消收藏' : '收藏'}策略`}
+                    aria-label={`${t(pinnedRouteIds.includes(strategyRouteId(strategy.name)) ? '取消收藏' : '收藏')}${t('策略')} ${strategy.name}`}
+                    title={`${t(pinnedRouteIds.includes(strategyRouteId(strategy.name)) ? '取消收藏' : '收藏')}${t('策略')}`}
                   >
                     <Star size={14} fill={pinnedRouteIds.includes(strategyRouteId(strategy.name)) ? 'currentColor' : 'none'} />
                   </button>

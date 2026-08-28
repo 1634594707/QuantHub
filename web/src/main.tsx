@@ -2,6 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { createBrowserRouter, RouterProvider } from 'react-router-dom'
 import { ThemeProvider } from './theme/ThemeContext'
+import { LanguageProvider } from './i18n'
 import { InterfaceModeProvider } from './hooks/useInterfaceMode'
 import App from './App'
 import NotFoundPage from './pages/NotFoundPage'
@@ -70,9 +71,11 @@ const router = createBrowserRouter([
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ThemeProvider>
-      <InterfaceModeProvider>
-        <RouterProvider router={router} />
-      </InterfaceModeProvider>
+      <LanguageProvider>
+        <InterfaceModeProvider>
+          <RouterProvider router={router} />
+        </InterfaceModeProvider>
+      </LanguageProvider>
     </ThemeProvider>
   </React.StrictMode>,
 )

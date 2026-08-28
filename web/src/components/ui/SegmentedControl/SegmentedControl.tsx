@@ -16,6 +16,7 @@ interface SegmentedControlProps {
   size?: Size
   fullWidth?: boolean
   className?: string
+  ariaLabel?: string
 }
 
 const SIZE_CLASS: Record<Size, string> = {
@@ -30,10 +31,12 @@ export function SegmentedControl({
   size = 'md',
   fullWidth = false,
   className,
+  ariaLabel,
 }: SegmentedControlProps) {
   return (
     <div
       role="tablist"
+      aria-label={ariaLabel}
       className={[
         s.seg,
         SIZE_CLASS[size],

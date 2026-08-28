@@ -5,6 +5,7 @@ import type { ReactNode } from 'react'
 import { Button } from '../Button/Button'
 import { Spinner } from '../Spinner/Spinner'
 import s from './EmptyState.module.css'
+import { useLanguage } from '../../../i18n'
 
 type Variant = 'default' | 'error' | 'no-data' | 'loading'
 
@@ -41,11 +42,14 @@ export function EmptyState({
   icon,
   className,
 }: EmptyStateProps) {
+  const { t } = useLanguage()
+  const translateNode = (value: ReactNode) => typeof value === 'string' ? t(value) : value
+
   if (variant === 'loading') {
     return (
       <div className={[s.wrap, s.loading, className ?? ''].filter(Boolean).join(' ')}>
         <Spinner size="lg" />
-        <div className={s.title}>{title}</div>
+        <div className={s.title}>{translateNode(title)}</div>
       </div>
     )
   }
@@ -56,8 +60,8 @@ export function EmptyState({
       role={variant === 'error' ? 'alert' : undefined}
     >
       {icon && <div className={s.icon}>{icon}</div>}
-      <div className={s.title}>{title}</div>
-      {desc && <div className={s.desc}>{desc}</div>}
+      <div className={s.title}>{translateNode(title)}</div>
+      {desc && <div className={s.desc}>{translateNode(desc)}</div>}
       {action && (
         <Button
           variant={variant === 'error' ? 'danger' : 'primary'}
@@ -67,7 +71,7 @@ export function EmptyState({
           disabled={action.disabled}
           className={s.action}
         >
-          {action.label}
+          {t(action.label)}
         </Button>
       )}
     </div>
@@ -86,12 +90,14 @@ export function ErrorState({
   retrying?: boolean
   className?: string
 }) {
+  const { t } = useLanguage()
+
   return (
     <EmptyState
       variant="error"
-      title="⚠ 请求失败"
+      title={t('⚠ 请求失败')}
       desc={message}
-      action={onRetry ? { label: '重试', onClick: onRetry, loading: retrying } : undefined}
+      action={onRetry ? { label: t('重试'), onClick: onRetry, loading: retrying } : undefined}
       className={className}
     />
   )

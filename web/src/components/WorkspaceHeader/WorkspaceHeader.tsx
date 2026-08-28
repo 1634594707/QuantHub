@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import s from './WorkspaceHeader.module.css'
+import { useLanguage } from '../../i18n'
 
 export interface WorkspaceHeaderMetric {
   label: ReactNode
@@ -23,13 +24,16 @@ export function WorkspaceHeader({
   action,
   ariaLabel,
 }: Props) {
+  const { t } = useLanguage()
+  const translateNode = (value: ReactNode) => typeof value === 'string' ? t(value) : value
+
   return (
-    <header className={s.header} aria-label={ariaLabel ?? context}>
+    <header className={s.header} aria-label={t(ariaLabel ?? context)}>
       <div className={s.identity}>
-        <span className={s.context}>{context}</span>
+        <span className={s.context}>{t(context)}</span>
         <div className={s.titleLine}>
-          <h1>{title}</h1>
-          {description ? <p>{description}</p> : null}
+          <h1>{translateNode(title)}</h1>
+          {description ? <p>{translateNode(description)}</p> : null}
         </div>
       </div>
 
@@ -37,8 +41,8 @@ export function WorkspaceHeader({
         <dl className={s.metrics}>
           {metrics.map((metric, index) => (
             <div key={index} className={s.metric}>
-              <dt>{metric.label}</dt>
-              <dd>{metric.value}</dd>
+              <dt>{translateNode(metric.label)}</dt>
+              <dd>{translateNode(metric.value)}</dd>
             </div>
           ))}
         </dl>

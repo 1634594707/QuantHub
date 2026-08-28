@@ -13,6 +13,7 @@ import { useInterfaceMode, type InterfaceMode } from './hooks/useInterfaceMode'
 import { useNavigationPreferences } from './navigation/navigationPreferences'
 import { ApiRestartNotice } from './components/ApiRestartNotice'
 import { InterfaceModeSetup } from './components/InterfaceModeSetup/InterfaceModeSetup'
+import { useLanguage } from './i18n'
 
 export default function App() {
   const [interfaceMode, setInterfaceMode, workspaceProfile, setWorkspaceProfile] = useInterfaceMode()
@@ -35,6 +36,7 @@ export function AppShell({
   const [mobileOpen, setMobileOpen] = useState(false)
   const [cmdkOpen, setCmdkOpen] = useState(false)
   const { pathname, hash } = useLocation()
+  const { t } = useLanguage()
   const presentation = presentationForPath(pathname)
   const board = presentation.board
   const workspace = workspaceForPath(pathname)
@@ -104,7 +106,7 @@ export function AppShell({
         type="button"
         className="scrim"
         onClick={() => setMobileOpen(false)}
-        aria-label="关闭导航"
+        aria-label={t('关闭导航')}
       />
       <Sidebar
         collapsed={collapsed}
@@ -123,8 +125,8 @@ export function AppShell({
           connectionState={connectionState}
           signalCount={advancedShellDataEnabled ? signalCount : null}
           onOpenCmdk={() => setCmdkOpen(true)}
-          workspaceLabel={workspace.label}
-          pageLabel={presentation.label}
+          workspaceLabel={t(workspace.label)}
+          pageLabel={t(presentation.label)}
           interfaceMode={interfaceMode}
           onInterfaceModeChange={onInterfaceModeChange}
           workspaceProfile={workspaceProfile}
@@ -135,12 +137,12 @@ export function AppShell({
           {!isPathVisibleInMode(interfaceMode, pathname, workspaceProfile) ? (
             <div className="mode-scope-notice" role="status">
               <div>
-                <strong>此页面不在精简界面导航中</strong>
-                <span>页面仍可使用；切换到完整界面后会恢复对应导航入口。</span>
+                <strong>{t('此页面不在精简界面导航中')}</strong>
+                <span>{t('页面仍可使用；切换到完整界面后会恢复对应导航入口。')}</span>
               </div>
               <div>
-                <Link to="/">返回总览</Link>
-                <button type="button" onClick={() => onInterfaceModeChange('advanced')}>切换到完整界面</button>
+                <Link to="/">{t('返回总览')}</Link>
+                <button type="button" onClick={() => onInterfaceModeChange('advanced')}>{t('切换到完整界面')}</button>
               </div>
             </div>
           ) : null}
@@ -151,7 +153,7 @@ export function AppShell({
         {showContextStatus ? <StatusBar
           connectionState={connectionState}
           reconnecting={reconnecting}
-          boardLabel={presentation.label}
+          boardLabel={t(presentation.label)}
           updatedAt={lastUpdatedAt}
         /> : null}
         <CommandPalette open={cmdkOpen} onClose={() => setCmdkOpen(false)} interfaceMode={interfaceMode} />

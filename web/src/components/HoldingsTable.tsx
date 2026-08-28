@@ -5,6 +5,7 @@ import { Select } from './ui/Select/Select'
 import { IconButton } from './ui/IconButton/IconButton'
 import { Table } from './ui/Table'
 import s from './HoldingsTable.module.css'
+import { useLanguage } from '../i18n'
 
 const fmt = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 2 })
 const fmtInt = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 0 })
@@ -59,16 +60,17 @@ export default function HoldingsTable({
   saveError = '',
   resolvingIds = new Set(),
 }: Props) {
+  const { t } = useLanguage()
   return (
     <div className="card">
       <div className="card-head">
         <div className="card-title">
-          研究组合持仓 <span className="sub">{rows.length} 只</span>
+          {t('研究组合持仓')} <span className="sub">{rows.length} {t('只')}</span>
         </div>
         {editing ? (
           <div className={s.headActions}>
             <Button variant="link" size="sm" onClick={onAdd}>
-              + 添加
+              + {t('添加')}
             </Button>
             <Button
               variant="primary"
@@ -77,12 +79,12 @@ export default function HoldingsTable({
               loading={saving}
               disabled={saving}
             >
-              {saving ? '保存中…' : '完成'}
+              {saving ? t('保存中…') : t('完成')}
             </Button>
           </div>
         ) : (
           <Button variant="link" size="sm" onClick={onToggleEdit}>
-            编辑
+            {t('编辑')}
           </Button>
         )}
       </div>
@@ -93,7 +95,7 @@ export default function HoldingsTable({
             <div className={`edit-row ${s.editRow}`} key={r.id}>
               <Input
                 className="edit-input"
-                placeholder="代码"
+                placeholder={t('代码')}
                 value={r.code}
                 onChange={(e) => {
                   const code = e.target.value.toUpperCase()
@@ -103,14 +105,14 @@ export default function HoldingsTable({
               />
               <Input
                 className="edit-input"
-                placeholder={resolvingIds.has(r.id) ? '识别中…' : '名称'}
+                placeholder={t(resolvingIds.has(r.id) ? '识别中…' : '名称')}
                 value={r.name}
                 aria-busy={resolvingIds.has(r.id)}
                 onChange={(e) => onUpdate(r.id, { name: e.target.value })}
               />
               <Select
                 className="edit-input"
-                options={MARKETS}
+                options={MARKETS.map((market) => ({ ...market, label: t(market.label) }))}
                 value={r.market}
                 onChange={(e) => {
                   const market = e.target.value
@@ -121,22 +123,22 @@ export default function HoldingsTable({
               <Input
                 className={`edit-input num ${s.numInput}`}
                 type="number"
-                placeholder="股数"
+                placeholder={t('股数')}
                 value={r.shares}
                 onChange={(e) => onUpdate(r.id, { shares: Number(e.target.value) || 0 })}
               />
               <Input
                 className={`edit-input num ${s.numInput}`}
                 type="number"
-                placeholder="成本"
+                placeholder={t('成本')}
                 value={r.cost}
                 onChange={(e) => onUpdate(r.id, { cost: Number(e.target.value) || 0 })}
               />
               <IconButton
                 variant="ghost"
                 size="sm"
-                label="删除持仓"
-                title="删除持仓"
+                label={t('删除持仓')}
+                title={t('删除持仓')}
                 onClick={() => onRemove(r.id)}
               >
                 ✕
@@ -145,7 +147,7 @@ export default function HoldingsTable({
           ))}
           {rows.length === 0 && (
             <div className={`muted ${s.emptyHint}`}>
-              暂无持仓
+              {t('暂无持仓')}
             </div>
           )}
           {saveError && <div className="edit-save-error" role="alert">{saveError}</div>}
@@ -157,7 +159,7 @@ export default function HoldingsTable({
           columns={[
             {
               key: 'name',
-              header: '标的',
+              header: t('标的'),
               render: (r) => (
                 <div className="sym">
                   <div className="sym-badge">{r.name.slice(0, 1)}</div>
@@ -170,14 +172,14 @@ export default function HoldingsTable({
             },
             {
               key: 'price',
-              header: '最新价',
+              header: t('最新价'),
               align: 'right',
               render: (r) =>
-                r.available && r.price != null ? <span className="mono">{fmt(r.price)}</span> : <span className="watch-unavail">无行情</span>,
+                r.available && r.price != null ? <span className="mono">{fmt(r.price)}</span> : <span className="watch-unavail">{t('无行情')}</span>,
             },
             {
               key: 'chg',
-              header: '涨跌幅',
+              header: t('涨跌幅'),
               align: 'right',
               render: (r) => {
                 const up = (r.chgPct ?? 0) >= 0
@@ -188,20 +190,20 @@ export default function HoldingsTable({
             },
             {
               key: 'shares',
-              header: '持仓',
+              header: t('持仓'),
               align: 'right',
               render: (r) => <span className="mono">{fmtInt(r.shares)}</span>,
             },
             {
               key: 'marketValue',
-              header: '市值',
+              header: t('市值'),
               align: 'right',
               render: (r) =>
                 r.marketValue == null ? <span className="watch-unavail">—</span> : <span className="mono">{fmtInt(r.marketValue)}</span>,
             },
             {
               key: 'pnl',
-              header: '浮动盈亏',
+              header: t('浮动盈亏'),
               align: 'right',
               render: (r) => {
                 const pnlUp = (r.pnl ?? 0) >= 0
@@ -212,12 +214,12 @@ export default function HoldingsTable({
             },
             {
               key: 'return',
-              header: '收益率',
+              header: t('收益率'),
               render: (r) => {
                 const hasValuation = r.available && r.price != null && r.marketValue != null && r.pnl != null
                 return hasValuation && r.price != null
                   ? <ReturnBar ret={(r.price - r.cost) / r.cost * 100} />
-                  : <span className="watch-unavail">无行情</span>
+                  : <span className="watch-unavail">{t('无行情')}</span>
               },
             },
           ]}

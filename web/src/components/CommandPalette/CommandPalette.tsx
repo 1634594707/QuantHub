@@ -15,6 +15,7 @@ import type {
 } from '../../api/types'
 import { researchRunHref } from '../../lib/researchResults'
 import { IconSearch } from '../icons'
+import { useLanguage } from '../../i18n'
 import styles from './CommandPalette.module.css'
 
 type CommandGroup =
@@ -163,8 +164,8 @@ function includesQuery(query: string, values: Array<string | null | undefined>):
   return values.some((value) => value?.toLocaleLowerCase().includes(query))
 }
 
-function staticMatches(item: CommandItem, query: string): boolean {
-  return !query || includesQuery(query, [item.label, item.detail, item.path, item.keywords])
+function staticMatches(item: CommandItem, query: string, translate: (source: string) => string): boolean {
+  return !query || includesQuery(query, [item.label, item.detail, item.path, item.keywords, translate(item.label), translate(item.detail)])
 }
 
 function instrumentItems(rows: Instrument[], query: string): CommandItem[] {
@@ -266,6 +267,7 @@ interface CommandPaletteProps {
 }
 
 export function CommandPalette({ open, onClose, interfaceMode }: CommandPaletteProps) {
+  const { locale, t } = useLanguage()
   const [query, setQuery] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
   const [searchRevision, setSearchRevision] = useState(0)
@@ -295,8 +297,8 @@ export function CommandPalette({ open, onClose, interfaceMode }: CommandPaletteP
         return true
       }),
       ...pageCommands(interfaceMode, hiddenWorkspaceIds),
-    ].filter((item) => staticMatches(item, normalizedQuery)),
-    [hiddenWorkspaceIds, interfaceMode, normalizedQuery, recentRouteIds],
+    ].filter((item) => staticMatches(item, normalizedQuery, t)),
+    [hiddenWorkspaceIds, interfaceMode, normalizedQuery, recentRouteIds, t],
   )
   const businessItems = business.query === normalizedQuery
     ? business.items.filter((item) => interfaceMode === 'advanced' || ['instruments', 'research', 'orders'].includes(item.group))
@@ -441,7 +443,7 @@ export function CommandPalette({ open, onClose, interfaceMode }: CommandPaletteP
       className={styles.backdrop}
       role="dialog"
       aria-modal="true"
-      aria-label="全局检索"
+      aria-label={t('全局检索')}
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose()
       }}
@@ -452,30 +454,30 @@ export function CommandPalette({ open, onClose, interfaceMode }: CommandPaletteP
           <input
             ref={inputRef}
             className={styles.input}
-            placeholder="搜标的、策略、信号、订单…"
+            placeholder={t('搜标的、策略、信号、订单…')}
             value={query}
             onChange={(event) => {
               setQuery(event.target.value)
               setActiveIndex(0)
             }}
-            aria-label="全局业务搜索"
+            aria-label={t('全局业务搜索')}
             aria-controls="global-command-results"
             aria-activedescendant={items[activeIndex] ? `command-${items[activeIndex].id}` : undefined}
             autoComplete="off"
           />
-          <span className={styles.resultCount}>{business.loading ? '搜索中' : `${items.length} 项`}</span>
+          <span className={styles.resultCount}>{business.loading ? t('搜索中') : locale === 'en' ? `${items.length} ${t('项')}` : `${items.length} 项`}</span>
         </div>
 
         <div
           id="global-command-results"
           className={styles.list}
           role="listbox"
-          aria-label="检索结果"
+          aria-label={t('检索结果')}
           aria-busy={business.loading}
         >
           {groupedItems.map((section) => (
-            <section className={styles.group} key={section.group} aria-label={GROUP_LABELS[section.group]}>
-              <div className={styles.groupLabel}>{GROUP_LABELS[section.group]}</div>
+            <section className={styles.group} key={section.group} aria-label={t(GROUP_LABELS[section.group])}>
+              <div className={styles.groupLabel}>{t(GROUP_LABELS[section.group])}</div>
               {section.items.map((item) => {
                 const index = indexById.get(item.id) ?? 0
                 const active = index === activeIndex
@@ -495,8 +497,8 @@ export function CommandPalette({ open, onClose, interfaceMode }: CommandPaletteP
                     <button type="button" className={styles.itemMain} onClick={() => go(item.path)}>
                       <span className={styles.marker} aria-hidden="true">{item.marker}</span>
                       <span className={styles.itemCopy}>
-                        <b>{item.label}</b>
-                        {item.detail ? <small>{item.detail}</small> : null}
+                        <b>{t(item.label)}</b>
+                        {item.detail ? <small>{t(item.detail)}</small> : null}
                       </span>
                     </button>
                     {item.secondaryLabel && item.secondaryPath && (
@@ -505,7 +507,7 @@ export function CommandPalette({ open, onClose, interfaceMode }: CommandPaletteP
                         className={styles.secondaryAction}
                         onClick={() => go(item.secondaryPath!)}
                       >
-                        {item.secondaryLabel}
+                        {t(item.secondaryLabel)}
                       </button>
                     )}
                   </div>
@@ -517,14 +519,14 @@ export function CommandPalette({ open, onClose, interfaceMode }: CommandPaletteP
           {business.loading && (
             <div className={styles.state} role="status">
               <span className={styles.loader} aria-hidden="true" />
-              正在搜索
+              {t('正在搜索')}
             </div>
           )}
-          {showEmpty && <div className={styles.state}>无匹配结果</div>}
+          {showEmpty && <div className={styles.state}>{t('无匹配结果')}</div>}
           {business.errorCount > 0 && !business.loading && (
             <div className={styles.errorNotice} role="status">
-              <span>业务数据未载入</span>
-              <button type="button" onClick={() => setSearchRevision((value) => value + 1)}>重新检索</button>
+              <span>{t('业务数据未载入')}</span>
+              <button type="button" onClick={() => setSearchRevision((value) => value + 1)}>{t('重新检索')}</button>
             </div>
           )}
         </div>

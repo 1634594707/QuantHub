@@ -12,6 +12,7 @@ import type {
 import { useApi } from '../api/useApi'
 import { ContractStatusBar } from '../components/contract/ContractStatusBar'
 import { WORKSPACE_QUICK_LINKS } from '../navigation/keyFlows'
+import { useLanguage } from '../i18n'
 import { WorkspaceHeader } from '../components/WorkspaceHeader/WorkspaceHeader'
 import { Badge } from '../components/ui/Badge/Badge'
 import { Button } from '../components/ui/Button/Button'
@@ -99,6 +100,7 @@ function statusVariant(status: string): 'neutral' | 'up' | 'down' | 'warn' | 'in
 }
 
 export default function TradingWorkspacePage() {
+  const { t } = useLanguage()
   const health = useApi(() => api.tradingHealth(), [], { retry: false, pollInterval: 20000 })
   const preflight = useApi(() => api.tradingPreflight(), [], { retry: false, pollInterval: 60000 })
   const dashboard = useApi(() => api.tradingDashboard(), [], { retry: false, pollInterval: 15000 })
@@ -368,15 +370,15 @@ export default function TradingWorkspacePage() {
         title="Demo 交易台"
         description="策略版本、订单与 OKX 状态"
         metrics={[
-          { label: '环境', value: <Badge variant={environment === 'live' ? 'down' : environment === 'demo' ? 'warn' : 'neutral'} dot>{ENVIRONMENT_LABELS[environment ?? ''] ?? '未知'}</Badge> },
-          { label: '风险', value: <Badge variant={globalRisk?.mode === 'normal' ? 'up' : 'warn'} dot>{globalRisk?.mode ?? '未知'}</Badge> },
+          { label: '环境', value: <Badge variant={environment === 'live' ? 'down' : environment === 'demo' ? 'warn' : 'neutral'} dot>{t(ENVIRONMENT_LABELS[environment ?? ''] ?? '未知')}</Badge> },
+          { label: '风险', value: <Badge variant={globalRisk?.mode === 'normal' ? 'up' : 'warn'} dot>{globalRisk?.mode ?? t('未知')}</Badge> },
           { label: '策略版本', value: dashboardData?.strategies.length ?? 0 },
           { label: '开放差异', value: openDiffs.length },
         ]}
       />
 
-      <nav className={s.crossLinks} aria-label="交易工作区快捷入口">
-        {(WORKSPACE_QUICK_LINKS['/trading'] ?? []).map((link) => <Link key={link.to} to={link.to}>{link.label}</Link>)}
+      <nav className={s.crossLinks} aria-label={t('交易工作区快捷入口')}>
+        {(WORKSPACE_QUICK_LINKS['/trading'] ?? []).map((link) => <Link key={link.to} to={link.to}>{t(link.label)}</Link>)}
       </nav>
 
       <div className={s.statusStack}>
@@ -384,15 +386,15 @@ export default function TradingWorkspacePage() {
         <ContractStatusBar envelope={preflight.data ?? null} transportError={preflight.error} label="OKX 预检" />
       </div>
 
-      <section className={s.operationStrip} aria-label="Demo 交易状态">
-        <div><span>连接</span><strong>{reachable ? 'Runner 在线' : '不可达'}</strong><small>{dashboardData?.account_status.connected ? '账户快照已同步' : '等待账户快照'}</small></div>
-        <div><span>合约规则</span><strong>{instrument ? `${instrument.minimum_quantity} 张起` : '读取中'}</strong><small>{instrument ? `步长 ${instrument.quantity_step} · tick ${instrument.price_tick}` : '来自 OKX'}</small></div>
-        <div><span>时间偏差</span><strong>{preflight.data?.data?.clock.absolute_drift_ms ?? '—'} ms</strong><small>{preflight.data?.data?.clock.within_tolerance ? '签名时间正常' : '需要校时'}</small></div>
-        <div><span>IP 白名单</span><strong>{preflight.data?.data?.ip_whitelist.status === 'configured' ? '已配置' : 'Demo 未配置'}</strong><small>实盘前必须配置</small></div>
+      <section className={s.operationStrip} aria-label={t('Demo 交易状态')}>
+        <div><span>{t('连接')}</span><strong>{reachable ? t('Runner 在线') : t('不可达')}</strong><small>{dashboardData?.account_status.connected ? t('账户快照已同步') : t('等待账户快照')}</small></div>
+        <div><span>{t('合约规则')}</span><strong>{instrument ? `${instrument.minimum_quantity} ${t('张起')}` : t('读取中')}</strong><small>{instrument ? `${t('步长')} ${instrument.quantity_step} · tick ${instrument.price_tick}` : t('来自 OKX')}</small></div>
+        <div><span>{t('时间偏差')}</span><strong>{preflight.data?.data?.clock.absolute_drift_ms ?? '—'} ms</strong><small>{preflight.data?.data?.clock.within_tolerance ? t('签名时间正常') : t('需要校时')}</small></div>
+        <div><span>{t('IP 白名单')}</span><strong>{preflight.data?.data?.ip_whitelist.status === 'configured' ? t('已配置') : t('Demo 未配置')}</strong><small>{t('实盘前必须配置')}</small></div>
       </section>
 
-      {disabledReason ? <div className={s.blocked} role="alert"><ShieldAlert size={17} /><strong>新订单已锁定</strong><span>{disabledReason}</span></div> : null}
-      {openDiffs.length ? <div className={s.diffAlert} role="alert"><ShieldAlert size={17} /><span>存在 {openDiffs.length} 项未解决对账差异，已阻止继续下单。</span><Link to="/account-risk">去账户风控处理</Link></div> : null}
+      {disabledReason ? <div className={s.blocked} role="alert"><ShieldAlert size={17} /><strong>{t('新订单已锁定')}</strong><span>{disabledReason}</span></div> : null}
+      {openDiffs.length ? <div className={s.diffAlert} role="alert"><ShieldAlert size={17} /><span>{t('存在')} {openDiffs.length} {t('项未解决对账差异，已阻止继续下单。')}</span><Link to="/account-risk">{t('去账户风控处理')}</Link></div> : null}
 
       <Panel
         title="账户权益、收益与持仓"

@@ -3,6 +3,7 @@
 import { Fragment, type KeyboardEvent, type ReactNode } from 'react'
 import { EmptyState } from '../EmptyState/EmptyState'
 import s from './Table.module.css'
+import { useLanguage } from '../../../i18n'
 
 type Density = 'comfortable' | 'compact'
 type Align = 'left' | 'center' | 'right'
@@ -77,6 +78,9 @@ export function Table<T>({
   empty,
   className,
 }: TableProps<T>) {
+  const { t } = useLanguage()
+  const translateNode = (value: ReactNode) => typeof value === 'string' ? t(value) : value
+
   if (rows.length === 0) {
     return (
       <div className={s.emptyWrap}>
@@ -96,7 +100,7 @@ export function Table<T>({
                 className={ALIGN_CLASS[col.align ?? 'left']}
                 style={col.width ? { width: col.width } : undefined}
               >
-                {col.header}
+                {translateNode(col.header)}
               </th>
             ))}
           </tr>

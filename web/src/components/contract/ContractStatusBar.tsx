@@ -1,6 +1,7 @@
 import { Badge } from '../ui/Badge/Badge'
 import type { ContractEnvelope, ContractStatus } from '../../api/types'
 import s from './ContractStatusBar.module.css'
+import { useLanguage } from '../../i18n'
 
 /**
  * 统一数据来源与新鲜度状态条（M3-03 / M3-04）。
@@ -25,20 +26,6 @@ const SOURCE_KIND_LABELS: Record<string, string> = {
   none: '未配置',
 }
 
-function formatObservedAt(value: string | null): string {
-  if (!value) return '无观测时间'
-  const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime())) return value
-  return parsed.toLocaleString('zh-CN', { hour12: false })
-}
-
-function formatAge(seconds: number): string {
-  if (!Number.isFinite(seconds) || seconds < 0) return '—'
-  if (seconds < 60) return `${Math.round(seconds)} 秒前`
-  if (seconds < 3600) return `${Math.round(seconds / 60)} 分钟前`
-  return `${(seconds / 3600).toFixed(1)} 小时前`
-}
-
 interface Props {
   envelope: ContractEnvelope<unknown> | null
   /** 请求本身失败（网络层/HTTP 层）时的补充说明，与契约外壳并列展示。 */
@@ -47,11 +34,29 @@ interface Props {
 }
 
 export function ContractStatusBar({ envelope, transportError, label }: Props) {
+  const { locale, t } = useLanguage()
+  const formatObservedAt = (value: string | null) => {
+    if (!value) return t('无观测时间')
+    const parsed = new Date(value)
+    return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString(locale, { hour12: false })
+  }
+  const formatAge = (seconds: number) => {
+    if (!Number.isFinite(seconds) || seconds < 0) return '—'
+    if (locale === 'en') {
+      if (seconds < 60) return `${Math.round(seconds)} seconds ago`
+      if (seconds < 3600) return `${Math.round(seconds / 60)} minutes ago`
+      return `${(seconds / 3600).toFixed(1)} hours ago`
+    }
+    if (seconds < 60) return `${Math.round(seconds)} 秒前`
+    if (seconds < 3600) return `${Math.round(seconds / 60)} 分钟前`
+    return `${(seconds / 3600).toFixed(1)} 小时前`
+  }
+
   if (transportError) {
     return (
       <div className={`${s.bar} ${s.error}`} role="status">
-        <Badge variant="down" dot>网关异常</Badge>
-        <span className={s.text}>{label ? `${label}：` : ''}{transportError}</span>
+        <Badge variant="down" dot>{t('网关异常')}</Badge>
+        <span className={s.text}>{label ? `${t(label)}${locale === 'en' ? ': ' : '：'}` : ''}{transportError}</span>
       </div>
     )
   }
@@ -59,35 +64,35 @@ export function ContractStatusBar({ envelope, transportError, label }: Props) {
   if (!envelope) {
     return (
       <div className={s.bar} role="status">
-        <Badge variant="neutral" dot>未读取</Badge>
-        <span className={s.text}>{label ? `${label}：` : ''}尚未发起请求</span>
+        <Badge variant="neutral" dot>{t('未读取')}</Badge>
+        <span className={s.text}>{label ? `${t(label)}${locale === 'en' ? ': ' : '：'}` : ''}{t('尚未发起请求')}</span>
       </div>
     )
   }
 
   const meta = STATUS_META[envelope.status] ?? STATUS_META.error
-  const sourceKind = SOURCE_KIND_LABELS[envelope.source?.kind] ?? envelope.source?.kind ?? '未知来源'
+  const sourceKind = SOURCE_KIND_LABELS[envelope.source?.kind] ?? envelope.source?.kind ?? t('未知来源')
   const environment = envelope.source?.environment
 
   return (
     <div className={`${s.bar} ${envelope.status === 'error' ? s.error : ''}`} role="status">
-      <Badge variant={meta.variant} dot>{meta.label}</Badge>
-      {label ? <span className={s.label}>{label}</span> : null}
+      <Badge variant={meta.variant} dot>{t(meta.label)}</Badge>
+      {label ? <span className={s.label}>{t(label)}</span> : null}
       <span className={s.text}>
-        来源 {sourceKind}
+        {t('来源')} {t(sourceKind)}
         {envelope.source?.name ? ` · ${envelope.source.name}` : ''}
         {environment ? ` · ${environment}` : ''}
       </span>
       <span className={s.text}>
-        观测于 {formatObservedAt(envelope.observed_at)}（{formatAge(envelope.freshness?.age_seconds ?? -1)}）
+        {t('观测于')} {formatObservedAt(envelope.observed_at)} ({formatAge(envelope.freshness?.age_seconds ?? -1)})
       </span>
       {envelope.error_code ? (
         <span className={s.code} title={envelope.detail ?? undefined}>
-          错误码 {envelope.error_code}
+          {t('错误码')} {envelope.error_code}
           {envelope.message ? ` · ${envelope.message}` : ''}
         </span>
       ) : null}
-      {envelope.hint ? <span className={s.hint}>处理建议：{envelope.hint}</span> : null}
+      {envelope.hint ? <span className={s.hint}>{t('处理建议')}：{envelope.hint}</span> : null}
     </div>
   )
 }

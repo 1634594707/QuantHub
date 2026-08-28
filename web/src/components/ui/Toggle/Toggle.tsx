@@ -1,6 +1,7 @@
 // 开关：替代 .toggle / .live-toggle，支持 size / label / disabled。
 import type { ReactNode } from 'react'
 import s from './Toggle.module.css'
+import { useLanguage } from '../../../i18n'
 
 type Size = 'sm' | 'md'
 
@@ -26,6 +27,8 @@ export function Toggle({
   disabled = false,
   className,
 }: ToggleProps) {
+  const { t } = useLanguage()
+  const translatedLabel = typeof label === 'string' ? t(label) : label
   const toggle = (
     <button
       type="button"
@@ -44,7 +47,7 @@ export function Toggle({
   return (
     <label className={s.wrapper}>
       {toggle}
-      {label && <span className={s.label}>{label}</span>}
+      {translatedLabel && <span className={s.label}>{translatedLabel}</span>}
     </label>
   )
 }
