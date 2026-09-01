@@ -491,7 +491,6 @@ def _init() -> None:
         _ensure_column(c, "holdings", "owner_id", "TEXT NOT NULL DEFAULT 'local-user'")
         _ensure_column(c, "signals", "owner_id", "TEXT NOT NULL DEFAULT 'local-user'")
         _ensure_column(c, "ledger_trades", "owner_id", "TEXT NOT NULL DEFAULT 'local-user'")
-        _ensure_column(c, "simulation_orders", "owner_id", "TEXT NOT NULL DEFAULT 'local-user'")
         c.execute(
             """CREATE TABLE IF NOT EXISTS user_research_preferences (
                 user_id TEXT PRIMARY KEY,
@@ -879,6 +878,7 @@ def _init() -> None:
                 FOREIGN KEY (signal_id) REFERENCES signals(id) ON DELETE SET NULL
             )"""
         )
+        _ensure_column(c, "simulation_orders", "owner_id", "TEXT NOT NULL DEFAULT 'local-user'")
         c.execute(
             """CREATE TABLE IF NOT EXISTS simulation_risk_decisions (
                 id TEXT PRIMARY KEY,
